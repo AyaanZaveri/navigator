@@ -1,0 +1,38 @@
+import { NextResponse } from "next/server";
+import { getInstalledAddons } from "@/app/actions/auth";
+import type { StremioAddon } from "@/types/stremio";
+
+function addonSupportsStream(addon: StremioAddon, type?: string): boolean {
+  return addon.manifest.resources.some((resource) => {
+    if (typeof resource === "string") {
+      return resource === "stream";
+    }
+    if (resource.name !== "stream") return false;
+    if (!type) return true;
+    if (!resource.types || resource.types.length === 0) return true;
+    return resource.types.includes(type);
+  });
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get("type") ?? "movie";
+
+    const addons = await getInstalledAddons();
+    const streamAddons = addons
+      .filter((addon) => addonSupportsStream(addon, type))
+      .map((addon) => ({
+        id: addon.manifest.id || addon.transportUrl,
+        name: addon.manifest.name || "Unknown addon",
+      }));
+
+    return NextResponse.json({ addons: streamAddons });
+  } catch (error: any) {
+    if (error?.message?.includes("Not authenticated")) {
+      return NextResponse.json({ addons: [] }, { status: 401 });
+    }
+    console.error("Failed to list stream addons:", error);
+    return NextResponse.json({ addons: [] }, { status: 500 });
+  }
+}

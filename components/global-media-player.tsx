@@ -1,0 +1,560 @@
+"use client";
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import type { MediaItem, StremioStream } from "@/types/stremio";
+import { Button } from "@/components/ui/button";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  MediaPlayer,
+  MediaPlayerControls,
+  MediaPlayerControlsOverlay,
+  MediaPlayerFullscreen,
+  MediaPlayerLoading,
+  MediaPlayerPiP,
+  MediaPlayerPlay,
+  MediaPlayerSeek,
+  MediaPlayerSeekBackward,
+  MediaPlayerSeekForward,
+  MediaPlayerTime,
+  MediaPlayerVideo,
+  MediaPlayerVolume,
+  MediaPlayerSettings,
+  MediaPlayerTooltip,
+} from "@/components/ui/media-player";
+import MuxVideo from "@mux/mux-video-react";
+import { ArrowLeft, RotateCcw, RotateCw, Users, Ship } from "lucide-react";
+import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import {
+  fetchMediaDetails,
+  fetchStreams,
+} from "@/app/actions";
+import { getSubtitleContent } from "@/app/actions/subtitles";
+import { getSubtitleTracks } from "@/app/actions/utils";
+import HlsVideoElement from "hls-video-element/react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ProgressiveBlur } from "@/components/motion-primitives/progressive-blur";
+import { useSettings, BITRATE_OPTIONS } from "@/contexts/settings-context";
+
+interface GlobalMediaPlayerProps {
+  onToggleAIAsk?: () => void;
+}
+
+export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
+  const {
+    isPlayerVisible,
+    setIsPlayerVisible,
+    currentMedia,
+    skipTimestamp,
+    setCurrentMediaWithSource,
+    setCurrentTimestamp,
+  } = useMediaPlayer();
+  const { videoBitrate } = useSettings();
+
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [mediaDetails, setMediaDetails] = useState<MediaItem | null>(null);
+  const [subtitleTracks, setSubtitleTracks] = useState<
+    Array<{
+      kind: string;
+      label: string;
+      language: string;
+      src: string;
+      default?: boolean;
+      active: boolean;
+    }>
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const [videoStarted, setVideoStarted] = useState(false);
+  const [fetchingSubtitles, setFetchingSubtitles] = useState(false);
+
+  const [currentSubtitle, setCurrentSubtitle] = useState<{
+    text: string;
+    positionTop: boolean;
+  } | null>(null);
+  const [subtitleData, setSubtitleData] = useState<
+    Array<{
+      timestamp: number;
+      timestampFormatted: string;
+      text: string;
+    }>
+  >([]);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // Helper function to format time to HH:MM AM/PM
+  const formatEndTime = (currentSeconds: number, durationSeconds: number) => {
+    const remainingSeconds = durationSeconds - currentSeconds;
+    const endTime = new Date(Date.now() + remainingSeconds * 1000);
+    return endTime.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const formatRuntime = (runtimeStr?: string) => {
+    if (!runtimeStr) return null;
+    return runtimeStr;
+  };
+
+  // Handle video events
+  const handleVideoPlay = useCallback(() => {
+    setVideoStarted(true);
+  }, []);
+
+  const handleVideoPause = useCallback(() => {}, []);
+
+  const handleTimeUpdate = useCallback(() => {
+    if (videoRef.current) {
+      const time = videoRef.current.currentTime;
+      setCurrentTime(time);
+      setCurrentTimestamp(time);
+    }
+  }, [setCurrentTimestamp]);
+
+  const handleDurationChange = useCallback(() => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
+  }, []);
+
+  const handleVideoLoadedMetadata = useCallback(() => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+      // If we had resume support, we would seek here
+      videoRef.current.play();
+    }
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsPlayerVisible(false);
+    setStreamUrl(null);
+    setMediaDetails(null);
+    setSubtitleTracks([]);
+    setCurrentTime(0);
+    setDuration(0);
+    setFetchingSubtitles(false);
+    setCurrentMediaWithSource(null);
+    setVideoStarted(false);
+  }, []);
+
+  const handleVideoEnded = useCallback(() => {
+    handleClose();
+  }, [handleClose]);
+
+  // Process subtitle text for HTML rendering
+  const processSubtitleText = useCallback((text: string) => {
+    const shouldPositionTop = /\{\\an8\}/.test(text);
+    let processedText = text.replace(/\{\\an\d+\}/g, "");
+    processedText = processedText.replace(/\n/g, "<br>");
+    return { text: processedText, positionTop: shouldPositionTop };
+  }, []);
+
+  // Find current subtitle
+  const findCurrentSubtitle = useCallback(
+    (currentTimeSeconds: number) => {
+      if (subtitleData.length === 0) return null;
+
+      let currentSub = null;
+      for (let i = 0; i < subtitleData.length; i++) {
+        const subtitle = subtitleData[i];
+        if (subtitle.timestamp <= currentTimeSeconds) {
+          currentSub = subtitle;
+        } else {
+          break;
+        }
+      }
+
+      if (currentSub && currentTimeSeconds - currentSub.timestamp <= 5) {
+        return processSubtitleText(currentSub.text);
+      }
+      return null;
+    },
+    [subtitleData, processSubtitleText]
+  );
+
+  useEffect(() => {
+    if (currentMedia && isPlayerVisible) {
+      setVideoStarted(false);
+      loadMedia();
+    }
+  }, [currentMedia, isPlayerVisible, videoBitrate]);
+
+  const loadMedia = async () => {
+    if (!currentMedia) return;
+
+    setLoading(true);
+    try {
+      // Fetch media details
+      const details = await fetchMediaDetails(
+        currentMedia.id,
+        currentMedia.type
+      );
+      setMediaDetails(details || null);
+
+      // If a direct stream URL was passed (e.g., from MediaActions), use it
+      if (currentMedia.streamUrl) {
+        setStreamUrl(currentMedia.streamUrl);
+      } else {
+        // Fetch available streams and use the first one
+        const streams = await fetchStreams(
+          currentMedia.id,
+          currentMedia.type
+        );
+
+        if (streams.length > 0) {
+          const stream = streams[0];
+          const url = stream.url || stream.externalUrl || null;
+          setStreamUrl(url);
+        }
+      }
+
+      // Update media context
+      setCurrentMediaWithSource({
+        id: currentMedia.id,
+        name: currentMedia.name,
+        type: currentMedia.type,
+        streamUrl: currentMedia.streamUrl,
+      });
+
+      // Fetch subtitle tracks
+      try {
+        const tracks = await getSubtitleTracks(
+          currentMedia.id,
+          currentMedia.type
+        );
+        const tracksWithActiveState = tracks.map((track) => ({
+          ...track,
+          active: false,
+        }));
+        setSubtitleTracks(tracksWithActiveState);
+      } catch {
+        setSubtitleTracks([]);
+      }
+
+      setSubtitleData([]);
+      setCurrentSubtitle(null);
+    } catch (error) {
+      console.error("Failed to load media:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update current subtitle
+  useEffect(() => {
+    const subtitle = findCurrentSubtitle(currentTime);
+    setCurrentSubtitle(subtitle);
+  }, [currentTime, findCurrentSubtitle]);
+
+  // Handle skip timestamp
+  useEffect(() => {
+    if (skipTimestamp !== null && videoRef.current) {
+      videoRef.current.currentTime = skipTimestamp;
+      setCurrentTime(skipTimestamp);
+    }
+  }, [skipTimestamp]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {};
+  }, []);
+
+  if (!isPlayerVisible || !currentMedia) return null;
+
+  return (
+    <div className="fixed inset-0 z-[999999] bg-black flex items-center justify-center w-screen">
+      <MediaPlayer
+        autoHide
+        onEnded={handleClose}
+        onMediaError={(error) => {
+          console.warn("Media player error caught:", error);
+        }}
+        className="w-screen"
+        customSubtitleTracks={subtitleTracks}
+        customSubtitlesEnabled={subtitleTracks.length > 0}
+        chapters={[]}
+        onCustomSubtitleChange={(subtitleTrack) => {
+          if (!subtitleTrack) {
+            setSubtitleData([]);
+            setCurrentSubtitle(null);
+            setSubtitleTracks((prev) =>
+              prev.map((track) => ({ ...track, active: false }))
+            );
+            return;
+          }
+
+          const trackIndex = subtitleTracks.findIndex(
+            (track) => track.label === subtitleTrack.label
+          );
+          if (trackIndex !== -1) {
+            setFetchingSubtitles(true);
+            getSubtitleContent(currentMedia.id, currentMedia.type).then(
+              (result) => {
+                setFetchingSubtitles(false);
+                if (result && Array.isArray(result)) {
+                  // result is StremioSubtitle[] — we need to handle this differently
+                  // For now, just mark the track as active
+                  setSubtitleTracks((prev) =>
+                    prev.map((track, idx) => ({
+                      ...track,
+                      active: idx === trackIndex,
+                    }))
+                  );
+                }
+              }
+            );
+          }
+        }}
+      >
+        {/* Video element */}
+        {streamUrl && (
+          <MediaPlayerVideo asChild>
+            <MuxVideo
+              // @ts-ignore
+              ref={videoRef}
+              src={streamUrl}
+              crossOrigin=""
+              playsInline
+              preload="auto"
+              autoPlay
+              className="h-screen bg-black w-screen"
+              onPlay={handleVideoPlay}
+              onPause={handleVideoPause}
+              onEnded={handleVideoEnded}
+              onLoadedMetadata={handleVideoLoadedMetadata}
+              onTimeUpdate={handleTimeUpdate}
+              onDurationChange={handleDurationChange}
+              onError={(event) => {
+                console.warn("Video error caught:", event);
+              }}
+            />
+          </MediaPlayerVideo>
+        )}
+
+        {/* Loading overlay */}
+        {(loading || !streamUrl || !videoStarted) && (
+          <div className="fixed inset-0 bg-black z-[1000000]">
+            <Button
+              variant="ghost"
+              className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
+              onClick={handleClose}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Go Back
+            </Button>
+
+            {mediaDetails ? (
+              <div className="relative w-full h-full">
+                {mediaDetails.background ? (
+                  <>
+                    <img
+                      src={mediaDetails.background}
+                      alt={currentMedia?.name}
+                      className="w-full h-full object-cover brightness-50"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                    <ProgressiveBlur
+                      direction="bottom"
+                      blurLayers={6}
+                      blurIntensity={0.3}
+                      className="absolute inset-0"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  </>
+                ) : (
+                  <div className="w-full h-full bg-black" />
+                )}
+              </div>
+            ) : (
+              <div className="w-full h-full bg-black" />
+            )}
+
+            {/* Title and loading spinner */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="absolute bottom-8 left-8 right-8"
+            >
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                className="flex flex-col w-full gap-1.5 pb-2"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <motion.h2
+                    className="text-3xl font-semibold text-white truncate font-poppins"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    {mediaDetails?.name || currentMedia.name}
+                  </motion.h2>
+                </div>
+
+                <motion.div
+                  className="flex items-center gap-3 text-sm text-white/60"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  {mediaDetails?.runtime && (
+                    <span>{mediaDetails.runtime}</span>
+                  )}
+                  {mediaDetails?.year && <span>{mediaDetails.year}</span>}
+                  {mediaDetails?.imdbRating && (
+                    <span>IMDb {mediaDetails.imdbRating}</span>
+                  )}
+                </motion.div>
+
+                <motion.div
+                  className="flex items-center gap-2 mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.7 }}
+                >
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <span className="text-sm text-white/70">Loading...</span>
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Current subtitle */}
+        {currentSubtitle && (
+          <div
+            className={`fixed left-1/2 transform -translate-x-1/2 z-[100] text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md ${
+              currentSubtitle.positionTop ? "top-[15%]" : "bottom-[10%]"
+            }`}
+            dangerouslySetInnerHTML={{ __html: currentSubtitle.text }}
+          />
+        )}
+
+        <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-[9999]">
+          <Button
+            variant="ghost"
+            className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
+            onClick={handleClose}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Go Back
+          </Button>
+
+          {fetchingSubtitles && (
+            <div className="fixed right-4 top-16 z-10 bg-black/50 backdrop-blur-sm rounded-md px-3 py-2 text-white text-sm flex items-center gap-2">
+              <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></div>
+              Fetching subtitles
+            </div>
+          )}
+
+          <MediaPlayerControlsOverlay />
+
+          <div className="flex flex-col w-full gap-1.5 pb-2">
+            <div className="flex items-center justify-between w-full">
+              <h2 className="text-3xl font-semibold text-white truncate font-poppins">
+                {mediaDetails?.name || currentMedia.name}
+              </h2>
+
+              {duration > 0 && currentTime >= 0 && (
+                <div className="text-sm text-white/70 ml-4 whitespace-nowrap">
+                  Ends at {formatEndTime(currentTime, duration)}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 text-sm text-white/60">
+              {mediaDetails?.runtime && (
+                <span>{mediaDetails.runtime}</span>
+              )}
+              {mediaDetails?.year && <span>{mediaDetails.year}</span>}
+            </div>
+          </div>
+
+          <MediaPlayerSeek />
+
+          <div className="flex w-full items-center gap-2">
+            <div className="flex flex-1 items-center gap-2">
+              <MediaPlayerPlay />
+              <MediaPlayerSeekBackward>
+                <RotateCcw />
+              </MediaPlayerSeekBackward>
+              <MediaPlayerSeekForward>
+                <RotateCw />
+              </MediaPlayerSeekForward>
+              <MediaPlayerVolume expandable />
+              <MediaPlayerTime />
+            </div>
+            <div className="flex items-center gap-2">
+              {onToggleAIAsk && (
+                <MediaPlayerTooltip tooltip="Navigator" shortcut="Cmd + K">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/20"
+                    onClick={onToggleAIAsk}
+                  >
+                    <Ship className="h-4 w-4" />
+                  </Button>
+                </MediaPlayerTooltip>
+              )}
+
+              {/* Cast popover */}
+              {mediaDetails?.cast && mediaDetails.cast.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <MediaPlayerTooltip tooltip="Cast">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white hover:bg-white/20"
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    </MediaPlayerTooltip>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-80 bg-black/90 border-white/20 text-white z-[1000000]"
+                    side="top"
+                  >
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-lg">Cast</h3>
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {mediaDetails.cast.map((name, index) => (
+                          <div
+                            key={`${name}-${index}`}
+                            className="flex items-center space-x-3 p-2 rounded hover:bg-white/10"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs flex-shrink-0">
+                              {name.charAt(0) || "?"}
+                            </div>
+                            <p className="font-medium text-sm truncate">
+                              {name}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+
+              <MediaPlayerSettings />
+              <MediaPlayerPiP />
+              <MediaPlayerFullscreen />
+            </div>
+          </div>
+        </MediaPlayerControls>
+      </MediaPlayer>
+    </div>
+  );
+}
