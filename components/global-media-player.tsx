@@ -28,7 +28,7 @@ import {
   fetchMediaDetails,
   fetchStreams,
 } from "@/app/actions";
-import { getSubtitleContent } from "@/app/actions/subtitles";
+import { fetchSubtitleFileContent } from "@/app/actions/subtitles";
 import { getSubtitleTracks } from "@/app/actions/utils";
 import {
   Popover,
@@ -75,6 +75,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [subtitleData, setSubtitleData] = useState<
     Array<{
       timestamp: number;
+      endTimestamp?: number;
       timestampFormatted: string;
       text: string;
     }>
@@ -152,6 +153,71 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return { text: processedText, positionTop: shouldPositionTop };
   }, []);
 
+  const parseSubtitleTimestamp = useCallback((value: string) => {
+    const normalized = value.trim().replace(",", ".");
+    const parts = normalized.split(":");
+    if (parts.length < 2 || parts.length > 3) return null;
+
+    const secondsPart = Number(parts[parts.length - 1]);
+    const minutesPart = Number(parts[parts.length - 2]);
+    const hoursPart = parts.length === 3 ? Number(parts[0]) : 0;
+    if (
+      !Number.isFinite(secondsPart) ||
+      !Number.isFinite(minutesPart) ||
+      !Number.isFinite(hoursPart)
+    ) {
+      return null;
+    }
+
+    return hoursPart * 3600 + minutesPart * 60 + secondsPart;
+  }, []);
+
+  const parseSubtitleTextContent = useCallback(
+    (rawContent: string) => {
+      const normalized = rawContent.replace(/^\uFEFF/, "").replace(/\r/g, "");
+      const blocks = normalized
+        .split(/\n{2,}/)
+        .map((block) => block.trim())
+        .filter(Boolean);
+
+      const parsed: Array<{
+        timestamp: number;
+        endTimestamp?: number;
+        timestampFormatted: string;
+        text: string;
+      }> = [];
+
+      for (const block of blocks) {
+        const lines = block.split("\n").map((line) => line.trimEnd());
+        if (lines.length < 2) continue;
+
+        const timingIndex = lines.findIndex((line) => line.includes("-->"));
+        if (timingIndex === -1) continue;
+
+        const timing = lines[timingIndex];
+        const textLines = lines.slice(timingIndex + 1).filter(Boolean);
+        if (textLines.length === 0) continue;
+
+        const [startRaw, endRaw] = timing.split("-->").map((part) => part.trim());
+        if (!startRaw || !endRaw) continue;
+
+        const start = parseSubtitleTimestamp(startRaw);
+        const end = parseSubtitleTimestamp(endRaw.split(" ")[0] || endRaw);
+        if (start === null) continue;
+
+        parsed.push({
+          timestamp: start,
+          endTimestamp: end ?? undefined,
+          timestampFormatted: startRaw,
+          text: textLines.join("\n"),
+        });
+      }
+
+      return parsed;
+    },
+    [parseSubtitleTimestamp]
+  );
+
   // Find current subtitle
   const findCurrentSubtitle = useCallback(
     (currentTimeSeconds: number) => {
@@ -167,7 +233,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         }
       }
 
-      if (currentSub && currentTimeSeconds - currentSub.timestamp <= 5) {
+      const withinSubtitleWindow =
+        currentSub &&
+        (typeof currentSub.endTimestamp === "number"
+          ? currentTimeSeconds <= currentSub.endTimestamp
+          : currentTimeSeconds - currentSub.timestamp <= 5);
+
+      if (currentSub && withinSubtitleWindow) {
         return processSubtitleText(currentSub.text);
       }
       return null;
@@ -189,6 +261,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     try {
       const metadataId = currentMedia.seriesId || currentMedia.id;
       const streamSourceId = currentMedia.mediaSourceId || currentMedia.id;
+      let subtitleFilename = currentMedia.subtitleFilename;
+      let subtitleVideoSize = currentMedia.subtitleVideoSize;
 
       // Fetch media details
       const details = await fetchMediaDetails(metadataId, currentMedia.type);
@@ -208,6 +282,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           const stream = streams[0];
           const url = stream.url || stream.externalUrl || null;
           setStreamUrl(url);
+          subtitleFilename = subtitleFilename || stream.behaviorHints?.filename;
+          subtitleVideoSize =
+            subtitleVideoSize || stream.behaviorHints?.videoSize;
         }
       }
 
@@ -227,13 +304,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           currentMedia.backdropUrl ||
           details?.background ||
           details?.poster,
+        subtitleFilename,
+        subtitleVideoSize,
       });
 
       // Fetch subtitle tracks
       try {
         const tracks = await getSubtitleTracks(
           streamSourceId,
-          currentMedia.type
+          currentMedia.type,
+          {
+            filename: subtitleFilename,
+            videoSize: subtitleVideoSize,
+          }
         );
         const tracksWithActiveState = tracks.map((track) => ({
           ...track,
@@ -314,24 +397,24 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           );
           if (trackIndex !== -1) {
             setFetchingSubtitles(true);
-            getSubtitleContent(
-              currentMedia.mediaSourceId || currentMedia.id,
-              currentMedia.type
-            ).then(
-              (result) => {
-                setFetchingSubtitles(false);
-                if (result && Array.isArray(result)) {
-                  // result is StremioSubtitle[] — we need to handle this differently
-                  // For now, just mark the track as active
-                  setSubtitleTracks((prev) =>
-                    prev.map((track, idx) => ({
-                      ...track,
-                      active: idx === trackIndex,
-                    }))
-                  );
-                }
+            fetchSubtitleFileContent(subtitleTrack.src).then((result) => {
+              setFetchingSubtitles(false);
+              if (!result.success) {
+                setSubtitleData([]);
+                setCurrentSubtitle(null);
+                return;
               }
-            );
+
+              const parsedSubtitles = parseSubtitleTextContent(result.content);
+              setSubtitleData(parsedSubtitles);
+              setCurrentSubtitle(null);
+              setSubtitleTracks((prev) =>
+                prev.map((track, idx) => ({
+                  ...track,
+                  active: idx === trackIndex,
+                }))
+              );
+            });
           }
         }}
       >

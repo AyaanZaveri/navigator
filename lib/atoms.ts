@@ -31,6 +31,8 @@ export interface MediaToPlay {
   seasonNumber?: number;
   episodeNumber?: number;
   backdropUrl?: string;
+  subtitleFilename?: string;
+  subtitleVideoSize?: number;
 }
 
 export interface CurrentMediaWithSource {
@@ -45,6 +47,8 @@ export interface CurrentMediaWithSource {
   seasonNumber?: number;
   episodeNumber?: number;
   backdropUrl?: string;
+  subtitleFilename?: string;
+  subtitleVideoSize?: number;
 }
 
 export const isPlayerVisibleAtom = atom(false);

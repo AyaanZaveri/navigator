@@ -5,7 +5,7 @@ import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Play, Puzzle } from "lucide-react";
+import { Loader2, Play, Puzzle, Search } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   Select,
@@ -14,6 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 
 interface MediaActionsProps {
   media?: MediaItem;
@@ -42,6 +47,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [totalAddons, setTotalAddons] = useState(0);
   const [addonTargets, setAddonTargets] = useState<StreamAddonTarget[]>([]);
   const [selectedAddonId, setSelectedAddonId] = useState<string>("all");
+  const [streamSearchQuery, setStreamSearchQuery] = useState("");
 
   useEffect(() => {
     if (!activeMedia) return;
@@ -155,10 +161,25 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     (addon) => !HIDDEN_ADDON_IDS.has(addon.id)
   );
 
-  const filteredStreams =
+  const addonFilteredStreams =
     selectedAddonId === "all"
       ? streams
       : streams.filter((stream) => stream.addonId === selectedAddonId);
+  const normalizedSearchQuery = streamSearchQuery.trim().toLowerCase();
+  const filteredStreams = addonFilteredStreams.filter((stream) => {
+    if (!normalizedSearchQuery) return true;
+    const searchableText = [
+      getSourceLabel(stream),
+      stream.title,
+      stream.name,
+      stream.addonName,
+      stream.behaviorHints?.filename,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return searchableText.includes(normalizedSearchQuery);
+  });
   const isAddonLoading = loading && totalAddons > 0 && pendingAddons > 0;
 
   const handlePlay = async (stream: StremioStream) => {
@@ -185,11 +206,13 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       seasonNumber: isEpisode ? activeMedia.seasonNumber : undefined,
       episodeNumber: isEpisode ? activeMedia.episodeNumber : undefined,
       backdropUrl: activeMedia.background || activeMedia.poster,
+      subtitleFilename: stream.behaviorHints?.filename,
+      subtitleVideoSize: stream.behaviorHints?.videoSize,
     });
     setIsPlayerVisible(true);
   };
 
-  const getSourceLabel = (stream: StremioStream) => {
+  function getSourceLabel(stream: StremioStream) {
     if (stream.name) return stream.name;
     if (stream.url || stream.externalUrl) {
       try {
@@ -199,7 +222,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       }
     }
     return "Unknown source";
-  };
+  }
 
   const formatVideoSize = (sizeInBytes?: number) =>
     typeof sizeInBytes === "number" ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB` : null;
@@ -208,7 +231,18 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     <div className="flex flex-col gap-2 mb-6 w-full">
       {(selectableAddonTargets.length > 0 || isAddonLoading) && (
         <div className="mb-1 flex items-center justify-between gap-3">
-          <div>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <InputGroup className="max-w-sm">
+              <InputGroupInput
+                value={streamSearchQuery}
+                onChange={(event) => setStreamSearchQuery(event.target.value)}
+                aria-label="Search stream results"
+                placeholder="Find the least broken stream..."
+              />
+              <InputGroupAddon align="inline-end">
+                <Search className="h-4 w-4" />
+              </InputGroupAddon>
+            </InputGroup>
             {selectableAddonTargets.length > 0 && (
               <Select value={selectedAddonId} onValueChange={setSelectedAddonId}>
                 <SelectTrigger className="h-9 gap-1.5">
@@ -298,7 +332,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
         <div className="-ml-3 -mt-3">
           <ScrollArea className="w-full h-[22rem] rounded-xl">
             <div className="p-3 space-y-2">
-              {[1, 2, 3].map((item) => (
+              {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
                   key={item}
                   className="rounded-lg border border-border/60 bg-card/50 p-3"
@@ -321,7 +355,9 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
       {!loading && hasCheckedStreams && filteredStreams.length === 0 && (
         <span className="text-sm text-muted-foreground">
-          {selectedAddonId === "all"
+          {normalizedSearchQuery
+            ? "No streams match your search"
+            : selectedAddonId === "all"
             ? "No streams found"
             : "No streams found for this addon"}
         </span>

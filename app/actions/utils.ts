@@ -58,7 +58,11 @@ export async function getStreamUrl(
 
 export async function getSubtitleTracks(
   itemId: string,
-  type: string = "movie"
+  type: string = "movie",
+  options?: {
+    filename?: string;
+    videoSize?: number;
+  }
 ): Promise<
   Array<{
     kind: string;
@@ -70,6 +74,29 @@ export async function getSubtitleTracks(
 > {
   try {
     const addons = await getInstalledAddons();
+    const subtitleRequestHeaders = {
+      Referer: "https://web.stremio.com/",
+      Origin: "https://web.stremio.com",
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+      Accept: "application/json, text/plain, */*",
+    };
+
+    const buildSubtitlePath = () => {
+      const filename = options?.filename?.trim();
+      const videoSize = options?.videoSize;
+
+      if (!filename) {
+        return `subtitles/${type}/${itemId}.json`;
+      }
+
+      const hintParts = [`filename=${encodeURIComponent(filename)}`];
+      if (typeof videoSize === "number" && Number.isFinite(videoSize) && videoSize > 0) {
+        hintParts.push(`videoSize=${Math.trunc(videoSize)}`);
+      }
+
+      return `subtitles/${type}/${itemId}/${hintParts.join("&")}.json`;
+    };
 
     const subtitleAddons = addons.filter((a) =>
       a.manifest.resources.some((r) =>
@@ -88,9 +115,17 @@ export async function getSubtitleTracks(
     for (const addon of subtitleAddons) {
       try {
         const base = addon.transportUrl.replace(/\/manifest\.json$/, "");
-        const response = await fetch(
-          `${base}/subtitles/${type}/${itemId}.json`
-        );
+        const hintedPath = buildSubtitlePath();
+        let response = await fetch(`${base}/${hintedPath}`, {
+          headers: subtitleRequestHeaders,
+          cache: "no-store",
+        });
+        if (!response.ok && hintedPath.includes("/filename=")) {
+          response = await fetch(`${base}/subtitles/${type}/${itemId}.json`, {
+            headers: subtitleRequestHeaders,
+            cache: "no-store",
+          });
+        }
         if (!response.ok) continue;
         const data = await response.json();
 

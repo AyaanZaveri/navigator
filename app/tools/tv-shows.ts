@@ -61,21 +61,36 @@ export const getEpisodes = tool({
     );
     try {
       const { seriesId, seasonNumber } = parseSeasonId(seasonId);
+      if (seasonNumber === undefined) {
+        return {
+          success: false,
+          error:
+            "Invalid seasonId. Expected format '<seriesId>:<seasonNumber>' (for example: 'tt0944947:1').",
+          episodes: [],
+        };
+      }
+
       const episodes = await fetchEpisodes(seriesId, seasonNumber);
+      const sortedEpisodes = [...episodes].sort((a, b) => {
+        if (a.season !== b.season) return a.season - b.season;
+        return a.episode - b.episode;
+      });
+      const MAX_EPISODES = 40;
+      const trimmedEpisodes = sortedEpisodes.slice(0, MAX_EPISODES);
+
       return {
         success: true,
-        episodes: episodes.map((episode) => ({
+        episodes: trimmedEpisodes.map((episode) => ({
           id: episode.id,
           type: "Episode",
           seriesId,
           name: episode.title,
           episodeNumber: episode.episode,
           seasonNumber: episode.season,
-          overview: episode.overview,
-          thumbnail: episode.thumbnail,
-          released: episode.released,
         })),
         count: episodes.length,
+        returnedCount: trimmedEpisodes.length,
+        truncated: episodes.length > MAX_EPISODES,
       };
     } catch (error) {
       return {

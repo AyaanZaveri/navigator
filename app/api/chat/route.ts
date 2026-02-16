@@ -54,10 +54,10 @@ export async function POST(req: Request) {
           const googleProvider = createGoogleGenerativeAI({
             apiKey: googleApiKey,
           });
-          model = googleProvider("gemini-2.0-flash");
+          model = googleProvider("gemini-flash-lite-latest");
         } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
           // Fallback to environment variable
-          model = google("gemini-2.0-flash");
+          model = google("gemini-flash-lite-latest");
         } else {
           throw new Error(
             "Google API key is required for Gemini provider. Please set your API key in settings."
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
         break;
       default:
         if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-          model = google("gemini-2.0-flash");
+          model = google("gemini-flash-lite-latest");
         } else {
           throw new Error("No API key configured for the selected provider.");
         }
@@ -111,6 +111,8 @@ export async function POST(req: Request) {
       model,
       messages: convertToModelMessages(messages),
       stopWhen: stepCountIs(10),
+      temperature: 0.2,
+      maxOutputTokens: 400,
       tools: createAllTools(currentMedia, currentTimestamp),
       system: createSystemPrompt(currentMedia, currentTimestamp),
       // onChunk: async (chunk: any) => {

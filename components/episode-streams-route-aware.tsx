@@ -70,7 +70,7 @@ export function EpisodeStreamsRouteAware({
   }
 
   return (
-    <div className="mt-6 w-full">
+    <div className="mt-5 w-full">
       <MediaActions media={episodeMedia} />
     </div>
   );

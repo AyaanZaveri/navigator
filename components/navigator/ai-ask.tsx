@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { AnimatePresence, motion } from "framer-motion";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { BorderBeam } from "../magicui/border-beam";
 import { Button } from "../ui/button";
@@ -75,6 +75,7 @@ const AIAsk = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [input, setInput] = useState("");
   const [isToolHistoryOpen, setIsToolHistoryOpen] = useState(false);
+  const handledToolOutputsRef = useRef<Set<string>>(new Set());
   const {
     aiProvider,
     ollamaBaseUrl,
@@ -159,6 +160,7 @@ const AIAsk = () => {
   const {
     messages,
     sendMessage,
+    stop,
     status,
     error: askError,
     setMessages,
@@ -170,44 +172,19 @@ const AIAsk = () => {
       console.log("🔧 Tool call received:", toolCall);
       setCurrentTool(toolCall.toolName);
     },
-    onFinish: ({ message }) => {
-      console.log("🏁 Chat finished:", message);
+    onFinish: () => {
       setCurrentTool(null);
-
-      // each tool has a "tool-" prefix
-      if (message.parts) {
-        message.parts.forEach((part) => {
-          console.log(part.type);
-          switch (part.type) {
-            case "tool-navigateToMedia":
-              console.log("navigate media called");
-              navigateToMedia(part.output as NavigateMediaTool);
-              break;
-            case "tool-navigateToEpisode":
-              console.log("navigate episode called");
-              navigateToMedia(part.output as NavigateMediaTool);
-              break;
-            case "tool-navigateToMediaByQuery":
-              console.log("navigate media by query called");
-              navigateToMedia(part.output as NavigateMediaTool);
-              break;
-            case "tool-playMedia":
-              handlePlayMedia(part.output as PlayMediaTool);
-              break;
-            case "tool-skipToSubtitleContent":
-              handleSkipToTimestamp(part.output as SkipToSubtitleContent);
-              break;
-            case "tool-themeToggle":
-              handleThemeToggle(part.output as ThemeToggle);
-              break;
-          }
-        });
-      }
     },
   });
 
+  const finalizeToolAction = () => {
+    setCurrentTool(null);
+    stop();
+  };
+
   const navigateToMedia = (toolPart: NavigateMediaTool) => {
     if (toolPart.success && toolPart.action === "navigate" && toolPart.url) {
+      finalizeToolAction();
       router.push(toolPart.url);
       setTimeout(() => {
         setIsAskOpen(false);
@@ -223,6 +200,7 @@ const AIAsk = () => {
       toolPart.mediaName &&
       toolPart.mediaType
     ) {
+      finalizeToolAction();
       playMedia({
         id: toolPart.mediaId,
         name: toolPart.mediaName,
@@ -245,6 +223,7 @@ const AIAsk = () => {
       toolPart.action === "skipTo" &&
       typeof toolPart.timestamp === "number"
     ) {
+      finalizeToolAction();
       skipToTimestamp(toolPart.timestamp);
       toast.success(
         `Skipped to ${toolPart.timestampFormatted}: "${toolPart.text}"`
@@ -285,11 +264,57 @@ const AIAsk = () => {
   const handleResetChat = () => {
     setMessages([]);
     setCurrentTool(null);
+    handledToolOutputsRef.current.clear();
   };
 
   const handleCloseAsk = () => {
+    if (status !== "ready") {
+      stop();
+    }
+    setCurrentTool(null);
     setIsAskOpen(false);
   };
+
+  useEffect(() => {
+    if (status === "ready") {
+      setCurrentTool(null);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    messages.forEach((message: any) => {
+      if (message.role !== "assistant" || !message.parts) return;
+
+      message.parts.forEach((part: any, partIndex: number) => {
+        if (part.state !== "output-available" || !part.output) return;
+
+        const stableId =
+          part.toolCallId ||
+          part.id ||
+          `${message.id || "assistant"}:${part.type || "tool"}:${partIndex}`;
+
+        if (handledToolOutputsRef.current.has(stableId)) return;
+        handledToolOutputsRef.current.add(stableId);
+
+        switch (part.type) {
+          case "tool-navigateToMedia":
+          case "tool-navigateToEpisode":
+          case "tool-navigateToMediaByQuery":
+            navigateToMedia(part.output as NavigateMediaTool);
+            break;
+          case "tool-playMedia":
+            handlePlayMedia(part.output as PlayMediaTool);
+            break;
+          case "tool-skipToSubtitleContent":
+            handleSkipToTimestamp(part.output as SkipToSubtitleContent);
+            break;
+          case "tool-themeToggle":
+            handleThemeToggle(part.output as ThemeToggle);
+            break;
+        }
+      });
+    });
+  }, [messages]);
 
   // Helper function to get tool badge info
   const getToolBadgeInfo = (toolName: string) => {
@@ -304,6 +329,7 @@ const AIAsk = () => {
       searchMedia: { icon: Search, label: "Searching Media" },
       navigateToMedia: { icon: Navigation, label: "Navigating" },
       navigateToEpisode: { icon: Navigation, label: "Navigating Episode" },
+      findEpisodeByTitle: { icon: Search, label: "Finding Episode" },
       navigateToMediaByQuery: { icon: Navigation, label: "Resolving & Navigating" },
       playMedia: { icon: Play, label: "Playing Media" },
       getMovies: { icon: Film, label: "Getting Movies" },
@@ -332,10 +358,47 @@ const AIAsk = () => {
     const actualMessage = message.message || message;
 
     if (actualMessage.parts) {
-      return actualMessage.parts
-        .filter((part: any) => part.type === "text")
-        .map((part: any) => part.text)
-        .join("");
+      const textParts = actualMessage.parts
+        .filter((part: any) => part.type === "text" && part.text)
+        .map((part: any) => String(part.text).trim())
+        .filter(Boolean);
+
+      // In multi-step tool flows, assistant text is often appended per step.
+      // Show only the latest step text to avoid stacked interim narration.
+      if (textParts.length > 0) {
+        return textParts[textParts.length - 1] ?? "";
+      }
+
+      // Fallback for tool-only assistant messages (e.g. after immediate navigation).
+      const toolTextParts = actualMessage.parts
+        .filter(
+          (part: any) =>
+            part &&
+            (part.type?.startsWith("tool-") || part.type === "dynamic-tool") &&
+            part.output
+        )
+        .map((part: any) => {
+          const output = part.output as {
+            message?: unknown;
+            error?: unknown;
+          };
+
+          if (
+            typeof output.message === "string" &&
+            output.message.trim().length > 0
+          ) {
+            return output.message.trim();
+          }
+
+          if (typeof output.error === "string" && output.error.trim().length > 0) {
+            return output.error.trim();
+          }
+
+          return "";
+        })
+        .filter(Boolean);
+
+      return toolTextParts[toolTextParts.length - 1] ?? "";
     }
     return actualMessage.content || message.content || "";
   };
@@ -408,6 +471,10 @@ const AIAsk = () => {
     const textContent = renderMessageText(message);
     const toolParts = findToolParts(message);
     const mediaResults = extractMediaResults(toolParts);
+
+    if (!textContent && mediaResults.length === 0) {
+      return null;
+    }
 
     return (
       <div className="space-y-3 w-full">
@@ -540,30 +607,41 @@ const AIAsk = () => {
                   className="mb-4 max-h-[60vh] overflow-y-auto space-y-3"
                   id="chat-body"
                 >
-                  {messages.map((message, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className={cn(
-                        "p-3 rounded-lg",
-                        message.role === "user"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted/50"
-                      )}
-                    >
-                      {message.role === "assistant" ? (
-                        <div className="prose prose-sm text-sm text-foreground dark:prose-invert max-w-none">
-                          {renderMessageContent(message, index)}
-                        </div>
-                      ) : (
-                        <div className="text-sm font-medium">
-                          {renderMessageText(message)}
-                        </div>
-                      )}
-                    </motion.div>
-                  ))}
+                  {messages.map((message, index) => {
+                    const assistantContent =
+                      message.role === "assistant"
+                        ? renderMessageContent(message, index)
+                        : null;
+
+                    if (message.role === "assistant" && !assistantContent) {
+                      return null;
+                    }
+
+                    return (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={cn(
+                          "p-3 rounded-lg",
+                          message.role === "user"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted/50"
+                        )}
+                      >
+                        {message.role === "assistant" ? (
+                          <div className="prose prose-sm text-sm text-foreground dark:prose-invert max-w-none">
+                            {assistantContent}
+                          </div>
+                        ) : (
+                          <div className="text-sm font-medium">
+                            {renderMessageText(message)}
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
                 </div>
               )}
 
