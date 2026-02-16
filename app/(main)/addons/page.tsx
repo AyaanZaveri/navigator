@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/card";
 import { Puzzle, Package, Film, Tv, Subtitles, Globe } from "lucide-react";
 import Image from "next/image";
+import { Suspense } from "react";
+
+export const dynamic = "force-dynamic";
 
 export default async function AddonsPage() {
   const addons = await getInstalledAddons();
@@ -74,7 +77,9 @@ export default async function AddonsPage() {
 
       <div className="relative z-[9999] mb-8">
         <div className="mb-6">
-          <SearchBar />
+          <Suspense fallback={null}>
+            <SearchBar />
+          </Suspense>
         </div>
       </div>
 

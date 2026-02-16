@@ -5,6 +5,9 @@ import { MediaSection } from "@/components/media-section";
 import { SearchBar } from "@/components/search-component";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import type { StremioAddonCatalog } from "@/types/stremio";
+import { Suspense } from "react";
+
+export const dynamic = "force-dynamic";
 
 function formatTypeLabel(type: string): string {
   return type
@@ -90,7 +93,9 @@ export default async function Home() {
 
         <div className="relative z-[9999] mb-8">
           <div className="mb-6">
-            <SearchBar />
+            <Suspense fallback={null}>
+              <SearchBar />
+            </Suspense>
           </div>
         </div>
 

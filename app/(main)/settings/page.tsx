@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import {
   Card,
   CardContent,
@@ -67,7 +68,9 @@ export default function SettingsPage() {
       <div className="relative z-10">
         <div className="relative z-[9999] mb-8">
           <div className="mb-6">
-            <SearchBar />
+            <Suspense fallback={null}>
+              <SearchBar />
+            </Suspense>
           </div>
         </div>
         <div className="mb-8">
