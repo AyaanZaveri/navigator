@@ -124,8 +124,6 @@ export default async function Movie({
                   </p>
                 )}
 
-                <MediaActions movie={movie} />
-
                 <div className="space-y-3 mb-6 max-w-4xl">
                   {movie.genres && movie.genres.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
@@ -171,6 +169,10 @@ export default async function Movie({
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-5 w-full">
+            <MediaActions movie={movie} />
           </div>
         </div>
 
