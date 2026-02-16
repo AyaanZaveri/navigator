@@ -65,7 +65,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     }>
   >([]);
   const [loading, setLoading] = useState(false);
-  const [videoStarted, setVideoStarted] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const [fetchingSubtitles, setFetchingSubtitles] = useState(false);
 
   const [currentSubtitle, setCurrentSubtitle] = useState<{
@@ -100,12 +100,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return runtimeStr;
   };
 
-  // Handle video events
-  const handleVideoPlay = useCallback(() => {
-    setVideoStarted(true);
-  }, []);
-
   const handleVideoPause = useCallback(() => {}, []);
+
+  const handleVideoCanPlay = useCallback(() => {
+    setVideoReady(true);
+  }, []);
 
   const handleTimeUpdate = useCallback(() => {
     if (videoRef.current) {
@@ -138,7 +137,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setDuration(0);
     setFetchingSubtitles(false);
     setCurrentMediaWithSource(null);
-    setVideoStarted(false);
+    setVideoReady(false);
   }, []);
 
   const handleVideoEnded = useCallback(() => {
@@ -178,7 +177,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   useEffect(() => {
     if (currentMedia && isPlayerVisible) {
-      setVideoStarted(false);
+      setVideoReady(false);
       loadMedia();
     }
   }, [currentMedia, isPlayerVisible, videoBitrate]);
@@ -348,12 +347,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               preload="auto"
               autoPlay
               className="h-screen bg-black w-screen"
-              onPlay={handleVideoPlay}
               onPause={handleVideoPause}
               onEnded={handleVideoEnded}
               onLoadedMetadata={handleVideoLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
               onDurationChange={handleDurationChange}
+              onCanPlay={handleVideoCanPlay}
+              onLoadedData={handleVideoCanPlay}
               onError={(event) => {
                 console.warn("Video error caught:", event);
               }}
@@ -362,7 +362,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         )}
 
         {/* Loading overlay */}
-        {(loading || !streamUrl || !videoStarted) && (
+        {(loading || !streamUrl || !videoReady) && (
           <div className="fixed inset-0 bg-black z-[1000000]">
             <Button
               variant="ghost"
