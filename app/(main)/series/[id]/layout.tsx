@@ -5,6 +5,7 @@ import { VibrantLogo } from "@/components/vibrant-logo";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { SeriesEpisodesRouteAware } from "@/components/series-episodes-route-aware";
+import { EpisodeStreamsRouteAware } from "@/components/episode-streams-route-aware";
 import { buildEpisodePath, parseSeriesRouteId } from "@/lib/series-route";
 import { getSeriesLayoutData } from "./_shared/series-data";
 
@@ -76,6 +77,8 @@ export default async function SeriesLayout({
           <div className="mt-10 md:mt-8">
             <SeriesEpisodesRouteAware showId={id} prefetchedVideos={show.videos} />
           </div>
+
+          <EpisodeStreamsRouteAware show={show} prefetchedVideos={show.videos} />
         </div>
 
         {similarItems && similarItems.length > 0 && (

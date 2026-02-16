@@ -1,4 +1,3 @@
-import { MediaActions } from "@/components/media-actions";
 import { Badge } from "@/components/ui/badge";
 import { TextAnimate } from "@/components/magicui/text-animate";
 import { Star, TvIcon } from "lucide-react";
@@ -25,7 +24,6 @@ export default async function EpisodeOnSeriesPage({
       episodeNumber,
       selectedEpisode,
       selectedEpisodeTitle,
-      episodeMedia,
       regularSeasonCount,
     } = episodeData;
 
@@ -100,7 +98,6 @@ export default async function EpisodeOnSeriesPage({
               </p>
             )}
 
-            <MediaActions media={episodeMedia} />
           </div>
         </div>
       </div>
