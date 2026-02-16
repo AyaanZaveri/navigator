@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Play, Puzzle, Search, SearchX } from "lucide-react";
+import { FilterX, Loader2, Play, Puzzle, Search, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   Select,
@@ -26,6 +26,8 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface MediaActionsProps {
   media?: MediaItem;
@@ -43,6 +45,8 @@ interface StreamWithAddon extends StremioStream {
 }
 
 const HIDDEN_ADDON_IDS = new Set(["org.stremio.local"]);
+const RESOLUTION_FILTERS = ["2160p", "1080p", "720p", "480p"] as const;
+const STREAM_TAG_FILTERS = ["HDR", "DV", "WEB"] as const;
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const activeMedia = media ?? movie;
@@ -55,6 +59,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [addonTargets, setAddonTargets] = useState<StreamAddonTarget[]>([]);
   const [selectedAddonId, setSelectedAddonId] = useState<string>("all");
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
+  const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
+  const [selectedStreamTags, setSelectedStreamTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (!activeMedia) return;
@@ -71,6 +77,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       setTotalAddons(0);
       setAddonTargets([]);
       setSelectedAddonId("all");
+      setSelectedResolutions([]);
+      setSelectedStreamTags([]);
       try {
         const targetsResponse = await fetch(
           `/api/streams/addons?type=${encodeURIComponent(activeMedia.type)}`
@@ -173,8 +181,9 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       ? streams
       : streams.filter((stream) => stream.addonId === selectedAddonId);
   const normalizedSearchQuery = streamSearchQuery.trim().toLowerCase();
+  const hasActiveFilters =
+    selectedResolutions.length > 0 || selectedStreamTags.length > 0;
   const filteredStreams = addonFilteredStreams.filter((stream) => {
-    if (!normalizedSearchQuery) return true;
     const searchableText = [
       getSourceLabel(stream),
       stream.title,
@@ -185,7 +194,27 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
-    return searchableText.includes(normalizedSearchQuery);
+
+    if (normalizedSearchQuery && !searchableText.includes(normalizedSearchQuery)) {
+      return false;
+    }
+
+    if (selectedResolutions.length > 0) {
+      const detectedResolution = detectStreamResolution(searchableText);
+      if (!detectedResolution || !selectedResolutions.includes(detectedResolution)) {
+        return false;
+      }
+    }
+
+    if (selectedStreamTags.length > 0) {
+      const tags = detectStreamTags(searchableText);
+      const matchesAnySelectedTag = selectedStreamTags.some((tag) => tags.has(tag));
+      if (!matchesAnySelectedTag) {
+        return false;
+      }
+    }
+
+    return true;
   });
   const isAddonLoading = loading && totalAddons > 0 && pendingAddons > 0;
 
@@ -231,50 +260,128 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     return "Unknown source";
   }
 
+  function detectStreamResolution(text: string) {
+    if (/(2160p|4k|uhd)/i.test(text)) return "2160p";
+    if (/1080p/i.test(text)) return "1080p";
+    if (/720p/i.test(text)) return "720p";
+    if (/480p/i.test(text)) return "480p";
+    return null;
+  }
+
+  function detectStreamTags(text: string) {
+    const tags = new Set<string>();
+    if (/\b(hdr|hdr10|hdr10\+|hlg)\b/i.test(text)) tags.add("HDR");
+    if (/\b(dv|dovi|dolby[ .-]?vision)\b/i.test(text)) tags.add("DV");
+    if (/\bweb([ .-]?(dl|rip))?\b/i.test(text)) tags.add("WEB");
+    return tags;
+  }
+
   const formatVideoSize = (sizeInBytes?: number) =>
     typeof sizeInBytes === "number" ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB` : null;
 
   return (
     <div className="flex flex-col gap-2 mb-6 w-full">
       {(selectableAddonTargets.length > 0 || isAddonLoading) && (
-        <div className="mb-1 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <InputGroup className="max-w-sm">
-              <InputGroupInput
-                value={streamSearchQuery}
-                onChange={(event) => setStreamSearchQuery(event.target.value)}
-                aria-label="Search stream results"
-                placeholder="Find the least broken stream..."
-              />
-              <InputGroupAddon align="inline-end">
-                <Search className="h-4 w-4" />
-              </InputGroupAddon>
-            </InputGroup>
-            {selectableAddonTargets.length > 0 && (
-              <Select value={selectedAddonId} onValueChange={setSelectedAddonId}>
-                <SelectTrigger className="h-9 gap-1.5">
-                  <Puzzle className="h-3 w-3" />
-                  <SelectValue>{selectedAddonName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  {selectableAddonTargets.map((addon) => (
-                    <SelectItem key={addon.id} value={addon.id}>
-                      {addon.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div className="mb-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2 flex-wrap">
+              <InputGroup className="max-w-sm">
+                <InputGroupInput
+                  value={streamSearchQuery}
+                  onChange={(event) => setStreamSearchQuery(event.target.value)}
+                  aria-label="Search stream results"
+                  placeholder="Find the least broken stream..."
+                />
+                <InputGroupAddon align="inline-end">
+                  <Search className="h-4 w-4" />
+                </InputGroupAddon>
+              </InputGroup>
+              {selectableAddonTargets.length > 0 && (
+                <Select value={selectedAddonId} onValueChange={setSelectedAddonId}>
+                  <SelectTrigger className="h-9 gap-1.5">
+                    <Puzzle className="h-3 w-3" />
+                    <SelectValue>{selectedAddonName}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {selectableAddonTargets.map((addon) => (
+                      <SelectItem key={addon.id} value={addon.id}>
+                        {addon.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <ToggleGroup
+                type="multiple"
+                variant="outline"
+                size="default"
+                value={selectedResolutions}
+                onValueChange={setSelectedResolutions}
+                className="flex-wrap"
+                aria-label="Filter by resolution"
+              >
+                {RESOLUTION_FILTERS.map((resolution) => (
+                  <ToggleGroupItem
+                    key={resolution}
+                    value={resolution}
+                    aria-label={`Filter by ${resolution}`}
+                    className="font-mono"
+                  >
+                    {resolution}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <ToggleGroup
+                type="multiple"
+                variant="outline"
+                size="default"
+                value={selectedStreamTags}
+                onValueChange={setSelectedStreamTags}
+                className="flex-wrap"
+                aria-label="Filter by stream tags"
+              >
+                {STREAM_TAG_FILTERS.map((tag) => (
+                  <ToggleGroupItem
+                    key={tag}
+                    value={tag}
+                    aria-label={`Filter by ${tag}`}
+                    className="font-mono"
+                  >
+                    {tag}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              {hasActiveFilters && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Clear filters"
+                      onClick={() => {
+                        setSelectedResolutions([]);
+                        setSelectedStreamTags([]);
+                      }}
+                    >
+                      <FilterX className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={6}>
+                    Clear filters
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            {isAddonLoading && (
+              <div className="mr-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>
+                  {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
+                </span>
+              </div>
             )}
           </div>
-          {isAddonLoading && (
-            <div className="mr-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>
-                {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
-              </span>
-            </div>
-          )}
         </div>
       )}
 
@@ -367,15 +474,15 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               <SearchX className="size-5" />
             </EmptyMedia>
             <EmptyTitle>
-              {normalizedSearchQuery
-                ? "That search scared every stream away"
+              {normalizedSearchQuery || hasActiveFilters
+                ? "Your filters were a little too powerful"
                 : selectedAddonId === "all"
                 ? "No streams crawled out of hiding"
                 : "This addon is stream-empty right now"}
             </EmptyTitle>
             <EmptyDescription>
-              {normalizedSearchQuery
-                ? "Try a simpler word, or remove filters to find the least broken stream."
+              {normalizedSearchQuery || hasActiveFilters
+                ? "Loosen the search/filters a bit and you should find the least broken stream."
                 : selectedAddonId === "all"
                 ? "Try again in a minute, or switch addons and hunt for a less cursed source."
                 : "Pick another addon, or clear filters and let chaos do the sorting."}
