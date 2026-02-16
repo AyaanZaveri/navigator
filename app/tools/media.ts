@@ -542,6 +542,7 @@ export const getMovies = tool({
         movies: filteredMovies.map((movie) => ({
           id: movie.id,
           name: movie.name,
+          type: movie.type || "movie",
           year: movie.year || null,
           overview: movie.description
             ? movie.description.substring(0, 200) + "..."
@@ -590,6 +591,7 @@ export const getTVShows = tool({
         shows: filteredShows.map((show) => ({
           id: show.id,
           name: show.name,
+          type: show.type || "series",
           year: show.year || null,
           overview: show.description ? show.description.substring(0, 200) + "..." : null,
           genres: show.genres || [],

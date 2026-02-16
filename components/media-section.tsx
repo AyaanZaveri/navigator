@@ -87,8 +87,11 @@ export function MediaSection({
       {mediaItems.length > 0 ? (
         <ScrollArea className="w-full pb-6">
           <div className="flex gap-4 w-max" ref={scrollRef}>
-            {mediaItems.map((item) => (
-              <div key={item.id} className="flex-shrink-0">
+            {mediaItems.map((item, index) => (
+              <div
+                key={`${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
+                className="flex-shrink-0"
+              >
                 <MediaCard
                   item={item}
                   continueWatching={continueWatching}

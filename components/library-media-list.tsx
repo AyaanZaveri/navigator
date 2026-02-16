@@ -193,8 +193,12 @@ export function LibraryMediaList({ mediaItems }: LibraryMediaListProps) {
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4 auto-rows-max">
-        {filteredAndSortedItems.map((item) => (
-          <MediaCard key={item.id} item={item} fullWidth />
+        {filteredAndSortedItems.map((item, index) => (
+          <MediaCard
+            key={`${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
+            item={item}
+            fullWidth
+          />
         ))}
       </div>
 

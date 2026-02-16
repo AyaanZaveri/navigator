@@ -15,12 +15,13 @@ import { buildEpisodePath, toEpisodeNavigationPath } from "@/lib/series-route";
 interface MediaLinkCardProps {
   item: {
     id: string;
-    name: string;
+    name?: string;
+    title?: string;
     seriesId?: string;
     seriesName?: string;
     seasonNumber?: number;
     episodeNumber?: number;
-    type: "Movie" | "Series" | "Episode" | "movie" | "series" | "episode";
+    type?: "Movie" | "Series" | "Episode" | "movie" | "series" | "episode";
     year?: number;
     communityRating?: number;
     criticRating?: number;
@@ -44,7 +45,8 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
 }) => {
   const {
     id: mediaId,
-    name: title,
+    name,
+    title: fallbackTitle,
     seriesName,
     year,
     communityRating,
@@ -55,8 +57,16 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
     releaseInfo,
   } = item;
 
+  const title = name || fallbackTitle || "Untitled";
+
   const getTypeAndHref = () => {
-    const t = item.type.toLowerCase();
+    const t =
+      typeof item.type === "string"
+        ? item.type.toLowerCase()
+        : item.seasonNumber && item.episodeNumber
+          ? "episode"
+          : "unknown";
+
     switch (t) {
       case "movie":
         return { type: "movie", href: `/movie/${mediaId}` };
