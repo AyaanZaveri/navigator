@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublicPath = path === "/login";
 
@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-// See "Matching Paths" below to learn more, this matcher is used to apply the middleware only to specific paths
+// See "Matching Paths" below to learn more, this matcher is used to apply the proxy only to specific paths
 export const config = {
   matcher: [
     /*

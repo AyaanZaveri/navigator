@@ -3,6 +3,7 @@ import { getInstalledAddons } from "@/app/actions/auth";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { MediaSection } from "@/components/media-section";
 import { SearchBar } from "@/components/search-component";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import type { StremioAddonCatalog } from "@/types/stremio";
 import { Suspense } from "react";
@@ -26,7 +27,59 @@ function formatCatalogLabel(catalogName: string | null, catalogId: string): stri
     .join(" ");
 }
 
-export default async function Home() {
+function HomeSectionSkeleton({ title }: { title: string }) {
+  return (
+    <section className="relative z-10 mb-5">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-2xl font-semibold text-foreground font-poppins">
+          {title}
+        </h3>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="h-9 w-20 rounded-md" />
+        </div>
+      </div>
+      <div className="flex gap-4 overflow-hidden pb-6">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Skeleton
+            key={`${title}-skeleton-${index}`}
+            className="h-[320px] w-[210px] rounded-xl flex-shrink-0"
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HomeLoadingContent() {
+  return (
+    <div className="relative px-4 py-6 max-w-full overflow-hidden">
+      <VibrantAuroraBackground
+        amplitude={0.5}
+        className="fixed inset-0 z-0 pointer-events-none opacity-40"
+      />
+
+      <div className="relative z-[9999] mb-8">
+        <div className="mb-6">
+          <Suspense fallback={null}>
+            <SearchBar />
+          </Suspense>
+        </div>
+      </div>
+
+      <HomeSectionSkeleton title="Continue Watching" />
+      {Array.from({ length: 3 }).map((_, index) => (
+        <HomeSectionSkeleton
+          key={`home-loading-section-${index}`}
+          title="Loading recommendations"
+        />
+      ))}
+    </div>
+  );
+}
+
+async function HomeContent() {
   let catalogSections: { sectionName: string; items: any[] }[] = [];
   let continueWatchingItems: any[] = [];
   let authError = null;
@@ -116,5 +169,13 @@ export default async function Home() {
         )}
       </div>
     </AuthErrorHandler>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<HomeLoadingContent />}>
+      <HomeContent />
+    </Suspense>
   );
 }
