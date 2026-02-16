@@ -95,7 +95,6 @@ export interface EpisodeLookupTool {
 export const searchMedia = tool({
   description:
     "Search for media by title/keyword and return compact ranked candidates. Use this to discover IDs before calling navigation/play tools. Do not use this when navigateToMediaByQuery or navigateToEpisode can directly resolve the request.",
-  strict: true,
   inputSchema: z.object({
     query: z.string().describe("The search term or media title to look for"),
     limit: z
@@ -155,7 +154,6 @@ export const searchMedia = tool({
 export const navigateToMedia = tool({
   description:
     "Navigate to a known media item ID. Use this only when you already have a validated mediaId or explicit episode coordinates.",
-  strict: true,
   inputSchema: z.object({
     mediaId: z.string().describe("The unique ID of the media item"),
     mediaType: z
@@ -234,7 +232,6 @@ export const navigateToMedia = tool({
 export const navigateToEpisode = tool({
   description:
     "Navigate to a TV episode when season and episode numbers are already known. This tool requires explicit seasonNumber and episodeNumber.",
-  strict: true,
   inputSchema: z.object({
     seriesQuery: z.string().describe("Series name to resolve to a series ID"),
     seasonNumber: z.number().int().min(1).describe("Season number"),
@@ -305,7 +302,6 @@ export const navigateToEpisode = tool({
 export const findEpisodeByTitle = tool({
   description:
     "Return all NON-special episodes (season > 0) for a resolved TV series so the model can semantically choose the best match for the user's episode title.",
-  strict: true,
   inputSchema: z.object({
     seriesQuery: z.string().describe("Series name to resolve to a series ID"),
     episodeTitle: z.string().describe("Episode title to match"),
@@ -364,9 +360,17 @@ export const findEpisodeByTitle = tool({
 
       const flattened = seasonEpisodes.flatMap((entry) =>
         entry.episodes.filter((episode) => episode.season > 0).map((episode) => ({
+          id: episode.id,
+          type: "Episode" as const,
+          seriesId: bestSeries.id,
+          seriesName: bestSeries.name,
+          name: episode.title,
           title: episode.title,
           seasonNumber: episode.season,
           episodeNumber: episode.episode,
+          overview: episode.overview,
+          thumbnail: episode.thumbnail,
+          poster: episode.thumbnail ?? null,
         }))
       );
       flattened.sort((a, b) => {
@@ -409,7 +413,6 @@ export const findEpisodeByTitle = tool({
 export const navigateToMediaByQuery = tool({
   description:
     "Resolve a movie or series title to the best match and navigate in one step. Prefer this for commands like 'go to Interstellar' or 'open The Rookie'.",
-  strict: true,
   inputSchema: z.object({
     mediaQuery: z.string().describe("Movie or series title to navigate to"),
     preferredType: z
@@ -487,7 +490,6 @@ export const navigateToMediaByQuery = tool({
 export const playMedia = tool({
   description:
     "Play a known media item immediately. Use after resolving title to mediaId (with searchMedia) or when the ID is already known.",
-  strict: true,
   inputSchema: z.object({
     mediaId: z.string().describe("The unique ID of the media item"),
     mediaName: z.string().describe("The name of the media item"),

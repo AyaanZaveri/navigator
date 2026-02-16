@@ -40,7 +40,7 @@ export default async function Movie({
 
         {/* Backdrop section */}
         <div className="relative">
-          <div className="relative h-[50vh] md:h-[70vh] overflow-hidden md:rounded-xl md:mt-2.5">
+          <div className="relative h-[46vh] md:h-[62vh] overflow-hidden md:rounded-xl md:mt-2.5">
             <BackdropImage
               movie={movie}
               backdropImage={movie.background || ""}
@@ -55,7 +55,7 @@ export default async function Movie({
                 movieName={movie.name || ""}
                 width={420}
                 height={134}
-                className="absolute md:top-5/12 top-4/12 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-h-24 md:max-h-32 w-auto object-contain max-w-2/3 invisible md:visible"
+                className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-h-24 md:max-h-32 w-auto object-contain max-w-2/3 invisible md:visible"
               />
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90 md:rounded-xl" />
@@ -69,18 +69,22 @@ export default async function Movie({
 
         {/* Content section */}
         <div className="relative z-10 -mt-54 md:pl-6 bg-background/95 dark:bg-background/50 backdrop-blur-xl rounded-2xl mx-4 pb-6">
+          <div
+            id="stream-loading-pill-anchor"
+            className="absolute top-4 right-4 z-30 pointer-events-none"
+          />
           <div className="flex flex-col md:flex-row mx-auto">
-            <div className="w-full md:w-1/3 lg:w-1/4 flex-shrink-0 justify-center flex md:block z-50 mt-6">
+            <div className="w-full md:w-[18%] lg:w-[16%] flex-shrink-0 justify-center flex md:block z-50 mt-6">
               <PosterImage
                 movie={movie}
                 posterImage={movie.poster || ""}
-                className="w-full h-auto rounded-lg shadow-2xl max-w-1/2 md:max-w-full"
+                className="w-full h-auto rounded-lg shadow-2xl max-w-1/2 md:max-w-[14rem]"
                 width={500}
                 height={750}
               />
             </div>
 
-            <div className="w-full md:w-2/3 lg:w-3/4 pt-10 md:pt-8 text-center md:text-start mt-8">
+            <div className="w-full md:w-[82%] lg:w-[84%] pt-2 text-center md:text-start mt-8">
               <div className="mb-4 flex justify-center md:justify-start">
                 <TextAnimate
                   as="h1"

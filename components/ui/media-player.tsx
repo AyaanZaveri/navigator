@@ -200,6 +200,7 @@ function useMediaPlayerContext(consumerName: string) {
 }
 
 interface CustomSubtitleTrack {
+  src: string;
   label: string;
   language: string;
   kind: string;

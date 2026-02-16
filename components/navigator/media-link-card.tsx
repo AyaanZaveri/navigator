@@ -30,6 +30,8 @@ interface MediaLinkCardProps {
     overview?: string;
     rating?: number;
     poster?: string;
+    thumbnail?: string;
+    background?: string;
     releaseInfo?: string | null;
     addonName?: string | null;
     catalogName?: string | null;
@@ -90,6 +92,10 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
   };
 
   const { type, href } = getTypeAndHref();
+  const imageUrl =
+    type === "episode"
+      ? item.thumbnail || item.poster || item.background
+      : item.poster || item.background || item.thumbnail;
 
   const [imageLoading, setImageLoading] = React.useState(true);
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
@@ -123,15 +129,16 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
           {/* Poster/Thumbnail */}
           <div
             className={cn(
-              "relative rounded-sm overflow-hidden bg-muted/30 flex-shrink-0 w-10 h-14"
+              "relative rounded-sm overflow-hidden bg-muted/30 flex-shrink-0",
+              type === "episode" ? "w-16 aspect-video" : "w-10 h-14"
             )}
           >
             {imageLoading && (
               <Skeleton className="absolute inset-0 w-full h-full" />
             )}
-            {item.poster ? (
+            {imageUrl ? (
               <img
-                src={item.poster}
+                src={imageUrl}
                 alt={type === "episode" && seriesName ? seriesName : title}
                 className={cn(
                   "object-cover transition-transform duration-200 w-full h-full",
@@ -149,10 +156,10 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
           </div>
 
           {/* Content */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-sm leading-tight line-clamp-2">
+                <h3 className="font-medium text-sm leading-snug line-clamp-1">
                   {type === "episode" && seriesName ? (
                     <>
                       {title}{" "}
@@ -166,29 +173,45 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
                 </h3>
               </div>
 
-              {/* Type badge */}
-              <Badge
-                variant="secondary"
-                className="text-xs px-1.5 py-0.5 h-auto flex-shrink-0"
-              >
-                {type === "movie" ? (
-                  <>
-                    <Film className="h-3 w-3" />
-                    Movie
-                  </>
-                ) : type === "episode" ? (
-                  <>
-                    <Tv className="h-3 w-3" />
-                    Episode
-                  </>
-                ) : (
-                  <>
-                    <Tv className="h-3 w-3" />
-                    Series
-                  </>
-                )}
-              </Badge>
+              {type === "episode" && item.seasonNumber && item.episodeNumber ? (
+                <Badge
+                  variant="secondary"
+                  className="text-xs px-1.5 py-0.5 h-auto flex-shrink-0"
+                >
+                  <Tv className="h-3 w-3" />
+                  S{item.seasonNumber} • E{item.episodeNumber}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="secondary"
+                  className="text-xs px-1.5 py-0.5 h-auto flex-shrink-0"
+                >
+                  {type === "movie" ? (
+                    <>
+                      <Film className="h-3 w-3" />
+                      Movie
+                    </>
+                  ) : (
+                    <>
+                      <Tv className="h-3 w-3" />
+                      Series
+                    </>
+                  )}
+                </Badge>
+              )}
             </div>
+
+            {overview && (
+              <p
+                className={cn(
+                  "mt-0 text-xs text-muted-foreground line-clamp-1",
+                  type === "episode" ? "max-w-[calc(100%-6.25rem)]" : ""
+                )}
+              >
+                {overview}
+              </p>
+            )}
+
             <div className="mt-1 flex items-center gap-1 not-odd:text-xs">
               {releaseInfo && !year && (
                 <Badge variant="outline" className="px-1.5 py-0.5 h-auto">
@@ -234,12 +257,6 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
                 </Badge>
               ) : null}
             </div>
-
-            {overview && (
-              <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                {overview}
-              </p>
-            )}
           </div>
         </div>
       </Link>

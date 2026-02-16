@@ -231,11 +231,15 @@ export interface MediaItem {
   cast?: string[];
   director?: string[];
   writer?: string[];
+  progressPercent?: number;
+  progressLabel?: string;
   videos?: StremioVideo[];
   links?: StremioMetaLink[];
   trailers?: StremioMetaTrailer[];
   /** The addon transport URL this item came from */
   addonTransportUrl?: string;
+  addonName?: string;
+  catalogName?: string;
   behaviorHints?: {
     defaultVideoId?: string;
     hasScheduledVideos?: boolean;
