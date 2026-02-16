@@ -30,7 +30,6 @@ import {
 } from "@/app/actions";
 import { getSubtitleContent } from "@/app/actions/subtitles";
 import { getSubtitleTracks } from "@/app/actions/utils";
-import HlsVideoElement from "hls-video-element/react";
 import {
   Popover,
   PopoverContent,
@@ -190,11 +189,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
     setLoading(true);
     try {
+      const metadataId = currentMedia.seriesId || currentMedia.id;
+      const streamSourceId = currentMedia.mediaSourceId || currentMedia.id;
+
       // Fetch media details
-      const details = await fetchMediaDetails(
-        currentMedia.id,
-        currentMedia.type
-      );
+      const details = await fetchMediaDetails(metadataId, currentMedia.type);
       setMediaDetails(details || null);
 
       // If a direct stream URL was passed (e.g., from MediaActions), use it
@@ -203,7 +202,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       } else {
         // Fetch available streams and use the first one
         const streams = await fetchStreams(
-          currentMedia.id,
+          streamSourceId,
           currentMedia.type
         );
 
@@ -216,16 +215,26 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
       // Update media context
       setCurrentMediaWithSource({
-        id: currentMedia.id,
+        id: metadataId,
         name: currentMedia.name,
         type: currentMedia.type,
         streamUrl: currentMedia.streamUrl,
+        mediaSourceId: streamSourceId,
+        seriesId: currentMedia.seriesId,
+        showName: currentMedia.showName,
+        episodeTitle: currentMedia.episodeTitle,
+        seasonNumber: currentMedia.seasonNumber,
+        episodeNumber: currentMedia.episodeNumber,
+        backdropUrl:
+          currentMedia.backdropUrl ||
+          details?.background ||
+          details?.poster,
       });
 
       // Fetch subtitle tracks
       try {
         const tracks = await getSubtitleTracks(
-          currentMedia.id,
+          streamSourceId,
           currentMedia.type
         );
         const tracksWithActiveState = tracks.map((track) => ({
@@ -267,6 +276,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   if (!isPlayerVisible || !currentMedia) return null;
 
+  const isEpisodePlayback =
+    currentMedia.type === "series" &&
+    ((typeof currentMedia.seasonNumber === "number" &&
+      typeof currentMedia.episodeNumber === "number") ||
+      !!currentMedia.mediaSourceId);
+  const episodeTitle = currentMedia.episodeTitle || currentMedia.name;
+  const showTitle = currentMedia.showName || mediaDetails?.name;
+  const primaryTitle = isEpisodePlayback
+    ? episodeTitle
+    : mediaDetails?.name || currentMedia.name;
+  const fallbackBackdrop =
+    currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
+
   return (
     <div className="fixed inset-0 z-[999999] bg-black flex items-center justify-center w-screen">
       <MediaPlayer
@@ -294,7 +316,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           );
           if (trackIndex !== -1) {
             setFetchingSubtitles(true);
-            getSubtitleContent(currentMedia.id, currentMedia.type).then(
+            getSubtitleContent(
+              currentMedia.mediaSourceId || currentMedia.id,
+              currentMedia.type
+            ).then(
               (result) => {
                 setFetchingSubtitles(false);
                 if (result && Array.isArray(result)) {
@@ -349,29 +374,23 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               Go Back
             </Button>
 
-            {mediaDetails ? (
+            {fallbackBackdrop ? (
               <div className="relative w-full h-full">
-                {mediaDetails.background ? (
-                  <>
-                    <img
-                      src={mediaDetails.background}
-                      alt={currentMedia?.name}
-                      className="w-full h-full object-cover brightness-50"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                    <ProgressiveBlur
-                      direction="bottom"
-                      blurLayers={6}
-                      blurIntensity={0.3}
-                      className="absolute inset-0"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  </>
-                ) : (
-                  <div className="w-full h-full bg-black" />
-                )}
+                <img
+                  src={fallbackBackdrop}
+                  alt={currentMedia?.name}
+                  className="w-full h-full object-cover brightness-50"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+                <ProgressiveBlur
+                  direction="bottom"
+                  blurLayers={6}
+                  blurIntensity={0.3}
+                  className="absolute inset-0"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
               </div>
             ) : (
               <div className="w-full h-full bg-black" />
@@ -397,9 +416,20 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
                   >
-                    {mediaDetails?.name || currentMedia.name}
+                    {primaryTitle}
                   </motion.h2>
                 </div>
+
+                {isEpisodePlayback && showTitle && (
+                  <motion.p
+                    className="text-sm text-white/75 truncate"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    {showTitle}
+                  </motion.p>
+                )}
 
                 <motion.div
                   className="flex items-center gap-3 text-sm text-white/60"
@@ -462,7 +492,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           <div className="flex flex-col w-full gap-1.5 pb-2">
             <div className="flex items-center justify-between w-full">
               <h2 className="text-3xl font-semibold text-white truncate font-poppins">
-                {mediaDetails?.name || currentMedia.name}
+                {primaryTitle}
               </h2>
 
               {duration > 0 && currentTime >= 0 && (
@@ -473,6 +503,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
 
             <div className="flex items-center gap-3 text-sm text-white/60">
+              {isEpisodePlayback && (
+                <span className="truncate">
+                  {showTitle || "TV Show"}
+                  {currentMedia.seasonNumber && currentMedia.episodeNumber
+                    ? ` • S${currentMedia.seasonNumber}E${currentMedia.episodeNumber}`
+                    : ""}
+                </span>
+              )}
               {mediaDetails?.runtime && (
                 <span>{mediaDetails.runtime}</span>
               )}

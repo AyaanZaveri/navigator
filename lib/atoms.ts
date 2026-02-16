@@ -24,6 +24,13 @@ export interface MediaToPlay {
   type: "movie" | "series" | "channel" | "tv";
   resumePositionTicks?: number;
   streamUrl?: string;
+  mediaSourceId?: string;
+  seriesId?: string;
+  showName?: string;
+  episodeTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  backdropUrl?: string;
 }
 
 export interface CurrentMediaWithSource {
@@ -31,6 +38,13 @@ export interface CurrentMediaWithSource {
   name: string;
   type: "movie" | "series" | "channel" | "tv";
   streamUrl?: string;
+  mediaSourceId?: string;
+  seriesId?: string;
+  showName?: string;
+  episodeTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  backdropUrl?: string;
 }
 
 export const isPlayerVisibleAtom = atom(false);

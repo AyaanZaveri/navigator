@@ -5,9 +5,15 @@ import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Play } from "lucide-react";
+import { Loader2, Play, Puzzle } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
-import { createPortal } from "react-dom";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface MediaActionsProps {
   media?: MediaItem;
@@ -19,19 +25,23 @@ interface StreamAddonTarget {
   name: string;
 }
 
+interface StreamWithAddon extends StremioStream {
+  addonId: string;
+  addonName: string;
+}
+
+const HIDDEN_ADDON_IDS = new Set(["org.stremio.local"]);
+
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const activeMedia = media ?? movie;
   const { setIsPlayerVisible, playMedia } = useMediaPlayer();
-  const [streams, setStreams] = useState<StremioStream[]>([]);
+  const [streams, setStreams] = useState<StreamWithAddon[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasCheckedStreams, setHasCheckedStreams] = useState(false);
   const [pendingAddons, setPendingAddons] = useState(0);
   const [totalAddons, setTotalAddons] = useState(0);
-  const [streamPillAnchor, setStreamPillAnchor] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setStreamPillAnchor(document.getElementById("stream-loading-pill-anchor"));
-  }, []);
+  const [addonTargets, setAddonTargets] = useState<StreamAddonTarget[]>([]);
+  const [selectedAddonId, setSelectedAddonId] = useState<string>("all");
 
   useEffect(() => {
     if (!activeMedia) return;
@@ -46,6 +56,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       setLoading(true);
       setPendingAddons(0);
       setTotalAddons(0);
+      setAddonTargets([]);
+      setSelectedAddonId("all");
       try {
         const targetsResponse = await fetch(
           `/api/streams/addons?type=${encodeURIComponent(activeMedia.type)}`
@@ -57,6 +69,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
         if (cancelled) return;
 
+        setAddonTargets(targets);
         setTotalAddons(targets.length);
         setPendingAddons(targets.length);
 
@@ -75,18 +88,24 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                 `/api/streams/addon?mediaItemId=${encodeURIComponent(activeMedia.id)}&type=${encodeURIComponent(activeMedia.type)}&addonId=${encodeURIComponent(target.id)}`
               );
               const streamData = await streamResponse.json();
-              const result: StremioStream[] = Array.isArray(streamData?.streams)
-                ? streamData.streams
+              const result: StreamWithAddon[] = Array.isArray(streamData?.streams)
+                ? streamData.streams.map((stream: StremioStream) => ({
+                    ...stream,
+                    addonId: target.id,
+                    addonName: target.name,
+                  }))
                 : [];
 
               if (cancelled) return;
 
               if (result.length > 0) {
                 setStreams((previous) => {
-                  const existing = new Set(previous.map(getStreamKey));
+                  const existing = new Set(
+                    previous.map((stream) => `${stream.addonId}|${getStreamKey(stream)}`)
+                  );
                   const next = [...previous];
                   for (const stream of result) {
-                    const key = getStreamKey(stream);
+                    const key = `${stream.addonId}|${getStreamKey(stream)}`;
                     if (!existing.has(key)) {
                       existing.add(key);
                       next.push(stream);
@@ -127,17 +146,45 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
   if (!activeMedia) return null;
 
+  const selectedAddonName =
+    selectedAddonId === "all"
+      ? "All"
+      : addonTargets.find((addon) => addon.id === selectedAddonId)?.name || "All";
+
+  const selectableAddonTargets = addonTargets.filter(
+    (addon) => !HIDDEN_ADDON_IDS.has(addon.id)
+  );
+
+  const filteredStreams =
+    selectedAddonId === "all"
+      ? streams
+      : streams.filter((stream) => stream.addonId === selectedAddonId);
+  const isAddonLoading = loading && totalAddons > 0 && pendingAddons > 0;
+
   const handlePlay = async (stream: StremioStream) => {
     if (!activeMedia) return;
 
     const streamUrl = stream.url || stream.externalUrl || undefined;
     if (!streamUrl) return;
+    const isEpisode =
+      activeMedia.type === "series" &&
+      !!activeMedia.seriesId &&
+      !!activeMedia.episodeId;
 
     await playMedia({
-      id: activeMedia.id,
-      name: activeMedia.name,
+      id: isEpisode ? activeMedia.seriesId! : activeMedia.id,
+      name: isEpisode
+        ? activeMedia.episodeTitle || activeMedia.name
+        : activeMedia.name,
       type: activeMedia.type,
       streamUrl,
+      mediaSourceId: isEpisode ? activeMedia.episodeId : activeMedia.id,
+      seriesId: isEpisode ? activeMedia.seriesId : undefined,
+      showName: isEpisode ? activeMedia.showName || activeMedia.name : undefined,
+      episodeTitle: isEpisode ? activeMedia.episodeTitle || activeMedia.name : undefined,
+      seasonNumber: isEpisode ? activeMedia.seasonNumber : undefined,
+      episodeNumber: isEpisode ? activeMedia.episodeNumber : undefined,
+      backdropUrl: activeMedia.background || activeMedia.poster,
     });
     setIsPlayerVisible(true);
   };
@@ -159,25 +206,42 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
   return (
     <div className="flex flex-col gap-2 mb-6 w-full">
-      {streamPillAnchor &&
-        loading &&
-        totalAddons > 0 &&
-        pendingAddons > 0 &&
-        createPortal(
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span>
-              {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
-            </span>
-          </div>,
-          streamPillAnchor
-        )}
+      {(selectableAddonTargets.length > 0 || isAddonLoading) && (
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <div>
+            {selectableAddonTargets.length > 0 && (
+              <Select value={selectedAddonId} onValueChange={setSelectedAddonId}>
+                <SelectTrigger className="h-9 gap-1.5">
+                  <Puzzle className="h-3 w-3" />
+                  <SelectValue>{selectedAddonName}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {selectableAddonTargets.map((addon) => (
+                    <SelectItem key={addon.id} value={addon.id}>
+                      {addon.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          {isAddonLoading && (
+            <div className="mr-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>
+                {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
-      {streams.length > 0 && (
+      {filteredStreams.length > 0 && (
         <div className="-ml-3 -mt-3">
           <ScrollArea className="w-full h-[22rem] rounded-xl">
             <div className="p-3 space-y-2">
-              {streams.map((stream, index) => {
+              {filteredStreams.map((stream, index) => {
                 const streamUrl = stream.url || stream.externalUrl;
                 return (
                   <div
@@ -224,13 +288,13 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
           </ScrollArea>
           <div className="-mb-3 mt-3 flex justify-end pr-3">
             <span className="text-xs text-muted-foreground font-mono">
-              {streams.length} stream{streams.length === 1 ? "" : "s"} found
+              {filteredStreams.length} stream{filteredStreams.length === 1 ? "" : "s"} found
             </span>
           </div>
         </div>
       )}
 
-      {loading && streams.length === 0 && (
+      {loading && filteredStreams.length === 0 && (
         <div className="-ml-3 -mt-3">
           <ScrollArea className="w-full h-[22rem] rounded-xl">
             <div className="p-3 space-y-2">
@@ -241,11 +305,11 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                 >
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
-                      <Skeleton className="h-5 w-64 rounded-full" />
-                      <Skeleton className="mt-3 h-4 w-full max-w-4xl rounded-full" />
+                      <Skeleton className="h-6 w-56 rounded-md" />
+                      <Skeleton className="mt-2 h-3 w-72 rounded-md" />
                     </div>
                     <div className="flex shrink-0 self-center items-center gap-2">
-                      <Skeleton className="h-9 w-[92px] rounded-md" />
+                      <Skeleton className="h-9 w-[74px] rounded-md" />
                     </div>
                   </div>
                 </div>
@@ -255,8 +319,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
         </div>
       )}
 
-      {!loading && hasCheckedStreams && streams.length === 0 && (
-        <span className="text-sm text-muted-foreground">No streams found</span>
+      {!loading && hasCheckedStreams && filteredStreams.length === 0 && (
+        <span className="text-sm text-muted-foreground">
+          {selectedAddonId === "all"
+            ? "No streams found"
+            : "No streams found for this addon"}
+        </span>
       )}
     </div>
   );

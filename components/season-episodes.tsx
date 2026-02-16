@@ -8,6 +8,7 @@ import React, {
   useMemo,
 } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -23,7 +24,7 @@ import {
   type Episode,
 } from "@/app/actions/tv-shows";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import { buildEpisodePath } from "@/lib/series-route";
 import type { StremioVideo } from "@/types/stremio";
@@ -151,6 +152,8 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   const [episodes, setEpisodes] = useState<Episode[]>(initialEpisodes);
   const [episodesLoading, setEpisodesLoading] = useState(false);
   const lastScrolledEpisodeRef = useRef<string | null>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (hasPrefetchedEpisodes) {
@@ -292,6 +295,24 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     }
   }, [episodes, episodesLoading, currentSeasonNumber, currentEpisodeNumber, selectedSeason]);
 
+  useEffect(() => {
+    if (!scrollContentRef.current) return;
+    const viewport = scrollContentRef.current
+      .closest('[data-slot="scroll-area"]')
+      ?.querySelector('[data-slot="scroll-area-viewport"]') as HTMLDivElement | null;
+    viewportRef.current = viewport;
+  }, [episodesLoading, episodes, selectedSeason]);
+
+  const scrollLeft = () => {
+    if (!viewportRef.current) return;
+    viewportRef.current.scrollBy({ left: -300, behavior: "smooth" });
+  };
+
+  const scrollRight = () => {
+    if (!viewportRef.current) return;
+    viewportRef.current.scrollBy({ left: 300, behavior: "smooth" });
+  };
+
   if (loading) {
     return (
       <div className="mt-3">
@@ -316,7 +337,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
 
   return (
     <div className="mt-3">
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center justify-between gap-4 mb-6 px-1">
         <div className="relative z-[9999]">
           <Select
             value={selectedSeason?.toString() ?? ""}
@@ -337,11 +358,29 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-2 pr-4">
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+            onClick={scrollLeft}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+            onClick={scrollRight}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {episodesLoading ? (
         <ScrollArea className="w-full whitespace-nowrap">
-          <div className="flex w-max space-x-4 mb-8 pl-1 pr-1">
+          <div ref={scrollContentRef} className="flex w-max space-x-4 mb-8 pl-1 pr-1">
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="shrink-0 w-72">
                 <div className="space-y-3 py-2">
@@ -359,7 +398,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
               </div>
             ))}
           </div>
-          <ScrollBar orientation="horizontal" />
+          <ScrollBar orientation="horizontal" className="opacity-0" />
         </ScrollArea>
       ) : episodes.length === 0 ? (
         <div className="text-muted-foreground">
@@ -367,7 +406,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
         </div>
       ) : (
         <ScrollArea className="w-full rounded-md">
-          <div className="flex w-max space-x-4 mb-8 pl-1 pr-1">
+          <div ref={scrollContentRef} className="flex w-max space-x-4 mb-8 pl-1 pr-1">
             {episodes.map((episode) => (
               <EpisodeCard
                 key={episode.id}
@@ -380,7 +419,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
               />
             ))}
           </div>
-          <ScrollBar orientation="horizontal" />
+          <ScrollBar orientation="horizontal" className="opacity-0" />
         </ScrollArea>
       )}
     </div>

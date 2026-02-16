@@ -24,9 +24,15 @@ export function EpisodeCard({
     e.stopPropagation();
 
     await playMedia({
-      id: episode.id,
-      name: episode.title,
+      id: seriesId,
+      name: episode.title || `Episode ${episode.episode}`,
       type: "series",
+      mediaSourceId: episode.id,
+      seriesId,
+      episodeTitle: episode.title || `Episode ${episode.episode}`,
+      seasonNumber: episode.season,
+      episodeNumber: episode.episode,
+      backdropUrl: imageUrl,
     });
     setIsPlayerVisible(true);
   };

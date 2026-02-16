@@ -46,11 +46,18 @@ export function EpisodeStreamsRouteAware({
 
     const selectedEpisodeTitle =
       selectedEpisode.title ||
+      selectedEpisode.name ||
       `Episode ${episodeNumber}`;
 
     return {
       ...show,
       id: selectedEpisode.id,
+      seriesId: show.id,
+      showName: show.name,
+      episodeId: selectedEpisode.id,
+      episodeTitle: selectedEpisodeTitle,
+      seasonNumber,
+      episodeNumber,
       type: "series",
       name: selectedEpisodeTitle,
       description: selectedEpisode.overview || show.description,

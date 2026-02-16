@@ -89,6 +89,12 @@ export const getSeriesEpisodeSelectionData = cache(
     const episodeMedia: MediaItem = {
       ...layoutData.show,
       id: selectedEpisode.id,
+      seriesId: layoutData.show.id,
+      showName: layoutData.show.name,
+      episodeId: selectedEpisode.id,
+      episodeTitle: selectedEpisodeTitle,
+      seasonNumber,
+      episodeNumber,
       type: "series",
       name: selectedEpisodeTitle,
       description: selectedEpisode.overview || layoutData.show.description,

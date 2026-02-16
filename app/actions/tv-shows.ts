@@ -133,7 +133,7 @@ export async function fetchEpisodes(
 
         return videos.map((v) => ({
           id: v.id,
-          title: v.title,
+          title: v.title || v.name || `Episode ${v.episode ?? 1}`,
           season: v.season ?? 1,
           episode: v.episode ?? 1,
           overview: v.overview,

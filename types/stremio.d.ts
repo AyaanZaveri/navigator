@@ -135,7 +135,8 @@ export interface StremioMetaTrailer {
 
 export interface StremioVideo {
   id: string;
-  title: string;
+  title?: string;
+  name?: string;
   released?: string;
   thumbnail?: string;
   overview?: string;
@@ -212,6 +213,12 @@ export interface MediaItem {
   id: string;
   type: "movie" | "series" | "channel" | "tv";
   name: string;
+  seriesId?: string;
+  showName?: string;
+  episodeId?: string;
+  episodeTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
   poster?: string;
   background?: string;
   logo?: string;

@@ -40,9 +40,16 @@ export function SeriesPlayButton({ series }: SeriesPlayButtonProps) {
 
     try {
       await playMedia({
-        id: nextEpisode.id,
-        name: nextEpisode.title,
+        id: series.id,
+        name: nextEpisode.title || `Episode ${nextEpisode.episode}`,
         type: "series",
+        mediaSourceId: nextEpisode.id,
+        seriesId: series.id,
+        showName: series.name,
+        episodeTitle: nextEpisode.title || `Episode ${nextEpisode.episode}`,
+        seasonNumber: nextEpisode.season,
+        episodeNumber: nextEpisode.episode,
+        backdropUrl: series.background || series.poster,
       });
       setIsPlayerVisible(true);
     } catch (error) {
