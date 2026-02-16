@@ -151,6 +151,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   const [loading, setLoading] = useState(initialSeasonState.loading);
   const [episodes, setEpisodes] = useState<Episode[]>(initialEpisodes);
   const [episodesLoading, setEpisodesLoading] = useState(false);
+  const episodesBottomSpacingClass = currentEpisodeNumber ? "mb-4" : "mb-8";
   const lastScrolledEpisodeRef = useRef<string | null>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -380,7 +381,10 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
 
       {episodesLoading ? (
         <ScrollArea className="w-full whitespace-nowrap">
-          <div ref={scrollContentRef} className="flex w-max space-x-4 mb-8 pl-1 pr-1">
+          <div
+            ref={scrollContentRef}
+            className={`flex w-max space-x-4 ${episodesBottomSpacingClass} pl-1 pr-1`}
+          >
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="shrink-0 w-72">
                 <div className="space-y-3 py-2">
@@ -406,7 +410,10 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
         </div>
       ) : (
         <ScrollArea className="w-full rounded-md">
-          <div ref={scrollContentRef} className="flex w-max space-x-4 mb-8 pl-1 pr-1">
+          <div
+            ref={scrollContentRef}
+            className={`flex w-max space-x-4 ${episodesBottomSpacingClass} pl-1 pr-1`}
+          >
             {episodes.map((episode) => (
               <EpisodeCard
                 key={episode.id}

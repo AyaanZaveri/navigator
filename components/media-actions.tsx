@@ -374,7 +374,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               )}
             </div>
             {isAddonLoading && (
-              <div className="mr-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
+              <div className="mr-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 <span>
                   {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading

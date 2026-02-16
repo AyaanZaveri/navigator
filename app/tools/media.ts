@@ -102,9 +102,22 @@ export interface EpisodeLookupTool {
     title: string;
     seasonNumber: number;
     episodeNumber: number;
+    overview?: string | null;
   }>;
   message: string;
   error?: string;
+}
+
+const EPISODE_DESCRIPTION_MAX_CHARS = 300;
+
+function truncateText(
+  value?: string | null,
+  maxChars = EPISODE_DESCRIPTION_MAX_CHARS
+): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, maxChars).trimEnd()}...`;
 }
 
 export const searchMedia = tool({
@@ -316,7 +329,7 @@ export const navigateToEpisode = tool({
 
 export const findEpisodeByTitle = tool({
   description:
-    "Return all NON-special episodes (season > 0) for a resolved TV series so the model can semantically choose the best match for the user's episode title.",
+    "Return all NON-special episodes (season > 0) for a resolved TV series so the model can semantically choose the best match for the user's episode title. Each returned episode includes `overview`, which is that episode's own description (capped).",
   inputSchema: z.object({
     seriesQuery: z.string().describe("Series name to resolve to a series ID"),
     episodeTitle: z.string().describe("Episode title to match"),
@@ -383,7 +396,7 @@ export const findEpisodeByTitle = tool({
           title: episode.title,
           seasonNumber: episode.season,
           episodeNumber: episode.episode,
-          overview: episode.overview,
+          overview: truncateText(episode.overview),
           releaseInfo: formatReleaseDate(episode.released),
           thumbnail: episode.thumbnail,
           poster: episode.thumbnail ?? null,
