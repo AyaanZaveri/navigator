@@ -35,7 +35,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ProgressiveBlur } from "@/components/motion-primitives/progressive-blur";
 import { useSettings, BITRATE_OPTIONS } from "@/contexts/settings-context";
 
 interface GlobalMediaPlayerProps {
@@ -379,16 +378,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 <img
                   src={fallbackBackdrop}
                   alt={currentMedia?.name}
-                  className="w-full h-full object-cover brightness-50"
+                  className="w-full h-full object-cover brightness-75"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
-                />
-                <ProgressiveBlur
-                  direction="bottom"
-                  blurLayers={6}
-                  blurIntensity={0.3}
-                  className="absolute inset-0"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
               </div>

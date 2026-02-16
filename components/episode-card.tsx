@@ -32,7 +32,6 @@ export function EpisodeCard({
       episodeTitle: episode.title || `Episode ${episode.episode}`,
       seasonNumber: episode.season,
       episodeNumber: episode.episode,
-      backdropUrl: imageUrl,
     });
     setIsPlayerVisible(true);
   };
