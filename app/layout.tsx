@@ -4,7 +4,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { SettingsProvider } from "@/contexts/settings-context";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 

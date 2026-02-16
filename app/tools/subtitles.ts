@@ -1,8 +1,268 @@
 import { google } from "@ai-sdk/google";
-import { streamText, tool } from "ai";
+import { generateText, tool } from "ai";
 import { z } from "zod";
-import { getSubtitleContent } from "@/app/actions/subtitles";
+import { fetchSubtitleFileContent } from "@/app/actions/subtitles";
+import { getSubtitleTracks } from "@/app/actions/utils";
+import type { CurrentMediaWithSource } from "@/lib/atoms";
 import { convertTimestampToSeconds } from "@/lib/utils";
+
+interface ParsedSubtitleEntry {
+  timestamp: number;
+  endTimestamp?: number;
+  timestampFormatted: string;
+  text: string;
+}
+
+interface SubtitleLoadResult {
+  success: boolean;
+  subtitles: ParsedSubtitleEntry[];
+  selectedTrackLabel?: string;
+  selectedTrackLanguage?: string;
+  selectedTrackIndex?: number;
+  error?: string;
+}
+
+const DEFAULT_SUBTITLE_INDEX = 0;
+const STOP_WORDS = new Set([
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "to",
+    "of",
+    "in",
+    "on",
+    "at",
+    "for",
+    "with",
+    "is",
+    "are",
+    "be",
+    "this",
+    "that",
+    "it",
+    "they",
+    "he",
+    "she",
+    "we",
+    "you",
+    "scene",
+    "part",
+    "when",
+    "where",
+]);
+
+function parseSubtitleTimestamp(value: string): number | null {
+    const normalized = value.trim().replace(",", ".");
+    const parts = normalized.split(":");
+    if (parts.length < 2 || parts.length > 3) return null;
+
+    const secondsPart = Number(parts[parts.length - 1]);
+    const minutesPart = Number(parts[parts.length - 2]);
+    const hoursPart = parts.length === 3 ? Number(parts[0]) : 0;
+
+    if (
+        !Number.isFinite(secondsPart) ||
+    !Number.isFinite(minutesPart) ||
+    !Number.isFinite(hoursPart)
+    ) {
+        return null;
+    }
+
+    return hoursPart * 3600 + minutesPart * 60 + secondsPart;
+}
+
+function parseSubtitleTextContent(rawContent: string): ParsedSubtitleEntry[] {
+    const normalized = rawContent.replace(/^\uFEFF/, "").replace(/\r/g, "");
+    const blocks = normalized
+        .split(/\n{2,}/)
+        .map((block) => block.trim())
+        .filter(Boolean);
+
+    const parsed: ParsedSubtitleEntry[] = [];
+
+    for (const block of blocks) {
+        const lines = block.split("\n").map((line) => line.trimEnd());
+        if (lines.length < 2) continue;
+
+        const timingIndex = lines.findIndex((line) => line.includes("-->"));
+        if (timingIndex === -1) continue;
+
+        const timing = lines[timingIndex];
+        const textLines = lines.slice(timingIndex + 1).filter(Boolean);
+        if (textLines.length === 0) continue;
+
+        const [startRaw, endRaw] = timing.split("-->").map((part) => part.trim());
+        if (!startRaw || !endRaw) continue;
+
+        const start = parseSubtitleTimestamp(startRaw);
+        const end = parseSubtitleTimestamp(endRaw.split(" ")[0] || endRaw);
+        if (start === null) continue;
+
+        parsed.push({
+            timestamp: start,
+            endTimestamp: end ?? undefined,
+            timestampFormatted: startRaw,
+            text: textLines.join("\n"),
+        });
+    }
+
+    return parsed;
+}
+
+function tokenizeQuery(query: string): string[] {
+    return query
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((token) => token.length >= 3 && !STOP_WORDS.has(token));
+}
+
+function selectRelevantSubtitles(
+    subtitles: ParsedSubtitleEntry[],
+    query: string,
+    options?: {
+    maxMatches?: number;
+    maxOutput?: number;
+  }
+): ParsedSubtitleEntry[] {
+    const maxMatches = options?.maxMatches ?? 200;
+    const maxOutput = options?.maxOutput ?? 400;
+    const queryTokens = tokenizeQuery(query);
+
+    if (subtitles.length <= maxOutput) {
+        return subtitles;
+    }
+
+    const scored = subtitles
+        .map((subtitle, index) => {
+            const text = subtitle.text.toLowerCase();
+            const score = queryTokens.reduce(
+                (acc, token) => (text.includes(token) ? acc + 1 : acc),
+                0
+            );
+
+            return { score, index };
+        })
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxMatches);
+
+    if (scored.length > 0) {
+        const pickedIndices = new Set<number>();
+
+        for (const entry of scored) {
+            pickedIndices.add(entry.index);
+            pickedIndices.add(Math.max(0, entry.index - 1));
+            pickedIndices.add(Math.min(subtitles.length - 1, entry.index + 1));
+        }
+
+        return [...pickedIndices]
+            .sort((a, b) => a - b)
+            .slice(0, maxOutput)
+            .map((index) => subtitles[index]);
+    }
+
+    const sampled: ParsedSubtitleEntry[] = [];
+    const step = Math.max(1, Math.ceil(subtitles.length / maxOutput));
+    for (let i = 0; i < subtitles.length; i += step) {
+        sampled.push(subtitles[i]);
+        if (sampled.length >= maxOutput) break;
+    }
+
+    return sampled;
+}
+
+async function loadParsedSubtitles(
+    currentMedia: CurrentMediaWithSource | null,
+    subtitleIndex: number
+): Promise<SubtitleLoadResult> {
+    if (!currentMedia || !currentMedia.id) {
+        return {
+            success: false,
+            subtitles: [],
+            error:
+        "No media is currently playing. Please start playing a video first.",
+        };
+    }
+
+    const mediaType = currentMedia.type || "movie";
+    const streamSourceId = currentMedia.mediaSourceId || currentMedia.id;
+
+    const tracks = await getSubtitleTracks(streamSourceId, mediaType, {
+        filename: currentMedia.subtitleFilename,
+        videoSize: currentMedia.subtitleVideoSize,
+    });
+
+    if (tracks.length === 0) {
+        return {
+            success: false,
+            subtitles: [],
+            error: `No subtitle tracks found for ${currentMedia.name}.`,
+        };
+    }
+
+    const boundedSubtitleIndex = Math.max(
+        0,
+        Math.min(Math.floor(subtitleIndex), tracks.length - 1)
+    );
+    const selectedTrack = tracks[boundedSubtitleIndex];
+
+    const subtitleFileResult = await fetchSubtitleFileContent(selectedTrack.src);
+    if (!subtitleFileResult.success) {
+        return {
+            success: false,
+            subtitles: [],
+            error: subtitleFileResult.error || "Failed to fetch subtitle file",
+        };
+    }
+
+    const parsedSubtitles = parseSubtitleTextContent(subtitleFileResult.content);
+    if (parsedSubtitles.length === 0) {
+        return {
+            success: false,
+            subtitles: [],
+            error:
+        "The selected subtitle track could not be parsed. Try a different subtitle index.",
+        };
+    }
+
+    return {
+        success: true,
+        subtitles: parsedSubtitles,
+        selectedTrackLabel: selectedTrack.label,
+        selectedTrackLanguage: selectedTrack.language,
+        selectedTrackIndex: boundedSubtitleIndex,
+    };
+}
+
+async function analyzeText(prompt: string, maxOutputTokens: number): Promise<string> {
+    const result = await generateText({
+        model: google("gemini-flash-lite-latest"),
+        prompt,
+        maxOutputTokens,
+        temperature: 0.2,
+    });
+
+    return result.text.trim();
+}
+
+function formatSecondsToTimestamp(seconds: number): string {
+    const totalSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+
+    if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(
+            2,
+            "0"
+        )}`;
+    }
+
+    return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
 
 export interface SkipToSubtitleContent {
   success: boolean;
@@ -14,71 +274,53 @@ export interface SkipToSubtitleContent {
   error?: string;
 }
 
-export const skipToSubtitleContent = (currentMedia: any) =>
-  tool({
-    description:
+export const skipToSubtitleContent = (currentMedia: CurrentMediaWithSource | null) =>
+    tool({
+        description:
       "Analyze subtitles and find the best timestamp to skip to based on the user's description. Only works when media is currently playing.",
-    inputSchema: z.object({
-      userDescription: z
-        .string()
-        .describe(
-          "The user's description of what scene/moment they want to skip to"
-        ),
-      subtitleIndex: z
-        .number()
-        .optional()
-        .describe("The subtitle stream index (default: 0)"),
-    }),
-    execute: async ({ userDescription, subtitleIndex = 0 }) => {
-      console.log("⏩ [skipToSubtitleContent] Tool called with:", {
-        userDescription,
-        subtitleIndex,
-        currentMedia,
-      });
+        inputSchema: z.object({
+            userDescription: z
+                .string()
+                .describe(
+                    "The user's description of what scene/moment they want to skip to"
+                ),
+            subtitleIndex: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe("The subtitle stream index (default: 0)"),
+        }),
+        execute: async ({ userDescription, subtitleIndex = DEFAULT_SUBTITLE_INDEX }) => {
+            console.log("⏩ [skipToSubtitleContent] Tool called with:", {
+                userDescription,
+                subtitleIndex,
+                currentMedia,
+            });
 
-      // Check if we have current media context
-      if (!currentMedia || !currentMedia.id || !currentMedia.mediaSourceId) {
-        return {
-          success: false,
-          error:
-            "No media is currently playing. Please start playing a video first to use subtitle search.",
-        };
-      }
+            try {
+                const subtitleResult = await loadParsedSubtitles(currentMedia, subtitleIndex);
 
-      try {
-        const result = await getSubtitleContent(
-          currentMedia.id,
-          currentMedia.mediaSourceId,
-          subtitleIndex
-        );
+                if (!subtitleResult.success) {
+                    return {
+                        success: false,
+                        error: subtitleResult.error || "Failed to fetch subtitles",
+                    };
+                }
 
-        console.log("[skipToSubtitleContent] Subtitle fetch result:", result);
+                const relevantSubtitles = selectRelevantSubtitles(
+                    subtitleResult.subtitles,
+                    userDescription,
+                    { maxMatches: 220, maxOutput: 420 }
+                );
 
-        if (!result.success) {
-          return {
-            success: false,
-            error: result.error || "Failed to fetch subtitles",
-          };
-        }
+                const subtitleText = relevantSubtitles
+                    .map(
+                        (sub, index) => `${index + 1}. [${sub.timestampFormatted}] ${sub.text}`
+                    )
+                    .join("\n");
 
-        if (result.subtitles.length === 0) {
-          return {
-            success: false,
-            error: `No subtitles found for ${currentMedia.name}`,
-          };
-        }
-
-        // Let Gemini analyze the subtitles to find the best match
-        // Format subtitle data for analysis - create a more structured prompt
-        const subtitleText = result.subtitles
-          .map(
-            (sub, index) =>
-              `${index + 1}. [${sub.timestampFormatted}] ${sub.text}`
-          )
-          .join("\n");
-
-        // Create a prompt for Gemini to analyze
-        const analysisPrompt = `You are analyzing subtitles from "${currentMedia.name}" to help a user skip to a specific scene.
+                const analysisPrompt = `You are analyzing subtitles from "${currentMedia?.name}" to help a user skip to a specific scene.
 
 User wants to skip to: "${userDescription}"
 
@@ -87,312 +329,240 @@ ${subtitleText}
 
 Task: Find the most relevant timestamp that matches the user's description.
 
-Consider:
-- Semantic meaning and emotional context
-- Scene transitions and narrative flow  
-- Character dialogue and actions
-- Plot developments that match the description
+Rules:
+- Return ONLY one timestamp.
+- Use HH:MM:SS when possible. MM:SS is also allowed.
+- Do not include any additional text.`;
 
-Return ONLY the timestamp in HH:MM:SS format (e.g., 02:25.6 or 1:23:45.2):`;
+                const analysisText = await analyzeText(analysisPrompt, 80);
+                console.log("[skipToSubtitleContent] Analysis result:", analysisText);
 
-        // Use Gemini to analyze the subtitles
-        const analysisResult = streamText({
-          model: google("gemini-flash-lite-latest"),
-          messages: [{ role: "user", content: analysisPrompt }],
-          maxOutputTokens: 100,
-        });
+                const timestampMatch = analysisText.match(
+                    /\d{1,2}:\d{2}:\d{2}(?:\.\d+)?|\d{1,2}:\d{2}(?:\.\d+)?/
+                );
 
-        let analysisText = "";
-        for await (const chunk of analysisResult.textStream) {
-          console.log("[skipToSubtitleContent] Analysis chunk:", chunk);
-          analysisText += chunk;
-        }
+                if (!timestampMatch) {
+                    return {
+                        success: false,
+                        error:
+              "Could not determine a matching subtitle timestamp. Try a more specific description.",
+                    };
+                }
 
-        console.log("[skipToSubtitleContent] Analysis result:", analysisText);
+                const bestTimestamp = convertTimestampToSeconds(timestampMatch[0]);
 
-        // Extract timestamp from Gemini's response (looking for HH:MM:SS format)
-        // Order is important: match HH:MM:SS first, then MM:SS
-        const timestampMatch = analysisText.match(
-          /\d{1,2}:\d{2}:\d{2}(?:\.\d+)?|\d{1,2}:\d{2}(?:\.\d+)?/
-        );
-        if (!timestampMatch) {
-          return {
-            success: false,
-            error:
-              "Could not determine the best timestamp for your request. Please try being more specific.",
-          };
-        }
-
-        // Convert timestamp to seconds using our utility function
-        console.log(
-          "[skipToSubtitleContent] Extracted timestamp:",
-          timestampMatch[0]
-        );
-        const bestTimestamp = convertTimestampToSeconds(timestampMatch[0]);
-        console.log(
-          "[skipToSubtitleContent] Converted to seconds:",
-          bestTimestamp
-        );
-
-        // Find the corresponding subtitle entry for context
-        const correspondingSubtitle =
-          result.subtitles.find(
-            (sub) => Math.abs(sub.timestamp - bestTimestamp) < 2 // Within 2 seconds
+                const correspondingSubtitle =
+          subtitleResult.subtitles.find(
+              (sub) => Math.abs(sub.timestamp - bestTimestamp) <= 2
           ) ||
-          result.subtitles.reduce((closest, current) =>
-            Math.abs(current.timestamp - bestTimestamp) <
+          subtitleResult.subtitles.reduce((closest, current) =>
+              Math.abs(current.timestamp - bestTimestamp) <
             Math.abs(closest.timestamp - bestTimestamp)
-              ? current
-              : closest
+                  ? current
+                  : closest
           );
 
-        return {
-          success: true,
-          action: "skipTo",
-          timestamp: bestTimestamp,
-          timestampFormatted: correspondingSubtitle.timestampFormatted,
-          text: correspondingSubtitle.text,
-          message: `Found the scene you described in ${currentMedia.name} at ${correspondingSubtitle.timestampFormatted}. Skipping there now...`,
-        };
-      } catch (error) {
-        console.error("[skipToSubtitleContent] Error:", error);
-        return {
-          success: false,
-          error: "Failed to analyze subtitle content",
-        };
-      }
-    },
-  });
+                return {
+                    success: true,
+                    action: "skipTo",
+                    timestamp: correspondingSubtitle.timestamp,
+                    timestampFormatted: correspondingSubtitle.timestampFormatted,
+                    text: correspondingSubtitle.text,
+                    message: `Found a matching scene in ${currentMedia?.name} at ${correspondingSubtitle.timestampFormatted}. Skipping there now...`,
+                };
+            } catch (error) {
+                console.error("[skipToSubtitleContent] Error:", error);
+                return {
+                    success: false,
+                    error: "Failed to analyze subtitle content",
+                };
+            }
+        },
+    });
 
-export const createExplainScene = (currentMedia: any) =>
-  tool({
-    description:
+export const createExplainScene = (currentMedia: CurrentMediaWithSource | null) =>
+    tool({
+        description:
       "Analyze subtitles around the current timestamp to explain what's happening in the movie or show. Works when media is currently playing.",
-    inputSchema: z.object({
-      currentTimestamp: z
-        .number()
-        .describe(
-          "The current playback timestamp in seconds (where the user is in the video)"
-        ),
-      contextWindow: z
-        .number()
-        .optional()
-        .describe(
-          "Number of seconds before and after current timestamp to analyze (default: 30)"
-        ),
-      subtitleIndex: z
-        .number()
-        .optional()
-        .describe("The subtitle stream index (default: 0)"),
-    }),
-    execute: async ({
-      currentTimestamp,
-      contextWindow = 30,
-      subtitleIndex = 0,
-    }) => {
-      console.log("📖 [explainScene] Tool called with:", {
-        currentTimestamp,
-        contextWindow,
-        subtitleIndex,
-        currentMedia,
-      });
+        inputSchema: z.object({
+            currentTimestamp: z
+                .number()
+                .describe(
+                    "The current playback timestamp in seconds (where the user is in the video)"
+                ),
+            contextWindow: z
+                .number()
+                .min(5)
+                .max(180)
+                .optional()
+                .describe(
+                    "Number of seconds before and after current timestamp to analyze (default: 30)"
+                ),
+            subtitleIndex: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe("The subtitle stream index (default: 0)"),
+        }),
+        execute: async ({
+            currentTimestamp,
+            contextWindow = 30,
+            subtitleIndex = DEFAULT_SUBTITLE_INDEX,
+        }) => {
+            console.log("📖 [explainScene] Tool called with:", {
+                currentTimestamp,
+                contextWindow,
+                subtitleIndex,
+                currentMedia,
+            });
 
-      // Check if we have current media context
-      if (!currentMedia || !currentMedia.id || !currentMedia.mediaSourceId) {
-        return {
-          success: false,
-          error:
-            "No media is currently playing. Please start playing a video first to get scene explanations.",
-        };
-      }
+            try {
+                const subtitleResult = await loadParsedSubtitles(currentMedia, subtitleIndex);
 
-      try {
-        const result = await getSubtitleContent(
-          currentMedia.id,
-          currentMedia.mediaSourceId,
-          subtitleIndex
-        );
+                if (!subtitleResult.success) {
+                    return {
+                        success: false,
+                        error: subtitleResult.error || "Failed to fetch subtitles",
+                    };
+                }
 
-        if (!result.success) {
-          return {
-            success: false,
-            error: result.error || "Failed to fetch subtitles",
-          };
-        }
+                const startTime = Math.max(0, currentTimestamp - contextWindow);
+                const endTime = currentTimestamp + contextWindow;
 
-        if (result.subtitles.length === 0) {
-          return {
-            success: false,
-            error: `No subtitles found for ${currentMedia.name}`,
-          };
-        }
+                const relevantSubtitles = subtitleResult.subtitles.filter(
+                    (sub) => sub.timestamp >= startTime && sub.timestamp <= endTime
+                );
 
-        // Filter subtitles to get context around current timestamp
-        const startTime = Math.max(0, currentTimestamp - contextWindow);
-        const endTime = currentTimestamp + contextWindow;
-
-        const relevantSubtitles = result.subtitles.filter(
-          (sub) => sub.timestamp >= startTime && sub.timestamp <= endTime
-        );
-
-        if (relevantSubtitles.length === 0) {
-          return {
-            success: false,
-            error:
+                if (relevantSubtitles.length === 0) {
+                    return {
+                        success: false,
+                        error:
               "No subtitles found around the current timestamp. The scene might be silent or you may need to adjust the time window.",
-          };
-        }
+                    };
+                }
 
-        // Format subtitle context for analysis
-        const subtitleContext = relevantSubtitles
-          .map(
-            (sub) =>
-              `[${sub.timestampFormatted}] ${sub.text}${
-                Math.abs(sub.timestamp - currentTimestamp) <= 2
-                  ? " ← CURRENT POSITION"
-                  : ""
-              }`
-          )
-          .join("\n");
+                const subtitleContext = relevantSubtitles
+                    .map(
+                        (sub) =>
+                            `[${sub.timestampFormatted}] ${sub.text}${
+                                Math.abs(sub.timestamp - currentTimestamp) <= 2
+                                    ? " <- CURRENT POSITION"
+                                    : ""
+                            }`
+                    )
+                    .join("\n");
 
-        // Create analysis prompt for Gemini
-        const analysisPrompt = `You are analyzing a scene from "${currentMedia.name}" to explain what's happening to the viewer.\n\nSubtitle context:\n${subtitleContext}\n\nProvide a natural 1-2 sentence explanation of what's happening in this scene. Focus on the key action and who's involved. Don't mention timestamps - just explain the scene naturally.`;
+                const analysisPrompt = `You are analyzing a scene from "${currentMedia?.name}" to explain what is happening.
 
-        // Use Gemini to analyze the scene
-        const analysisResult = streamText({
-          model: google("gemini-flash-lite-latest"),
-          messages: [{ role: "user", content: analysisPrompt }],
-          maxOutputTokens: 300,
-        });
+Subtitle context:
+${subtitleContext}
 
-        let explanation = "";
-        for await (const chunk of analysisResult.textStream) {
-          explanation += chunk;
-        }
+Provide a concise 1-2 sentence explanation of the scene.
+Do not mention timestamps.`;
 
-        console.log("[explainScene] Generated explanation:", explanation);
-
-        // Find the closest subtitle to current timestamp for reference
-        const closestSubtitle = relevantSubtitles.reduce((closest, current) =>
-          Math.abs(current.timestamp - currentTimestamp) <
+                const explanation = await analyzeText(analysisPrompt, 220);
+                const closestSubtitle = relevantSubtitles.reduce((closest, current) =>
+                    Math.abs(current.timestamp - currentTimestamp) <
           Math.abs(closest.timestamp - currentTimestamp)
-            ? current
-            : closest
-        );
+                        ? current
+                        : closest
+                );
 
-        return {
-          success: true,
-          explanation: explanation.trim(),
-          currentTime: {
-            timestamp: currentTimestamp,
-            formatted: `${Math.floor(currentTimestamp / 60)}:${String(
-              Math.floor(currentTimestamp % 60)
-            ).padStart(2, "0")}`,
-          },
-          contextSubtitles: relevantSubtitles.length,
-          closestDialogue: {
-            text: closestSubtitle.text,
-            timestamp: closestSubtitle.timestampFormatted,
-          },
-          mediaName: currentMedia.name,
-        };
-      } catch (error) {
-        console.error("[explainScene] Error:", error);
-        return {
-          success: false,
-          error: "Failed to analyze scene content",
-        };
-      }
-    },
-  });
+                return {
+                    success: true,
+                    explanation,
+                    currentTime: {
+                        timestamp: currentTimestamp,
+                        formatted: formatSecondsToTimestamp(currentTimestamp),
+                    },
+                    contextSubtitles: relevantSubtitles.length,
+                    closestDialogue: {
+                        text: closestSubtitle.text,
+                        timestamp: closestSubtitle.timestampFormatted,
+                    },
+                    mediaName: currentMedia?.name,
+                };
+            } catch (error) {
+                console.error("[explainScene] Error:", error);
+                return {
+                    success: false,
+                    error: "Failed to analyze scene content",
+                };
+            }
+        },
+    });
 
-export const createAnalyzeMedia = (currentMedia: any) =>
-  tool({
-    description:
+export const createAnalyzeMedia = (currentMedia: CurrentMediaWithSource | null) =>
+    tool({
+        description:
       "Analyze the entire movie or episode using subtitles to answer questions about the plot, characters, themes, or any aspect of the content. Works when media is currently playing.",
-    inputSchema: z.object({
-      userQuestion: z
-        .string()
-        .describe(
-          "The user's question about the movie/episode (e.g., 'What is this about?', 'Who are the main characters?', 'What happened at the end?')"
-        ),
-      subtitleIndex: z
-        .number()
-        .optional()
-        .describe("The subtitle stream index (default: 0)"),
-    }),
-    execute: async ({ userQuestion, subtitleIndex = 0 }) => {
-      console.log("🎬 [analyzeMedia] Tool called with:", {
-        userQuestion,
-        subtitleIndex,
-        currentMedia,
-      });
+        inputSchema: z.object({
+            userQuestion: z
+                .string()
+                .describe(
+                    "The user's question about the movie/episode (e.g., 'What is this about?', 'Who are the main characters?', 'What happened at the end?')"
+                ),
+            subtitleIndex: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe("The subtitle stream index (default: 0)"),
+        }),
+        execute: async ({ userQuestion, subtitleIndex = DEFAULT_SUBTITLE_INDEX }) => {
+            console.log("🎬 [analyzeMedia] Tool called with:", {
+                userQuestion,
+                subtitleIndex,
+                currentMedia,
+            });
 
-      // Check if we have current media context
-      if (!currentMedia || !currentMedia.id || !currentMedia.mediaSourceId) {
-        return {
-          success: false,
-          error:
-            "No media is currently playing. Please start playing a video first to analyze the content.",
-        };
-      }
+            try {
+                const subtitleResult = await loadParsedSubtitles(currentMedia, subtitleIndex);
 
-      try {
-        const result = await getSubtitleContent(
-          currentMedia.id,
-          currentMedia.mediaSourceId,
-          subtitleIndex
-        );
+                if (!subtitleResult.success) {
+                    return {
+                        success: false,
+                        error: subtitleResult.error || "Failed to fetch subtitles",
+                    };
+                }
 
-        if (!result.success) {
-          return {
-            success: false,
-            error: result.error || "Failed to fetch subtitles",
-          };
-        }
+                const relevantSubtitles = selectRelevantSubtitles(
+                    subtitleResult.subtitles,
+                    userQuestion,
+                    { maxMatches: 260, maxOutput: 500 }
+                );
 
-        if (result.subtitles.length === 0) {
-          return {
-            success: false,
-            error: `No subtitles found for ${currentMedia.name}`,
-          };
-        }
+                const subtitleContext = relevantSubtitles
+                    .map((sub) => `[${sub.timestampFormatted}] ${sub.text}`)
+                    .join("\n");
 
-        // Format all subtitles for analysis
-        const allSubtitles = result.subtitles
-          .map((sub) => `[${sub.timestampFormatted}] ${sub.text}`)
-          .join("\n");
+                const analysisPrompt = `You are analyzing "${currentMedia?.name}" to answer a user question.
 
-        // Create analysis prompt for Gemini
-        const analysisPrompt = `You are analyzing "${currentMedia.name}" to answer a user's question about the content.\n\nUser's question: "${userQuestion}"\n\nComplete subtitle content:\n${allSubtitles}\n\nProvide a helpful and accurate answer to the user's question in a natural and conversational style. Focus on the plot, characters, themes, or relevant details. Keep your response informative but concise.`;
+User question: "${userQuestion}"
 
-        // Use Gemini to analyze the media
-        const analysisResult = streamText({
-          model: google("gemini-flash-lite-latest"),
-          messages: [{ role: "user", content: analysisPrompt }],
-          maxOutputTokens: 500,
-        });
+Subtitle excerpts:
+${subtitleContext}
 
-        let answer = "";
-        for await (const chunk of analysisResult.textStream) {
-          answer += chunk;
-        }
+Answer the question with the information available in the subtitles.
+If the subtitles do not provide enough evidence, say that clearly.`;
 
-        console.log("[analyzeMedia] Generated answer:", answer);
+                const answer = await analyzeText(analysisPrompt, 400);
 
-        return {
-          success: true,
-          answer: answer.trim(),
-          question: userQuestion,
-          mediaName: currentMedia.name,
-          subtitleCount: result.subtitles.length,
-        };
-      } catch (error) {
-        console.error("[analyzeMedia] Error:", error);
-        return {
-          success: false,
-          error: "Failed to analyze media content",
-        };
-      }
-    },
-  });
+                return {
+                    success: true,
+                    answer,
+                    question: userQuestion,
+                    mediaName: currentMedia?.name,
+                    subtitleCount: subtitleResult.subtitles.length,
+                    analyzedSubtitleCount: relevantSubtitles.length,
+                };
+            } catch (error) {
+                console.error("[analyzeMedia] Error:", error);
+                return {
+                    success: false,
+                    error: "Failed to analyze media content",
+                };
+            }
+        },
+    });
