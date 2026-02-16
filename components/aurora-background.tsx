@@ -6,6 +6,8 @@ import { useAtom } from "jotai";
 import AuroraTransition from "@/components/Aurora/AuroraTransition";
 import { auroraColorsAtom, previousAuroraColorsAtom } from "@/lib/atoms";
 
+const DEFAULT_AURORA_COLOR_STOPS = ["#6FE3F5", "#2FB8D6", "#4EA6BF"];
+
 interface AuroraBackgroundProps {
   imageUrl?: string;
   colorStops?: string[];
@@ -16,7 +18,7 @@ interface AuroraBackgroundProps {
 
 export function AuroraBackground({
   imageUrl,
-  colorStops = ["#AA5CC3", "#00A4DC", "#AA5CC3"],
+  colorStops = DEFAULT_AURORA_COLOR_STOPS,
   amplitude = 0.8,
   blend = 0.4,
   className = "fixed inset-0 z-0 pointer-events-none opacity-20",
@@ -54,14 +56,12 @@ export function AuroraBackground({
   // Use provided colorStops or fall back to atom colors
   const finalCurrentColors =
     colorStops !== undefined &&
-    JSON.stringify(colorStops) !==
-      JSON.stringify(["#AA5CC3", "#00A4DC", "#AA5CC3"])
+    JSON.stringify(colorStops) !== JSON.stringify(DEFAULT_AURORA_COLOR_STOPS)
       ? colorStops
       : currentColors;
   const finalPreviousColors =
     colorStops !== undefined &&
-    JSON.stringify(colorStops) !==
-      JSON.stringify(["#AA5CC3", "#00A4DC", "#AA5CC3"])
+    JSON.stringify(colorStops) !== JSON.stringify(DEFAULT_AURORA_COLOR_STOPS)
       ? colorStops
       : previousColors;
 

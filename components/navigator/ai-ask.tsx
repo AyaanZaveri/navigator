@@ -550,8 +550,8 @@ const AIAsk = () => {
                 <BorderBeam
                   size={150}
                   duration={4}
-                  colorFrom={"#AA5CC3"}
-                  colorTo={"#00A4DC"}
+                  colorFrom={"var(--color-4)"}
+                  colorTo={"var(--color-2)"}
                 />
               )}
               <div className="flex justify-between items-center mb-3">
