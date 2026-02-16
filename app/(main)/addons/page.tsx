@@ -15,39 +15,43 @@ import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
+function toTitleCase(value: string): string {
+  return value
+    .split(/[-_ ]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+type CapabilityBadge = {
+  label: string;
+  icon: typeof Package;
+};
+
 export default async function AddonsPage() {
   const addons = await getInstalledAddons();
 
-  const getResourceIcons = (resources: (string | { name: string })[]) => {
-    const names = resources.map((r) => (typeof r === "string" ? r : r.name));
-    return (
-      <div className="flex gap-1.5 flex-wrap">
-        {names.includes("catalog") && (
-          <Badge variant="secondary" className="text-xs gap-1">
-            <Package className="h-3 w-3" />
-            Catalog
-          </Badge>
-        )}
-        {names.includes("meta") && (
-          <Badge variant="secondary" className="text-xs gap-1">
-            <Film className="h-3 w-3" />
-            Meta
-          </Badge>
-        )}
-        {names.includes("stream") && (
-          <Badge variant="secondary" className="text-xs gap-1">
-            <Globe className="h-3 w-3" />
-            Streams
-          </Badge>
-        )}
-        {names.includes("subtitles") && (
-          <Badge variant="secondary" className="text-xs gap-1">
-            <Subtitles className="h-3 w-3" />
-            Subtitles
-          </Badge>
-        )}
-      </div>
+  const getPrimaryCapability = (
+    resources: (string | { name: string })[]
+  ): CapabilityBadge => {
+    const names = resources.map((r) =>
+      (typeof r === "string" ? r : r.name).toLowerCase()
     );
+
+    if (names.includes("subtitles")) {
+      return { label: "Subtitles", icon: Subtitles };
+    }
+    if (names.includes("catalog")) {
+      return { label: "Catalog", icon: Package };
+    }
+    if (names.includes("meta")) {
+      return { label: "Meta", icon: Film };
+    }
+    if (names.includes("stream") || names.includes("streams")) {
+      return { label: "Streams", icon: Globe };
+    }
+
+    return { label: "Addon", icon: Puzzle };
   };
 
   const getTypeIcons = (types: string[]) => (
@@ -61,7 +65,7 @@ export default async function AddonsPage() {
           ) : (
             <Package className="h-3 w-3" />
           )}
-          {type}
+          {toTitleCase(type)}
         </Badge>
       ))}
     </div>
@@ -70,7 +74,7 @@ export default async function AddonsPage() {
   return (
     <div className="relative px-4 py-6 max-w-full overflow-hidden">
       <AuroraBackground
-        colorStops={["#8b5cf6", "#6366f1", "#a855f7"]}
+        colorStops={["#6FE3F5", "#2FB8D6", "#4EA6BF"]}
         amplitude={0.5}
         className="fixed inset-0 z-0 pointer-events-none opacity-40"
       />
@@ -95,23 +99,25 @@ export default async function AddonsPage() {
         </p>
       </div>
 
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {addons.map((addon) => (
           <Card
             key={addon.transportUrl}
-            className="bg-background/80 backdrop-blur-sm hover:bg-background/95 transition-colors"
+            className="self-start gap-2 bg-background/80 backdrop-blur-sm hover:bg-background/95 transition-colors"
           >
-            <CardHeader className="pb-3">
-              <div className="flex items-start gap-3">
+            <CardHeader className="pb-0">
+              <div className="flex items-center gap-3">
                 {addon.manifest.logo ? (
-                  <Image
-                    src={addon.manifest.logo}
-                    alt={addon.manifest.name}
-                    width={40}
-                    height={40}
-                    className="rounded-lg flex-shrink-0"
-                    unoptimized
-                  />
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <Image
+                      src={addon.manifest.logo}
+                      alt={addon.manifest.name}
+                      width={40}
+                      height={40}
+                      className="w-full h-full rounded-md object-contain p-1"
+                      unoptimized
+                    />
+                  </div>
                 ) : (
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <Puzzle className="h-5 w-5 text-primary" />
@@ -121,28 +127,44 @@ export default async function AddonsPage() {
                   <CardTitle className="text-lg truncate">
                     {addon.manifest.name}
                   </CardTitle>
-                  <CardDescription className="text-xs">
+                  <CardDescription className="text-xs font-mono">
                     v{addon.manifest.version}
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="flex flex-col gap-3 pt-0">
               {addon.manifest.description && (
                 <p className="text-sm text-muted-foreground line-clamp-2">
                   {addon.manifest.description}
                 </p>
               )}
               <div className="space-y-2">
-                {getResourceIcons(addon.manifest.resources)}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(() => {
+                    const capability = getPrimaryCapability(
+                      addon.manifest.resources
+                    );
+                    const CapabilityIcon = capability.icon;
+
+                    return (
+                      <>
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <CapabilityIcon className="h-3 w-3" />
+                          {capability.label}
+                        </Badge>
+                        {addon.manifest.catalogs.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            {addon.manifest.catalogs.length} Catalog
+                            {addon.manifest.catalogs.length !== 1 ? "s" : ""}
+                          </Badge>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
                 {getTypeIcons(addon.manifest.types)}
               </div>
-              {addon.manifest.catalogs.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {addon.manifest.catalogs.length} catalog
-                  {addon.manifest.catalogs.length !== 1 ? "s" : ""}
-                </p>
-              )}
             </CardContent>
           </Card>
         ))}
