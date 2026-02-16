@@ -17,7 +17,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { useSettings } from "@/contexts/settings-context";
+import {
+  OpenRouterReasoningEffort,
+  useSettings,
+} from "@/contexts/settings-context";
 import { Settings2, Ship, Bot } from "lucide-react";
 import { AuroraBackground } from "@/components/aurora-background";
 import { SearchBar } from "@/components/search-component";
@@ -39,6 +42,8 @@ export default function SettingsPage() {
     setGroqModel,
     openrouterModel,
     setOpenrouterModel,
+    openrouterReasoningEffort,
+    setOpenrouterReasoningEffort,
     googleApiKey,
     setGoogleApiKey,
     groqApiKey,
@@ -54,6 +59,7 @@ export default function SettingsPage() {
     ollamaModel,
     groqModel,
     openrouterModel,
+    openrouterReasoningEffort,
     googleApiKey,
     groqApiKey,
     openrouterApiKey,
@@ -384,6 +390,45 @@ export default function SettingsPage() {
                             available models
                           </a>
                           .
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="openrouter-reasoning-effort"
+                          className="text-base font-medium"
+                        >
+                          Reasoning Effort
+                        </Label>
+                        <Select
+                          value={openrouterReasoningEffort}
+                          onValueChange={(value) =>
+                            setOpenrouterReasoningEffort(
+                              value as OpenRouterReasoningEffort
+                            )
+                          }
+                        >
+                          <SelectTrigger
+                            id="openrouter-reasoning-effort"
+                            className="w-full"
+                          >
+                            <SelectValue placeholder="Select reasoning effort" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">
+                              Model default (off)
+                            </SelectItem>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="minimal">Minimal</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="xhigh">XHigh</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                          Sets OpenRouter&apos;s <code>reasoning.effort</code>:
+                          {" "}xhigh, high, medium, low, minimal, or none.
                         </p>
                       </div>
                     </div>

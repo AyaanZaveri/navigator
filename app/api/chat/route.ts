@@ -1,10 +1,23 @@
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
-import { openrouter, createOpenRouter } from "@openrouter/ai-sdk-provider";
+import {
+  openrouter,
+  createOpenRouter,
+  type OpenRouterChatSettings,
+} from "@openrouter/ai-sdk-provider";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { createOllama, ollama } from "ai-sdk-ollama";
 import { convertToModelMessages, streamText, stepCountIs } from "ai";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
 import { cookies } from "next/headers";
+
+type OpenRouterReasoningEffort =
+  | "default"
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
 
 async function getAuthData() {
   const cookieStore = await cookies();
@@ -31,10 +44,21 @@ export async function POST(req: Request) {
       ollamaModel = "phi3",
       groqModel = "llama3-8b-8192",
       openrouterModel = "qwen/qwen3-coder:free",
+      openrouterReasoningEffort = "default",
       googleApiKey,
       groqApiKey,
       openrouterApiKey,
     } = await req.json();
+
+    const normalizedOpenrouterReasoningEffort: OpenRouterReasoningEffort =
+      openrouterReasoningEffort === "none" ||
+      openrouterReasoningEffort === "minimal" ||
+      openrouterReasoningEffort === "low" ||
+      openrouterReasoningEffort === "medium" ||
+      openrouterReasoningEffort === "high" ||
+      openrouterReasoningEffort === "xhigh"
+        ? openrouterReasoningEffort
+        : "default";
 
     console.log({
       aiProvider,
@@ -42,10 +66,23 @@ export async function POST(req: Request) {
       ollamaModel,
       groqModel,
       openrouterModel,
+      openrouterReasoningEffort: normalizedOpenrouterReasoningEffort,
       googleApiKey,
       groqApiKey,
       openrouterApiKey,
     });
+
+    const openrouterModelSettings: OpenRouterChatSettings | undefined =
+      normalizedOpenrouterReasoningEffort === "default"
+        ? undefined
+        : {
+            // Use extraBody so we can forward all OpenRouter API-supported values.
+            extraBody: {
+              reasoning: {
+                effort: normalizedOpenrouterReasoningEffort,
+              },
+            },
+          };
 
     let model;
     switch (aiProvider) {
@@ -90,9 +127,9 @@ export async function POST(req: Request) {
           const openrouterProvider = createOpenRouter({
             apiKey: openrouterApiKey,
           });
-          model = openrouterProvider(openrouterModel);
+          model = openrouterProvider(openrouterModel, openrouterModelSettings);
         } else if (process.env.OPENROUTER_API_KEY) {
-          model = openrouter.chat(openrouterModel);
+          model = openrouter.chat(openrouterModel, openrouterModelSettings);
         } else {
           throw new Error(
             "OpenRouter API key is required for OpenRouter provider. Please set your API key in settings."

@@ -18,6 +18,14 @@ export const BITRATE_OPTIONS: BitrateOption[] = [
 ];
 
 export type AIProvider = "gemini" | "ollama" | "groq" | "openrouter";
+export type OpenRouterReasoningEffort =
+  | "default"
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
 
 interface SettingsContextType {
   videoBitrate: string;
@@ -35,6 +43,8 @@ interface SettingsContextType {
   setGroqModel: (model: string) => void;
   openrouterModel: string;
   setOpenrouterModel: (model: string) => void;
+  openrouterReasoningEffort: OpenRouterReasoningEffort;
+  setOpenrouterReasoningEffort: (effort: OpenRouterReasoningEffort) => void;
   // API keys
   googleApiKey: string;
   setGoogleApiKey: (key: string) => void;
@@ -60,6 +70,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [openrouterModel, setOpenrouterModelState] = useState<string>(
     "qwen/qwen3-coder:free"
   );
+  const [openrouterReasoningEffort, setOpenrouterReasoningEffortState] =
+    useState<OpenRouterReasoningEffort>("default");
   
   // API Key states
   const [googleApiKey, setGoogleApiKeyState] = useState<string>("");
@@ -115,6 +127,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setOpenrouterModelState(savedOpenrouterModel);
     }
 
+    const savedOpenrouterReasoningEffort = localStorage.getItem(
+      "navigator-openrouter-reasoning-effort"
+    ) as OpenRouterReasoningEffort | null;
+    if (
+      savedOpenrouterReasoningEffort &&
+      ["default", "none", "minimal", "low", "medium", "high", "xhigh"].includes(
+        savedOpenrouterReasoningEffort
+      )
+    ) {
+      setOpenrouterReasoningEffortState(savedOpenrouterReasoningEffort);
+    }
+
     // Load API key settings
     const savedGoogleApiKey = localStorage.getItem("navigator-google-api-key");
     if (savedGoogleApiKey) {
@@ -168,6 +192,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("navigator-openrouter-model", model);
   };
 
+  const setOpenrouterReasoningEffort = (effort: OpenRouterReasoningEffort) => {
+    setOpenrouterReasoningEffortState(effort);
+    localStorage.setItem("navigator-openrouter-reasoning-effort", effort);
+  };
+
   // API Key setters
   const setGoogleApiKey = (key: string) => {
     setGoogleApiKeyState(key);
@@ -201,6 +230,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setGroqModel,
         openrouterModel,
         setOpenrouterModel,
+        openrouterReasoningEffort,
+        setOpenrouterReasoningEffort,
         googleApiKey,
         setGoogleApiKey,
         groqApiKey,

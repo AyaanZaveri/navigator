@@ -105,12 +105,21 @@ export async function fetchCatalogItems(
   addonTransportUrl?: string
 ): Promise<MediaItem[]> {
   try {
+    if (addonTransportUrl) {
+      const data = await fetchAddonResource<StremioCatalogResponse>(
+        addonTransportUrl,
+        `catalog/${type}/${catalogId}.json`
+      );
+
+      if (!data?.metas) return [];
+      return data.metas.map((meta) =>
+        metaPreviewToMediaItem(meta, addonTransportUrl)
+      );
+    }
+
     const addons = await getInstalledAddons();
 
-    // If a specific addon is requested, use only that one
-    const targets = addonTransportUrl
-      ? addons.filter((a) => a.transportUrl === addonTransportUrl)
-      : addons.filter((a) => addonSupportsCatalog(a));
+    const targets = addons.filter((a) => addonSupportsCatalog(a));
 
     const results: MediaItem[] = [];
 
