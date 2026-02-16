@@ -2,7 +2,7 @@ import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
 import {
   openrouter,
   createOpenRouter,
-  type OpenRouterChatSettings,
+  type OpenRouterSharedSettings,
 } from "@openrouter/ai-sdk-provider";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { createOllama, ollama } from "ai-sdk-ollama";
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       openrouterApiKey,
     });
 
-    const openrouterModelSettings: OpenRouterChatSettings | undefined =
+    const openrouterModelSettings: OpenRouterSharedSettings | undefined =
       normalizedOpenrouterReasoningEffort === "default"
         ? undefined
         : {
