@@ -1,4 +1,3 @@
-import { google } from "@ai-sdk/google";
 import { generateText, tool } from "ai";
 import { z } from "zod";
 import { fetchSubtitleFileContent } from "@/app/actions/subtitles";
@@ -237,9 +236,17 @@ async function loadParsedSubtitles(
     };
 }
 
-async function analyzeText(prompt: string, maxOutputTokens: number): Promise<string> {
+async function analyzeText(
+    prompt: string,
+    maxOutputTokens: number,
+    analysisModel: any
+): Promise<string> {
+    if (!analysisModel) {
+        throw new Error("No analysis model provided");
+    }
+
     const result = await generateText({
-        model: google("gemini-flash-lite-latest"),
+        model: analysisModel,
         prompt,
         maxOutputTokens,
         temperature: 0.2,
@@ -274,7 +281,10 @@ export interface SkipToSubtitleContent {
   error?: string;
 }
 
-export const skipToSubtitleContent = (currentMedia: CurrentMediaWithSource | null) =>
+export const skipToSubtitleContent = (
+    currentMedia: CurrentMediaWithSource | null,
+    analysisModel?: any
+) =>
     tool({
         description:
       "Analyze subtitles and find the best timestamp to skip to based on the user's description. Only works when media is currently playing.",
@@ -334,7 +344,11 @@ Rules:
 - Use HH:MM:SS when possible. MM:SS is also allowed.
 - Do not include any additional text.`;
 
-                const analysisText = await analyzeText(analysisPrompt, 80);
+                const analysisText = await analyzeText(
+                    analysisPrompt,
+                    80,
+                    analysisModel
+                );
                 console.log("[skipToSubtitleContent] Analysis result:", analysisText);
 
                 const timestampMatch = analysisText.match(
@@ -380,7 +394,10 @@ Rules:
         },
     });
 
-export const createExplainScene = (currentMedia: CurrentMediaWithSource | null) =>
+export const createExplainScene = (
+    currentMedia: CurrentMediaWithSource | null,
+    analysisModel?: any
+) =>
     tool({
         description:
       "Analyze subtitles around the current timestamp to explain what's happening in the movie or show. Works when media is currently playing.",
@@ -461,7 +478,11 @@ ${subtitleContext}
 Provide a concise 1-2 sentence explanation of the scene.
 Do not mention timestamps.`;
 
-                const explanation = await analyzeText(analysisPrompt, 220);
+                const explanation = await analyzeText(
+                    analysisPrompt,
+                    220,
+                    analysisModel
+                );
                 const closestSubtitle = relevantSubtitles.reduce((closest, current) =>
                     Math.abs(current.timestamp - currentTimestamp) <
           Math.abs(closest.timestamp - currentTimestamp)
@@ -493,7 +514,10 @@ Do not mention timestamps.`;
         },
     });
 
-export const createAnalyzeMedia = (currentMedia: CurrentMediaWithSource | null) =>
+export const createAnalyzeMedia = (
+    currentMedia: CurrentMediaWithSource | null,
+    analysisModel?: any
+) =>
     tool({
         description:
       "Analyze the entire movie or episode using subtitles to answer questions about the plot, characters, themes, or any aspect of the content. Works when media is currently playing.",
@@ -547,7 +571,11 @@ ${subtitleContext}
 Answer the question with the information available in the subtitles.
 If the subtitles do not provide enough evidence, say that clearly.`;
 
-                const answer = await analyzeText(analysisPrompt, 400);
+                const answer = await analyzeText(
+                    analysisPrompt,
+                    400,
+                    analysisModel
+                );
 
                 return {
                     success: true,

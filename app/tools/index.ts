@@ -92,7 +92,11 @@ export {
 };
 
 // Factory function to create all tools with context
-export function createAllTools(currentMedia: any, currentTimestamp?: number) {
+export function createAllTools(
+  currentMedia: any,
+  currentTimestamp?: number,
+  analysisModel?: any
+) {
   return {
     // Media tools
     searchMedia,
@@ -121,9 +125,9 @@ export function createAllTools(currentMedia: any, currentTimestamp?: number) {
     getEpisodes,
     
     // Subtitle tools (context-dependent)
-    skipToSubtitleContent: skipToSubtitleContent(currentMedia),
-    explainScene: createExplainScene(currentMedia),
-    analyzeMedia: createAnalyzeMedia(currentMedia),
+    skipToSubtitleContent: skipToSubtitleContent(currentMedia, analysisModel),
+    explainScene: createExplainScene(currentMedia, analysisModel),
+    analyzeMedia: createAnalyzeMedia(currentMedia, analysisModel),
     
     // Theme tools
     themeToggle,

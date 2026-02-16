@@ -67,9 +67,9 @@ export async function POST(req: Request) {
       groqModel,
       openrouterModel,
       openrouterReasoningEffort: normalizedOpenrouterReasoningEffort,
-      googleApiKey,
-      groqApiKey,
-      openrouterApiKey,
+      hasGoogleApiKey: Boolean(googleApiKey),
+      hasGroqApiKey: Boolean(groqApiKey),
+      hasOpenrouterApiKey: Boolean(openrouterApiKey),
     });
 
     const openrouterModelSettings: OpenRouterSharedSettings | undefined =
@@ -112,7 +112,6 @@ export async function POST(req: Request) {
           const groqProvider = createGroq({
             apiKey: groqApiKey,
           });
-          console.log(groqApiKey)
           model = groqProvider(groqModel);
         } else if (process.env.GROQ_API_KEY) {
           model = groq(groqModel);
@@ -137,11 +136,7 @@ export async function POST(req: Request) {
         }
         break;
       default:
-        if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-          model = google("gemini-flash-lite-latest");
-        } else {
-          throw new Error("No API key configured for the selected provider.");
-        }
+        throw new Error(`Unsupported AI provider: ${aiProvider}`);
     }
 
     const result = streamText({
@@ -150,7 +145,7 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(10),
       temperature: 0.2,
       maxOutputTokens: 400,
-      tools: createAllTools(currentMedia, currentTimestamp),
+      tools: createAllTools(currentMedia, currentTimestamp, model),
       system: createSystemPrompt(currentMedia, currentTimestamp),
       // onChunk: async (chunk: any) => {
       //   console.log("🪣 [streamText] New chunk received:", chunk);
