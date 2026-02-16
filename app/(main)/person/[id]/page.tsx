@@ -1,6 +1,7 @@
 import { SearchBar } from "@/components/search-component";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 // Stremio doesn't have a person/actor API.
 // This page shows a basic message with a link back.
@@ -19,7 +20,9 @@ export default async function PersonPage({
 
       <div className="relative">
         <div className="absolute top-8 left-0 right-0 z-20 px-6">
-          <SearchBar />
+          <Suspense fallback={null}>
+            <SearchBar />
+          </Suspense>
         </div>
       </div>
 

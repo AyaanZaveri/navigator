@@ -1,6 +1,7 @@
 import { fetchLibraryItems, getLibraryById } from "@/app/actions";
 import { SearchBar } from "@/components/search-component";
 import { LibraryMediaList } from "@/components/library-media-list";
+import { Suspense } from "react";
 
 export default async function LibraryPage({
   params,
@@ -22,7 +23,9 @@ export default async function LibraryPage({
       <div className="relative z-10">
         <div className="relative z-[9999] mb-8">
           <div className="mb-6">
-            <SearchBar />
+            <Suspense fallback={null}>
+              <SearchBar />
+            </Suspense>
           </div>
         </div>
         <div className="mb-8">

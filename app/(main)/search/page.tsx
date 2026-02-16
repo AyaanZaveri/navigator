@@ -148,7 +148,9 @@ export default async function Search({
 
       <div className="relative z-[9999] mb-8">
         <div className="mb-6">
-          <SearchBar initialQuery={query} />
+          <Suspense fallback={null}>
+            <SearchBar initialQuery={query} />
+          </Suspense>
         </div>
       </div>
 

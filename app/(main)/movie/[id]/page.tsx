@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { PosterImage } from "@/components/media-page/poster-image";
 import type { MediaItem } from "@/types/stremio";
+import { Suspense } from "react";
 
 export default async function Movie({
   params,
@@ -63,7 +64,9 @@ export default async function Movie({
           </div>
 
           <div className="absolute top-8 left-0 right-0 z-20 px-6">
-            <SearchBar />
+            <Suspense fallback={null}>
+              <SearchBar />
+            </Suspense>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ import { SeriesEpisodesRouteAware } from "@/components/series-episodes-route-awa
 import { EpisodeStreamsRouteAware } from "@/components/episode-streams-route-aware";
 import { buildEpisodePath, parseSeriesRouteId } from "@/lib/series-route";
 import { getSeriesLayoutData } from "./_shared/series-data";
+import { Suspense } from "react";
 
 export default async function SeriesLayout({
   children,
@@ -63,7 +64,9 @@ export default async function SeriesLayout({
           </div>
 
           <div className="absolute top-8 left-0 right-0 z-20 px-6">
-            <SearchBar />
+            <Suspense fallback={null}>
+              <SearchBar />
+            </Suspense>
           </div>
         </div>
 
