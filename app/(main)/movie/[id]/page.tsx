@@ -76,18 +76,18 @@ export default async function Movie({
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"
           />
-          <div className="flex flex-col md:flex-row mx-auto">
-            <div className="w-full md:w-[18%] lg:w-[16%] flex-shrink-0 justify-center flex md:block z-50 mt-6">
+          <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
+            <div className="w-full md:w-auto flex-shrink-0 justify-center flex md:block z-50 mt-6">
               <PosterImage
                 movie={movie}
                 posterImage={movie.poster || ""}
-                className="w-full h-auto rounded-lg shadow-2xl max-w-1/2 md:max-w-[14rem]"
+                className="w-full h-auto rounded-lg shadow-lg max-w-1/2 md:w-[14rem] md:max-w-none"
                 width={500}
                 height={750}
               />
             </div>
 
-            <div className="w-full md:w-[82%] lg:w-[84%] pt-2 text-center md:text-start mt-8">
+            <div className="w-full min-w-0 flex-1 pt-2 text-center md:text-start mt-8 md:mt-12">
               <div className="mb-4 flex justify-center md:justify-start">
                 <TextAnimate
                   as="h1"
@@ -174,7 +174,7 @@ export default async function Movie({
             </div>
           </div>
 
-          <div className="mt-5 w-full">
+          <div className="mt-10 w-full">
             <MediaActions movie={movie} />
           </div>
         </div>

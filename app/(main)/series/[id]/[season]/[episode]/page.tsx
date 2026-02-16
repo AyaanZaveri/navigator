@@ -28,10 +28,10 @@ export default async function EpisodeOnSeriesPage({
     } = episodeData;
 
     return (
-      <div className="flex flex-col md:flex-row mx-auto">
-        <div className="w-full md:w-1/3 lg:w-1/4 flex-shrink-0 justify-center flex md:block z-50 mt-6">
+      <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
+        <div className="w-full md:w-auto flex-shrink-0 justify-center flex md:block z-50 mt-6">
           {selectedEpisode.thumbnail ? (
-            <div className="relative aspect-video rounded-lg overflow-hidden shadow-2xl bg-muted max-w-1/2 md:max-w-full mt-16">
+            <div className="relative aspect-video rounded-lg overflow-hidden shadow-lg bg-muted max-w-1/2 md:w-[22rem] lg:w-[24rem] md:max-w-none mt-16">
               <img
                 src={selectedEpisode.thumbnail}
                 alt={selectedEpisodeTitle}
@@ -42,12 +42,12 @@ export default async function EpisodeOnSeriesPage({
             <img
               src={show.poster || ""}
               alt={show.name}
-              className="w-full h-auto rounded-lg shadow-2xl max-w-1/2 md:max-w-full"
+              className="w-full h-auto rounded-lg shadow-lg max-w-1/2 md:w-[14rem] md:max-w-none"
             />
           )}
         </div>
 
-        <div className="w-full md:w-2/3 lg:w-3/4 pt-10 md:pt-8 text-center md:text-start mt-8">
+        <div className="w-full min-w-0 flex-1 pt-10 md:pt-8 text-center md:text-start mt-8 md:mt-12">
           <div className="mb-4 flex justify-center md:justify-start">
             <h2 className="text-sm font-medium text-muted-foreground md:pl-8 inline-flex items-center">
               <TvIcon className="w-3.5 h-3.5 mr-2 text-muted-foreground" />

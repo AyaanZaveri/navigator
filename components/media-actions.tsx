@@ -3,9 +3,16 @@
 import { useState, useEffect } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Play, Puzzle, Search } from "lucide-react";
+import { Loader2, Play, Puzzle, Search, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   Select,
@@ -354,13 +361,27 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       )}
 
       {!loading && hasCheckedStreams && filteredStreams.length === 0 && (
-        <span className="text-sm text-muted-foreground">
-          {normalizedSearchQuery
-            ? "No streams match your search"
-            : selectedAddonId === "all"
-            ? "No streams found"
-            : "No streams found for this addon"}
-        </span>
+        <Empty className="border border-border/60 bg-card/30 py-10">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <SearchX className="size-5" />
+            </EmptyMedia>
+            <EmptyTitle>
+              {normalizedSearchQuery
+                ? "That search scared every stream away"
+                : selectedAddonId === "all"
+                ? "No streams crawled out of hiding"
+                : "This addon is stream-empty right now"}
+            </EmptyTitle>
+            <EmptyDescription>
+              {normalizedSearchQuery
+                ? "Try a simpler word, or remove filters to find the least broken stream."
+                : selectedAddonId === "all"
+                ? "Try again in a minute, or switch addons and hunt for a less cursed source."
+                : "Pick another addon, or clear filters and let chaos do the sorting."}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
     </div>
   );
