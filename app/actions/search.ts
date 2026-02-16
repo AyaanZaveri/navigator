@@ -6,6 +6,7 @@ import type {
   SearchResult,
 } from "@/types/stremio";
 import { getInstalledAddons } from "./auth";
+import { cache } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ type SearchAddonTarget = {
   transportUrl: string;
   addonName: string;
 };
+
+const getInstalledAddonsCached = cache(async () => getInstalledAddons());
 
 function getSearchableCatalogs(addon: Awaited<ReturnType<typeof getInstalledAddons>>[number]): SearchableCatalog[] {
   return addon.manifest.catalogs
@@ -69,7 +72,7 @@ export async function searchItems(query: string): Promise<SearchResult[]> {
   if (!query.trim()) return [];
 
   try {
-    const addons = await getInstalledAddons();
+    const addons = await getInstalledAddonsCached();
     const results: SearchResult[] = [];
     const seenIds = new Set<string>();
 
@@ -125,7 +128,7 @@ export async function searchItems(query: string): Promise<SearchResult[]> {
 
 export async function listSearchAddonTargets(): Promise<SearchAddonTarget[]> {
   try {
-    const addons = await getInstalledAddons();
+    const addons = await getInstalledAddonsCached();
     return addons
       .filter((addon) => getSearchableCatalogs(addon).length > 0)
       .map((addon) => ({
@@ -145,7 +148,7 @@ export async function searchCatalogSectionsForAddon(
   if (!query.trim()) return [];
 
   try {
-    const addons = await getInstalledAddons();
+    const addons = await getInstalledAddonsCached();
     const addon = addons.find((candidate) => candidate.transportUrl === transportUrl);
     if (!addon) return [];
 

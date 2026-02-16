@@ -1,33 +1,21 @@
-import { searchCatalogSections } from "@/app/actions";
+import { listSearchAddonTargets, searchCatalogSectionsForAddon } from "@/app/actions";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { MediaCard } from "@/components/media-card";
 import { SearchBar } from "@/components/search-component";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SearchIcon } from "lucide-react";
-import type { SearchCatalogSection, SearchResult, MediaItem } from "@/types/stremio";
+import { Suspense } from "react";
+import type { SearchResult, MediaItem } from "@/types/stremio";
 
-export default async function Search({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-  const query = (await searchParams).q;
+type SearchAddonTarget = Awaited<ReturnType<typeof listSearchAddonTargets>>[number];
 
-  const sections = await searchCatalogSections(query as string);
-  const renderableSections = sections
-    .map((section): SearchCatalogSection => ({
-      ...section,
-      items: section.items.filter(
-        (item) => item.type === "movie" || item.type === "series"
-      ),
-    }))
-    .filter((section) => section.items.length > 0);
+const catalogTypePriority: Record<string, number> = {
+  movie: 1,
+  series: 2,
+};
 
-  const totalResults = renderableSections.reduce(
-    (count, section) => count + section.items.length,
-    0
-  );
-
-  const toMediaItem = (item: SearchResult): MediaItem => ({
+function toMediaItem(item: SearchResult): MediaItem {
+  return {
     id: item.id,
     type: item.type as Extract<MediaItem["type"], "movie" | "series">,
     name: item.name,
@@ -35,26 +23,124 @@ export default async function Search({
     description: item.description,
     releaseInfo: item.releaseInfo,
     imdbRating: item.imdbRating,
-  });
+  };
+}
 
-  const renderItems = (items: SearchResult[]) => (
-    <div className="flex flex-row flex-wrap gap-8">
-      {items.map((item) => (
-        <div key={`${item.id}-${item.catalogId ?? "default"}`} className="flex-shrink-0">
-          <MediaCard item={toMediaItem(item)} />
+function normalizeQueryParam(
+  value: string | string[] | undefined
+): string {
+  if (Array.isArray(value)) return value[0]?.trim() ?? "";
+  return value?.trim() ?? "";
+}
+
+function AddonSectionSkeleton({ addonName }: { addonName: string }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-72 max-w-full" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <SearchIcon className="h-4 w-4" />
+          <span>Searching {addonName}...</span>
+        </div>
+      </div>
+      <div className="flex flex-row flex-wrap gap-8">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton
+            key={`${addonName}-skeleton-${index}`}
+            className="h-[320px] w-[210px] rounded-xl"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function AddonSection({
+  query,
+  target,
+}: {
+  query: string;
+  target: SearchAddonTarget;
+}) {
+  const sections = await searchCatalogSectionsForAddon(query, target.transportUrl);
+  const renderableSections = sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => item.type === "movie" || item.type === "series"
+      ),
+    }))
+    .filter((section) => section.items.length > 0)
+    .sort((a, b) => {
+      const ap = catalogTypePriority[a.catalogType] ?? 99;
+      const bp = catalogTypePriority[b.catalogType] ?? 99;
+      if (ap !== bp) return ap - bp;
+      return a.title.localeCompare(b.title);
+    });
+
+  if (renderableSections.length === 0) return null;
+
+  return (
+    <div className="space-y-12">
+      {renderableSections.map((section) => (
+        <div key={`${target.transportUrl}-${section.key}`}>
+          <h3 className="text-2xl font-semibold text-foreground mb-1 font-poppins">
+            {section.title}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-3">
+            {section.items.length} items found
+          </p>
+          <div className="flex flex-row flex-wrap gap-8">
+            {section.items.map((item) => (
+              <div
+                key={`${item.id}-${item.catalogId ?? "default"}`}
+                className="flex-shrink-0"
+              >
+                <MediaCard item={toMediaItem(item)} />
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
   );
+}
 
-  const renderEmptyState = (type: string) => (
-    <div className="text-center p-8">
-      <SearchIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-      <p className="text-muted-foreground">
-        No {type.toLowerCase()} found for &quot;{query}&quot;
-      </p>
+async function SearchResultsByAddon({ query }: { query: string }) {
+  const addonTargets = await listSearchAddonTargets();
+
+  if (addonTargets.length === 0) {
+    return (
+      <div className="text-center p-8">
+        <SearchIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <p className="text-muted-foreground">
+          No searchable addons are installed yet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-12">
+      {addonTargets.map((target) => (
+        <Suspense
+          key={target.transportUrl}
+          fallback={<AddonSectionSkeleton addonName={target.addonName} />}
+        >
+          <AddonSection query={query} target={target} />
+        </Suspense>
+      ))}
     </div>
   );
+}
+
+export default async function Search({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const query = normalizeQueryParam(params.q);
 
   return (
     <div className="relative px-4 py-6 max-w-full">
@@ -62,41 +148,17 @@ export default async function Search({
 
       <div className="relative z-[9999] mb-8">
         <div className="mb-6">
-          <SearchBar />
+          <SearchBar initialQuery={query} />
         </div>
       </div>
 
-      <div className="relative z-10 mb-2">
-        <h2 className="text-3xl font-semibold text-foreground mb-2 font-poppins">
-          &quot;{query}&quot;
-        </h2>
-        <p className="text-muted-foreground mb-6 inline-flex items-center">
-          <SearchIcon className="h-4 w-4 mr-2" />
-          Found {totalResults} results for &quot;{query}&quot;
-        </p>
-      </div>
-
       <section className="relative z-10 mb-12">
-        {renderableSections.length > 0 ? (
-          <div className="space-y-12">
-            {renderableSections.map((section) => (
-              <div key={section.key}>
-                <h3 className="text-2xl font-semibold text-foreground mb-1 font-poppins">
-                  {section.title}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  {section.items.length} items found
-                </p>
-                {renderItems(section.items)}
-              </div>
-            ))}
-          </div>
+        {query ? (
+          <SearchResultsByAddon query={query} />
         ) : (
           <div className="text-center p-8">
             <SearchIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">
-              No results found for &quot;{query}&quot;
-            </p>
+            <p className="text-muted-foreground">Start typing to search.</p>
           </div>
         )}
       </section>

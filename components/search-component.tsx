@@ -7,7 +7,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   listSearchAddonTargets,
   searchCatalogSectionsForAddon,
@@ -22,20 +22,26 @@ import type { SearchResult } from "@/types/stremio";
 
 interface SearchBarProps {
   className?: string;
+  initialQuery?: string;
 }
 
-export function SearchBar({ className = "" }: SearchBarProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps) {
+  const [searchQuery, setSearchQuery] = useState(initialQuery.trim());
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [addonsLoadingCount, setAddonsLoadingCount] = useState(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { isPlayerVisible } = useMediaPlayer();
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   const searchRequestIdRef = useRef(0);
+  const skipNextSuggestSearchRef = useRef(false);
+  const lastAppliedUrlQueryRef = useRef<string | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const urlQuery = (searchParams.get("q") ?? "").trim();
 
   const loadingComponent = useMemo(
     () => (
@@ -47,11 +53,6 @@ export function SearchBar({ className = "" }: SearchBarProps) {
     ),
     []
   );
-
-  const loadingAddonsLabel = useMemo(() => {
-    if (!isLoading || addonsLoadingCount <= 0) return null;
-    return `${addonsLoadingCount} addon${addonsLoadingCount === 1 ? "" : "s"} loading`;
-  }, [isLoading, addonsLoadingCount]);
 
   const normalizeText = (value: string): string =>
     value
@@ -92,8 +93,32 @@ export function SearchBar({ className = "" }: SearchBarProps) {
     return score;
   };
 
+  useEffect(() => {
+    if (pathname !== "/search") {
+      lastAppliedUrlQueryRef.current = null;
+      return;
+    }
+
+    const queryFromUrl = (urlQuery || initialQuery).trim();
+    if (lastAppliedUrlQueryRef.current === queryFromUrl) return;
+    lastAppliedUrlQueryRef.current = queryFromUrl;
+
+    skipNextSuggestSearchRef.current = true;
+    searchRequestIdRef.current += 1;
+    setSearchQuery(queryFromUrl);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setIsLoading(false);
+    setAddonsLoadingCount(0);
+  }, [pathname, urlQuery, initialQuery]);
+
   // Debounced search
   useEffect(() => {
+    if (skipNextSuggestSearchRef.current) {
+      skipNextSuggestSearchRef.current = false;
+      return;
+    }
+
     if (searchTimeout.current) {
       clearTimeout(searchTimeout.current);
     }
@@ -300,17 +325,8 @@ export function SearchBar({ className = "" }: SearchBarProps) {
         <div className="absolute top-full left-0 right-0 mt-2 dark:bg-background/70! bg-background/90 backdrop-blur-md rounded-xl border shadow-xl shadow-accent/30 z-[9999] max-h-96 overflow-y-auto">
           {isLoading && suggestions.length === 0 && loadingComponent}
 
-          {loadingAddonsLabel && (
-            <div className="px-4 pb-2 text-xs text-muted-foreground">
-              {loadingAddonsLabel}
-            </div>
-          )}
-
           {suggestions.length > 0 && (
             <div className="p-2">
-              <div className="text-sm text-muted-foreground px-2 py-1 mb-2">
-                Search Results
-              </div>
               {suggestions.map((item) => (
                 <SearchSuggestionItem
                   key={item.id}
