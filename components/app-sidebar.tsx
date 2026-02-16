@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { useTheme } from "next-themes";
 import {
   Sidebar,
@@ -17,7 +17,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -29,36 +28,23 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getUser, logout, getUserLibraries } from "@/app/actions";
+import { getUser, logout } from "@/app/actions";
 import {
-  Film,
-  Tv,
   User,
   LogOut,
   ChevronUp,
   Home,
-  Library,
   Sun,
   Moon,
   Monitor,
   Settings2,
   Puzzle,
-  ChevronRight,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useSettings, BITRATE_OPTIONS } from "@/contexts/settings-context";
 
-interface StremioLibrary {
-  Id: string;
-  Name: string;
-  CollectionType: string;
-}
+const brandFont = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["700"],
+});
 
 export function AppSidebar({
   isElectronMac,
@@ -68,28 +54,15 @@ export function AppSidebar({
   isElectronFullscreen: boolean;
 }) {
   const { setTheme } = useTheme();
-  const { videoBitrate, setVideoBitrate } = useSettings();
-  const { state } = useSidebar();
-  const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [libraries, setLibraries] = useState<StremioLibrary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
       try {
         const userData = await getUser();
         setUser(userData);
-
-        if (userData) {
-          const librariesData = await getUserLibraries();
-          setLibraries(librariesData);
-        }
       } catch (error) {
         console.error("Failed to fetch data:", error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -99,17 +72,6 @@ export function AppSidebar({
   const handleLogout = async () => {
     await logout();
     // logout() already handles the redirect
-  };
-
-  const getLibraryIcon = (collectionType: string) => {
-    switch (collectionType?.toLowerCase()) {
-      case "movies":
-        return <Film className="h-4 w-4" />;
-      case "tvshows":
-        return <Tv className="h-4 w-4" />;
-      default:
-        return <Film className="h-4 w-4" />; // Default to film icon for any edge cases
-    }
   };
 
   return (
@@ -129,16 +91,17 @@ export function AppSidebar({
               <Link href="/">
                 <div className="text-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                   <Image
-                    src="/logo/finetic.png"
-                    alt="Finetic Logo"
+                    src="/logo/navigator.png"
+                    alt="Navigator Logo"
                     width={32}
                     height={32}
                     className="rounded"
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">Finetic</span>
-                  <span className="text-xs">Stremio</span>
+                  <span className={`${brandFont.className} text-base font-semibold`}>
+                    Navigator
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -159,36 +122,6 @@ export function AppSidebar({
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <DropdownMenu>
-                <SidebarMenuItem>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                      <Library className="h-4 w-4" />
-                      <span>Libraries</span>
-                      <ChevronRight className="ml-auto h-4 w-4" />
-                    </SidebarMenuButton>
-                  </DropdownMenuTrigger>
-                  {!isLoading && libraries.length > 0 ? (
-                    <DropdownMenuContent
-                      side="right"
-                      align="start"
-                      className="min-w-56 rounded-lg"
-                    >
-                      {libraries.map((library) => (
-                        <DropdownMenuItem asChild key={library.Id}>
-                          <Link
-                            href={`/library/${library.Id}`}
-                            className="flex items-center gap-2"
-                          >
-                            {getLibraryIcon(library.CollectionType)}
-                            <span>{library.Name}</span>
-                          </Link>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  ) : null}
-                </SidebarMenuItem>
-              </DropdownMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link href="/addons">

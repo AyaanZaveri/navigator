@@ -1,10 +1,8 @@
 "use server";
 
 import type {
-  StremioAddon,
   StremioCatalogResponse,
-  StremioMetaPreview,
-  MediaItem,
+  SearchCatalogSection,
   SearchResult,
 } from "@/types/stremio";
 import { getInstalledAddons } from "./auth";
@@ -26,6 +24,45 @@ async function fetchAddonResource<T>(
   }
 }
 
+type SearchableCatalog = {
+  id: string;
+  type: string;
+};
+
+type SearchAddonTarget = {
+  transportUrl: string;
+  addonName: string;
+};
+
+function getSearchableCatalogs(addon: Awaited<ReturnType<typeof getInstalledAddons>>[number]): SearchableCatalog[] {
+  return addon.manifest.catalogs
+    .filter((catalog) => catalog.extra?.some((extra) => extra.name === "search"))
+    .map((catalog) => ({
+      id: catalog.id,
+      type: catalog.type,
+    }));
+}
+
+function mapMetaToSearchResult(
+  meta: StremioCatalogResponse["metas"][number],
+  addonName: string,
+  catalogId?: string,
+  catalogName?: string
+): SearchResult {
+  return {
+    id: meta.id,
+    type: meta.type,
+    name: meta.name,
+    poster: meta.poster,
+    description: meta.description,
+    releaseInfo: meta.releaseInfo,
+    imdbRating: meta.imdbRating,
+    addonName,
+    catalogId,
+    catalogName,
+  };
+}
+
 // ─── Search ──────────────────────────────────────────────────────
 
 export async function searchItems(query: string): Promise<SearchResult[]> {
@@ -40,9 +77,7 @@ export async function searchItems(query: string): Promise<SearchResult[]> {
     const searchPromises: Promise<void>[] = [];
 
     for (const addon of addons) {
-      for (const catalog of addon.manifest.catalogs) {
-        const searchExtra = catalog.extra?.find((e) => e.name === "search");
-        if (!searchExtra) continue;
+      for (const catalog of getSearchableCatalogs(addon)) {
 
         const promise = (async () => {
           const encodedQuery = encodeURIComponent(query);
@@ -56,16 +91,7 @@ export async function searchItems(query: string): Promise<SearchResult[]> {
               if (seenIds.has(meta.id)) continue;
               seenIds.add(meta.id);
 
-              results.push({
-                id: meta.id,
-                type: meta.type,
-                name: meta.name,
-                poster: meta.poster,
-                description: meta.description,
-                releaseInfo: meta.releaseInfo,
-                imdbRating: meta.imdbRating,
-                addonName: addon.manifest.name,
-              });
+              results.push(mapMetaToSearchResult(meta, addon.manifest.name));
             }
           }
         })();
@@ -93,6 +119,81 @@ export async function searchItems(query: string): Promise<SearchResult[]> {
     return results;
   } catch (error) {
     console.error("Failed to search items:", error);
+    return [];
+  }
+}
+
+export async function listSearchAddonTargets(): Promise<SearchAddonTarget[]> {
+  try {
+    const addons = await getInstalledAddons();
+    return addons
+      .filter((addon) => getSearchableCatalogs(addon).length > 0)
+      .map((addon) => ({
+        transportUrl: addon.transportUrl,
+        addonName: addon.manifest.name,
+      }));
+  } catch (error) {
+    console.error("Failed to list searchable addons:", error);
+    return [];
+  }
+}
+
+export async function searchCatalogSectionsForAddon(
+  query: string,
+  transportUrl: string
+): Promise<SearchCatalogSection[]> {
+  if (!query.trim()) return [];
+
+  try {
+    const addons = await getInstalledAddons();
+    const addon = addons.find((candidate) => candidate.transportUrl === transportUrl);
+    if (!addon) return [];
+
+    const searchableCatalogs = getSearchableCatalogs(addon);
+    const encodedQuery = encodeURIComponent(query);
+
+    const sections = await Promise.all(
+      searchableCatalogs.map(async (catalog) => {
+        const data = await fetchAddonResource<StremioCatalogResponse>(
+          addon.transportUrl,
+          `catalog/${catalog.type}/${catalog.id}/search=${encodedQuery}.json`
+        );
+        if (!data?.metas?.length) return null;
+
+        return {
+          key: `${addon.manifest.id}:${catalog.type}:${catalog.id}`,
+          title: `${addon.manifest.name} - ${catalog.id}`,
+          catalogId: catalog.id,
+          catalogType: catalog.type,
+          items: data.metas.map((meta) =>
+            mapMetaToSearchResult(meta, addon.manifest.name, catalog.id, catalog.id)
+          ),
+        } satisfies SearchCatalogSection;
+      })
+    );
+
+    return sections.filter((section): section is SearchCatalogSection => section !== null);
+  } catch (error) {
+    console.error("Failed to search addon catalogs:", error);
+    return [];
+  }
+}
+
+export async function searchCatalogSections(
+  query: string
+): Promise<SearchCatalogSection[]> {
+  if (!query.trim()) return [];
+
+  try {
+    const addonTargets = await listSearchAddonTargets();
+    const sections = await Promise.all(
+      addonTargets.map((target) =>
+        searchCatalogSectionsForAddon(query, target.transportUrl)
+      )
+    );
+    return sections.flat();
+  } catch (error) {
+    console.error("Failed to search catalog sections:", error);
     return [];
   }
 }

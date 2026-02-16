@@ -37,6 +37,9 @@ export {
 export {
   searchItems,
   searchPeople,
+  listSearchAddonTargets,
+  searchCatalogSectionsForAddon,
+  searchCatalogSections,
 } from './search';
 
 // Utility actions

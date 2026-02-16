@@ -245,4 +245,14 @@ export interface SearchResult {
   releaseInfo?: string;
   imdbRating?: string;
   addonName?: string;
+  catalogId?: string;
+  catalogName?: string;
+}
+
+export interface SearchCatalogSection {
+  key: string;
+  title: string;
+  catalogId: string;
+  catalogType: string;
+  items: SearchResult[];
 }
