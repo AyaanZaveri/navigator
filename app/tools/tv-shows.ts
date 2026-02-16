@@ -19,6 +19,21 @@ function parseSeasonId(seasonId: string): { seriesId: string; seasonNumber?: num
   return { seriesId, seasonNumber: parsedSeason };
 }
 
+function formatReleaseDate(released?: string): string | null {
+  if (!released) return null;
+
+  const parsed = new Date(released);
+  if (Number.isNaN(parsed.getTime())) {
+    return released;
+  }
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export const getSeasons = tool({
   description: "Get seasons for a TV show",
   inputSchema: z.object({
@@ -88,6 +103,7 @@ export const getEpisodes = tool({
           episodeNumber: episode.episode,
           seasonNumber: episode.season,
           overview: episode.overview,
+          releaseInfo: formatReleaseDate(episode.released),
           thumbnail: episode.thumbnail,
           poster: episode.thumbnail ?? null,
         })),

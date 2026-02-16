@@ -55,7 +55,6 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
     criticRating,
     officialRating,
     runtime,
-    overview,
     releaseInfo,
   } = item;
 
@@ -92,6 +91,10 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
   };
 
   const { type, href } = getTypeAndHref();
+  const showReleaseInfoBadge = Boolean(
+    releaseInfo && (type === "episode" || !year)
+  );
+  const showYearBadge = Boolean(year && !(type === "episode" && releaseInfo));
   const imageUrl =
     type === "episode"
       ? item.thumbnail || item.poster || item.background
@@ -201,24 +204,13 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
               )}
             </div>
 
-            {overview && (
-              <p
-                className={cn(
-                  "mt-0 text-xs text-muted-foreground line-clamp-1",
-                  type === "episode" ? "max-w-[calc(100%-6.25rem)]" : ""
-                )}
-              >
-                {overview}
-              </p>
-            )}
-
             <div className="mt-1 flex items-center gap-1 not-odd:text-xs">
-              {releaseInfo && !year && (
+              {showReleaseInfoBadge && (
                 <Badge variant="outline" className="px-1.5 py-0.5 h-auto">
                   {releaseInfo}
                 </Badge>
               )}
-              {year && (
+              {showYearBadge && (
                 <Badge variant="outline" className="px-1.5 py-0.5 h-auto">
                   {year}
                 </Badge>

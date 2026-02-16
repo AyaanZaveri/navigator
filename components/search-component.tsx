@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -12,7 +15,7 @@ import {
 } from "@/app/actions";
 import { SearchSuggestionItem } from "./search-suggestion-item";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
-import * as Kbd from "@/components/ui/kbd";
+import { Kbd } from "@/components/ui/kbd";
 import { TextShimmer } from "./motion-primitives/text-shimmer";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import type { SearchResult } from "@/types/stremio";
@@ -269,9 +272,11 @@ export function SearchBar({ className = "" }: SearchBarProps) {
           <SidebarTrigger className="dark:bg-background/70! bg-background/90 border-border border text-foreground hover:bg-accent rounded-2xl h-11 w-11 p-0 backdrop-blur-sm" />
         </div>
 
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-          <Input
+        <InputGroup className="flex-1 h-11 rounded-2xl md:rounded-xl border-border text-foreground backdrop-blur-md dark:bg-background/70! bg-background/90 shadow-none">
+          <InputGroupAddon>
+            <Search className="h-4 w-4 text-muted-foreground" />
+          </InputGroupAddon>
+          <InputGroupInput
             ref={inputRef}
             type="text"
             placeholder="Search movies and TV shows..."
@@ -283,14 +288,12 @@ export function SearchBar({ className = "" }: SearchBarProps) {
                 setShowSuggestions(true);
               }
             }}
-            className="pl-10 pr-16 border-border text-foreground placeholder:text-muted-foreground h-11 rounded-2xl md:rounded-xl backdrop-blur-md dark:bg-background/70! bg-background/90"
+            className="h-11 text-foreground placeholder:text-muted-foreground"
           />
-          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
-            <Kbd.Root variant="outline" size="lg">
-              <Kbd.Key>/</Kbd.Key>
-            </Kbd.Root>
-          </div>
-        </div>
+          <InputGroupAddon align="inline-end" className="pr-3 has-[>kbd]:mr-0">
+            <Kbd>/</Kbd>
+          </InputGroupAddon>
+        </InputGroup>
       </form>
 
       {(showSuggestions || isLoading) && (

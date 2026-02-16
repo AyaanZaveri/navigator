@@ -36,7 +36,7 @@ import { Input } from "../ui/input";
 import { useRouter } from "next/navigation";
 import { DefaultChatTransport, ToolCallPart } from "ai";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
-import * as Kbd from "@/components/ui/kbd";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Badge } from "../ui/badge";
 import { AuroraText } from "@/components/magicui/aurora-text";
 import { useTheme } from "next-themes";
@@ -414,39 +414,41 @@ const AIAsk = () => {
     );
   };
 
+  const getMediaResultsFromToolPart = (part: any): any[] => {
+    if (part.state !== "output-available" || !part.output) return [];
+
+    const output = part.output;
+
+    if (
+      (part.type === "tool-searchMedia" || part.toolName === "searchMedia") &&
+      output.success &&
+      output.results
+    ) {
+      return output.results;
+    }
+
+    if (output.movies) return output.movies;
+    if (output.shows) return output.shows;
+    if (output.resumeItems) return output.resumeItems;
+    if (output.watchlist) return output.watchlist;
+    if (output.filmography) return output.filmography;
+    if (output.similarItems) return output.similarItems;
+    if (output.episodes) return output.episodes;
+
+    return [];
+  };
+
   const extractMediaResults = (toolParts: any[]) => {
-    const results: any[] = [];
-
-    for (const part of toolParts) {
-      if (part.state === "output-available" && part.output) {
-        const output = part.output;
-
-        if (
-          (part.type === "tool-searchMedia" ||
-            part.toolName === "searchMedia") &&
-          output.success &&
-          output.results
-        ) {
-          results.push(...output.results);
-        } else if (output.movies) {
-          results.push(...output.movies);
-        } else if (output.shows) {
-          results.push(...output.shows);
-        } else if (output.resumeItems) {
-          results.push(...output.resumeItems);
-        } else if (output.watchlist) {
-          results.push(...output.watchlist);
-        } else if (output.filmography) {
-          results.push(...output.filmography);
-        } else if (output.similarItems) {
-          results.push(...output.similarItems);
-        } else if (output.episodes) {
-          results.push(...output.episodes);
-        }
+    // Only render cards for the latest tool step that produced media results.
+    // This matches the text behavior where we show the latest step content.
+    for (let i = toolParts.length - 1; i >= 0; i -= 1) {
+      const results = getMediaResultsFromToolPart(toolParts[i]);
+      if (results.length > 0) {
+        return results;
       }
     }
 
-    return results;
+    return [];
   };
 
   const getAllToolCalls = () => {
@@ -740,11 +742,11 @@ const AIAsk = () => {
         >
           <Ship className="h-4 w-4" />
           <span className="text-sm mr-0.5">Ask Navigator</span>
-          <Kbd.Root variant="outline" size="sm">
-            <Kbd.Key className="font-sans">⌘</Kbd.Key>
-            <Kbd.Separator />
-            <Kbd.Key>K</Kbd.Key>
-          </Kbd.Root>
+          <KbdGroup>
+            <Kbd className="font-sans">⌘</Kbd>
+            <span>+</span>
+            <Kbd>K</Kbd>
+          </KbdGroup>
         </Button>
       </motion.div>
     </div>

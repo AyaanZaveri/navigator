@@ -67,6 +67,21 @@ function scoreMediaMatch(
   return nameScore + qualityScore + preferredTypeScore;
 }
 
+function formatReleaseDate(released?: string): string | null {
+  if (!released) return null;
+
+  const parsed = new Date(released);
+  if (Number.isNaN(parsed.getTime())) {
+    return released;
+  }
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export interface PlayMediaTool {
   success: boolean;
   action: string;
@@ -369,6 +384,7 @@ export const findEpisodeByTitle = tool({
           seasonNumber: episode.season,
           episodeNumber: episode.episode,
           overview: episode.overview,
+          releaseInfo: formatReleaseDate(episode.released),
           thumbnail: episode.thumbnail,
           poster: episode.thumbnail ?? null,
         }))
