@@ -1,20 +1,17 @@
 import { fetchCatalogItems, fetchResumeItems } from "@/app/actions/media";
 import { getInstalledAddons } from "@/app/actions/auth";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
+import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { MediaSection } from "@/components/media-section";
 import { SearchBar } from "@/components/search-component";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
+import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
+import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { MediaItem, StremioAddonCatalog } from "@/types/stremio";
 import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
-
-type CatalogSectionWork = {
-  key: string;
-  sectionName: string;
-  itemsPromise: Promise<MediaItem[]>;
-};
 
 function formatTypeLabel(type: string): string {
   return type
@@ -133,7 +130,7 @@ async function ContinueWatchingSection({
   );
 }
 
-async function buildCatalogSectionWork(): Promise<CatalogSectionWork[]> {
+async function buildCatalogEntries(): Promise<HomeCatalogEntry[]> {
   const addons = await getInstalledAddons();
 
   const catalogEntries = addons.flatMap((addon) =>
@@ -156,52 +153,59 @@ async function buildCatalogSectionWork(): Promise<CatalogSectionWork[]> {
     return {
       key: `${entry.addonTransportUrl}-${entry.catalogType}-${entry.catalogId}-${index}`,
       sectionName,
-      itemsPromise: fetchCatalogItems(
-        entry.catalogType,
-        entry.catalogId,
-        entry.addonTransportUrl
-      ).then((items) => items.slice(0, 12)),
+      catalogType: entry.catalogType,
+      catalogId: entry.catalogId,
+      addonTransportUrl: entry.addonTransportUrl,
     };
   });
 }
 
-async function CatalogSection({
-  sectionName,
-  itemsPromise,
-}: {
-  sectionName: string;
-  itemsPromise: Promise<MediaItem[]>;
-}) {
-  const items = await itemsPromise;
-  if (items.length === 0) return null;
-  return <MediaSection sectionName={sectionName} mediaItems={items} />;
+async function loadCatalogSections(entries: HomeCatalogEntry[]): Promise<HomeCatalogSection[]> {
+  const loadedSections = await Promise.all(
+    entries.map(async (entry) => {
+      const mediaItems = (
+        await fetchCatalogItems(entry.catalogType, entry.catalogId, entry.addonTransportUrl)
+      ).slice(0, 12);
+
+      if (mediaItems.length === 0) return null;
+
+      return {
+        key: entry.key,
+        sectionName: entry.sectionName,
+        mediaItems,
+      } satisfies HomeCatalogSection;
+    })
+  );
+
+  return loadedSections.filter(
+    (section): section is HomeCatalogSection => section !== null
+  );
 }
 
-async function CatalogSections({
-  catalogSectionsPromise,
+async function CatalogSectionsBootstrap({
+  catalogEntriesPromise,
 }: {
-  catalogSectionsPromise: Promise<CatalogSectionWork[]>;
+  catalogEntriesPromise: Promise<HomeCatalogEntry[]>;
 }) {
-  const catalogSections = await catalogSectionsPromise;
-  if (catalogSections.length === 0) return null;
+  const catalogEntries = await catalogEntriesPromise;
+  if (catalogEntries.length === 0) return null;
+
+  const initialEntries = catalogEntries.slice(0, INITIAL_CATALOG_COUNT);
+  const remainingEntries = catalogEntries.slice(INITIAL_CATALOG_COUNT);
+  const initialSections = await loadCatalogSections(initialEntries);
 
   return (
-    <>
-      {catalogSections.map((section, index) => (
-        <Suspense key={section.key} fallback={<HomeSectionSkeleton />}>
-          <CatalogSection
-            sectionName={section.sectionName}
-            itemsPromise={section.itemsPromise}
-          />
-        </Suspense>
-      ))}
-    </>
+    <HomeCatalogSectionsLazy
+      initialSections={initialSections}
+      remainingEntries={remainingEntries}
+      batchSize={CATALOG_BATCH_SIZE}
+    />
   );
 }
 
 export default function Home() {
   const continueWatchingPromise = fetchResumeItems();
-  const catalogSectionsPromise = buildCatalogSectionWork();
+  const catalogEntriesPromise = buildCatalogEntries();
 
   return (
     <AuthErrorHandler>
@@ -230,7 +234,7 @@ export default function Home() {
         </Suspense>
 
         <Suspense fallback={<HomeCatalogsFallback />}>
-          <CatalogSections catalogSectionsPromise={catalogSectionsPromise} />
+          <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
         </Suspense>
       </div>
     </AuthErrorHandler>
