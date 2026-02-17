@@ -1,7 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { TextAnimate } from "@/components/magicui/text-animate";
 import { Star, TvIcon } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { buildSeriesPath } from "@/lib/series-route";
 import { getSeriesEpisodeSelectionData } from "../../_shared/series-data";
 
 export default async function EpisodeOnSeriesPage({
@@ -50,8 +52,13 @@ export default async function EpisodeOnSeriesPage({
         <div className="w-full min-w-0 flex-1 pt-10 md:pt-8 text-center md:text-start mt-8 md:mt-12">
           <div className="mb-4 flex justify-center md:justify-start">
             <h2 className="text-sm font-medium text-muted-foreground md:pl-8 inline-flex items-center">
-              <TvIcon className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
-              <span>{show.name}</span>
+              <Link
+                href={buildSeriesPath(id)}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <TvIcon className="w-3.5 h-3.5 mr-2" />
+                {show.name}
+              </Link>
               <span className="mx-2">•</span>
               <span>Season {seasonNumber}</span>
             </h2>

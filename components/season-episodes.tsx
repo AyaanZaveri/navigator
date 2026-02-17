@@ -287,11 +287,24 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     ) as HTMLElement | null;
 
     if (element) {
-      element.scrollIntoView({
-        behavior: "smooth",
-        inline: "center",
-        block: "nearest",
-      });
+      const viewport =
+        viewportRef.current ??
+        (element
+          .closest('[data-slot="scroll-area"]')
+          ?.querySelector(
+            '[data-slot="scroll-area-viewport"]'
+          ) as HTMLDivElement | null);
+
+      if (viewport) {
+        const targetLeft =
+          element.offsetLeft - (viewport.clientWidth - element.clientWidth) / 2;
+
+        viewport.scrollTo({
+          left: Math.max(0, targetLeft),
+          behavior: "smooth",
+        });
+      }
+
       lastScrolledEpisodeRef.current = key;
     }
   }, [episodes, episodesLoading, currentSeasonNumber, currentEpisodeNumber, selectedSeason]);
@@ -468,7 +481,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
         <div className="space-y-3 py-2">
           {/* Episode Thumbnail */}
           <div
-            className={`relative aspect-video rounded-lg overflow-hidden bg-muted shadow-lg group-hover:shadow-xl transition-all duration-300 ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background" : ""}`}
+            className={`relative aspect-video rounded-lg overflow-hidden bg-muted shadow-lg group-hover:shadow-xl transition-all duration-300 ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-xl shadow-primary/25" : ""}`}
           >
             {episode.thumbnail ? (
               <img

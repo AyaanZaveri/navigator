@@ -233,3 +233,19 @@
     scrollbar-color: var(--accent) transparent;
   }
 }
+
+@layer components {
+  /* Keep interactive hover transitions outside shadcn source files. */
+  [data-slot="select-trigger"] {
+    @apply transition-colors hover:bg-accent hover:text-accent-foreground;
+  }
+
+  [data-slot="tabs-trigger"] {
+    @apply transition-colors;
+  }
+
+  [data-slot="toggle"],
+  [data-slot="toggle-group-item"] {
+    @apply transition-colors;
+  }
+}

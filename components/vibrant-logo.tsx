@@ -44,12 +44,14 @@ export function VibrantLogo({
     }
   }, [src]);
 
-  const dynamicStyle = shadowColor 
-    ? { 
+  const dynamicStyle = shadowColor
+    ? {
         filter: `drop-shadow(0 8px 60px ${shadowColor}80) drop-shadow(0 16px 120px ${shadowColor}60) drop-shadow(0 32px 200px ${shadowColor}40)`,
-        transition: 'filter 0.3s ease-in-out'
+        transition: "filter 0.3s ease-in-out, transform 0.3s ease-out",
       }
-    : {};
+    : {
+        transition: "transform 0.3s ease-out",
+      };
 
   return (
     <img

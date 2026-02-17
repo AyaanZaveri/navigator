@@ -5,8 +5,8 @@ export default function SeriesLoading() {
     <div className="min-h-screen overflow-hidden md:pr-1 pb-8">
       <div className="relative">
         <div className="relative h-[46vh] md:h-[62vh] overflow-hidden md:rounded-xl md:mt-2.5">
-          <Skeleton className="h-full w-full md:rounded-xl" />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/70 md:rounded-xl" />
+          <Skeleton className="h-full w-full md:rounded-xl opacity-60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/5 via-background/20 to-background/45 md:rounded-xl" />
         </div>
       </div>
 

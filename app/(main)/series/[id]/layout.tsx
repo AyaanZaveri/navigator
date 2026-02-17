@@ -2,11 +2,16 @@ import { SearchBar } from "@/components/search-component";
 import { MediaSection } from "@/components/media-section";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { VibrantLogo } from "@/components/vibrant-logo";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { SeriesEpisodesRouteAware } from "@/components/series-episodes-route-aware";
 import { EpisodeStreamsRouteAware } from "@/components/episode-streams-route-aware";
-import { buildEpisodePath, parseSeriesRouteId } from "@/lib/series-route";
+import {
+  buildEpisodePath,
+  buildSeriesPath,
+  parseSeriesRouteId,
+} from "@/lib/series-route";
 import { getSeriesLayoutData } from "./_shared/series-data";
 import { Suspense } from "react";
 
@@ -50,14 +55,20 @@ export default async function SeriesLayout({
               height={1080}
             />
             {show.logo && (
-              <VibrantLogo
-                src={show.logo}
-                alt={`${show.name} logo`}
-                movieName={show.name || ""}
-                width={420}
-                height={134}
-                className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-h-24 md:max-h-32 w-auto object-contain max-w-2/3 invisible md:visible"
-              />
+              <Link
+                href={buildSeriesPath(id)}
+                aria-label={`Go to ${show.name} series page`}
+                className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-w-2/3 invisible md:visible transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
+              >
+                <VibrantLogo
+                  src={show.logo}
+                  alt={`${show.name} logo`}
+                  movieName={show.name || ""}
+                  width={420}
+                  height={134}
+                  className="max-h-24 md:max-h-32 w-auto object-contain"
+                />
+              </Link>
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90 md:rounded-xl" />
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent md:rounded-xl" />

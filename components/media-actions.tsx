@@ -318,7 +318,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                 size="default"
                 value={selectedResolutions}
                 onValueChange={setSelectedResolutions}
-                className="flex-wrap"
+                className="flex-wrap shadow-xs"
                 aria-label="Filter by resolution"
               >
                 {RESOLUTION_FILTERS.map((resolution) => (
@@ -326,7 +326,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                     key={resolution}
                     value={resolution}
                     aria-label={`Filter by ${resolution}`}
-                    className="font-mono"
+                    className="font-mono [transition-property:color,background-color,border-color,box-shadow] duration-200"
                   >
                     {resolution}
                   </ToggleGroupItem>
@@ -338,7 +338,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                 size="default"
                 value={selectedStreamTags}
                 onValueChange={setSelectedStreamTags}
-                className="flex-wrap"
+                className="flex-wrap shadow-xs"
                 aria-label="Filter by stream tags"
               >
                 {STREAM_TAG_FILTERS.map((tag) => (
@@ -346,7 +346,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                     key={tag}
                     value={tag}
                     aria-label={`Filter by ${tag}`}
-                    className="font-mono"
+                    className="font-mono [transition-property:color,background-color,border-color,box-shadow] duration-200"
                   >
                     {tag}
                   </ToggleGroupItem>
@@ -394,7 +394,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                 return (
                   <div
                     key={index}
-                    className="rounded-lg border border-border/60 bg-card/50 p-3"
+                    className="rounded-lg border border-border/60 bg-card/50 p-3 shadow-xs"
                   >
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
@@ -420,11 +420,11 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-9 px-3 gap-1.5"
+                          className="group h-9 px-3 gap-1.5"
                           disabled={!streamUrl}
                           onClick={() => handlePlay(stream)}
                         >
-                          <Play className="h-3.5 w-3.5" />
+                          <Play className="h-3.5 w-3.5 transition-colors group-hover:text-primary" />
                           <span className="text-sm">Play</span>
                         </Button>
                       </div>
@@ -449,7 +449,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
                   key={item}
-                  className="rounded-lg border border-border/60 bg-card/50 p-3"
+                  className="rounded-lg border border-border/60 bg-card/50 p-3 shadow-xs"
                 >
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
