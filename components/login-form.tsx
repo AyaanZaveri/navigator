@@ -81,7 +81,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 amplitude={0.8}
                 blend={0.4}
             />
-            <Card className="w-full max-w-md relative z-10 border-white/10 bg-background/85 backdrop-blur-xl shadow-2xl">
+            <Card className="w-full max-w-md relative z-10 border bg-background/85 backdrop-blur-xl shadow-xs">
                 <CardHeader className="text-center">
                     <div className="flex items-center justify-center mb-5">
                         <Image
@@ -90,7 +90,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                             width={64}
                             height={64}
                             priority
-                            className="drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]"
+                            className="drop-shadow-[0_4px_10px_rgba(0,0,0,0.16)] dark:drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]"
                         />
                     </div>
                     <CardTitle className="font-poppins text-3xl font-semibold tracking-tight">Sign in</CardTitle>
