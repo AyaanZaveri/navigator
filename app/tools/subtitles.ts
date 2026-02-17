@@ -22,6 +22,7 @@ interface SubtitleLoadResult {
 }
 
 const DEFAULT_SUBTITLE_INDEX = 0;
+const ENGLISH_TRACK_MIN_SCORE = 60;
 const STOP_WORDS = new Set([
     "the",
     "a",
@@ -173,6 +174,59 @@ function selectRelevantSubtitles(
     return sampled;
 }
 
+function scoreEnglishTrack(track: {
+    id?: string;
+    label?: string;
+    language?: string;
+}): number {
+    const values = [track.id, track.label, track.language]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+    let score = 0;
+
+    for (const value of values) {
+        if (value.includes("english")) score += 100;
+        if (value.includes("eng")) score += 80;
+
+        const tokens = value
+            .split(/[^a-z0-9]+/)
+            .map((token) => token.trim())
+            .filter(Boolean);
+
+        if (tokens.includes("english")) score += 50;
+        if (tokens.includes("eng")) score += 40;
+        if (tokens.includes("en")) score += 25;
+    }
+
+    return score;
+}
+
+function pickPreferredSubtitleTrackIndex(
+    tracks: Array<{
+    id?: string;
+    label?: string;
+    language?: string;
+  }>,
+    subtitleIndex: number
+): number {
+    let bestEnglishIndex = -1;
+    let bestEnglishScore = -1;
+
+    for (const [index, track] of tracks.entries()) {
+        const score = scoreEnglishTrack(track);
+        if (score > bestEnglishScore) {
+            bestEnglishScore = score;
+            bestEnglishIndex = index;
+        }
+    }
+
+    if (bestEnglishIndex >= 0 && bestEnglishScore >= ENGLISH_TRACK_MIN_SCORE) {
+        return bestEnglishIndex;
+    }
+
+    return Math.max(0, Math.min(Math.floor(subtitleIndex), tracks.length - 1));
+}
+
 async function loadParsedSubtitles(
     currentMedia: CurrentMediaWithSource | null,
     subtitleIndex: number
@@ -202,9 +256,9 @@ async function loadParsedSubtitles(
         };
     }
 
-    const boundedSubtitleIndex = Math.max(
-        0,
-        Math.min(Math.floor(subtitleIndex), tracks.length - 1)
+    const boundedSubtitleIndex = pickPreferredSubtitleTrackIndex(
+        tracks,
+        subtitleIndex
     );
     const selectedTrack = tracks[boundedSubtitleIndex];
 

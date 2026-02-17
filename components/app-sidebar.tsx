@@ -88,7 +88,7 @@ export function AppSidebar({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               asChild
             >
-              <Link href="/">
+              <a href="/">
                 <div className="text-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                   <Image
                     src="/logo/navigator.png"
@@ -103,7 +103,7 @@ export function AppSidebar({
                     Navigator
                   </span>
                 </div>
-              </Link>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -116,10 +116,10 @@ export function AppSidebar({
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/">
+                  <a href="/">
                     <Home className="h-4 w-4" />
                     <span>Home</span>
-                  </Link>
+                  </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

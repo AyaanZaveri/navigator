@@ -65,6 +65,7 @@ export async function getSubtitleTracks(
   }
 ): Promise<
   Array<{
+    id?: string;
     kind: string;
     label: string;
     language: string;
@@ -105,6 +106,7 @@ export async function getSubtitleTracks(
     );
 
     const tracks: Array<{
+      id?: string;
       kind: string;
       label: string;
       language: string;
@@ -132,6 +134,7 @@ export async function getSubtitleTracks(
         if (data?.subtitles) {
           for (const sub of data.subtitles) {
             tracks.push({
+              id: sub.id,
               kind: "subtitles",
               label: sub.label || sub.lang || "Unknown",
               language: sub.lang || "unknown",

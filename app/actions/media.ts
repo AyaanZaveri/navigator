@@ -48,9 +48,15 @@ async function fetchAddonResource<T>(
     const base = transportUrl.replace(/\/manifest\.json$/, "");
     const url = `${base}/${path}`;
 
+    const shouldBypassDataCache = path.startsWith("catalog/");
+
     const response = await fetch(url, {
       ...(init ?? {}),
-      ...(init?.cache || init?.next ? {} : { next: { revalidate: 300 } }),
+      ...(init?.cache || init?.next
+        ? {}
+        : shouldBypassDataCache
+          ? { cache: "no-store" }
+          : { next: { revalidate: 300 } }),
     });
 
     if (!response.ok) return null;
