@@ -9,6 +9,5 @@ script = ""
 name = "Run"
 icon = "run"
 command = '''
-bun run build
-bun start
+bun run build && bun start
 '''

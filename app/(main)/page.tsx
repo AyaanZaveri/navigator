@@ -168,13 +168,10 @@ async function buildCatalogSectionWork(): Promise<CatalogSectionWork[]> {
 async function CatalogSection({
   sectionName,
   itemsPromise,
-  revealAfterPromise,
 }: {
   sectionName: string;
   itemsPromise: Promise<MediaItem[]>;
-  revealAfterPromise: Promise<void>;
 }) {
-  await revealAfterPromise;
   const items = await itemsPromise;
   if (items.length === 0) return null;
   return <MediaSection sectionName={sectionName} mediaItems={items} />;
@@ -188,21 +185,6 @@ async function CatalogSections({
   const catalogSections = await catalogSectionsPromise;
   if (catalogSections.length === 0) return null;
 
-  const revealAfterPromises: Promise<void>[] = [];
-  for (let i = 0; i < catalogSections.length; i += 1) {
-    if (i === 0) {
-      revealAfterPromises.push(Promise.resolve());
-      continue;
-    }
-
-    revealAfterPromises.push(
-      Promise.all([
-        revealAfterPromises[i - 1],
-        catalogSections[i - 1].itemsPromise,
-      ]).then(() => undefined)
-    );
-  }
-
   return (
     <>
       {catalogSections.map((section, index) => (
@@ -210,7 +192,6 @@ async function CatalogSections({
           <CatalogSection
             sectionName={section.sectionName}
             itemsPromise={section.itemsPromise}
-            revealAfterPromise={revealAfterPromises[index]}
           />
         </Suspense>
       ))}
