@@ -13,13 +13,14 @@ import {
 import {
     InputGroup,
     InputGroupAddon,
+    InputGroupButton,
     InputGroupInput,
 } from "@/components/ui/input-group";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { authenticateUser } from "@/app/actions";
-import { ArrowRight, Loader2, Mail, LockKeyhole } from "lucide-react";
+import { ArrowRight, Loader2, Mail, LockKeyhole, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface LoginFormProps {
@@ -29,6 +30,7 @@ interface LoginFormProps {
 export function LoginForm({ onSuccess }: LoginFormProps) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [isLoginSuccessful, setIsLoginSuccessful] = useState(false);
@@ -139,7 +141,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                                     </InputGroupAddon>
                                     <InputGroupInput
                                         id="password"
-                                        type="password"
+                                        type={isPasswordVisible ? "text" : "password"}
                                         placeholder="Enter your password"
                                         value={password}
                                         onChange={(e) => {
@@ -155,6 +157,16 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                                         autoComplete="current-password"
                                         aria-invalid={error ? true : undefined}
                                     />
+                                    <InputGroupAddon align="inline-end">
+                                        <InputGroupButton
+                                            size="icon-xs"
+                                            aria-label={isPasswordVisible ? "Hide password" : "Show password"}
+                                            title={isPasswordVisible ? "Hide password" : "Show password"}
+                                            onClick={() => setIsPasswordVisible((prev) => !prev)}
+                                        >
+                                            {isPasswordVisible ? <EyeOff /> : <Eye />}
+                                        </InputGroupButton>
+                                    </InputGroupAddon>
                                 </InputGroup>
                                 {error && (
                                     <p className="text-sm text-red-500 mt-2 flex items-start gap-2">
