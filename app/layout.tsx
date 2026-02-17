@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist_Mono, Poppins, Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { SidebarInset } from "@/components/ui/sidebar";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
@@ -34,9 +33,38 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const themeInitScript = `
+    (() => {
+      const storageKey = "theme";
+      const darkBg = "oklch(0.145 0 0)";
+      const lightBg = "oklch(1 0 0)";
+      const root = document.documentElement;
+
+      let storedTheme = "system";
+      try {
+        storedTheme = localStorage.getItem(storageKey) || "system";
+      } catch {}
+
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const resolvedTheme =
+        storedTheme === "system" ? (prefersDark ? "dark" : "light") : storedTheme;
+
+      root.classList.remove("light", "dark");
+      if (resolvedTheme === "dark" || resolvedTheme === "light") {
+        root.classList.add(resolvedTheme);
+      }
+
+      root.style.backgroundColor = resolvedTheme === "dark" ? darkBg : lightBg;
+      root.style.colorScheme = resolvedTheme === "dark" ? "dark" : "light";
+    })();
+  `;
+
   return (
     <html lang="en" suppressHydrationWarning>
-      <meta name="apple-mobile-web-app-title" content="Navigator" />
+      <head>
+        <meta name="apple-mobile-web-app-title" content="Navigator" />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className={`${inter.variable} ${geistMono.variable} ${poppins.variable} antialiased`}
       >
