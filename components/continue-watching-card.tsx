@@ -16,8 +16,20 @@ export function ContinueWatchingCard({ item }: ContinueWatchingCardProps) {
   const handlePlayResume = async () => {
     await playMedia({
       id: item.id,
-      name: item.name,
+      name: item.episodeTitle || item.name,
       type: item.type,
+      resumePositionTicks: item.resumePositionTicks,
+      streamUrl: item.streamUrl,
+      mediaSourceId: item.mediaSourceId,
+      seriesId: item.type === "series" ? item.seriesId || item.id : undefined,
+      showName: item.type === "series" ? item.showName || item.name : undefined,
+      episodeTitle:
+        item.type === "series" ? item.episodeTitle || item.name : undefined,
+      seasonNumber: item.seasonNumber,
+      episodeNumber: item.episodeNumber,
+      backdropUrl: item.background || item.poster,
+      subtitleFilename: item.subtitleFilename,
+      subtitleVideoSize: item.subtitleVideoSize,
     });
     setIsPlayerVisible(true);
   };

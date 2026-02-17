@@ -213,12 +213,17 @@ export interface MediaItem {
   id: string;
   type: "movie" | "series" | "channel" | "tv";
   name: string;
+  resumePositionTicks?: number;
+  streamUrl?: string;
+  mediaSourceId?: string;
   seriesId?: string;
   showName?: string;
   episodeId?: string;
   episodeTitle?: string;
   seasonNumber?: number;
   episodeNumber?: number;
+  subtitleFilename?: string;
+  subtitleVideoSize?: number;
   poster?: string;
   background?: string;
   logo?: string;

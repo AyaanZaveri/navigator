@@ -123,11 +123,29 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const handleVideoLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-      // If we had resume support, we would seek here
-      videoRef.current.play();
+      const mediaElement = videoRef.current;
+      const mediaDuration = mediaElement.duration;
+      setDuration(mediaDuration);
+
+      const requestedResume = currentMedia?.resumePositionTicks;
+      if (
+        typeof requestedResume === "number" &&
+        Number.isFinite(requestedResume) &&
+        requestedResume > 0
+      ) {
+        const maxSeekTime =
+          Number.isFinite(mediaDuration) && mediaDuration > 1
+            ? mediaDuration - 1
+            : requestedResume;
+        const resumeTime = Math.max(0, Math.min(requestedResume, maxSeekTime));
+        mediaElement.currentTime = resumeTime;
+        setCurrentTime(resumeTime);
+        setCurrentTimestamp(resumeTime);
+      }
+
+      mediaElement.play().catch(() => {});
     }
-  }, []);
+  }, [currentMedia?.resumePositionTicks, setCurrentTimestamp]);
 
   const handleClose = useCallback(() => {
     setIsPlayerVisible(false);

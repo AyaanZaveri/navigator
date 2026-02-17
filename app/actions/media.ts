@@ -409,6 +409,33 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
 
     const data = await response.json();
     const libraryItems = Array.isArray(data?.result) ? data.result : [];
+    const toNumberOrUndefined = (value: unknown): number | undefined => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    const toResumeSeconds = (
+      offsetValue: unknown,
+      durationValue: unknown
+    ): number | undefined => {
+      const offset = toNumberOrUndefined(offsetValue);
+      if (offset === undefined || offset <= 0) return undefined;
+
+      const duration = toNumberOrUndefined(durationValue);
+      // Stremio library state commonly stores duration/timeOffset in milliseconds.
+      // Convert to seconds for the HTML video element currentTime API.
+      if (
+        (duration !== undefined && duration > 10_000) ||
+        offset > 86_400 // Anything over 24h is almost certainly milliseconds.
+      ) {
+        return offset / 1000;
+      }
+
+      return offset;
+    };
+    const firstString = (...values: unknown[]): string | undefined =>
+      values.find((value) => typeof value === "string" && value.length > 0) as
+        | string
+        | undefined;
 
     // Matches Stremio core's continue-watching rules:
     // type !== "other", (!removed || temp), and state.timeOffset > 0.
@@ -441,6 +468,10 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         name: item.name,
         poster: item.poster,
         background: item.background,
+        resumePositionTicks: toResumeSeconds(
+          item?.state?.timeOffset ?? item?.state?.timeWatched,
+          item?.state?.duration
+        ),
         progressPercent:
           Number(item?.state?.duration ?? 0) > 0
             ? Math.max(
@@ -463,15 +494,38 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         const raw = libraryItems.find(
           (candidate: any) => (candidate.id ?? candidate._id) === item.id
         );
+        const rawState = raw?.state ?? {};
         const videoId = raw?.state?.video_id ?? raw?.state?.videoId;
         const episodeMatch =
           typeof videoId === "string" ? videoId.match(/:(\d+):(\d+)$/) : null;
+        const seasonNumber = episodeMatch ? Number(episodeMatch[1]) : undefined;
+        const episodeNumber = episodeMatch ? Number(episodeMatch[2]) : undefined;
         const seasonEpisodeLabel = episodeMatch
-          ? `S${Number(episodeMatch[1])} • E${Number(episodeMatch[2])}`
+          ? `S${seasonNumber} • E${episodeNumber}`
           : null;
 
         return {
           ...item,
+          mediaSourceId: typeof videoId === "string" ? videoId : undefined,
+          seriesId: item.type === "series" ? item.id : undefined,
+          showName: item.type === "series" ? item.name : undefined,
+          seasonNumber,
+          episodeNumber,
+          streamUrl: firstString(
+            rawState?.stream?.url,
+            rawState?.stream?.externalUrl,
+            rawState?.streamUrl,
+            rawState?.stream_url,
+            rawState?.url
+          ),
+          subtitleFilename: firstString(
+            rawState?.stream?.behaviorHints?.filename,
+            rawState?.behaviorHints?.filename
+          ),
+          subtitleVideoSize: toNumberOrUndefined(
+            rawState?.stream?.behaviorHints?.videoSize ??
+              rawState?.behaviorHints?.videoSize
+          ),
           progressLabel: seasonEpisodeLabel || undefined,
           releaseInfo: seasonEpisodeLabel || undefined,
         };
