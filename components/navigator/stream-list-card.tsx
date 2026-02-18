@@ -12,9 +12,12 @@ interface StreamListCardProps {
     success: boolean;
     mediaId?: string;
     mediaType?: string;
+    selectionId?: string;
     streamCount?: number;
     addonCount?: number;
     streams?: Array<{
+      choice?: number;
+      streamId?: string | null;
       addonName?: string | null;
       title?: string | null;
       name?: string | null;
@@ -26,6 +29,8 @@ interface StreamListCardProps {
       score?: number;
     }>;
     bestStream?: {
+      choice?: number;
+      streamId?: string | null;
       addonName?: string | null;
       title?: string | null;
       name?: string | null;
@@ -76,8 +81,8 @@ export const StreamListCard: React.FC<StreamListCardProps> = ({
     );
   }
 
-  // Show up to 5 streams to keep it compact
-  const displayStreams = result.streams.slice(0, 5);
+  // Show up to 20 streams
+  const displayStreams = result.streams.slice(0, 20);
   const bestStreamTitle =
     result.bestStream?.title ||
     result.bestStream?.name ||
@@ -136,9 +141,9 @@ export const StreamListCard: React.FC<StreamListCardProps> = ({
           })}
         </div>
 
-        {result.streams.length > 5 && (
+        {result.streams.length > 20 && (
           <p className="text-[10px] text-muted-foreground text-center">
-            +{result.streams.length - 5} more streams
+            +{result.streams.length - 20} more streams
           </p>
         )}
       </div>

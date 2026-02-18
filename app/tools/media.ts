@@ -1,5 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
+import os from "node:os";
+import path from "node:path";
+import { promises as fs } from "node:fs";
 import { searchItems } from "@/app/actions/search";
 import {
   fetchMovies,
@@ -90,6 +93,9 @@ export interface PlayMediaTool {
   mediaId: string;
   mediaName: string;
   mediaType: "Movie" | "Series" | "Episode";
+  streamId?: string;
+  selectionId?: string;
+  streamChoice?: number;
   streamUrl?: string;
   mediaSourceId?: string;
   subtitleFilename?: string;
@@ -100,6 +106,189 @@ export interface PlayMediaTool {
   seasonNumber?: number;
   episodeNumber?: number;
   message: string;
+}
+
+interface StreamRegistryEntry {
+  streamUrl: string;
+  subtitleFilename?: string;
+  subtitleVideoSize?: number;
+  mediaId: string;
+  mediaType: "Movie" | "Series" | "Episode";
+  createdAt: number;
+}
+
+interface StreamSelectionEntry {
+  mediaId: string;
+  mediaType: "Movie" | "Series" | "Episode";
+  createdAt: number;
+  choices: Record<string, string>;
+}
+
+const STREAM_REGISTRY_TTL_MS = 30 * 60 * 1000;
+const STREAM_REGISTRY_MAX_ENTRIES = 500;
+const streamRegistry = new Map<string, StreamRegistryEntry>();
+const streamSelectionRegistry = new Map<string, StreamSelectionEntry>();
+const STREAM_REGISTRY_FILE_PATH = path.join(
+  os.tmpdir(),
+  "navigator-stream-registry.json"
+);
+let streamRegistryHydrated = false;
+
+function cleanupExpiredStreams(now = Date.now()) {
+  for (const [id, entry] of streamRegistry.entries()) {
+    if (now - entry.createdAt > STREAM_REGISTRY_TTL_MS) {
+      streamRegistry.delete(id);
+    }
+  }
+
+  if (streamRegistry.size > STREAM_REGISTRY_MAX_ENTRIES) {
+    const sortedByAge = [...streamRegistry.entries()].sort(
+      (a, b) => a[1].createdAt - b[1].createdAt
+    );
+    const entriesToTrim = streamRegistry.size - STREAM_REGISTRY_MAX_ENTRIES;
+    for (let i = 0; i < entriesToTrim; i += 1) {
+      const entry = sortedByAge[i];
+      if (entry) {
+        streamRegistry.delete(entry[0]);
+      }
+    }
+  }
+
+  for (const [id, entry] of streamSelectionRegistry.entries()) {
+    if (now - entry.createdAt > STREAM_REGISTRY_TTL_MS) {
+      streamSelectionRegistry.delete(id);
+    }
+  }
+}
+
+async function hydrateStreamRegistry() {
+  if (streamRegistryHydrated) return;
+  streamRegistryHydrated = true;
+
+  try {
+    const raw = await fs.readFile(STREAM_REGISTRY_FILE_PATH, "utf8");
+    const parsed = JSON.parse(raw) as
+      | {
+          version?: number;
+          streams?: Array<[string, StreamRegistryEntry]>;
+          selections?: Array<[string, StreamSelectionEntry]>;
+        }
+      | Array<[string, StreamRegistryEntry]>;
+
+    if (Array.isArray(parsed)) {
+      for (const [id, entry] of parsed) {
+        if (!entry || !entry.streamUrl || !entry.createdAt) continue;
+        streamRegistry.set(id, entry);
+      }
+    } else {
+      for (const [id, entry] of parsed.streams ?? []) {
+        if (!entry || !entry.streamUrl || !entry.createdAt) continue;
+        streamRegistry.set(id, entry);
+      }
+      for (const [id, entry] of parsed.selections ?? []) {
+        if (!entry || !entry.mediaId || !entry.mediaType || !entry.createdAt) {
+          continue;
+        }
+        streamSelectionRegistry.set(id, entry);
+      }
+    }
+    cleanupExpiredStreams();
+  } catch {
+    // No persisted registry yet (first run) or unreadable cache; ignore safely.
+  }
+}
+
+async function persistStreamRegistry() {
+  cleanupExpiredStreams();
+  const serialized = JSON.stringify({
+    version: 2,
+    streams: [...streamRegistry.entries()],
+    selections: [...streamSelectionRegistry.entries()],
+  });
+  try {
+    await fs.writeFile(STREAM_REGISTRY_FILE_PATH, serialized, "utf8");
+  } catch {
+    // Persistence is best-effort; in-memory map still serves same-process calls.
+  }
+}
+
+function registerStreamSelection(input: {
+  mediaId: string;
+  mediaType: "Movie" | "Series" | "Episode";
+  choices: Record<string, string>;
+}): string {
+  cleanupExpiredStreams();
+  const selectionId = `sel_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+
+  streamSelectionRegistry.set(selectionId, {
+    mediaId: input.mediaId,
+    mediaType: input.mediaType,
+    createdAt: Date.now(),
+    choices: input.choices,
+  });
+
+  return selectionId;
+}
+
+async function resolveSelectionChoice(input: {
+  selectionId: string;
+  streamChoice: number;
+  mediaId: string;
+  mediaType: "Movie" | "Series" | "Episode";
+}): Promise<string | undefined> {
+  await hydrateStreamRegistry();
+  cleanupExpiredStreams();
+
+  const selection = streamSelectionRegistry.get(input.selectionId);
+  if (!selection) return undefined;
+  if (selection.mediaId !== input.mediaId || selection.mediaType !== input.mediaType) {
+    return undefined;
+  }
+
+  const mappedStreamId = selection.choices[String(input.streamChoice)];
+  return mappedStreamId || undefined;
+}
+
+function registerStreamCandidate(input: {
+  streamUrl: string;
+  subtitleFilename?: string;
+  subtitleVideoSize?: number;
+  mediaId: string;
+  mediaType: "Movie" | "Series" | "Episode";
+}): string {
+  cleanupExpiredStreams();
+  const streamId = `strm_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+
+  streamRegistry.set(streamId, {
+    streamUrl: input.streamUrl,
+    subtitleFilename: input.subtitleFilename,
+    subtitleVideoSize: input.subtitleVideoSize,
+    mediaId: input.mediaId,
+    mediaType: input.mediaType,
+    createdAt: Date.now(),
+  });
+
+  return streamId;
+}
+
+async function resolveStreamId(streamId: string): Promise<StreamRegistryEntry | null> {
+  await hydrateStreamRegistry();
+  cleanupExpiredStreams();
+  const entry = streamRegistry.get(streamId);
+  if (!entry) return null;
+
+  const isExpired = Date.now() - entry.createdAt > STREAM_REGISTRY_TTL_MS;
+  if (isExpired) {
+    streamRegistry.delete(streamId);
+    await persistStreamRegistry();
+    return null;
+  }
+
+  return entry;
 }
 
 export interface EpisodeLookupTool {
@@ -536,10 +725,26 @@ export const playMedia = tool({
     mediaType: z
       .enum(["Movie", "Series", "Episode"])
       .describe("The type of media - Movie, Series (TV Show), or Episode"),
+    streamId: z
+      .string()
+      .optional()
+      .describe(
+        "Short stream reference ID returned by GetMediaStreams (preferred over streamUrl)"
+      ),
+    selectionId: z
+      .string()
+      .optional()
+      .describe("Selection group ID returned by GetMediaStreams"),
+    streamChoice: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Numeric stream choice from GetMediaStreams (1-based)"),
     streamUrl: z
       .string()
       .optional()
-      .describe("Direct stream URL selected by GetMediaStreams"),
+      .describe("Direct stream URL (legacy fallback; prefer streamId)"),
     mediaSourceId: z
       .string()
       .optional()
@@ -581,6 +786,9 @@ export const playMedia = tool({
     mediaId,
     mediaName,
     mediaType,
+    streamId,
+    selectionId,
+    streamChoice,
     streamUrl,
     mediaSourceId,
     subtitleFilename,
@@ -591,29 +799,63 @@ export const playMedia = tool({
     seasonNumber,
     episodeNumber,
   }) => {
+    await hydrateStreamRegistry();
     console.log("▶️ [playMedia] Tool called with:", {
       mediaId,
       mediaName,
       mediaType,
+      streamId,
+      selectionId,
+      streamChoice,
       hasStreamUrl: Boolean(streamUrl),
       mediaSourceId,
     });
+
+    let candidateStreamId: string | undefined = streamId;
+    if (!candidateStreamId && selectionId && streamChoice) {
+      candidateStreamId = await resolveSelectionChoice({
+        selectionId,
+        streamChoice,
+        mediaId,
+        mediaType,
+      });
+    }
+
+    const resolved =
+      !streamUrl && candidateStreamId
+        ? await resolveStreamId(candidateStreamId)
+        : null;
+    const resolvedStreamUrl = streamUrl || resolved?.streamUrl;
+    const resolvedSubtitleFilename = subtitleFilename || resolved?.subtitleFilename;
+    const resolvedSubtitleVideoSize =
+      subtitleVideoSize ?? resolved?.subtitleVideoSize;
+
+    if (
+      resolved &&
+      (resolved.mediaId !== mediaId || resolved.mediaType !== mediaType)
+    ) {
+      candidateStreamId = undefined;
+    }
+
     return {
       success: true,
       action: "play",
       mediaId,
       mediaName,
       mediaType,
-      streamUrl,
+      streamId: candidateStreamId || undefined,
+      streamUrl: resolvedStreamUrl,
       mediaSourceId,
-      subtitleFilename,
-      subtitleVideoSize,
+      subtitleFilename: resolvedSubtitleFilename,
+      subtitleVideoSize: resolvedSubtitleVideoSize,
       seriesId,
       showName,
       episodeTitle,
       seasonNumber,
       episodeNumber,
-      message: `Playing ${mediaName}...`,
+      message: resolvedStreamUrl
+        ? `Playing ${mediaName}...`
+        : `Playing ${mediaName}... (loading best available stream)`,
     };
   },
 });
@@ -641,16 +883,11 @@ function scoreStreamCandidate(raw: string, hasPlayableUrl: boolean): number {
 
   let score = 100;
   const resolution = detectStreamResolution(raw);
-  if (resolution === "2160p") score += 400;
   if (resolution === "1080p") score += 300;
   if (resolution === "720p") score += 200;
   if (resolution === "480p") score += 120;
 
   const tags = detectStreamTags(raw);
-  if (tags.includes("REMUX")) score += 80;
-  if (tags.includes("BLURAY")) score += 50;
-  if (tags.includes("HDR")) score += 35;
-  if (tags.includes("DV")) score += 35;
   if (tags.includes("WEB")) score += 20;
 
   if (/\b(?:cam|hdcam|telesync|ts)\b/.test(raw)) score -= 500;
@@ -662,7 +899,7 @@ function scoreStreamCandidate(raw: string, hasPlayableUrl: boolean): number {
 
 export const GetMediaStreams = tool({
   description:
-    "Fetch available streams for a known media item using the same addon stream discovery path as playback/media actions. Returns ranked playable stream candidates and a bestStream suggestion.",
+    "Fetch available streams for a known media item using the same addon stream discovery path as playback/media actions. Returns ranked playable stream candidates with compact streamId values (1080p and below, no HDR/DV/Blu-ray/Remux) and a bestStream suggestion.",
   inputSchema: z.object({
     mediaId: z.string().describe("The stream source ID to fetch streams for"),
     mediaType: z
@@ -674,9 +911,10 @@ export const GetMediaStreams = tool({
       .min(1)
       .max(50)
       .optional()
-      .describe("Maximum stream candidates to return (default: 12)"),
+      .describe("Maximum stream candidates to return (default: 20)"),
   }),
-  execute: async ({ mediaId, mediaType, limit = 12 }) => {
+  execute: async ({ mediaId, mediaType, limit = 20 }) => {
+    await hydrateStreamRegistry();
     console.log("🎞️ [GetMediaStreams] Tool called with:", {
       mediaId,
       mediaType,
@@ -703,6 +941,15 @@ export const GetMediaStreams = tool({
         streams
           .map((stream) => {
             const streamUrl = stream.url || stream.externalUrl || null;
+            const streamId = streamUrl
+              ? registerStreamCandidate({
+                  streamUrl,
+                  subtitleFilename: stream.behaviorHints?.filename || undefined,
+                  subtitleVideoSize: stream.behaviorHints?.videoSize || undefined,
+                  mediaId,
+                  mediaType,
+                })
+              : null;
             const raw = `${stream.title || ""} ${stream.name || ""} ${stream.behaviorHints?.filename || ""}`.toLowerCase();
             const key = `${target.id}|${streamUrl || ""}|${stream.title || ""}|${stream.name || ""}`;
             if (seen.has(key)) return null;
@@ -710,15 +957,15 @@ export const GetMediaStreams = tool({
             return {
               addonId: target.id,
               addonName: target.name,
-              streamUrl,
+              streamId,
               name: stream.name || null,
               title: stream.title || null,
               filename: stream.behaviorHints?.filename || null,
               videoSize: stream.behaviorHints?.videoSize || null,
               resolution: detectStreamResolution(raw),
               tags: detectStreamTags(raw),
-              score: scoreStreamCandidate(raw, Boolean(streamUrl)),
-              playable: Boolean(streamUrl),
+              score: scoreStreamCandidate(raw, Boolean(streamId)),
+              playable: Boolean(streamId),
             };
           })
           .filter(Boolean)
@@ -726,20 +973,50 @@ export const GetMediaStreams = tool({
 
       const ranked = candidates
         .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+        // Hard-filter: only streams the browser can actually play.
+        // Exclude 4K (2160p), HDR, Dolby Vision, Blu-ray, and Remux encodings.
+        .filter((candidate) => {
+          if (candidate.resolution === "2160p") return false;
+          const tags = candidate.tags ?? [];
+          if (tags.includes("HDR")) return false;
+          if (tags.includes("DV")) return false;
+          if (tags.includes("BLURAY")) return false;
+          if (tags.includes("REMUX")) return false;
+          return true;
+        })
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
 
+      const numbered = ranked.map((stream, index) => ({
+        ...stream,
+        choice: index + 1,
+      }));
+
+      const selectionId = registerStreamSelection({
+        mediaId,
+        mediaType,
+        choices: numbered.reduce<Record<string, string>>((acc, stream) => {
+          if (stream.streamId) {
+            acc[String(stream.choice)] = stream.streamId;
+          }
+          return acc;
+        }, {}),
+      });
+
       const bestStream =
-        ranked.find((stream) => stream.playable && stream.streamUrl) || null;
+        numbered.find((stream) => stream.playable && stream.streamId) || null;
+
+      await persistStreamRegistry();
 
       return {
         success: true,
         action: "getMediaStreams",
         mediaId,
         mediaType,
-        streamCount: ranked.length,
+        selectionId,
+        streamCount: numbered.length,
         addonCount: targets.length,
-        streams: ranked,
+        streams: numbered,
         bestStream,
         message: bestStream
           ? `Found ${ranked.length} stream candidates.`

@@ -48,7 +48,7 @@ USAGE EXAMPLES:
 - "Go to the episode called The Honeymoon in Brooklyn Nine-Nine" → Use findEpisodeByTitle first, semantically pick from returned episode options, then navigateToEpisode
 - "What's in my watchlist?" → Use getWatchlist tool
 - "Show me recent movies" → Use getMovies tool (for general recent movies)
-- "Play Inception" → Search for it, use GetMediaStreams, then use playMedia with the chosen stream URL
+- "Play Inception" → Search for it, use GetMediaStreams, then use playMedia with selectionId + chosen numeric streamChoice
 - "Skip to the part where they say 'hello world'" → Use skipToSubtitleContent tool with user description
 - "Jump to the scene where the main character talks about love" → Use skipToSubtitleContent tool
 - "Take me to the action sequence" → Use skipToSubtitleContent tool
@@ -168,9 +168,13 @@ When users ask to "play", "watch", "start", or similar playback commands for a s
 1. First correct/expand any abbreviations in the user's query
 2. Search for the media using searchMedia with the corrected query
 3. Call GetMediaStreams with the resolved media ID (or episode source ID if available)
-4. Select the best playable stream URL from GetMediaStreams output
-5. Use playMedia with mediaId/mediaName/mediaType and the selected streamUrl
+4. Select the best playable numeric stream choice from GetMediaStreams output
+5. Use playMedia with mediaId/mediaName/mediaType and include selectionId + streamChoice (or streamId)
 6. Be helpful and conversational
+
+STREAM ARGUMENT SAFETY:
+- Never include a full stream URL in tool arguments unless no compact option is available.
+- Prefer selectionId + streamChoice from GetMediaStreams for playMedia calls.
 
 When users ask about a person's filmography (e.g., "What is Florence Pugh in?", "What movies has X been in?", "Show me Y's filmography"):
 1. Use getPeople to search for the person and get their ID

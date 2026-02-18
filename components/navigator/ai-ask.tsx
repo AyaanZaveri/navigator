@@ -453,6 +453,7 @@ const AIAsk = () => {
     if (output.watchlist) return output.watchlist;
     if (output.filmography) return output.filmography;
     if (output.similarItems) return output.similarItems;
+    if (output.episodes) return output.episodes;
 
     return [];
   };
@@ -565,18 +566,13 @@ const AIAsk = () => {
         if (output.success && output.genres?.length > 0) {
           return (
             <div key={`genres-${partIndex}`} className="space-y-1">
-              {output.genres.slice(0, 8).map((genre: any, i: number) => (
+              {output.genres.map((genre: any, i: number) => (
                 <GenreCard
                   key={`genre-${genre.Id || genre.Name}-${i}`}
                   genre={genre}
                   index={i}
                 />
               ))}
-              {output.genres.length > 8 && (
-                <p className="text-[10px] text-muted-foreground text-center">
-                  +{output.genres.length - 8} more genres
-                </p>
-              )}
             </div>
           );
         }
@@ -599,45 +595,12 @@ const AIAsk = () => {
         }
         return null;
 
-      // --- Episodes ---
-      case "getEpisodes":
-      case "findEpisodeByTitle":
-        if (output.success && output.episodes?.length > 0) {
-          const episodes = output.episodes.slice(0, 10);
-          return (
-            <div key={`episodes-${partIndex}`} className="space-y-1">
-              {episodes.map((ep: any, i: number) => (
-                <EpisodeCard
-                  key={`ep-${ep.id || ep.episodeNumber}-${i}`}
-                  episode={{
-                    id: ep.id,
-                    name: ep.name || ep.title,
-                    episodeNumber: ep.episodeNumber,
-                    seasonNumber: ep.seasonNumber,
-                    overview: ep.overview,
-                    runtime: ep.runtime,
-                    seriesId: ep.seriesId || output.seriesId,
-                    thumbnail: ep.thumbnail || ep.poster,
-                  }}
-                  index={i}
-                />
-              ))}
-              {output.episodes.length > 10 && (
-                <p className="text-[10px] text-muted-foreground text-center">
-                  +{output.episodes.length - 10} more episodes
-                </p>
-              )}
-            </div>
-          );
-        }
-        return null;
-
       // --- People ---
       case "getPeople":
         if (output.success && output.people?.length > 0) {
           return (
             <div key={`people-${partIndex}`} className="space-y-1">
-              {output.people.slice(0, 6).map((person: any, i: number) => (
+              {output.people.map((person: any, i: number) => (
                 <PersonCard
                   key={`person-${person.id}-${i}`}
                   person={person}
