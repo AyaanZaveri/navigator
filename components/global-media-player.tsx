@@ -494,7 +494,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     : mediaDetails?.name || currentMedia.name;
   const fallbackBackdrop =
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
-  const loadingLogo = mediaDetails?.logo || currentMedia.logo;
+  const loadingLogo = mediaDetails?.logo;
 
   return (
     <div className="fixed inset-0 z-[999999] bg-black flex items-center justify-center w-screen">
