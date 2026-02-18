@@ -369,19 +369,220 @@ export async function fetchGenre(
 }
 
 // ─── Playback Reporting ──────────────────────────────────────────
-// Stremio doesn't have server-side playback tracking.
-// These are no-ops kept for interface compatibility.
+// Playback state is synced via datastorePut/libraryItem updates.
 
-export async function reportPlaybackStart(): Promise<boolean> {
-  return true;
+const WATCHED_THRESHOLD_COEF = 0.7;
+const CREDITS_THRESHOLD_COEF = 0.9;
+
+type PlaybackMediaType = "movie" | "series";
+type PlaybackReportKind = "start" | "progress" | "stopped";
+
+export interface PlaybackReportInput {
+  libraryItemId: string;
+  videoId?: string;
+  mediaType: PlaybackMediaType;
+  mediaName: string;
+  poster?: string;
+  currentTimeSeconds: number;
+  durationSeconds?: number;
+  ended?: boolean;
 }
 
-export async function reportPlaybackProgress(): Promise<boolean> {
-  return true;
+type LibraryItemState = {
+  lastWatched: string | null;
+  timeWatched: number;
+  timeOffset: number;
+  overallTimeWatched: number;
+  timesWatched: number;
+  flaggedWatched: number;
+  duration: number;
+  video_id: string | null;
+  watched: string | null;
+  noNotif: boolean;
+};
+
+type LibraryItemPayload = {
+  _id: string;
+  name: string;
+  type: string;
+  poster?: string | null;
+  posterShape?: string;
+  removed: boolean;
+  temp: boolean;
+  _ctime?: string;
+  _mtime: string;
+  state: LibraryItemState;
+  behaviorHints?: Record<string, unknown>;
+};
+
+function toMilliseconds(seconds: number | undefined): number {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return 0;
+  return Math.max(0, Math.floor(seconds * 1000));
 }
 
-export async function reportPlaybackStopped(): Promise<boolean> {
-  return true;
+function toPositiveInt(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed));
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value) => typeof value === "string" && value.length > 0) as
+    | string
+    | undefined;
+}
+
+async function upsertPlaybackState(
+  kind: PlaybackReportKind,
+  input: PlaybackReportInput
+): Promise<boolean> {
+  try {
+    const { authKey } = await getAuthData();
+    const nowIso = new Date().toISOString();
+    const currentTimeMs = toMilliseconds(input.currentTimeSeconds);
+    const durationMs = toMilliseconds(input.durationSeconds);
+
+    const existingResponse = await fetch(`${STREMIO_API}/datastoreGet`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        authKey,
+        collection: "libraryItem",
+        ids: [input.libraryItemId],
+        all: false,
+      }),
+      cache: "no-store",
+    });
+
+    if (!existingResponse.ok) {
+      console.error(
+        "Failed to fetch existing playback item:",
+        existingResponse.status
+      );
+      return false;
+    }
+
+    const existingData = await existingResponse.json();
+    const existingItem = Array.isArray(existingData?.result)
+      ? existingData.result[0]
+      : null;
+
+    const baseState: LibraryItemState = {
+      lastWatched: firstString(existingItem?.state?.lastWatched) || nowIso,
+      timeWatched: toPositiveInt(existingItem?.state?.timeWatched),
+      timeOffset: toPositiveInt(existingItem?.state?.timeOffset),
+      overallTimeWatched: toPositiveInt(existingItem?.state?.overallTimeWatched),
+      timesWatched: toPositiveInt(existingItem?.state?.timesWatched),
+      flaggedWatched: toPositiveInt(existingItem?.state?.flaggedWatched),
+      duration: Math.max(
+        toPositiveInt(existingItem?.state?.duration),
+        durationMs
+      ),
+      video_id:
+        firstString(existingItem?.state?.video_id, input.videoId) || null,
+      watched: firstString(existingItem?.state?.watched) || null,
+      noNotif: Boolean(existingItem?.state?.noNotif),
+    };
+
+    // When switching videos (episode context), reset per-video tracking.
+    if (input.videoId && baseState.video_id && input.videoId !== baseState.video_id) {
+      baseState.overallTimeWatched = baseState.overallTimeWatched + baseState.timeWatched;
+      baseState.timeWatched = 0;
+      baseState.flaggedWatched = 0;
+      baseState.video_id = input.videoId;
+    } else if (input.videoId && !baseState.video_id) {
+      baseState.video_id = input.videoId;
+    }
+
+    const previousOffset = baseState.timeOffset;
+    const nextOffset = Math.max(previousOffset, currentTimeMs);
+    const watchedDelta = Math.max(0, nextOffset - previousOffset);
+
+    baseState.lastWatched = nowIso;
+    baseState.timeOffset = nextOffset;
+    baseState.duration = Math.max(baseState.duration, durationMs);
+
+    // Keep watched durations monotonic on progress updates.
+    if (kind !== "start") {
+      baseState.timeWatched = baseState.timeWatched + watchedDelta;
+      baseState.overallTimeWatched = baseState.overallTimeWatched + watchedDelta;
+    }
+
+    if (
+      baseState.flaggedWatched === 0 &&
+      baseState.duration > 0 &&
+      baseState.timeWatched > baseState.duration * WATCHED_THRESHOLD_COEF
+    ) {
+      baseState.flaggedWatched = 1;
+      baseState.timesWatched = baseState.timesWatched + 1;
+    }
+
+    // Match Stremio behavior for completed playback when stopping near credits.
+    if (
+      kind === "stopped" &&
+      input.ended &&
+      baseState.duration > 0 &&
+      currentTimeMs > baseState.duration * CREDITS_THRESHOLD_COEF
+    ) {
+      baseState.timeOffset = 0;
+    }
+
+    const payload: LibraryItemPayload = {
+      _id: input.libraryItemId,
+      name: existingItem?.name || input.mediaName,
+      type: existingItem?.type || input.mediaType,
+      poster: firstString(existingItem?.poster, input.poster) || null,
+      posterShape: firstString(existingItem?.posterShape) || "poster",
+      removed: Boolean(existingItem?.removed ?? true),
+      temp: Boolean(existingItem?.temp ?? true),
+      _ctime: firstString(existingItem?._ctime) || nowIso,
+      _mtime: nowIso,
+      state: baseState,
+      behaviorHints:
+        existingItem?.behaviorHints && typeof existingItem.behaviorHints === "object"
+          ? existingItem.behaviorHints
+          : {},
+    };
+
+    const writeResponse = await fetch(`${STREMIO_API}/datastorePut`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        authKey,
+        collection: "libraryItem",
+        changes: [payload],
+      }),
+      cache: "no-store",
+    });
+
+    if (!writeResponse.ok) {
+      console.error("Failed to update playback state:", writeResponse.status);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Failed to report playback state:", error);
+    return false;
+  }
+}
+
+export async function reportPlaybackStart(
+  input: PlaybackReportInput
+): Promise<boolean> {
+  return upsertPlaybackState("start", input);
+}
+
+export async function reportPlaybackProgress(
+  input: PlaybackReportInput
+): Promise<boolean> {
+  return upsertPlaybackState("progress", input);
+}
+
+export async function reportPlaybackStopped(
+  input: PlaybackReportInput
+): Promise<boolean> {
+  return upsertPlaybackState("stopped", input);
 }
 
 // ─── Resume Items ────────────────────────────────────────────────

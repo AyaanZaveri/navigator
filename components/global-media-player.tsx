@@ -27,6 +27,9 @@ import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   fetchMediaDetails,
   fetchStreams,
+  reportPlaybackStart,
+  reportPlaybackProgress,
+  reportPlaybackStopped,
 } from "@/app/actions";
 import { fetchSubtitleFileContent } from "@/app/actions/subtitles";
 import { getSubtitleTracks } from "@/app/actions/utils";
@@ -40,6 +43,8 @@ import { useSettings, BITRATE_OPTIONS } from "@/contexts/settings-context";
 interface GlobalMediaPlayerProps {
   onToggleAIAsk?: () => void;
 }
+
+const PROGRESS_REPORT_INTERVAL_MS = 30_000;
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const {
@@ -82,6 +87,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   >([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const lastProgressReportAtRef = useRef(0);
+  const playbackStartedReportedRef = useRef(false);
+  const playbackStoppedReportedRef = useRef(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -101,7 +109,87 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return runtimeStr;
   };
 
-  const handleVideoPause = useCallback(() => {}, []);
+  const buildPlaybackPayload = useCallback(
+    (overrides?: {
+      currentTimeSeconds?: number;
+      durationSeconds?: number;
+      ended?: boolean;
+    }) => {
+      if (!currentMedia) return null;
+
+      const mediaType: "movie" | "series" | null =
+        currentMedia.type === "series" || currentMedia.seriesId
+          ? "series"
+          : currentMedia.type === "movie"
+            ? "movie"
+            : null;
+      if (!mediaType) return null;
+
+      const currentTimeSeconds =
+        typeof overrides?.currentTimeSeconds === "number"
+          ? overrides.currentTimeSeconds
+          : videoRef.current?.currentTime ?? currentTime;
+      const durationSeconds =
+        typeof overrides?.durationSeconds === "number"
+          ? overrides.durationSeconds
+          : Number.isFinite(videoRef.current?.duration)
+            ? (videoRef.current?.duration as number)
+            : duration;
+
+      return {
+        libraryItemId: currentMedia.seriesId || currentMedia.id,
+        videoId: currentMedia.mediaSourceId || currentMedia.id,
+        mediaType,
+        mediaName: currentMedia.showName || mediaDetails?.name || currentMedia.name,
+        poster: mediaDetails?.poster || currentMedia.backdropUrl,
+        currentTimeSeconds: Number.isFinite(currentTimeSeconds)
+          ? currentTimeSeconds
+          : 0,
+        durationSeconds:
+          typeof durationSeconds === "number" && Number.isFinite(durationSeconds)
+            ? durationSeconds
+            : undefined,
+        ended: overrides?.ended ?? false,
+      };
+    },
+    [currentMedia, currentTime, duration, mediaDetails?.name, mediaDetails?.poster]
+  );
+
+  const sendPlaybackUpdate = useCallback(
+    (
+      kind: "start" | "progress" | "stopped",
+      overrides?: {
+        currentTimeSeconds?: number;
+        durationSeconds?: number;
+        ended?: boolean;
+      }
+    ) => {
+      const payload = buildPlaybackPayload(overrides);
+      if (!payload) return;
+
+      if (kind === "start") {
+        if (playbackStartedReportedRef.current) return;
+        playbackStartedReportedRef.current = true;
+        playbackStoppedReportedRef.current = false;
+        void reportPlaybackStart(payload);
+        return;
+      }
+
+      if (kind === "stopped") {
+        if (playbackStoppedReportedRef.current) return;
+        playbackStoppedReportedRef.current = true;
+        void reportPlaybackStopped(payload);
+        return;
+      }
+
+      void reportPlaybackProgress(payload);
+    },
+    [buildPlaybackPayload]
+  );
+
+  const handleVideoPause = useCallback(() => {
+    sendPlaybackUpdate("progress");
+  }, [sendPlaybackUpdate]);
 
   const handleVideoCanPlay = useCallback(() => {
     setVideoReady(true);
@@ -112,8 +200,17 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const time = videoRef.current.currentTime;
       setCurrentTime(time);
       setCurrentTimestamp(time);
+
+      const now = Date.now();
+      if (now - lastProgressReportAtRef.current >= PROGRESS_REPORT_INTERVAL_MS) {
+        lastProgressReportAtRef.current = now;
+        sendPlaybackUpdate("progress", {
+          currentTimeSeconds: time,
+          durationSeconds: videoRef.current.duration,
+        });
+      }
     }
-  }, [setCurrentTimestamp]);
+  }, [sendPlaybackUpdate, setCurrentTimestamp]);
 
   const handleDurationChange = useCallback(() => {
     if (videoRef.current) {
@@ -126,6 +223,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const mediaElement = videoRef.current;
       const mediaDuration = mediaElement.duration;
       setDuration(mediaDuration);
+      let effectiveStartTime = mediaElement.currentTime || 0;
 
       const requestedResume = currentMedia?.resumePositionTicks;
       if (
@@ -141,13 +239,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         mediaElement.currentTime = resumeTime;
         setCurrentTime(resumeTime);
         setCurrentTimestamp(resumeTime);
+        effectiveStartTime = resumeTime;
       }
 
+      sendPlaybackUpdate("start", {
+        currentTimeSeconds: effectiveStartTime,
+        durationSeconds: mediaDuration,
+      });
       mediaElement.play().catch(() => {});
     }
-  }, [currentMedia?.resumePositionTicks, setCurrentTimestamp]);
+  }, [currentMedia?.resumePositionTicks, sendPlaybackUpdate, setCurrentTimestamp]);
 
-  const handleClose = useCallback(() => {
+  const handleClose = useCallback((options?: { ended?: boolean }) => {
+    sendPlaybackUpdate("stopped", { ended: options?.ended });
     setIsPlayerVisible(false);
     setStreamUrl(null);
     setMediaDetails(null);
@@ -157,10 +261,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setFetchingSubtitles(false);
     setCurrentMediaWithSource(null);
     setVideoReady(false);
-  }, []);
+  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible]);
 
   const handleVideoEnded = useCallback(() => {
-    handleClose();
+    handleClose({ ended: true });
   }, [handleClose]);
 
   // Process subtitle text for HTML rendering
@@ -267,6 +371,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   useEffect(() => {
     if (currentMedia && isPlayerVisible) {
+      playbackStartedReportedRef.current = false;
+      playbackStoppedReportedRef.current = false;
+      lastProgressReportAtRef.current = 0;
       setVideoReady(false);
       loadMedia();
     }
@@ -392,7 +499,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     <div className="fixed inset-0 z-[999999] bg-black flex items-center justify-center w-screen">
       <MediaPlayer
         autoHide
-        onEnded={handleClose}
+        onEnded={handleVideoEnded}
         onMediaError={(error) => {
           console.warn("Media player error caught:", error);
         }}
@@ -468,7 +575,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             <Button
               variant="ghost"
               className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
-              onClick={handleClose}
+              onClick={() => handleClose()}
             >
               <ArrowLeft className="h-4 w-4" />
               Go Back
@@ -568,7 +675,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           <Button
             variant="ghost"
             className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
-            onClick={handleClose}
+            onClick={() => handleClose()}
           >
             <ArrowLeft className="h-4 w-4" />
             Go Back
