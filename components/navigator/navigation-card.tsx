@@ -4,7 +4,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Navigation, Film, Tv, ArrowRight } from "lucide-react";
+import { Film, Tv } from "lucide-react";
 
 interface NavigationCardProps {
   result: {
@@ -15,6 +15,9 @@ interface NavigationCardProps {
     mediaType?: string;
     seasonNumber?: number;
     episodeNumber?: number;
+    poster?: string | null;
+    thumbnail?: string | null;
+    background?: string | null;
     message?: string;
     error?: string;
   };
@@ -29,6 +32,12 @@ export const NavigationCard: React.FC<NavigationCardProps> = ({
 }) => {
   const TypeIcon =
     result.mediaType?.toLowerCase() === "movie" ? Film : Tv;
+  const mediaType = result.mediaType?.toLowerCase();
+  const isSeries = mediaType === "series";
+  const isEpisode = mediaType === "episode";
+  const previewImage = isEpisode
+    ? result.thumbnail || null
+    : result.poster || null;
 
   return (
     <motion.div
@@ -48,19 +57,34 @@ export const NavigationCard: React.FC<NavigationCardProps> = ({
         )}
       >
         <div className="flex gap-3 items-center w-full">
-          {/* Icon */}
+          {/* Media preview */}
           <div
             className={cn(
-              "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
-              result.success ? "bg-primary/10" : "bg-destructive/10"
+              "rounded-md overflow-hidden flex-shrink-0",
+              isEpisode ? "w-16 aspect-video" : "w-10 h-14",
+              previewImage
+                ? "bg-muted/30"
+                : result.success
+                  ? "bg-muted/40"
+                  : "bg-destructive/10"
             )}
           >
-            <Navigation
-              className={cn(
-                "h-4 w-4",
-                result.success ? "text-primary" : "text-destructive"
-              )}
-            />
+            {previewImage ? (
+              <img
+                src={previewImage}
+                alt={result.mediaName || "Media preview"}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  result.success ? "text-muted-foreground" : "text-destructive"
+                )}
+              >
+                {(result.mediaName || "M").charAt(0)}
+              </span>
+            )}
           </div>
 
           {/* Content */}
@@ -71,18 +95,22 @@ export const NavigationCard: React.FC<NavigationCardProps> = ({
                   ? result.mediaName || "Navigating..."
                   : "Navigation failed"}
               </h3>
-              <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
             </div>
 
             <div className="flex items-center gap-1.5 mt-1">
               {result.mediaType && (
-                <Badge variant="secondary" className="text-xs px-1.5 py-0 h-auto">
-                  <TypeIcon className="h-3 w-3" />
+                <Badge
+                  variant="secondary"
+                  className="text-xs px-2 py-0.5 h-auto inline-flex items-center gap-1.5"
+                >
+                  <TypeIcon
+                    className={cn("h-3 w-3", isSeries && "-translate-y-px")}
+                  />
                   {result.mediaType}
                 </Badge>
               )}
               {result.seasonNumber && result.episodeNumber && (
-                <Badge variant="outline" className="text-xs px-1.5 py-0 h-auto">
+                <Badge variant="outline" className="text-xs px-2 py-0.5 h-auto">
                   S{result.seasonNumber} E{result.episodeNumber}
                 </Badge>
               )}

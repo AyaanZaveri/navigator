@@ -23,6 +23,7 @@ import {
   Palette,
   BookOpen,
   GalleryVerticalEnd,
+  Coffee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Markdown from "react-markdown";
@@ -67,6 +68,7 @@ import {
 import { NavigateMediaTool, PlayMediaTool } from "@/app/tools/media";
 import { SkipToSubtitleContent } from "@/app/tools/subtitles";
 import { ThemeToggle } from "@/app/tools/theme";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const AIAsk = () => {
   const [isAskOpen, setIsAskOpen] = useAtom(isAIAskOpenAtom);
@@ -74,7 +76,15 @@ const AIAsk = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [input, setInput] = useState("");
   const [isToolHistoryOpen, setIsToolHistoryOpen] = useState(false);
+  const [toolDurationsMs, setToolDurationsMs] = useState<Record<string, number>>(
+    {}
+  );
+  const [lastTaskDurationMs, setLastTaskDurationMs] = useState<number | null>(
+    null
+  );
   const handledToolOutputsRef = useRef<Set<string>>(new Set());
+  const toolStartTimesRef = useRef<Record<string, number>>({});
+  const taskStartTimeRef = useRef<number | null>(null);
   const {
     aiProvider,
     ollamaBaseUrl,
@@ -174,6 +184,10 @@ const AIAsk = () => {
     },
     onFinish: () => {
       setCurrentTool(null);
+      if (taskStartTimeRef.current != null) {
+        setLastTaskDurationMs(Math.max(0, Date.now() - taskStartTimeRef.current));
+        taskStartTimeRef.current = null;
+      }
     },
   });
 
@@ -269,7 +283,11 @@ const AIAsk = () => {
   const handleResetChat = () => {
     setMessages([]);
     setCurrentTool(null);
+    setToolDurationsMs({});
+    setLastTaskDurationMs(null);
     handledToolOutputsRef.current.clear();
+    toolStartTimesRef.current = {};
+    taskStartTimeRef.current = null;
   };
 
   const handleCloseAsk = () => {
@@ -318,6 +336,47 @@ const AIAsk = () => {
             break;
         }
       });
+    });
+  }, [messages]);
+
+  useEffect(() => {
+    setToolDurationsMs((prevDurations) => {
+      const nextDurations = { ...prevDurations };
+      let hasDurationChange = false;
+
+      messages.forEach((message: any) => {
+        const actualMessage = message.message || message;
+        if (!actualMessage.parts) return;
+
+        actualMessage.parts.forEach((part: any) => {
+          if (
+            !part ||
+            !(part.type?.startsWith("tool-") || part.type === "dynamic-tool")
+          ) {
+            return;
+          }
+
+          const toolCallId = part.toolCallId || part.id;
+          if (typeof toolCallId !== "string" || toolCallId.length === 0) return;
+
+          if (toolStartTimesRef.current[toolCallId] == null) {
+            toolStartTimesRef.current[toolCallId] = Date.now();
+          }
+
+          if (
+            (part.state === "output-available" || part.state === "output-error") &&
+            nextDurations[toolCallId] == null
+          ) {
+            nextDurations[toolCallId] = Math.max(
+              0,
+              Date.now() - toolStartTimesRef.current[toolCallId]
+            );
+            hasDurationChange = true;
+          }
+        });
+      });
+
+      return hasDurationChange ? nextDurations : prevDurations;
     });
   }, [messages]);
 
@@ -665,6 +724,7 @@ const AIAsk = () => {
           },
         }
       );
+      taskStartTimeRef.current = Date.now();
       setCurrentTool("thinking");
     } catch (error) {
       console.error("Error asking question:", error);
@@ -714,6 +774,21 @@ const AIAsk = () => {
                     })()}
                 </div>
                 <div className="flex items-center gap-1">
+                  {lastTaskDurationMs != null && status === "ready" && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground"
+                          aria-label={`done in ${lastTaskDurationMs} milliseconds`}
+                        >
+                          <Coffee className="h-3.5 w-3.5" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6}>
+                        {`done in ${lastTaskDurationMs} milliseconds`}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -851,6 +926,7 @@ const AIAsk = () => {
                       "Unknown"
                     }
                     state={toolCall.state}
+                    completedDurationMs={toolDurationsMs[toolCall.toolCallId]}
                   />
                   <ToolContent>
                     {toolCall.input && <ToolInput input={toolCall.input} />}

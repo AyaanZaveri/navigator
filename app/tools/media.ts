@@ -66,6 +66,51 @@ function scoreMediaMatch(
   return nameScore + qualityScore + preferredTypeScore;
 }
 
+const EPISODE_OVERVIEW_MAX_CHARS = 220;
+
+function truncateText(
+  value?: string | null,
+  maxChars = EPISODE_OVERVIEW_MAX_CHARS
+): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, maxChars).trimEnd()}...`;
+}
+
+function scoreEpisodeSemanticMatch(
+  query: string,
+  title: string,
+  overview?: string | null
+): number {
+  const q = normalizeText(query);
+  const titleNorm = normalizeText(title);
+  const overviewNorm = normalizeText(overview || "");
+  const combined = `${titleNorm} ${overviewNorm}`.trim();
+  if (!q || !combined) return 0;
+
+  let score = scoreSeriesMatch(q, titleNorm) * 3;
+  if (combined.includes(q)) score += 250;
+
+  const qTokens = q.split(" ").filter(Boolean);
+  const combinedTokenSet = new Set(combined.split(" ").filter(Boolean));
+  const titleTokenSet = new Set(titleNorm.split(" ").filter(Boolean));
+
+  for (const token of qTokens) {
+    if (titleTokenSet.has(token)) score += 90;
+    else if (combinedTokenSet.has(token)) score += 45;
+    else if (combined.includes(token)) score += 15;
+  }
+
+  const coverage = qTokens.length
+    ? [...new Set(qTokens)].filter((token) => combinedTokenSet.has(token)).length /
+      [...new Set(qTokens)].length
+    : 0;
+  score += Math.round(coverage * 140);
+
+  return score;
+}
+
 function formatReleaseDate(released?: string): string | null {
   if (!released) return null;
 
@@ -293,6 +338,9 @@ export interface EpisodeLookupTool {
   seasonNumber?: number;
   episodeNumber?: number;
   episodes?: Array<{
+    id?: string;
+    type?: "Episode";
+    name?: string;
     title: string;
     seasonNumber: number;
     episodeNumber: number;
@@ -300,18 +348,6 @@ export interface EpisodeLookupTool {
   }>;
   message: string;
   error?: string;
-}
-
-const EPISODE_DESCRIPTION_MAX_CHARS = 300;
-
-function truncateText(
-  value?: string | null,
-  maxChars = EPISODE_DESCRIPTION_MAX_CHARS
-): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (trimmed.length <= maxChars) return trimmed;
-  return `${trimmed.slice(0, maxChars).trimEnd()}...`;
 }
 
 export const searchMedia = tool({
@@ -496,6 +532,10 @@ export const navigateToEpisode = tool({
       }
 
       const url = buildEpisodePath(bestSeries.id, seasonNumber, episodeNumber);
+      const seasonEpisodes = await fetchEpisodes(bestSeries.id, seasonNumber);
+      const matchedEpisode = seasonEpisodes.find(
+        (episode) => episode.episode === episodeNumber
+      );
 
       return {
         success: true,
@@ -503,8 +543,12 @@ export const navigateToEpisode = tool({
         url,
         mediaId: bestSeries.id,
         mediaName: bestSeries.name,
+        mediaType: "Episode",
         seasonNumber,
         episodeNumber,
+        poster: bestSeries.poster ?? null,
+        thumbnail: matchedEpisode?.thumbnail ?? null,
+        background: null,
         message: "Navigating to episode.",
       };
     } catch (error) {
@@ -523,12 +567,19 @@ export const navigateToEpisode = tool({
 
 export const findEpisodeByTitle = tool({
   description:
-    "Return all NON-special episodes (season > 0) for a resolved TV series so the model can semantically choose the best match for the user's episode title. Each returned episode includes `overview`, which is that episode's own description (capped).",
+    "Return compact, ranked NON-special episode candidates (season > 0) for a resolved TV series so the model can choose the best match.",
   inputSchema: z.object({
     seriesQuery: z.string().describe("Series name to resolve to a series ID"),
     episodeTitle: z.string().describe("Episode title to match"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(10)
+      .optional()
+      .describe("Maximum number of ranked episode candidates to return (default: 10)"),
   }),
-  execute: async ({ seriesQuery, episodeTitle }) => {
+  execute: async ({ seriesQuery, episodeTitle, limit = 10 }) => {
     console.log("🔎📺 [findEpisodeByTitle] Tool called with:", {
       seriesQuery,
       episodeTitle,
@@ -592,18 +643,43 @@ export const findEpisodeByTitle = tool({
           episodeNumber: episode.episode,
           overview: truncateText(episode.overview),
           releaseInfo: formatReleaseDate(episode.released),
-          thumbnail: episode.thumbnail,
+          thumbnail: episode.thumbnail ?? null,
           poster: episode.thumbnail ?? null,
+          background: null,
         }))
       );
-      flattened.sort((a, b) => {
-        if (a.seasonNumber !== b.seasonNumber) {
-          return a.seasonNumber - b.seasonNumber;
-        }
-        return a.episodeNumber - b.episodeNumber;
-      });
 
-      if (flattened.length === 0) {
+      const ranked = flattened
+        .map((episode) => {
+          const semanticScore = scoreEpisodeSemanticMatch(
+            episodeTitle,
+            episode.title,
+            episode.overview
+          );
+          const episodeHintMatch = /s(\d+)\s*e(\d+)/i.exec(episodeTitle);
+          let hintScore = 0;
+          if (episodeHintMatch) {
+            const hintedSeason = Number(episodeHintMatch[1]);
+            const hintedEpisode = Number(episodeHintMatch[2]);
+            if (episode.seasonNumber === hintedSeason) hintScore += 120;
+            if (episode.episodeNumber === hintedEpisode) hintScore += 180;
+          }
+          return {
+            episode,
+            score: semanticScore + hintScore,
+          };
+        })
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (a.episode.seasonNumber !== b.episode.seasonNumber) {
+            return a.episode.seasonNumber - b.episode.seasonNumber;
+          }
+          return a.episode.episodeNumber - b.episode.episodeNumber;
+        })
+        .slice(0, limit)
+        .map((entry) => entry.episode);
+
+      if (ranked.length === 0) {
         return {
           success: false,
           seriesId: bestSeries.id,
@@ -617,8 +693,8 @@ export const findEpisodeByTitle = tool({
         success: true,
         seriesId: bestSeries.id,
         seriesName: bestSeries.name,
-        episodes: flattened,
-        message: `Resolved ${flattened.length} non-special episodes for semantic title selection of "${episodeTitle}".`,
+        episodes: ranked,
+        message: `Resolved ${ranked.length} ranked episode candidates for "${episodeTitle}".`,
       } satisfies EpisodeLookupTool;
     } catch (error) {
       return {
@@ -694,6 +770,9 @@ export const navigateToMediaByQuery = tool({
         mediaId: best.id,
         mediaName: best.name,
         mediaType: best.type === "movie" ? "Movie" : "Series",
+        poster: best.poster ?? null,
+        thumbnail: best.poster ?? null,
+        background: null,
         message: "Navigating.",
       };
     } catch (error) {

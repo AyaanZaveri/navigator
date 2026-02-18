@@ -139,14 +139,27 @@ export async function POST(req: Request) {
         throw new Error(`Unsupported AI provider: ${aiProvider}`);
     }
 
+    const modelMessages = convertToModelMessages(messages);
+    const systemPrompt = createSystemPrompt(currentMedia, currentTimestamp);
+
+    // Debug log: exact prompt inputs sent to the model.
+    console.log("[chat] model-input", {
+      aiProvider,
+      modelId: String(model),
+      messageCount: modelMessages.length,
+      systemLength: systemPrompt.length,
+      messages: modelMessages,
+      system: systemPrompt,
+    });
+
     const result = streamText({
       model,
-      messages: convertToModelMessages(messages),
+      messages: modelMessages,
       stopWhen: stepCountIs(10),
       temperature: 0.2,
       maxOutputTokens: 400,
       tools: createAllTools(currentMedia, currentTimestamp, model),
-      system: createSystemPrompt(currentMedia, currentTimestamp),
+      system: systemPrompt,
       // onChunk: async (chunk: any) => {
       //   console.log("🪣 [streamText] New chunk received:", chunk);
       // },
