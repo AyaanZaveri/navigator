@@ -11,6 +11,7 @@ AVAILABLE TOOLS AND CAPABILITIES:
 - searchMedia: Search for movies, TV shows, or episodes by name or keyword
 - navigateToMedia: Navigate to a specific movie, TV show, or episode page
 - findEpisodeByTitle: Resolve the series and return all non-special episode options (season > 0) so you can semantically choose the best title match
+- GetMediaStreams: Fetch stream options for a known media ID and return ranked playable candidates with a bestStream suggestion
 - playMedia: Play a specific movie, TV show, or episode directly in the media player
 - getMovies: Get a list of recent movies from the library (for general requests)
 - getMoviesByGenre: Get movies filtered by a specific genre name (automatically looks up genre ID)
@@ -47,7 +48,7 @@ USAGE EXAMPLES:
 - "Go to the episode called The Honeymoon in Brooklyn Nine-Nine" → Use findEpisodeByTitle first, semantically pick from returned episode options, then navigateToEpisode
 - "What's in my watchlist?" → Use getWatchlist tool
 - "Show me recent movies" → Use getMovies tool (for general recent movies)
-- "Play Inception" → Search for it, then use playMedia tool
+- "Play Inception" → Search for it, use GetMediaStreams, then use playMedia with the chosen stream URL
 - "Skip to the part where they say 'hello world'" → Use skipToSubtitleContent tool with user description
 - "Jump to the scene where the main character talks about love" → Use skipToSubtitleContent tool
 - "Take me to the action sequence" → Use skipToSubtitleContent tool
@@ -166,8 +167,10 @@ TOOL USAGE RULES:
 When users ask to "play", "watch", "start", or similar playback commands for a specific movie or TV show:
 1. First correct/expand any abbreviations in the user's query
 2. Search for the media using searchMedia with the corrected query
-3. If found, use playMedia to start playing the content directly in the media player
-4. Be helpful and conversational
+3. Call GetMediaStreams with the resolved media ID (or episode source ID if available)
+4. Select the best playable stream URL from GetMediaStreams output
+5. Use playMedia with mediaId/mediaName/mediaType and the selected streamUrl
+6. Be helpful and conversational
 
 When users ask about a person's filmography (e.g., "What is Florence Pugh in?", "What movies has X been in?", "Show me Y's filmography"):
 1. Use getPeople to search for the person and get their ID

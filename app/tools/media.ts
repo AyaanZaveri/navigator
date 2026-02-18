@@ -9,6 +9,8 @@ import {
   fetchSimilarItems,
   fetchGenres,
   fetchGenre,
+  getStreamAddonTargets,
+  fetchStreamsFromAddon,
 } from "@/app/actions/media";
 import { fetchEpisodes, fetchSeasons } from "@/app/actions/tv-shows";
 import {
@@ -88,6 +90,15 @@ export interface PlayMediaTool {
   mediaId: string;
   mediaName: string;
   mediaType: "Movie" | "Series" | "Episode";
+  streamUrl?: string;
+  mediaSourceId?: string;
+  subtitleFilename?: string;
+  subtitleVideoSize?: number;
+  seriesId?: string;
+  showName?: string;
+  episodeTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
   message: string;
 }
 
@@ -525,12 +536,67 @@ export const playMedia = tool({
     mediaType: z
       .enum(["Movie", "Series", "Episode"])
       .describe("The type of media - Movie, Series (TV Show), or Episode"),
+    streamUrl: z
+      .string()
+      .optional()
+      .describe("Direct stream URL selected by GetMediaStreams"),
+    mediaSourceId: z
+      .string()
+      .optional()
+      .describe("Source-specific ID for playback (e.g. episode ID)"),
+    subtitleFilename: z
+      .string()
+      .optional()
+      .describe("Subtitle hint filename from the selected stream"),
+    subtitleVideoSize: z
+      .number()
+      .optional()
+      .describe("Subtitle hint video size from the selected stream"),
+    seriesId: z
+      .string()
+      .optional()
+      .describe("Series ID for episode playback context"),
+    showName: z
+      .string()
+      .optional()
+      .describe("Series name for episode playback context"),
+    episodeTitle: z
+      .string()
+      .optional()
+      .describe("Episode title when mediaType is Episode"),
+    seasonNumber: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Episode season number when available"),
+    episodeNumber: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Episode number when available"),
   }),
-  execute: async ({ mediaId, mediaName, mediaType }) => {
+  execute: async ({
+    mediaId,
+    mediaName,
+    mediaType,
+    streamUrl,
+    mediaSourceId,
+    subtitleFilename,
+    subtitleVideoSize,
+    seriesId,
+    showName,
+    episodeTitle,
+    seasonNumber,
+    episodeNumber,
+  }) => {
     console.log("▶️ [playMedia] Tool called with:", {
       mediaId,
       mediaName,
       mediaType,
+      hasStreamUrl: Boolean(streamUrl),
+      mediaSourceId,
     });
     return {
       success: true,
@@ -538,8 +604,160 @@ export const playMedia = tool({
       mediaId,
       mediaName,
       mediaType,
+      streamUrl,
+      mediaSourceId,
+      subtitleFilename,
+      subtitleVideoSize,
+      seriesId,
+      showName,
+      episodeTitle,
+      seasonNumber,
+      episodeNumber,
       message: `Playing ${mediaName}...`,
     };
+  },
+});
+
+function detectStreamResolution(value: string): string | null {
+  if (/\b2160p\b|\b4k\b/.test(value)) return "2160p";
+  if (/\b1080p\b/.test(value)) return "1080p";
+  if (/\b720p\b/.test(value)) return "720p";
+  if (/\b480p\b/.test(value)) return "480p";
+  return null;
+}
+
+function detectStreamTags(value: string): string[] {
+  const tags: string[] = [];
+  if (/\bhdr\b/.test(value)) tags.push("HDR");
+  if (/\bdv\b|dolby[\s-]?vision/.test(value)) tags.push("DV");
+  if (/\bweb[-\s]?dl\b|\bweb[-\s]?rip\b|\bweb\b/.test(value)) tags.push("WEB");
+  if (/\bbluray\b|\bbdrip\b/.test(value)) tags.push("BLURAY");
+  if (/\bremux\b/.test(value)) tags.push("REMUX");
+  return tags;
+}
+
+function scoreStreamCandidate(raw: string, hasPlayableUrl: boolean): number {
+  if (!hasPlayableUrl) return -10_000;
+
+  let score = 100;
+  const resolution = detectStreamResolution(raw);
+  if (resolution === "2160p") score += 400;
+  if (resolution === "1080p") score += 300;
+  if (resolution === "720p") score += 200;
+  if (resolution === "480p") score += 120;
+
+  const tags = detectStreamTags(raw);
+  if (tags.includes("REMUX")) score += 80;
+  if (tags.includes("BLURAY")) score += 50;
+  if (tags.includes("HDR")) score += 35;
+  if (tags.includes("DV")) score += 35;
+  if (tags.includes("WEB")) score += 20;
+
+  if (/\b(?:cam|hdcam|telesync|ts)\b/.test(raw)) score -= 500;
+  if (/\b(?:3d)\b/.test(raw)) score -= 20;
+  if (/\b(?:dubbed|hindi)\b/.test(raw)) score -= 10;
+
+  return score;
+}
+
+export const GetMediaStreams = tool({
+  description:
+    "Fetch available streams for a known media item using the same addon stream discovery path as playback/media actions. Returns ranked playable stream candidates and a bestStream suggestion.",
+  inputSchema: z.object({
+    mediaId: z.string().describe("The stream source ID to fetch streams for"),
+    mediaType: z
+      .enum(["Movie", "Series", "Episode"])
+      .describe("The media type context"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .optional()
+      .describe("Maximum stream candidates to return (default: 12)"),
+  }),
+  execute: async ({ mediaId, mediaType, limit = 12 }) => {
+    console.log("🎞️ [GetMediaStreams] Tool called with:", {
+      mediaId,
+      mediaType,
+      limit,
+    });
+
+    try {
+      const stremioType = mediaType === "Movie" ? "movie" : "series";
+      const targets = await getStreamAddonTargets(stremioType);
+      const streamResponses = await Promise.all(
+        targets.map(async (target) => {
+          const streams = await fetchStreamsFromAddon(
+            mediaId,
+            stremioType,
+            target.transportUrl,
+            target.name
+          );
+          return { target, streams };
+        })
+      );
+
+      const seen = new Set<string>();
+      const candidates = streamResponses.flatMap(({ target, streams }) =>
+        streams
+          .map((stream) => {
+            const streamUrl = stream.url || stream.externalUrl || null;
+            const raw = `${stream.title || ""} ${stream.name || ""} ${stream.behaviorHints?.filename || ""}`.toLowerCase();
+            const key = `${target.id}|${streamUrl || ""}|${stream.title || ""}|${stream.name || ""}`;
+            if (seen.has(key)) return null;
+            seen.add(key);
+            return {
+              addonId: target.id,
+              addonName: target.name,
+              streamUrl,
+              name: stream.name || null,
+              title: stream.title || null,
+              filename: stream.behaviorHints?.filename || null,
+              videoSize: stream.behaviorHints?.videoSize || null,
+              resolution: detectStreamResolution(raw),
+              tags: detectStreamTags(raw),
+              score: scoreStreamCandidate(raw, Boolean(streamUrl)),
+              playable: Boolean(streamUrl),
+            };
+          })
+          .filter(Boolean)
+      );
+
+      const ranked = candidates
+        .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+
+      const bestStream =
+        ranked.find((stream) => stream.playable && stream.streamUrl) || null;
+
+      return {
+        success: true,
+        action: "getMediaStreams",
+        mediaId,
+        mediaType,
+        streamCount: ranked.length,
+        addonCount: targets.length,
+        streams: ranked,
+        bestStream,
+        message: bestStream
+          ? `Found ${ranked.length} stream candidates.`
+          : "No playable stream URLs found.",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        action: "getMediaStreams",
+        mediaId,
+        mediaType,
+        streams: [],
+        bestStream: null,
+        message: "Failed to fetch streams.",
+        error:
+          error instanceof Error ? error.message : "Failed to fetch streams.",
+      };
+    }
   },
 });
 

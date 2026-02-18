@@ -326,7 +326,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                     key={resolution}
                     value={resolution}
                     aria-label={`Filter by ${resolution}`}
-                    className="font-mono [transition-property:color,background-color,border-color,box-shadow] duration-200"
                   >
                     {resolution}
                   </ToggleGroupItem>
@@ -346,7 +345,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                     key={tag}
                     value={tag}
                     aria-label={`Filter by ${tag}`}
-                    className="font-mono [transition-property:color,background-color,border-color,box-shadow] duration-200"
                   >
                     {tag}
                   </ToggleGroupItem>
@@ -387,7 +385,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
       {filteredStreams.length > 0 && (
         <div className="-ml-3 -mt-3">
-          <ScrollArea className="w-full h-[22rem] rounded-xl">
+          <ScrollArea className="w-full h-[24rem] rounded-xl">
             <div className="p-3 space-y-2">
               {filteredStreams.map((stream, index) => {
                 const streamUrl = stream.url || stream.externalUrl;
@@ -418,13 +416,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
                       <div className="flex shrink-0 self-center items-center gap-2">
                         <Button
-                          size="sm"
                           variant="outline"
-                          className="group h-9 px-3 gap-1.5"
+                          className="group h-9 px-3 gap-1.5 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
                           disabled={!streamUrl}
                           onClick={() => handlePlay(stream)}
                         >
-                          <Play className="h-3.5 w-3.5 transition-colors group-hover:text-primary" />
+                          <Play className="h-3.5 w-3.5" />
                           <span className="text-sm">Play</span>
                         </Button>
                       </div>

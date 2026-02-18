@@ -47,6 +47,12 @@ import { SeasonCard } from "./season-card";
 import { EpisodeCard } from "./episode-card";
 import { GenreCard } from "./genre-card";
 import { MediaDetailsCard } from "./media-details-card";
+import { StreamListCard } from "./stream-list-card";
+import { NavigationCard } from "./navigation-card";
+import { PlayMediaCard } from "./play-media-card";
+import { SubtitleSkipCard } from "./subtitle-skip-card";
+import { SceneExplainCard } from "./scene-explain-card";
+import { MediaAnalysisCard } from "./media-analysis-card";
 import { isAIAskOpenAtom } from "@/lib/atoms";
 import { TextShimmer } from "../motion-primitives/text-shimmer";
 import { useSettings } from "@/contexts/settings-context";
@@ -202,15 +208,20 @@ const AIAsk = () => {
       toolPart.mediaType
     ) {
       finalizeToolAction();
+      const isEpisode = toolPart.mediaType === "Episode";
       playMedia({
-        id: toolPart.mediaId,
+        id: isEpisode && toolPart.seriesId ? toolPart.seriesId : toolPart.mediaId,
         name: toolPart.mediaName,
-        type:
-          toolPart.mediaType === "Movie"
-            ? "movie"
-            : toolPart.mediaType === "Series"
-            ? "series"
-            : "series",
+        type: toolPart.mediaType === "Movie" ? "movie" : "series",
+        streamUrl: toolPart.streamUrl,
+        mediaSourceId: toolPart.mediaSourceId || (isEpisode ? toolPart.mediaId : undefined),
+        seriesId: toolPart.seriesId,
+        showName: toolPart.showName,
+        episodeTitle: toolPart.episodeTitle,
+        seasonNumber: toolPart.seasonNumber,
+        episodeNumber: toolPart.episodeNumber,
+        subtitleFilename: toolPart.subtitleFilename,
+        subtitleVideoSize: toolPart.subtitleVideoSize,
       });
       setTimeout(() => {
         setIsAskOpen(false);
@@ -333,6 +344,7 @@ const AIAsk = () => {
       findEpisodeByTitle: { icon: Search, label: "Finding Episode" },
       navigateToMediaByQuery: { icon: Navigation, label: "Resolving & Navigating" },
       playMedia: { icon: Play, label: "Playing Media" },
+      GetMediaStreams: { icon: Search, label: "Finding Streams" },
       getMovies: { icon: Film, label: "Getting Movies" },
       getMoviesByGenre: { icon: Film, label: "Getting Movies by Genre" },
       getTVShows: { icon: Tv, label: "Getting TV Shows" },
@@ -415,6 +427,13 @@ const AIAsk = () => {
     );
   };
 
+  const getToolName = (part: any): string => {
+    if (part.type?.startsWith("tool-")) {
+      return part.type.replace("tool-", "");
+    }
+    return part.toolName || "unknown";
+  };
+
   const getMediaResultsFromToolPart = (part: any): any[] => {
     if (part.state !== "output-available" || !part.output) return [];
 
@@ -434,14 +453,217 @@ const AIAsk = () => {
     if (output.watchlist) return output.watchlist;
     if (output.filmography) return output.filmography;
     if (output.similarItems) return output.similarItems;
-    if (output.episodes) return output.episodes;
 
     return [];
   };
 
+  // Render the dedicated widget card for a specific tool part.
+  // Returns null if no specific widget applies (falls back to generic).
+  const renderToolWidget = (part: any, partIndex: number): React.ReactNode => {
+    if (part.state !== "output-available" || !part.output) return null;
+
+    const toolName = getToolName(part);
+    const output = part.output as any;
+
+    switch (toolName) {
+      // --- Streams ---
+      case "GetMediaStreams":
+        return (
+          <StreamListCard
+            key={`stream-list-${partIndex}`}
+            result={output}
+            index={partIndex}
+          />
+        );
+
+      // --- Navigation ---
+      case "navigateToMedia":
+      case "navigateToEpisode":
+      case "navigateToMediaByQuery":
+        return (
+          <NavigationCard
+            key={`nav-${partIndex}`}
+            result={output}
+            index={partIndex}
+          />
+        );
+
+      // --- Play ---
+      case "playMedia":
+        return (
+          <PlayMediaCard
+            key={`play-${partIndex}`}
+            result={output}
+            index={partIndex}
+          />
+        );
+
+      // --- Theme ---
+      case "themeToggle":
+        return <ThemeToggleCard key={`theme-${partIndex}`} index={partIndex} />;
+
+      // --- Subtitle skip ---
+      case "skipToSubtitleContent":
+        return (
+          <SubtitleSkipCard
+            key={`sub-skip-${partIndex}`}
+            result={output}
+            index={partIndex}
+          />
+        );
+
+      // --- Scene explain ---
+      case "explainScene":
+        return (
+          <SceneExplainCard
+            key={`scene-${partIndex}`}
+            result={output}
+            index={partIndex}
+          />
+        );
+
+      // --- Media analysis ---
+      case "analyzeMedia":
+        return (
+          <MediaAnalysisCard
+            key={`analysis-${partIndex}`}
+            result={output}
+            index={partIndex}
+          />
+        );
+
+      // --- Media details ---
+      case "getMediaDetails":
+        if (output.success && output.details) {
+          return (
+            <MediaDetailsCard
+              key={`details-${partIndex}`}
+              media={{
+                id: output.details.id,
+                name: output.details.name,
+                type:
+                  output.details.type === "movie"
+                    ? "Movie"
+                    : output.details.type === "series"
+                      ? "Series"
+                      : "Movie",
+                year: output.details.year,
+                overview: output.details.overview,
+                rating: output.details.rating,
+                runtime: output.details.runtime,
+                genres: output.details.genres,
+                cast: output.details.cast,
+              }}
+              index={partIndex}
+            />
+          );
+        }
+        return null;
+
+      // --- Genres ---
+      case "getGenres":
+        if (output.success && output.genres?.length > 0) {
+          return (
+            <div key={`genres-${partIndex}`} className="space-y-1">
+              {output.genres.slice(0, 8).map((genre: any, i: number) => (
+                <GenreCard
+                  key={`genre-${genre.Id || genre.Name}-${i}`}
+                  genre={genre}
+                  index={i}
+                />
+              ))}
+              {output.genres.length > 8 && (
+                <p className="text-[10px] text-muted-foreground text-center">
+                  +{output.genres.length - 8} more genres
+                </p>
+              )}
+            </div>
+          );
+        }
+        return null;
+
+      // --- Seasons ---
+      case "getSeasons":
+        if (output.success && output.seasons?.length > 0) {
+          return (
+            <div key={`seasons-${partIndex}`} className="space-y-1">
+              {output.seasons.map((season: any, i: number) => (
+                <SeasonCard
+                  key={`season-${season.id}-${i}`}
+                  season={season}
+                  index={i}
+                />
+              ))}
+            </div>
+          );
+        }
+        return null;
+
+      // --- Episodes ---
+      case "getEpisodes":
+      case "findEpisodeByTitle":
+        if (output.success && output.episodes?.length > 0) {
+          const episodes = output.episodes.slice(0, 10);
+          return (
+            <div key={`episodes-${partIndex}`} className="space-y-1">
+              {episodes.map((ep: any, i: number) => (
+                <EpisodeCard
+                  key={`ep-${ep.id || ep.episodeNumber}-${i}`}
+                  episode={{
+                    id: ep.id,
+                    name: ep.name || ep.title,
+                    episodeNumber: ep.episodeNumber,
+                    seasonNumber: ep.seasonNumber,
+                    overview: ep.overview,
+                    runtime: ep.runtime,
+                    seriesId: ep.seriesId || output.seriesId,
+                    thumbnail: ep.thumbnail || ep.poster,
+                  }}
+                  index={i}
+                />
+              ))}
+              {output.episodes.length > 10 && (
+                <p className="text-[10px] text-muted-foreground text-center">
+                  +{output.episodes.length - 10} more episodes
+                </p>
+              )}
+            </div>
+          );
+        }
+        return null;
+
+      // --- People ---
+      case "getPeople":
+        if (output.success && output.people?.length > 0) {
+          return (
+            <div key={`people-${partIndex}`} className="space-y-1">
+              {output.people.slice(0, 6).map((person: any, i: number) => (
+                <PersonCard
+                  key={`person-${person.id}-${i}`}
+                  person={person}
+                  index={i}
+                />
+              ))}
+            </div>
+          );
+        }
+        return null;
+
+      case "getPersonDetails":
+      case "getPersonFilmography":
+        // These currently return errors in Stremio – still show a card
+        if (output.success === false && output.error) {
+          return null; // Let the text message handle the error
+        }
+        return null;
+
+      default:
+        return null;
+    }
+  };
+
+  // For tool types not handled by renderToolWidget, extract media list items.
   const extractMediaResults = (toolParts: any[]) => {
-    // Only render cards for the latest tool step that produced media results.
-    // This matches the text behavior where we show the latest step content.
     for (let i = toolParts.length - 1; i >= 0; i -= 1) {
       const results = getMediaResultsFromToolPart(toolParts[i]);
       if (results.length > 0) {
@@ -473,15 +695,35 @@ const AIAsk = () => {
   const renderMessageContent = (message: any, index: number) => {
     const textContent = renderMessageText(message);
     const toolParts = findToolParts(message);
-    const mediaResults = extractMediaResults(toolParts);
 
-    if (!textContent && mediaResults.length === 0) {
+    // Collect dedicated widget cards from tool parts (latest only per tool type)
+    const widgetCards: React.ReactNode[] = [];
+    let hasSpecificWidget = false;
+
+    // Render widgets from tool parts – use latest tool step only for each
+    for (let i = toolParts.length - 1; i >= 0; i -= 1) {
+      const widget = renderToolWidget(toolParts[i], i);
+      if (widget) {
+        widgetCards.unshift(widget);
+        hasSpecificWidget = true;
+        break; // Only show the latest tool widget to avoid stacking
+      }
+    }
+
+    // Fallback: if no specific widget matched, use generic MediaLinkCard list
+    const mediaResults = hasSpecificWidget ? [] : extractMediaResults(toolParts);
+
+    if (!textContent && widgetCards.length === 0 && mediaResults.length === 0) {
       return null;
     }
 
     return (
       <div className="space-y-3 w-full">
         {textContent && <Markdown>{textContent}</Markdown>}
+
+        {widgetCards.length > 0 && (
+          <div className="space-y-2">{widgetCards}</div>
+        )}
 
         {mediaResults.length > 0 && (
           <div className="space-y-2">

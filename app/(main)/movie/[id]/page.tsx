@@ -174,7 +174,7 @@ export default async function Movie({
             </div>
           </div>
 
-          <div className="mt-10 w-full">
+          <div className="mt-10 w-full pr-4">
             <MediaActions movie={movie} />
           </div>
         </div>
