@@ -124,6 +124,16 @@ interface StreamSelectionEntry {
   choices: Record<string, string>;
 }
 
+interface TrashRegexEntry {
+  name?: string;
+  pattern?: string;
+}
+
+interface TrashRuleSet {
+  byName: Map<string, RegExp>;
+  loadedAt: number;
+}
+
 const STREAM_REGISTRY_TTL_MS = 30 * 60 * 1000;
 const STREAM_REGISTRY_MAX_ENTRIES = 500;
 const streamRegistry = new Map<string, StreamRegistryEntry>();
@@ -132,7 +142,11 @@ const STREAM_REGISTRY_FILE_PATH = path.join(
   os.tmpdir(),
   "navigator-stream-registry.json"
 );
+const TRASH_REGEXES_URL =
+  "https://raw.githubusercontent.com/Vidhin05/Releases-Regex/main/English/regexes.json";
+const TRASH_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 let streamRegistryHydrated = false;
+let trashRuleSetCache: TrashRuleSet | null = null;
 
 function cleanupExpiredStreams(now = Date.now()) {
   for (const [id, entry] of streamRegistry.entries()) {
@@ -210,6 +224,153 @@ async function persistStreamRegistry() {
   } catch {
     // Persistence is best-effort; in-memory map still serves same-process calls.
   }
+}
+
+function parseRegexLiteral(value?: string): RegExp | null {
+  if (!value || typeof value !== "string") return null;
+  const match = value.match(/^\/([\s\S]*)\/([a-z]*)$/i);
+  if (!match) return null;
+  try {
+    return new RegExp(match[1], match[2]);
+  } catch {
+    return null;
+  }
+}
+
+async function getTrashRuleSet(): Promise<TrashRuleSet | null> {
+  const now = Date.now();
+  if (trashRuleSetCache && now - trashRuleSetCache.loadedAt < TRASH_CACHE_TTL_MS) {
+    return trashRuleSetCache;
+  }
+
+  try {
+    const response = await fetch(TRASH_REGEXES_URL, {
+      cache: "no-store",
+    });
+    if (!response.ok) return trashRuleSetCache;
+
+    const data = (await response.json()) as TrashRegexEntry[];
+    const byName = new Map<string, RegExp>();
+    for (const entry of data) {
+      const name = entry.name?.trim();
+      const regex = parseRegexLiteral(entry.pattern);
+      if (!name || !regex) continue;
+      byName.set(name, regex);
+    }
+
+    trashRuleSetCache = {
+      byName,
+      loadedAt: now,
+    };
+    return trashRuleSetCache;
+  } catch {
+    return trashRuleSetCache;
+  }
+}
+
+function scoreWithTrashBrowserRules(raw: string, rules: TrashRuleSet | null): number {
+  if (!rules) return 0;
+
+  const has = (name: string) => {
+    const regex = rules.byName.get(name);
+    return regex ? regex.test(raw) : false;
+  };
+
+  let score = 0;
+
+  // Keep TRaSH source tiers as weak tie-breakers only.
+  if (has("Web T1")) score += 30;
+  if (has("Web T2")) score += 20;
+  if (has("Web T3")) score += 10;
+  if (has("Web Scene")) score += 5;
+
+  if (has("Remux T1")) score -= 500;
+  if (has("Remux T2")) score -= 460;
+  if (has("Remux T3")) score -= 420;
+  if (has("Bluray T1")) score -= 260;
+  if (has("Bluray T2")) score -= 230;
+  if (has("Bluray T3")) score -= 200;
+  if (has("BR-DISK")) score -= 1_000;
+  if (has("Upscaled")) score -= 900;
+  if (has("Generated Dynamic HDR")) score -= 850;
+  if (has("HDR")) score -= 80;
+
+  // Streaming service tags generally correlate with browser-friendly WEB releases.
+  const serviceBoosts = [
+    "AMZN",
+    "NF",
+    "DSNP",
+    "ATVP",
+    "MAX",
+    "HMAX",
+    "HBO",
+    "Hulu",
+    "iT",
+  ];
+  for (const service of serviceBoosts) {
+    if (has(service)) score += 35;
+  }
+
+  return score;
+}
+
+const PREFERRED_RELEASE_GROUP_PATTERNS: Array<{
+  group: string;
+  regex: RegExp;
+  score: number;
+}> = [
+  // Prioritize your preferred LQ groups because they are often browser-friendly encodes.
+  { group: "RARBG", regex: /\brarbg\b/i, score: 950 },
+  { group: "MeGusta", regex: /\bmegusta\b/i, score: 930 },
+  { group: "PSA", regex: /\bpsa\b/i, score: 920 },
+  { group: "HEVC PSA", regex: /\b(?:hevc|x265).{0,12}\bpsa\b|\bpsa.{0,12}\b(?:hevc|x265)\b/i, score: 940 },
+  { group: "Tigole", regex: /\btigole\b/i, score: 880 },
+  { group: "QxR", regex: /\bqxr\b/i, score: 840 },
+  { group: "x0r", regex: /\bx0r\b/i, score: 820 },
+  { group: "YIFY/YTS", regex: /\byify\b|\byts(?:[.](?:mx|lt|ag))?\b/i, score: 800 },
+  { group: "mSD", regex: /\bmsd\b/i, score: 760 },
+  { group: "nSD", regex: /\bnsd\b/i, score: 740 },
+  { group: "GalaxyRG", regex: /\bgalaxyrg\b/i, score: 700 },
+  { group: "WiKi", regex: /\bwiki\b/i, score: 680 },
+];
+
+function scoreReleaseGroupConfidence(raw: string): {
+  releaseGroup: string | null;
+  score: number;
+} {
+  for (const rule of PREFERRED_RELEASE_GROUP_PATTERNS) {
+    if (rule.regex.test(raw)) {
+      return {
+        releaseGroup: rule.group,
+        score: rule.score,
+      };
+    }
+  }
+
+  // If stream name carries no recognizable release group signal, de-prioritize slightly.
+  return {
+    releaseGroup: null,
+    score: -20,
+  };
+}
+
+function scoreSubtitleLanguageRisk(raw: string): number {
+  let score = 0;
+
+  // Strongly avoid releases with known Chinese hardcoded/embedded subtitle tags by default.
+  if (
+    /\b(?:chs|cht|chi|zho|cnsub|hardsub|subbed)\b/.test(raw) ||
+    /(中文字幕|中英字幕|简体|繁体|国语|国英)/.test(raw)
+  ) {
+    score -= 420;
+  }
+
+  // Mild positive preference for explicit English metadata.
+  if (/\b(?:eng|english)\b/.test(raw)) {
+    score += 20;
+  }
+
+  return score;
 }
 
 function registerStreamSelection(input: {
@@ -878,21 +1039,127 @@ function detectStreamTags(value: string): string[] {
   return tags;
 }
 
-function scoreStreamCandidate(raw: string, hasPlayableUrl: boolean): number {
+function detectContainer(value: string): "mp4" | "mkv" | "webm" | "ts" | "unknown" {
+  if (/\.(mp4|m4v)\b/.test(value)) return "mp4";
+  if (/\.(mkv)\b/.test(value)) return "mkv";
+  if (/\.(webm)\b/.test(value)) return "webm";
+  if (/\.(ts|m2ts)\b/.test(value)) return "ts";
+  return "unknown";
+}
+
+function detectVideoCodec(
+  value: string
+):
+  | "h264"
+  | "h265"
+  | "av1"
+  | "vp9"
+  | "vp8"
+  | "xvid"
+  | "mpeg2"
+  | "unknown" {
+  if (/\b(avc|h\.?264|x264)\b/.test(value)) return "h264";
+  if (/\b(hevc|h\.?265|x265)\b/.test(value)) return "h265";
+  if (/\b(av1)\b/.test(value)) return "av1";
+  if (/\b(vp9)\b/.test(value)) return "vp9";
+  if (/\b(vp8)\b/.test(value)) return "vp8";
+  if (/\b(xvid|divx)\b/.test(value)) return "xvid";
+  if (/\b(mpeg2|mpeg-2)\b/.test(value)) return "mpeg2";
+  return "unknown";
+}
+
+function detectAudioCodec(
+  value: string
+):
+  | "aac"
+  | "opus"
+  | "ac3"
+  | "eac3"
+  | "dts"
+  | "truehd"
+  | "flac"
+  | "mp3"
+  | "unknown" {
+  if (/\b(aac)\b/.test(value)) return "aac";
+  if (/\b(opus)\b/.test(value)) return "opus";
+  if (/\b(truehd|mlp)\b/.test(value)) return "truehd";
+  if (/\b(dts(?:-hd)?|dca)\b/.test(value)) return "dts";
+  if (/\b(ddp|e-?ac-?3|eac3)\b/.test(value)) return "eac3";
+  if (/\b(ac-?3|dd5[._ ]?1|dolby\s*digital)\b/.test(value)) return "ac3";
+  if (/\b(flac)\b/.test(value)) return "flac";
+  if (/\b(mp3)\b/.test(value)) return "mp3";
+  return "unknown";
+}
+
+function scoreStreamCandidate(input: {
+  raw: string;
+  hasPlayableUrl: boolean;
+  videoSize?: number | null;
+  trashScore?: number;
+  releaseGroupScore?: number;
+  subtitleRiskScore?: number;
+}): number {
+  const {
+    raw,
+    hasPlayableUrl,
+    videoSize,
+    trashScore = 0,
+    releaseGroupScore = 0,
+    subtitleRiskScore = 0,
+  } = input;
   if (!hasPlayableUrl) return -10_000;
 
   let score = 100;
   const resolution = detectStreamResolution(raw);
-  if (resolution === "1080p") score += 300;
-  if (resolution === "720p") score += 200;
+  if (resolution === "1080p") score += 320;
+  if (resolution === "720p") score += 220;
   if (resolution === "480p") score += 120;
 
   const tags = detectStreamTags(raw);
-  if (tags.includes("WEB")) score += 20;
+  if (tags.includes("WEB")) score += 40;
+
+  const container = detectContainer(raw);
+  if (container === "mp4") score += 260;
+  if (container === "webm") score += 150;
+  if (container === "mkv") score -= 380;
+  if (container === "ts") score -= 240;
+
+  const videoCodec = detectVideoCodec(raw);
+  if (videoCodec === "h264") score += 180;
+  if (videoCodec === "vp9") score += 110;
+  if (videoCodec === "av1") score += 60;
+  if (videoCodec === "vp8") score += 40;
+  if (videoCodec === "h265") score -= 120;
+  if (videoCodec === "xvid") score -= 220;
+  if (videoCodec === "mpeg2") score -= 180;
+
+  const audioCodec = detectAudioCodec(raw);
+  if (audioCodec === "aac") score += 120;
+  if (audioCodec === "opus") score += 90;
+  if (audioCodec === "ac3") score += 60;
+  if (audioCodec === "eac3") score -= 80;
+  if (audioCodec === "mp3") score += 20;
+  if (audioCodec === "flac") score -= 50;
+  if (audioCodec === "dts") score -= 180;
+  if (audioCodec === "truehd") score -= 250;
 
   if (/\b(?:cam|hdcam|telesync|ts)\b/.test(raw)) score -= 500;
-  if (/\b(?:3d)\b/.test(raw)) score -= 20;
-  if (/\b(?:dubbed|hindi)\b/.test(raw)) score -= 10;
+  if (/\b(?:3d)\b/.test(raw)) score -= 30;
+  if (/\b(?:dubbed)\b/.test(raw)) score -= 20;
+  if (/\b(?:10bit|12bit)\b/.test(raw)) score -= 120;
+  if (/\b(?:atmos)\b/.test(raw)) score -= 20;
+
+  if (typeof videoSize === "number" && Number.isFinite(videoSize)) {
+    const gb = videoSize / (1024 * 1024 * 1024);
+    if (gb > 20) score -= 100;
+    else if (gb > 14) score -= 55;
+    else if (gb > 10) score -= 25;
+    else if (gb >= 2.5 && gb <= 8.5) score += 25;
+  }
+
+  score += trashScore;
+  score += releaseGroupScore;
+  score += subtitleRiskScore;
 
   return score;
 }
@@ -915,6 +1182,7 @@ export const GetMediaStreams = tool({
   }),
   execute: async ({ mediaId, mediaType, limit = 20 }) => {
     await hydrateStreamRegistry();
+    const trashRules = await getTrashRuleSet();
     console.log("🎞️ [GetMediaStreams] Tool called with:", {
       mediaId,
       mediaType,
@@ -950,7 +1218,10 @@ export const GetMediaStreams = tool({
                   mediaType,
                 })
               : null;
-            const raw = `${stream.title || ""} ${stream.name || ""} ${stream.behaviorHints?.filename || ""}`.toLowerCase();
+            const raw = `${stream.title || ""} ${stream.name || ""} ${stream.behaviorHints?.filename || ""}`;
+            const rawLower = raw.toLowerCase();
+            const releaseGroup = scoreReleaseGroupConfidence(rawLower);
+            const subtitleRiskScore = scoreSubtitleLanguageRisk(rawLower);
             const key = `${target.id}|${streamUrl || ""}|${stream.title || ""}|${stream.name || ""}`;
             if (seen.has(key)) return null;
             seen.add(key);
@@ -962,9 +1233,20 @@ export const GetMediaStreams = tool({
               title: stream.title || null,
               filename: stream.behaviorHints?.filename || null,
               videoSize: stream.behaviorHints?.videoSize || null,
-              resolution: detectStreamResolution(raw),
-              tags: detectStreamTags(raw),
-              score: scoreStreamCandidate(raw, Boolean(streamId)),
+              resolution: detectStreamResolution(rawLower),
+              tags: detectStreamTags(rawLower),
+              container: detectContainer(rawLower),
+              videoCodec: detectVideoCodec(rawLower),
+              audioCodec: detectAudioCodec(rawLower),
+              releaseGroup: releaseGroup.releaseGroup,
+              score: scoreStreamCandidate({
+                raw: rawLower,
+                hasPlayableUrl: Boolean(streamId),
+                videoSize: stream.behaviorHints?.videoSize || null,
+                trashScore: scoreWithTrashBrowserRules(raw, trashRules),
+                releaseGroupScore: releaseGroup.score,
+                subtitleRiskScore,
+              }),
               playable: Boolean(streamId),
             };
           })
@@ -982,6 +1264,30 @@ export const GetMediaStreams = tool({
           if (tags.includes("DV")) return false;
           if (tags.includes("BLURAY")) return false;
           if (tags.includes("REMUX")) return false;
+          if (candidate.audioCodec === "dts") return false;
+          if (candidate.audioCodec === "truehd") return false;
+          if (candidate.videoCodec === "xvid") return false;
+          if (candidate.videoCodec === "mpeg2") return false;
+          // Hard browser-safe container preference.
+          if (candidate.container !== "mp4" && candidate.container !== "webm") {
+            return false;
+          }
+          // Avoid EAC3/DD+ as default; browser support is inconsistent in direct playback.
+          if (candidate.audioCodec === "eac3") return false;
+          if (
+            /(中文字幕|中英字幕|简体|繁体|国语|国英)/.test(
+              `${candidate.title || ""} ${candidate.name || ""} ${candidate.filename || ""}`
+            )
+          ) {
+            return false;
+          }
+          if (
+            /\b(?:chs|cht|chi|zho|cnsub|hardsub)\b/.test(
+              `${candidate.title || ""} ${candidate.name || ""} ${candidate.filename || ""}`.toLowerCase()
+            )
+          ) {
+            return false;
+          }
           return true;
         })
         .sort((a, b) => b.score - a.score)

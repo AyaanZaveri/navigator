@@ -83,10 +83,13 @@ export const StreamListCard: React.FC<StreamListCardProps> = ({
 
   // Show up to 20 streams
   const displayStreams = result.streams.slice(0, 20);
+  const bestStreamId = result.bestStream?.streamId ?? null;
+  const bestStreamChoice = result.bestStream?.choice ?? null;
   const bestStreamTitle =
     result.bestStream?.title ||
     result.bestStream?.name ||
-    result.bestStream?.filename;
+    result.bestStream?.filename ||
+    null;
 
   return (
     <motion.div
@@ -123,12 +126,17 @@ export const StreamListCard: React.FC<StreamListCardProps> = ({
         {/* Stream list */}
         <div className="space-y-1">
           {displayStreams.map((stream, i) => {
-            const streamKey = `${stream.addonName}-${stream.title || stream.name}-${i}`;
-            const isBest =
-              bestStreamTitle != null &&
-              (stream.title === bestStreamTitle ||
-                stream.name === bestStreamTitle ||
-                stream.filename === bestStreamTitle);
+            const streamKey =
+              stream.streamId ||
+              `${stream.choice || "c"}-${stream.addonName}-${stream.title || stream.name}-${i}`;
+            const isBest = bestStreamId
+              ? stream.streamId === bestStreamId
+              : bestStreamChoice != null
+                ? stream.choice === bestStreamChoice
+                : bestStreamTitle != null &&
+                  (stream.title === bestStreamTitle ||
+                    stream.name === bestStreamTitle ||
+                    stream.filename === bestStreamTitle);
 
             return (
               <StreamCard
