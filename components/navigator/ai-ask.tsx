@@ -15,12 +15,7 @@ import {
   Search,
   Play,
   Navigation,
-  Blend,
   ScanText,
-  Film,
-  Tv,
-  Star,
-  User,
   Layers,
   List,
   Subtitles,
@@ -42,10 +37,8 @@ import { AuroraText } from "@/components/magicui/aurora-text";
 import { useTheme } from "next-themes";
 import { MediaLinkCard } from "./media-link-card";
 import { ThemeToggleCard } from "./theme-toggle-card";
-import { PersonCard } from "./person-card";
 import { SeasonCard } from "./season-card";
 import { EpisodeCard } from "./episode-card";
-import { GenreCard } from "./genre-card";
 import { MediaDetailsCard } from "./media-details-card";
 import { StreamListCard } from "./stream-list-card";
 import { NavigationCard } from "./navigation-card";
@@ -344,25 +337,14 @@ const AIAsk = () => {
       findEpisodeByTitle: { icon: Search, label: "Finding Episode" },
       navigateToMediaByQuery: { icon: Navigation, label: "Resolving & Navigating" },
       playMedia: { icon: Play, label: "Playing Media" },
-      GetMediaStreams: { icon: Search, label: "Finding Streams" },
-      getMovies: { icon: Film, label: "Getting Movies" },
-      getMoviesByGenre: { icon: Film, label: "Getting Movies by Genre" },
-      getTVShows: { icon: Tv, label: "Getting TV Shows" },
-      getTVShowsByGenre: { icon: Tv, label: "Getting TV Shows by Genre" },
-      continueWatching: { icon: List, label: "Continue Watching" },
-      getPeople: { icon: User, label: "Searching People" },
-      getPersonDetails: { icon: User, label: "Getting Person Details" },
-      getPersonFilmography: { icon: Film, label: "Getting Filmography" },
-      getGenres: { icon: Layers, label: "Getting Genres" },
+      getMediaStreams: { icon: Search, label: "Finding Streams" },
       getMediaDetails: { icon: Search, label: "Getting Details" },
       getSeasons: { icon: Layers, label: "Getting Seasons" },
       getEpisodes: { icon: List, label: "Getting Episodes" },
-      getWatchlist: { icon: Star, label: "Getting Watchlist" },
       skipToSubtitleContent: { icon: Subtitles, label: "Searching Subtitles" },
       explainScene: { icon: BookOpen, label: "Explaining Scene" },
       analyzeMedia: { icon: ScanText, label: "Analyzing Media" },
       themeToggle: { icon: Palette, label: "Changing Theme" },
-      findSimilarItems: { icon: Blend, label: "Finding Similar" },
     };
     return toolMap[toolName] || { icon: Search, label: "Working..." };
   };
@@ -447,12 +429,6 @@ const AIAsk = () => {
       return output.results;
     }
 
-    if (output.movies) return output.movies;
-    if (output.shows) return output.shows;
-    if (output.resumeItems) return output.resumeItems;
-    if (output.watchlist) return output.watchlist;
-    if (output.filmography) return output.filmography;
-    if (output.similarItems) return output.similarItems;
     if (output.episodes) return output.episodes;
 
     return [];
@@ -468,7 +444,7 @@ const AIAsk = () => {
 
     switch (toolName) {
       // --- Streams ---
-      case "GetMediaStreams":
+      case "getMediaStreams":
         return (
           <StreamListCard
             key={`stream-list-${partIndex}`}
@@ -561,23 +537,6 @@ const AIAsk = () => {
         }
         return null;
 
-      // --- Genres ---
-      case "getGenres":
-        if (output.success && output.genres?.length > 0) {
-          return (
-            <div key={`genres-${partIndex}`} className="space-y-1">
-              {output.genres.map((genre: any, i: number) => (
-                <GenreCard
-                  key={`genre-${genre.Id || genre.Name}-${i}`}
-                  genre={genre}
-                  index={i}
-                />
-              ))}
-            </div>
-          );
-        }
-        return null;
-
       // --- Seasons ---
       case "getSeasons":
         if (output.success && output.seasons?.length > 0) {
@@ -592,31 +551,6 @@ const AIAsk = () => {
               ))}
             </div>
           );
-        }
-        return null;
-
-      // --- People ---
-      case "getPeople":
-        if (output.success && output.people?.length > 0) {
-          return (
-            <div key={`people-${partIndex}`} className="space-y-1">
-              {output.people.map((person: any, i: number) => (
-                <PersonCard
-                  key={`person-${person.id}-${i}`}
-                  person={person}
-                  index={i}
-                />
-              ))}
-            </div>
-          );
-        }
-        return null;
-
-      case "getPersonDetails":
-      case "getPersonFilmography":
-        // These currently return errors in Stremio – still show a card
-        if (output.success === false && output.error) {
-          return null; // Let the text message handle the error
         }
         return null;
 

@@ -5,24 +5,10 @@ import {
   navigateToEpisode,
   findEpisodeByTitle,
   navigateToMediaByQuery,
-  GetMediaStreams,
+  getMediaStreams,
   playMedia,
-  getMovies,
-  getMoviesByGenre,
-  getTVShows,
-  getTVShowsByGenre,
-  continueWatching,
   getMediaDetails,
-  getGenres,
-  getWatchlist,
-  findSimilarItems,
 } from "./media";
-
-import {
-  getPeople,
-  getPersonDetails,
-  getPersonFilmography,
-} from "./people";
 
 import {
   getSeasons,
@@ -50,24 +36,9 @@ export {
   navigateToEpisode,
   findEpisodeByTitle,
   navigateToMediaByQuery,
-  GetMediaStreams,
+  getMediaStreams,
   playMedia,
-  getMovies,
-  getMoviesByGenre,
-  getTVShows,
-  getTVShowsByGenre,
-  continueWatching,
   getMediaDetails,
-  getGenres,
-  getWatchlist,
-  findSimilarItems,
-};
-
-// Export all people-related tools
-export {
-  getPeople,
-  getPersonDetails,
-  getPersonFilmography,
 };
 
 // Export all TV show-related tools
@@ -106,22 +77,9 @@ export function createAllTools(
     navigateToEpisode,
     findEpisodeByTitle,
     navigateToMediaByQuery,
-    GetMediaStreams,
+    getMediaStreams,
     playMedia,
-    getMovies,
-    getMoviesByGenre,
-    getTVShows,
-    getTVShowsByGenre,
-    continueWatching,
     getMediaDetails,
-    getGenres,
-    getWatchlist,
-    findSimilarItems,
-    
-    // People tools
-    getPeople,
-    getPersonDetails,
-    getPersonFilmography,
     
     // TV Show tools
     getSeasons,
