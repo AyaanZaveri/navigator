@@ -142,6 +142,8 @@ export interface StremioVideo {
   overview?: string;
   season?: number;
   episode?: number;
+  resumePositionTicks?: number;
+  progressPercent?: number;
   streams?: StremioStream[];
 }
 

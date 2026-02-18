@@ -23,6 +23,7 @@ import {
   type Season,
   type Episode,
 } from "@/app/actions/tv-shows";
+import { fetchPlaybackProgress } from "@/app/actions";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
@@ -39,6 +40,10 @@ interface SeasonEpisodesProps {
 // Cache episodes per series+season key
 const episodesCache = new Map<string, Episode[]>();
 const seasonsCache = new Map<string, Season[]>();
+const playbackProgressCache = new Map<
+  string,
+  { videoId?: string; progressPercent?: number; resumePositionTicks?: number }
+>();
 
 function getInitialSeasonState(showId: string, currentSeasonNumber?: number) {
   const cachedSeasons = seasonsCache.get(showId);
@@ -79,6 +84,14 @@ function normalizeVideosToEpisodes(
         overview: video.overview,
         thumbnail: video.thumbnail,
         released: video.released,
+        resumePositionTicks:
+          typeof video.resumePositionTicks === "number"
+            ? video.resumePositionTicks
+            : undefined,
+        progressPercent:
+          typeof video.progressPercent === "number"
+            ? video.progressPercent
+            : undefined,
       };
     })
     .sort((a, b) => {
@@ -151,6 +164,8 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   const [loading, setLoading] = useState(initialSeasonState.loading);
   const [episodes, setEpisodes] = useState<Episode[]>(initialEpisodes);
   const [episodesLoading, setEpisodesLoading] = useState(false);
+  const [playbackProgressByEpisodeId, setPlaybackProgressByEpisodeId] =
+    useState<Record<string, { progressPercent?: number; resumePositionTicks?: number }>>({});
   const episodesBottomSpacingClass = currentEpisodeNumber ? "mb-4" : "mb-8";
   const lastScrolledEpisodeRef = useRef<string | null>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
@@ -266,6 +281,53 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       cancelled = true;
     };
   }, [showId, selectedSeason, hasPrefetchedEpisodes, prefetchedEpisodes]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const cached = playbackProgressCache.get(showId);
+    if (cached?.videoId) {
+      setPlaybackProgressByEpisodeId({
+        [cached.videoId]: {
+          progressPercent: cached.progressPercent,
+          resumePositionTicks: cached.resumePositionTicks,
+        },
+      });
+    }
+
+    const loadPlaybackProgress = async () => {
+      const progress = await fetchPlaybackProgress(showId);
+      if (cancelled) return;
+
+      const next = {
+        videoId: progress?.videoId,
+        progressPercent: progress?.progressPercent,
+        resumePositionTicks: progress?.resumePositionTicks,
+      };
+      playbackProgressCache.set(showId, next);
+
+      if (
+        next.videoId &&
+        (typeof next.progressPercent === "number" ||
+          typeof next.resumePositionTicks === "number")
+      ) {
+        setPlaybackProgressByEpisodeId({
+          [next.videoId]: {
+            progressPercent: next.progressPercent,
+            resumePositionTicks: next.resumePositionTicks,
+          },
+        });
+      } else {
+        setPlaybackProgressByEpisodeId({});
+      }
+    };
+
+    loadPlaybackProgress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showId]);
 
   useEffect(() => {
     if (
@@ -430,7 +492,15 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
             {episodes.map((episode) => (
               <EpisodeCard
                 key={episode.id}
-                episode={episode}
+                episode={{
+                  ...episode,
+                  progressPercent:
+                    playbackProgressByEpisodeId[episode.id]?.progressPercent ??
+                    episode.progressPercent,
+                  resumePositionTicks:
+                    playbackProgressByEpisodeId[episode.id]
+                      ?.resumePositionTicks ?? episode.resumePositionTicks,
+                }}
                 showId={showId}
                 isActive={
                   selectedSeason === currentSeasonNumber &&
@@ -502,6 +572,16 @@ const EpisodeCard = React.memo(function EpisodeCard({
                 </div>
               </div>
             </div>
+
+            {typeof episode.progressPercent === "number" &&
+            episode.progressPercent > 0 ? (
+              <div className="absolute inset-x-2 bottom-2 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
+                <div
+                  className="h-full rounded-full bg-white/80 transition-all"
+                  style={{ width: `${episode.progressPercent}%` }}
+                />
+              </div>
+            ) : null}
           </div>
 
           {/* Episode Info */}

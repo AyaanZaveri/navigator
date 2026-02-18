@@ -837,60 +837,6 @@ export const playMedia = tool({
       candidateStreamId = undefined;
     }
 
-    let resolvedMediaSourceId = mediaSourceId;
-    let resolvedSeriesId = seriesId;
-    let resolvedShowName = showName;
-    let resolvedEpisodeTitle = episodeTitle;
-    let resolvedSeasonNumber = seasonNumber;
-    let resolvedEpisodeNumber = episodeNumber;
-
-    if (mediaType === "Episode") {
-      resolvedMediaSourceId = resolvedMediaSourceId || mediaId;
-
-      const parsed = parseSeriesRouteId(mediaId);
-      if (parsed.isEpisodeTarget) {
-        resolvedSeriesId = resolvedSeriesId || parsed.seriesId;
-        resolvedSeasonNumber = resolvedSeasonNumber || parsed.season;
-        resolvedEpisodeNumber = resolvedEpisodeNumber || parsed.episode;
-      }
-
-      if (resolvedSeriesId && !resolvedShowName) {
-        try {
-          const seriesDetails = await fetchMediaDetails(resolvedSeriesId, "series");
-          resolvedShowName = seriesDetails?.name || undefined;
-        } catch {
-          // Best effort metadata enrichment.
-        }
-      }
-
-      const needsEpisodeLookup =
-        !!resolvedSeriesId &&
-        typeof resolvedSeasonNumber === "number" &&
-        typeof resolvedEpisodeNumber === "number";
-
-      if (needsEpisodeLookup && resolvedSeriesId) {
-        try {
-          const episodes = await fetchEpisodes(resolvedSeriesId, resolvedSeasonNumber!);
-          const matchedEpisode = episodes.find(
-            (episode) => episode.episode === resolvedEpisodeNumber
-          );
-          if (matchedEpisode?.title) {
-            resolvedEpisodeTitle = matchedEpisode.title;
-          }
-        } catch {
-          // Fall back to provided title.
-        }
-      }
-
-      if (!resolvedEpisodeTitle) {
-        resolvedEpisodeTitle =
-          resolvedShowName &&
-          mediaName.trim().toLowerCase() === resolvedShowName.trim().toLowerCase()
-            ? `Episode ${resolvedEpisodeNumber ?? ""}`.trim()
-            : mediaName;
-      }
-    }
-
     return {
       success: true,
       action: "play",
@@ -899,14 +845,14 @@ export const playMedia = tool({
       mediaType,
       streamId: candidateStreamId || undefined,
       streamUrl: resolvedStreamUrl,
-      mediaSourceId: resolvedMediaSourceId,
+      mediaSourceId,
       subtitleFilename: resolvedSubtitleFilename,
       subtitleVideoSize: resolvedSubtitleVideoSize,
-      seriesId: resolvedSeriesId,
-      showName: resolvedShowName,
-      episodeTitle: resolvedEpisodeTitle,
-      seasonNumber: resolvedSeasonNumber,
-      episodeNumber: resolvedEpisodeNumber,
+      seriesId,
+      showName,
+      episodeTitle,
+      seasonNumber,
+      episodeNumber,
       message: resolvedStreamUrl
         ? `Playing ${mediaName}...`
         : `Playing ${mediaName}... (loading best available stream)`,

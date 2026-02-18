@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FilterX, Loader2, Play, Puzzle, Search, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { fetchPlaybackProgress } from "@/app/actions";
 import {
   Select,
   SelectContent,
@@ -61,6 +62,36 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
   const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
   const [selectedStreamTags, setSelectedStreamTags] = useState<string[]>([]);
+  const [resumePositionTicks, setResumePositionTicks] = useState<number | undefined>(
+    activeMedia?.resumePositionTicks
+  );
+
+  useEffect(() => {
+    setResumePositionTicks(activeMedia?.resumePositionTicks);
+  }, [activeMedia?.resumePositionTicks]);
+
+  useEffect(() => {
+    if (!activeMedia) return;
+    let cancelled = false;
+
+    const libraryItemId = activeMedia.seriesId || activeMedia.id;
+    const targetVideoId = activeMedia.episodeId || activeMedia.mediaSourceId || activeMedia.id;
+
+    void (async () => {
+      const progress = await fetchPlaybackProgress(libraryItemId, targetVideoId);
+      if (cancelled) return;
+      if (
+        typeof progress?.resumePositionTicks === "number" &&
+        progress.resumePositionTicks > 0
+      ) {
+        setResumePositionTicks(progress.resumePositionTicks);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMedia?.episodeId, activeMedia?.id, activeMedia?.mediaSourceId, activeMedia?.seriesId]);
 
   useEffect(() => {
     if (!activeMedia) return;
@@ -234,6 +265,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
         ? activeMedia.episodeTitle || activeMedia.name
         : activeMedia.name,
       type: activeMedia.type,
+      resumePositionTicks,
       streamUrl,
       mediaSourceId: isEpisode ? activeMedia.episodeId : activeMedia.id,
       seriesId: isEpisode ? activeMedia.seriesId : undefined,

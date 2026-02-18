@@ -1,5 +1,6 @@
 import {
   fetchMediaDetails,
+  fetchPlaybackProgress,
   fetchSimilarItems,
 } from "@/app/actions";
 import { MediaActions } from "@/components/media-actions";
@@ -22,6 +23,16 @@ export default async function Movie({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const formatResumeTime = (totalSeconds: number) => {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const seconds = safeSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  };
 
   try {
     const movie = await fetchMediaDetails(id, "movie");
@@ -31,6 +42,12 @@ export default async function Movie({
     }
 
     const similarItems = await fetchSimilarItems(id, "movie", 12);
+    const playbackProgress = await fetchPlaybackProgress(id, id);
+    const movieWithProgress: MediaItem = {
+      ...movie,
+      resumePositionTicks: playbackProgress?.resumePositionTicks,
+      progressPercent: playbackProgress?.progressPercent,
+    };
 
     return (
       <div className="min-h-screen overflow-hidden md:pr-1 pb-8">
@@ -77,14 +94,43 @@ export default async function Movie({
             className="absolute top-4 right-4 z-30 pointer-events-none"
           />
           <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
-            <div className="w-full md:w-auto flex-shrink-0 justify-center flex md:block z-50 mt-6">
-              <PosterImage
-                movie={movie}
-                posterImage={movie.poster || ""}
-                className="w-full h-auto rounded-lg shadow-lg max-w-1/2 md:w-[14rem] md:max-w-none"
-                width={500}
-                height={750}
-              />
+            <div className="w-full md:w-auto flex-shrink-0 justify-center flex flex-col items-center md:items-start md:block z-50 mt-6">
+              <div className="relative max-w-1/2 md:w-[14rem] md:max-w-none">
+                <PosterImage
+                  movie={movie}
+                  posterImage={movie.poster || ""}
+                  className="w-full h-auto rounded-lg shadow-lg"
+                  width={500}
+                  height={750}
+                />
+                {(typeof playbackProgress?.progressPercent === "number" ||
+                  typeof playbackProgress?.resumePositionTicks === "number" ||
+                  typeof playbackProgress?.totalDuration === "number") && (
+                    <div className="absolute inset-x-2 bottom-2 pointer-events-none">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+                          {formatResumeTime(
+                            playbackProgress?.resumePositionTicks ?? 0
+                          )}
+                        </span>
+                        <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+                          {formatResumeTime(playbackProgress?.totalDuration ?? 0)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-white/80 transition-all"
+                          style={{
+                            width: `${Math.max(
+                              0,
+                              Math.min(100, playbackProgress?.progressPercent ?? 0)
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+              </div>
             </div>
 
             <div className="w-full min-w-0 flex-1 pt-2 text-center md:text-start mt-8 md:mt-12">
@@ -175,7 +221,7 @@ export default async function Movie({
           </div>
 
           <div className="mt-10 w-full pr-4">
-            <MediaActions movie={movie} />
+            <MediaActions movie={movieWithProgress} />
           </div>
         </div>
 

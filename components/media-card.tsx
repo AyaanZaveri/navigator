@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { buildEpisodePath } from "@/lib/series-route";
 
 export function MediaCard({
   item,
@@ -19,7 +20,14 @@ export function MediaCard({
   const [imageLoaded, setImageLoaded] = useState(false);
 
   let linkHref = "";
-  if (item.type === "movie") {
+  if (
+    continueWatching &&
+    item.type === "series" &&
+    typeof item.seasonNumber === "number" &&
+    typeof item.episodeNumber === "number"
+  ) {
+    linkHref = buildEpisodePath(item.id, item.seasonNumber, item.episodeNumber);
+  } else if (item.type === "movie") {
     linkHref = `/movie/${item.id}`;
   } else if (item.type === "series") {
     linkHref = `/series/${item.id}`;
@@ -31,8 +39,15 @@ export function MediaCard({
     ? item.background || item.poster
     : item.poster;
   const subtitle = continueWatching
-    ? item.progressLabel || item.releaseInfo || ""
-    : item.year || item.releaseInfo || "";
+    ? item.progressLabel ||
+      (item.type === "movie"
+        ? (typeof item.year === "number" && item.year >= 1888
+            ? item.year.toString()
+            : item.releaseInfo || "")
+        : item.releaseInfo || "")
+    : (typeof item.year === "number" && item.year >= 1888
+        ? item.year.toString()
+        : item.releaseInfo || "");
 
   const handlePlayClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -111,7 +126,7 @@ export function MediaCard({
         {continueWatching && typeof item.progressPercent === "number" ? (
           <div className="absolute inset-x-2 bottom-2 z-20 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
             <div
-              className="h-full rounded-full bg-white transition-all"
+              className="h-full rounded-full bg-white/80 transition-all"
               style={{ width: `${item.progressPercent}%` }}
             />
           </div>

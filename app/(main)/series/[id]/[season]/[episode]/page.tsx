@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildSeriesPath } from "@/lib/series-route";
 import { getSeriesEpisodeSelectionData } from "../../_shared/series-data";
+import { fetchPlaybackProgress } from "@/app/actions";
 
 export default async function EpisodeOnSeriesPage({
   params,
@@ -12,6 +13,16 @@ export default async function EpisodeOnSeriesPage({
   params: Promise<{ id: string; season: string; episode: string }>;
 }) {
   const { id, season, episode } = await params;
+  const formatResumeTime = (totalSeconds: number) => {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const seconds = safeSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  };
 
   try {
     const episodeData = await getSeriesEpisodeSelectionData(id, season, episode);
@@ -28,10 +39,11 @@ export default async function EpisodeOnSeriesPage({
       selectedEpisodeTitle,
       regularSeasonCount,
     } = episodeData;
+    const playbackProgress = await fetchPlaybackProgress(show.id, selectedEpisode.id);
 
     return (
       <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
-        <div className="w-full md:w-auto flex-shrink-0 justify-center flex md:block z-50 mt-6">
+        <div className="w-full md:w-auto flex-shrink-0 justify-center flex flex-col items-center md:items-start md:block z-50 mt-6">
           {selectedEpisode.thumbnail ? (
             <div className="relative aspect-video rounded-lg overflow-hidden shadow-lg bg-muted max-w-1/2 md:w-[22rem] lg:w-[24rem] md:max-w-none mt-16">
               <img
@@ -39,13 +51,69 @@ export default async function EpisodeOnSeriesPage({
                 alt={selectedEpisodeTitle}
                 className="w-full h-full object-cover"
               />
+              {(typeof playbackProgress?.progressPercent === "number" ||
+                typeof playbackProgress?.resumePositionTicks === "number" ||
+                typeof playbackProgress?.totalDuration === "number") && (
+                  <div className="absolute inset-x-2 bottom-2 pointer-events-none">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+                        {formatResumeTime(
+                          playbackProgress?.resumePositionTicks ?? 0
+                        )}
+                      </span>
+                      <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+                        {formatResumeTime(playbackProgress?.totalDuration ?? 0)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-white/80 transition-all"
+                        style={{
+                          width: `${Math.max(
+                            0,
+                            Math.min(100, playbackProgress?.progressPercent ?? 0)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
             </div>
           ) : (
-            <img
-              src={show.poster || ""}
-              alt={show.name}
-              className="w-full h-auto rounded-lg shadow-lg max-w-1/2 md:w-[14rem] md:max-w-none"
-            />
+            <div className="relative max-w-1/2 md:w-[14rem] md:max-w-none">
+              <img
+                src={show.poster || ""}
+                alt={show.name}
+                className="w-full h-auto rounded-lg shadow-lg"
+              />
+              {(typeof playbackProgress?.progressPercent === "number" ||
+                typeof playbackProgress?.resumePositionTicks === "number" ||
+                typeof playbackProgress?.totalDuration === "number") && (
+                  <div className="absolute inset-x-2 bottom-2 pointer-events-none">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+                        {formatResumeTime(
+                          playbackProgress?.resumePositionTicks ?? 0
+                        )}
+                      </span>
+                      <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+                        {formatResumeTime(playbackProgress?.totalDuration ?? 0)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-white/80 transition-all"
+                        style={{
+                          width: `${Math.max(
+                            0,
+                            Math.min(100, playbackProgress?.progressPercent ?? 0)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+            </div>
           )}
         </div>
 

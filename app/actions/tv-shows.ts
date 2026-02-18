@@ -104,6 +104,8 @@ export interface Episode {
   overview?: string;
   thumbnail?: string;
   released?: string;
+  resumePositionTicks?: number;
+  progressPercent?: number;
 }
 
 export async function fetchEpisodes(
@@ -139,6 +141,14 @@ export async function fetchEpisodes(
           overview: v.overview,
           thumbnail: v.thumbnail,
           released: v.released,
+          resumePositionTicks:
+            typeof v.resumePositionTicks === "number"
+              ? v.resumePositionTicks
+              : undefined,
+          progressPercent:
+            typeof v.progressPercent === "number"
+              ? v.progressPercent
+              : undefined,
         }));
       }
     }

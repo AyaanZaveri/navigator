@@ -585,6 +585,72 @@ export async function reportPlaybackStopped(
   return upsertPlaybackState("stopped", input);
 }
 
+export interface PlaybackProgressState {
+  resumePositionTicks?: number;
+  progressPercent?: number;
+  totalDuration?: number;
+  videoId?: string;
+}
+
+export async function fetchPlaybackProgress(
+  libraryItemId: string,
+  videoId?: string
+): Promise<PlaybackProgressState | null> {
+  try {
+    const { authKey } = await getAuthData();
+    const response = await fetch(`${STREMIO_API}/datastoreGet`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        authKey,
+        collection: "libraryItem",
+        ids: [libraryItemId],
+        all: false,
+      }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      console.error("Failed to fetch playback progress:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const item = Array.isArray(data?.result) ? data.result[0] : null;
+    if (!item?.state) return null;
+
+    const stateVideoId = firstString(item?.state?.video_id);
+    // Episode detail pages should only show progress for their selected episode.
+    if (videoId && stateVideoId && stateVideoId !== videoId) {
+      return { videoId: stateVideoId };
+    }
+
+    const rawOffset = Number(item?.state?.timeOffset ?? item?.state?.timeWatched ?? 0);
+    const rawDuration = Number(item?.state?.duration ?? 0);
+    const offset = Number.isFinite(rawOffset) ? rawOffset : 0;
+    const duration = Number.isFinite(rawDuration) ? rawDuration : 0;
+
+    const offsetInSeconds =
+      (duration > 10_000 || offset > 86_400) && offset > 0
+        ? offset / 1000
+        : offset;
+    const durationInSeconds = duration > 10_000 ? duration / 1000 : duration;
+
+    return {
+      videoId: stateVideoId,
+      resumePositionTicks: offsetInSeconds > 0 ? offsetInSeconds : undefined,
+      totalDuration: durationInSeconds > 0 ? durationInSeconds : undefined,
+      progressPercent:
+        duration > 0 && offset > 0
+          ? Math.max(0, Math.min(100, Math.round((offset / duration) * 100)))
+          : undefined,
+    };
+  } catch (error) {
+    console.error("Failed to fetch playback progress:", error);
+    return null;
+  }
+}
+
 // ─── Resume Items ────────────────────────────────────────────────
 // Stremio's continue watching is managed client-side or via libraryItems API.
 
@@ -613,6 +679,13 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
     const toNumberOrUndefined = (value: unknown): number | undefined => {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    const normalizeYear = (value: unknown): number | undefined => {
+      const parsed = Number(value);
+      const currentYear = new Date().getFullYear() + 1;
+      if (!Number.isInteger(parsed)) return undefined;
+      if (parsed < 1888 || parsed > currentYear) return undefined;
+      return parsed;
     };
     const toResumeSeconds = (
       offsetValue: unknown,
@@ -669,6 +742,9 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         name: item.name,
         poster: item.poster,
         background: item.background,
+        year: normalizeYear(item?.year),
+        releaseInfo:
+          typeof item?.releaseInfo === "string" ? item.releaseInfo : undefined,
         resumePositionTicks: toResumeSeconds(
           item?.state?.timeOffset ?? item?.state?.timeWatched,
           item?.state?.duration
@@ -728,7 +804,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
               rawState?.behaviorHints?.videoSize
           ),
           progressLabel: seasonEpisodeLabel || undefined,
-          releaseInfo: seasonEpisodeLabel || undefined,
+          releaseInfo: seasonEpisodeLabel || item.releaseInfo || undefined,
         };
       });
 
@@ -741,6 +817,8 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
             background: details?.background || item.background || details?.poster,
             poster: item.poster || details?.poster,
             logo: details?.logo || item.logo,
+            year: normalizeYear(details?.year) ?? normalizeYear(item.year),
+            releaseInfo: item.releaseInfo ?? details?.releaseInfo,
           };
         } catch {
           return item;

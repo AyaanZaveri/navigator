@@ -13,6 +13,7 @@ export {
   fetchMovies,
   fetchTVShows,
   fetchMediaDetails,
+  fetchPlaybackProgress,
   fetchResumeItems,
   reportPlaybackStart,
   reportPlaybackProgress,
