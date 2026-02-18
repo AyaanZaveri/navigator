@@ -126,9 +126,7 @@ export const StreamListCard: React.FC<StreamListCardProps> = ({
         {/* Stream list */}
         <div className="space-y-1">
           {displayStreams.map((stream, i) => {
-            const streamKey =
-              stream.streamId ||
-              `${stream.choice || "c"}-${stream.addonName}-${stream.title || stream.name}-${i}`;
+            const streamKey = `${stream.addonName}-${stream.title || stream.name}-${i}`;
             const isBest = bestStreamId
               ? stream.streamId === bestStreamId
               : bestStreamChoice != null
