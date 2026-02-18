@@ -494,6 +494,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     : mediaDetails?.name || currentMedia.name;
   const fallbackBackdrop =
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
+  const loadingLogo = mediaDetails?.logo || currentMedia.logo;
 
   return (
     <div className="fixed inset-0 z-[999999] bg-black flex items-center justify-center w-screen">
@@ -595,6 +596,24 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               </div>
             ) : (
               <div className="w-full h-full bg-black" />
+            )}
+
+            {loadingLogo && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="absolute inset-0 z-[2] flex items-center justify-center px-8 pointer-events-none"
+              >
+                <img
+                  src={loadingLogo}
+                  alt={`${showTitle || primaryTitle} logo`}
+                  className="w-auto max-w-[66vw] md:max-w-[52vw] max-h-[18vh] md:max-h-[22vh] object-contain opacity-85 drop-shadow-[0_10px_28px_rgba(0,0,0,0.85)]"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </motion.div>
             )}
 
             {/* Title and loading spinner */}
