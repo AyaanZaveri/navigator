@@ -302,7 +302,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                     <Puzzle className="h-3 w-3" />
                     <SelectValue>{selectedAddonName}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" side="bottom" align="start" sideOffset={6}>
                     <SelectItem value="all">All</SelectItem>
                     {selectableAddonTargets.map((addon) => (
                       <SelectItem key={addon.id} value={addon.id}>
