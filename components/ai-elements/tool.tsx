@@ -4,7 +4,6 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   CircleIcon,
-  CoffeeIcon,
   ClockIcon,
   WrenchIcon,
   XCircleIcon,
@@ -16,11 +15,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ToolUIPart } from "ai";
 import { CodeBlock } from "./code-block";
@@ -68,7 +62,7 @@ export const ToolHeader = ({
   className,
   type,
   state,
-  completedDurationMs,
+  completedDurationMs: _completedDurationMs,
   ...props
 }: ToolHeaderProps) => (
   <CollapsibleTrigger
@@ -84,22 +78,6 @@ export const ToolHeader = ({
       {getStatusBadge(state)}
     </div>
     <div className="flex items-center gap-2">
-      {state === "output-available" &&
-        typeof completedDurationMs === "number" && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground"
-                aria-label={`done in ${completedDurationMs} milliseconds`}
-              >
-                <CoffeeIcon className="size-3.5" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6}>
-              {`done in ${completedDurationMs} milliseconds`}
-            </TooltipContent>
-          </Tooltip>
-        )}
       <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
     </div>
   </CollapsibleTrigger>

@@ -8,7 +8,7 @@ import { BorderBeam } from "../magicui/border-beam";
 import { Button } from "../ui/button";
 import {
   ArrowRight,
-  Loader2,
+  Square,
   Ship,
   Plus,
   X,
@@ -23,7 +23,6 @@ import {
   Palette,
   BookOpen,
   GalleryVerticalEnd,
-  Coffee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Markdown from "react-markdown";
@@ -68,7 +67,6 @@ import {
 import { NavigateMediaTool, PlayMediaTool } from "@/app/tools/media";
 import { SkipToSubtitleContent } from "@/app/tools/subtitles";
 import { ThemeToggle } from "@/app/tools/theme";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const AIAsk = () => {
   const [isAskOpen, setIsAskOpen] = useAtom(isAIAskOpenAtom);
@@ -79,12 +77,15 @@ const AIAsk = () => {
   const [toolDurationsMs, setToolDurationsMs] = useState<Record<string, number>>(
     {}
   );
-  const [lastTaskDurationMs, setLastTaskDurationMs] = useState<number | null>(
-    null
+  const [requestDurationsMs, setRequestDurationsMs] = useState<Record<string, number>>(
+    {}
   );
   const handledToolOutputsRef = useRef<Set<string>>(new Set());
   const toolStartTimesRef = useRef<Record<string, number>>({});
   const taskStartTimeRef = useRef<number | null>(null);
+  const activeTaskUserMessageIdRef = useRef<string | null>(null);
+  const awaitingTaskUserMessageRef = useRef(false);
+  const messagesRef = useRef<any[]>([]);
   const {
     aiProvider,
     ollamaBaseUrl,
@@ -96,6 +97,43 @@ const AIAsk = () => {
     groqApiKey,
     openrouterApiKey,
   } = useSettings();
+
+  const formatDuration = (durationMs: number) => {
+    if (durationMs < 1000) return `${durationMs} ms`;
+    return `${(durationMs / 1000).toFixed(2)} s`;
+  };
+
+  const getStableMessageId = (message: any, fallbackIndex: number) =>
+    String(message?.id || message?.message?.id || `${message?.role || "msg"}-${fallbackIndex}`);
+
+  const finalizeRequestDuration = () => {
+    if (taskStartTimeRef.current == null) return;
+
+    const durationMs = Math.max(0, Date.now() - taskStartTimeRef.current);
+    setRequestDurationsMs((prev) => {
+      let userMessageId = activeTaskUserMessageIdRef.current;
+
+      if (!userMessageId) {
+        for (let i = messagesRef.current.length - 1; i >= 0; i -= 1) {
+          const message = messagesRef.current[i];
+          if (message?.role !== "user") continue;
+          const candidateId = getStableMessageId(message, i);
+          if (prev[candidateId] == null) {
+            userMessageId = candidateId;
+            break;
+          }
+        }
+      }
+
+      if (!userMessageId) return prev;
+      return {
+        ...prev,
+        [userMessageId]: durationMs,
+      };
+    });
+
+    taskStartTimeRef.current = null;
+  };
 
   // Function to handle opening AI Ask, with fullscreen exit if needed
   const handleOpenAsk = async () => {
@@ -184,15 +222,21 @@ const AIAsk = () => {
     },
     onFinish: () => {
       setCurrentTool(null);
-      if (taskStartTimeRef.current != null) {
-        setLastTaskDurationMs(Math.max(0, Date.now() - taskStartTimeRef.current));
-        taskStartTimeRef.current = null;
-      }
+      finalizeRequestDuration();
+      activeTaskUserMessageIdRef.current = null;
+      awaitingTaskUserMessageRef.current = false;
+    },
+    onError: () => {
+      setCurrentTool(null);
+      finalizeRequestDuration();
+      activeTaskUserMessageIdRef.current = null;
+      awaitingTaskUserMessageRef.current = false;
     },
   });
 
   const finalizeToolAction = () => {
     setCurrentTool(null);
+    finalizeRequestDuration();
     stop();
   };
 
@@ -284,14 +328,18 @@ const AIAsk = () => {
     setMessages([]);
     setCurrentTool(null);
     setToolDurationsMs({});
-    setLastTaskDurationMs(null);
+    setRequestDurationsMs({});
     handledToolOutputsRef.current.clear();
     toolStartTimesRef.current = {};
     taskStartTimeRef.current = null;
+    activeTaskUserMessageIdRef.current = null;
+    awaitingTaskUserMessageRef.current = false;
+    messagesRef.current = [];
   };
 
   const handleCloseAsk = () => {
     if (status !== "ready") {
+      finalizeRequestDuration();
       stop();
     }
     setCurrentTool(null);
@@ -303,6 +351,24 @@ const AIAsk = () => {
       setCurrentTool(null);
     }
   }, [status]);
+
+  useEffect(() => {
+    messagesRef.current = messages as any[];
+  }, [messages]);
+
+  useEffect(() => {
+    if (!awaitingTaskUserMessageRef.current) return;
+    if (activeTaskUserMessageIdRef.current) return;
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i] as any;
+      if (message?.role !== "user") continue;
+      const messageId = getStableMessageId(message, i);
+      activeTaskUserMessageIdRef.current = messageId;
+      awaitingTaskUserMessageRef.current = false;
+      break;
+    }
+  }, [messages]);
 
   useEffect(() => {
     messages.forEach((message: any) => {
@@ -348,7 +414,7 @@ const AIAsk = () => {
         const actualMessage = message.message || message;
         if (!actualMessage.parts) return;
 
-        actualMessage.parts.forEach((part: any) => {
+        actualMessage.parts.forEach((part: any, partIndex: number) => {
           if (
             !part ||
             !(part.type?.startsWith("tool-") || part.type === "dynamic-tool")
@@ -356,7 +422,10 @@ const AIAsk = () => {
             return;
           }
 
-          const toolCallId = part.toolCallId || part.id;
+          const toolCallId =
+            part.toolCallId ||
+            part.id ||
+            `${message.id || "assistant"}:${part.type || "tool"}:${partIndex}`;
           if (typeof toolCallId !== "string" || toolCallId.length === 0) return;
 
           if (toolStartTimesRef.current[toolCallId] == null) {
@@ -724,11 +793,20 @@ const AIAsk = () => {
           },
         }
       );
+      setInput("");
       taskStartTimeRef.current = Date.now();
+      activeTaskUserMessageIdRef.current = null;
+      awaitingTaskUserMessageRef.current = true;
       setCurrentTool("thinking");
     } catch (error) {
       console.error("Error asking question:", error);
     }
+  };
+
+  const handleStopGeneration = () => {
+    finalizeRequestDuration();
+    stop();
+    setCurrentTool(null);
   };
 
   return (
@@ -774,21 +852,6 @@ const AIAsk = () => {
                     })()}
                 </div>
                 <div className="flex items-center gap-1">
-                  {lastTaskDurationMs != null && status === "ready" && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground"
-                          aria-label={`done in ${lastTaskDurationMs} milliseconds`}
-                        >
-                          <Coffee className="h-3.5 w-3.5" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6}>
-                        {`done in ${lastTaskDurationMs} milliseconds`}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -826,6 +889,7 @@ const AIAsk = () => {
                   id="chat-body"
                 >
                   {messages.map((message, index) => {
+                    const messageId = getStableMessageId(message, index);
                     const assistantContent =
                       message.role === "assistant"
                         ? renderMessageContent(message, index)
@@ -853,8 +917,15 @@ const AIAsk = () => {
                             {assistantContent}
                           </div>
                         ) : (
-                          <div className="text-sm font-medium">
-                            {renderMessageText(message)}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="text-sm font-medium min-w-0 flex-1">
+                              {renderMessageText(message)}
+                            </div>
+                            {typeof requestDurationsMs[messageId] === "number" && (
+                              <span className="text-[11px] font-mono text-primary/80 whitespace-nowrap">
+                                {formatDuration(requestDurationsMs[messageId])}
+                              </span>
+                            )}
                           </div>
                         )}
                       </motion.div>
@@ -876,12 +947,13 @@ const AIAsk = () => {
                     />
                   </div>
                   <Button
-                    type="submit"
-                    className="rounded-full px-4 h-10"
-                    disabled={status !== "ready" || !input.trim()}
+                    type={status === "ready" ? "submit" : "button"}
+                    className="rounded-full h-9 w-9 p-0"
+                    disabled={status === "ready" ? !input.trim() : false}
+                    onClick={status !== "ready" ? handleStopGeneration : undefined}
                   >
                     {status !== "ready" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Square className="h-3.5 w-3.5 fill-current" />
                     ) : (
                       <ArrowRight className="h-4 w-4 scale-105" />
                     )}
@@ -915,6 +987,13 @@ const AIAsk = () => {
               </div>
             ) : (
               getAllToolCalls().map((toolCall, index) => (
+                (() => {
+                  const durationId =
+                    toolCall.toolCallId ||
+                    toolCall.id ||
+                    `${messages[toolCall.messageIndex]?.id || "assistant"}:${toolCall.type || "tool"}:${toolCall.partIndex}`;
+                  const completedDurationMs = toolDurationsMs[durationId];
+                  return (
                 <Tool
                   key={`history-tool-${toolCall.messageIndex}-${toolCall.partIndex}-${index}`}
                   defaultOpen={false}
@@ -926,7 +1005,7 @@ const AIAsk = () => {
                       "Unknown"
                     }
                     state={toolCall.state}
-                    completedDurationMs={toolDurationsMs[toolCall.toolCallId]}
+                    completedDurationMs={completedDurationMs}
                   />
                   <ToolContent>
                     {toolCall.input && <ToolInput input={toolCall.input} />}
@@ -938,8 +1017,15 @@ const AIAsk = () => {
                       }
                       errorText={toolCall.errorText}
                     />
+                    {typeof completedDurationMs === "number" && (
+                      <div className="px-4 pb-3 pt-1 text-[11px] font-mono text-muted-foreground">
+                        {`Completed in: ${formatDuration(completedDurationMs)}`}
+                      </div>
+                    )}
                   </ToolContent>
                 </Tool>
+                  );
+                })()
               ))
             )}
           </div>
