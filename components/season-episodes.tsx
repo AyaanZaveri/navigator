@@ -564,7 +564,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
         <div className="space-y-3 py-2">
           {/* Episode Thumbnail */}
           <div
-            className={`relative aspect-video rounded-lg overflow-hidden shadow-xs transition-all duration-300 ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70" : "bg-muted"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-lg shadow-primary/15 dark:shadow-xl dark:shadow-primary/25" : ""}`}
+            className={`relative aspect-video rounded-lg overflow-hidden transition-all duration-300 ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70 border border-border/70 shadow-xs" : "bg-muted shadow-lg group-hover:shadow-xl"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-xl shadow-primary/25" : ""}`}
           >
             {isUpcoming ? (
               <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm font-medium text-foreground/85">

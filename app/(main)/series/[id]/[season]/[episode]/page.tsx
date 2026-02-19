@@ -45,7 +45,7 @@ export default async function EpisodeOnSeriesPage({
     return (
       <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
         <div className="w-full md:w-auto flex-shrink-0 justify-center flex flex-col items-center md:items-start md:block z-50 mt-6">
-          <div className="relative aspect-video rounded-lg overflow-hidden shadow-sm dark:shadow-lg bg-muted max-w-1/2 md:w-[22rem] lg:w-[24rem] md:max-w-none mt-16">
+          <div className="relative aspect-video rounded-lg overflow-hidden shadow-lg bg-muted max-w-1/2 md:w-[22rem] lg:w-[24rem] md:max-w-none mt-16">
             <EpisodeHeroThumbnail
               thumbnail={selectedEpisode.thumbnail}
               released={selectedEpisode.released}
