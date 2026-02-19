@@ -5,7 +5,8 @@ import {
   type OpenRouterSharedSettings,
 } from "@openrouter/ai-sdk-provider";
 import { groq, createGroq } from "@ai-sdk/groq";
-import { createOllama, ollama } from "ai-sdk-ollama";
+import { cerebras, createCerebras } from "@ai-sdk/cerebras";
+import { createOllama } from "ai-sdk-ollama";
 import { convertToModelMessages, streamText, stepCountIs } from "ai";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
 import { cookies } from "next/headers";
@@ -18,6 +19,7 @@ type OpenRouterReasoningEffort =
   | "medium"
   | "high"
   | "xhigh";
+type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
 async function getAuthData() {
   const cookieStore = await cookies();
@@ -45,9 +47,12 @@ export async function POST(req: Request) {
       groqModel = "llama3-8b-8192",
       openrouterModel = "qwen/qwen3-coder:free",
       openrouterReasoningEffort = "default",
+      cerebrasModel = "gpt-oss-120b",
+      cerebrasReasoningEffort = "default",
       googleApiKey,
       groqApiKey,
       openrouterApiKey,
+      cerebrasApiKey,
     } = await req.json();
 
     const normalizedOpenrouterReasoningEffort: OpenRouterReasoningEffort =
@@ -60,6 +65,13 @@ export async function POST(req: Request) {
         ? openrouterReasoningEffort
         : "default";
 
+    const normalizedCerebrasReasoningEffort: CerebrasReasoningEffort =
+      cerebrasReasoningEffort === "low" ||
+      cerebrasReasoningEffort === "medium" ||
+      cerebrasReasoningEffort === "high"
+        ? cerebrasReasoningEffort
+        : "default";
+
     console.log({
       aiProvider,
       ollamaBaseUrl,
@@ -67,9 +79,12 @@ export async function POST(req: Request) {
       groqModel,
       openrouterModel,
       openrouterReasoningEffort: normalizedOpenrouterReasoningEffort,
+      cerebrasModel,
+      cerebrasReasoningEffort: normalizedCerebrasReasoningEffort,
       hasGoogleApiKey: Boolean(googleApiKey),
       hasGroqApiKey: Boolean(groqApiKey),
       hasOpenrouterApiKey: Boolean(openrouterApiKey),
+      hasCerebrasApiKey: Boolean(cerebrasApiKey),
     });
 
     const openrouterModelSettings: OpenRouterSharedSettings | undefined =
@@ -101,12 +116,13 @@ export async function POST(req: Request) {
           );
         }
         break;
-      case "ollama":
+      case "ollama": {
         const ollamaProvider = createOllama({
           baseURL: ollamaBaseUrl,
         });
         model = ollamaProvider(ollamaModel);
         break;
+      }
       case "groq":
         if (groqApiKey) {
           const groqProvider = createGroq({
@@ -135,6 +151,20 @@ export async function POST(req: Request) {
           );
         }
         break;
+      case "cerebras":
+        if (cerebrasApiKey) {
+          const cerebrasProvider = createCerebras({
+            apiKey: cerebrasApiKey,
+          });
+          model = cerebrasProvider(cerebrasModel);
+        } else if (process.env.CEREBRAS_API_KEY) {
+          model = cerebras(cerebrasModel);
+        } else {
+          throw new Error(
+            "Cerebras API key is required for Cerebras provider. Please set your API key in settings."
+          );
+        }
+        break;
       default:
         throw new Error(`Unsupported AI provider: ${aiProvider}`);
     }
@@ -152,12 +182,33 @@ export async function POST(req: Request) {
       system: systemPrompt,
     });
 
+    const streamSettings: {
+      temperature: number;
+      maxOutputTokens: number;
+      providerOptions?: any;
+    } = {
+      temperature: 0.2,
+      maxOutputTokens: 400,
+    };
+
+    if (aiProvider === "cerebras") {
+      const cerebrasProviderOptions: Record<string, any> = {};
+      if (normalizedCerebrasReasoningEffort !== "default") {
+        cerebrasProviderOptions.reasoningEffort =
+          normalizedCerebrasReasoningEffort;
+      }
+      if (Object.keys(cerebrasProviderOptions).length > 0) {
+        streamSettings.providerOptions = {
+          cerebras: cerebrasProviderOptions,
+        };
+      }
+    }
+
     const result = streamText({
       model,
       messages: modelMessages,
       stopWhen: stepCountIs(10),
-      temperature: 0.2,
-      maxOutputTokens: 400,
+      ...streamSettings,
       tools: createAllTools(currentMedia, currentTimestamp, model),
       system: systemPrompt,
       // onChunk: async (chunk: any) => {

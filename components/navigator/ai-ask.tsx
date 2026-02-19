@@ -93,9 +93,12 @@ const AIAsk = () => {
     groqModel,
     openrouterModel,
     openrouterReasoningEffort,
+    cerebrasModel,
+    cerebrasReasoningEffort,
     googleApiKey,
     groqApiKey,
     openrouterApiKey,
+    cerebrasApiKey,
   } = useSettings();
 
   const formatDuration = (durationMs: number) => {
@@ -787,9 +790,12 @@ const AIAsk = () => {
             groqModel,
             openrouterModel,
             openrouterReasoningEffort,
+            cerebrasModel,
+            cerebrasReasoningEffort,
             googleApiKey,
             groqApiKey,
             openrouterApiKey,
+            cerebrasApiKey,
           },
         }
       );

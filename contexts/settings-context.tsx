@@ -17,7 +17,12 @@ export const BITRATE_OPTIONS: BitrateOption[] = [
   { value: "1000", label: "1 Mbps (360p)", bitrate: 1000000 },
 ];
 
-export type AIProvider = "gemini" | "ollama" | "groq" | "openrouter";
+export type AIProvider =
+  | "gemini"
+  | "ollama"
+  | "groq"
+  | "openrouter"
+  | "cerebras";
 export type OpenRouterReasoningEffort =
   | "default"
   | "none"
@@ -26,6 +31,7 @@ export type OpenRouterReasoningEffort =
   | "medium"
   | "high"
   | "xhigh";
+export type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
 interface SettingsContextType {
   videoBitrate: string;
@@ -45,6 +51,10 @@ interface SettingsContextType {
   setOpenrouterModel: (model: string) => void;
   openrouterReasoningEffort: OpenRouterReasoningEffort;
   setOpenrouterReasoningEffort: (effort: OpenRouterReasoningEffort) => void;
+  cerebrasModel: string;
+  setCerebrasModel: (model: string) => void;
+  cerebrasReasoningEffort: CerebrasReasoningEffort;
+  setCerebrasReasoningEffort: (effort: CerebrasReasoningEffort) => void;
   // API keys
   googleApiKey: string;
   setGoogleApiKey: (key: string) => void;
@@ -52,6 +62,8 @@ interface SettingsContextType {
   setGroqApiKey: (key: string) => void;
   openrouterApiKey: string;
   setOpenrouterApiKey: (key: string) => void;
+  cerebrasApiKey: string;
+  setCerebrasApiKey: (key: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -72,11 +84,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
   const [openrouterReasoningEffort, setOpenrouterReasoningEffortState] =
     useState<OpenRouterReasoningEffort>("default");
-  
+  const [cerebrasModel, setCerebrasModelState] = useState<string>("gpt-oss-120b");
+  const [cerebrasReasoningEffort, setCerebrasReasoningEffortState] =
+    useState<CerebrasReasoningEffort>("default");
+
   // API Key states
   const [googleApiKey, setGoogleApiKeyState] = useState<string>("");
   const [groqApiKey, setGroqApiKeyState] = useState<string>("");
   const [openrouterApiKey, setOpenrouterApiKeyState] = useState<string>("");
+  const [cerebrasApiKey, setCerebrasApiKeyState] = useState<string>("");
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -100,7 +116,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) as AIProvider;
     if (
       savedAiProvider &&
-      ["gemini", "ollama", "groq", "openrouter"].includes(savedAiProvider)
+      ["gemini", "ollama", "groq", "openrouter", "cerebras"].includes(
+        savedAiProvider
+      )
     ) {
       setAiProviderState(savedAiProvider);
     }
@@ -138,6 +156,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) {
       setOpenrouterReasoningEffortState(savedOpenrouterReasoningEffort);
     }
+    const savedCerebrasModel = localStorage.getItem("navigator-cerebras-model");
+    if (savedCerebrasModel) {
+      setCerebrasModelState(savedCerebrasModel);
+    }
+    const savedCerebrasReasoningEffort = localStorage.getItem(
+      "navigator-cerebras-reasoning-effort"
+    ) as CerebrasReasoningEffort | null;
+    if (
+      savedCerebrasReasoningEffort &&
+      ["default", "low", "medium", "high"].includes(savedCerebrasReasoningEffort)
+    ) {
+      setCerebrasReasoningEffortState(savedCerebrasReasoningEffort);
+    }
 
     // Load API key settings
     const savedGoogleApiKey = localStorage.getItem("navigator-google-api-key");
@@ -153,6 +184,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const savedOpenrouterApiKey = localStorage.getItem("navigator-openrouter-api-key");
     if (savedOpenrouterApiKey) {
       setOpenrouterApiKeyState(savedOpenrouterApiKey);
+    }
+    const savedCerebrasApiKey = localStorage.getItem("navigator-cerebras-api-key");
+    if (savedCerebrasApiKey) {
+      setCerebrasApiKeyState(savedCerebrasApiKey);
     }
   }, []);
 
@@ -196,6 +231,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setOpenrouterReasoningEffortState(effort);
     localStorage.setItem("navigator-openrouter-reasoning-effort", effort);
   };
+  const setCerebrasModel = (model: string) => {
+    setCerebrasModelState(model);
+    localStorage.setItem("navigator-cerebras-model", model);
+  };
+  const setCerebrasReasoningEffort = (effort: CerebrasReasoningEffort) => {
+    setCerebrasReasoningEffortState(effort);
+    localStorage.setItem("navigator-cerebras-reasoning-effort", effort);
+  };
 
   // API Key setters
   const setGoogleApiKey = (key: string) => {
@@ -211,6 +254,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const setOpenrouterApiKey = (key: string) => {
     setOpenrouterApiKeyState(key);
     localStorage.setItem("navigator-openrouter-api-key", key);
+  };
+  const setCerebrasApiKey = (key: string) => {
+    setCerebrasApiKeyState(key);
+    localStorage.setItem("navigator-cerebras-api-key", key);
   };
 
   return (
@@ -232,12 +279,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setOpenrouterModel,
         openrouterReasoningEffort,
         setOpenrouterReasoningEffort,
+        cerebrasModel,
+        setCerebrasModel,
+        cerebrasReasoningEffort,
+        setCerebrasReasoningEffort,
         googleApiKey,
         setGoogleApiKey,
         groqApiKey,
         setGroqApiKey,
         openrouterApiKey,
         setOpenrouterApiKey,
+        cerebrasApiKey,
+        setCerebrasApiKey,
       }}
     >
       {children}

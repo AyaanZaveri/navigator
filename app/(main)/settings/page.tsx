@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Suspense } from "react";
 import {
   Card,
@@ -18,14 +19,15 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import {
+  CerebrasReasoningEffort,
   OpenRouterReasoningEffort,
   useSettings,
 } from "@/contexts/settings-context";
-import { Settings2, Ship, Bot } from "lucide-react";
+import { Settings2, Ship } from "lucide-react";
 import { AuroraBackground } from "@/components/aurora-background";
 import { SearchBar } from "@/components/search-component";
 import { Label } from "@/components/ui/label";
-import { Gemini, Groq, OpenRouter } from "@lobehub/icons";
+import { Cerebras, Gemini, Groq, OpenRouter } from "@lobehub/icons";
 import { Ollama } from "@lobehub/icons";
 
 export default function SettingsPage() {
@@ -44,13 +46,77 @@ export default function SettingsPage() {
     setOpenrouterModel,
     openrouterReasoningEffort,
     setOpenrouterReasoningEffort,
+    cerebrasModel,
+    setCerebrasModel,
+    cerebrasReasoningEffort,
+    setCerebrasReasoningEffort,
     googleApiKey,
     setGoogleApiKey,
     groqApiKey,
     setGroqApiKey,
     openrouterApiKey,
     setOpenrouterApiKey,
+    cerebrasApiKey,
+    setCerebrasApiKey,
   } = useSettings();
+
+  const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
+  const [isLoadingCerebrasModels, setIsLoadingCerebrasModels] = useState(false);
+  const [cerebrasModelsError, setCerebrasModelsError] = useState<string | null>(
+    null
+  );
+
+  const fetchCerebrasModels = useCallback(async () => {
+    if (!cerebrasApiKey.trim()) {
+      setCerebrasModels([]);
+      setCerebrasModelsError(null);
+      return;
+    }
+
+    setIsLoadingCerebrasModels(true);
+    setCerebrasModelsError(null);
+
+    try {
+      const response = await fetch("/api/cerebras/models", {
+        method: "GET",
+        headers: {
+          "x-cerebras-api-key": cerebrasApiKey.trim(),
+        },
+      });
+
+      const data = (await response.json()) as {
+        models?: string[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch Cerebras models.");
+      }
+
+      setCerebrasModels(Array.isArray(data.models) ? data.models : []);
+    } catch (error) {
+      console.error("Failed to load Cerebras models:", error);
+      setCerebrasModels([]);
+      setCerebrasModelsError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load Cerebras models."
+      );
+    } finally {
+      setIsLoadingCerebrasModels(false);
+    }
+  }, [cerebrasApiKey]);
+
+  useEffect(() => {
+    if (aiProvider !== "cerebras") return;
+    void fetchCerebrasModels();
+  }, [aiProvider, fetchCerebrasModels]);
+
+  const cerebrasModelOptions = useMemo(() => {
+    if (!cerebrasModel) return cerebrasModels;
+    if (cerebrasModels.includes(cerebrasModel)) return cerebrasModels;
+    return [cerebrasModel, ...cerebrasModels];
+  }, [cerebrasModel, cerebrasModels]);
 
   console.log({
     navigatorEnabled,
@@ -60,9 +126,12 @@ export default function SettingsPage() {
     groqModel,
     openrouterModel,
     openrouterReasoningEffort,
+    cerebrasModel,
+    cerebrasReasoningEffort,
     googleApiKey,
     groqApiKey,
     openrouterApiKey,
+    cerebrasApiKey,
   });
 
   return (
@@ -154,6 +223,12 @@ export default function SettingsPage() {
                             OpenRouter
                           </div>
                         </SelectItem>
+                        <SelectItem value="cerebras">
+                          <div className="flex items-center gap-2">
+                            <Cerebras className="h-4 w-4" />
+                            Cerebras
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground">
@@ -165,6 +240,8 @@ export default function SettingsPage() {
                         "Uses Groq's high-speed inference API for AI responses."}
                       {aiProvider === "openrouter" &&
                         "Uses OpenRouter's API to access various AI models."}
+                      {aiProvider === "cerebras" &&
+                        "Uses Cerebras high-speed inference with configurable reasoning and decoding parameters."}
                     </p>
                   </div>
 
@@ -429,6 +506,114 @@ export default function SettingsPage() {
                         <p className="text-sm text-muted-foreground">
                           Sets OpenRouter&apos;s <code>reasoning.effort</code>:
                           {" "}xhigh, high, medium, low, minimal, or none.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {aiProvider === "cerebras" && (
+                    <div className="space-y-4 pl-4 border-l-2 border-muted">
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="cerebras-api-key"
+                          className="text-base font-medium"
+                        >
+                          API Key
+                        </Label>
+                        <Input
+                          id="cerebras-api-key"
+                          type="password"
+                          value={cerebrasApiKey}
+                          onChange={(e) => setCerebrasApiKey(e.target.value)}
+                          placeholder="Enter your Cerebras API key"
+                          className="w-full"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Get your API key from{" "}
+                          <a
+                            href="https://cloud.cerebras.ai"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            Cerebras Cloud
+                          </a>
+                          . Your key is stored locally and never shared.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="cerebras-model"
+                          className="text-base font-medium"
+                        >
+                          Model
+                        </Label>
+                        <Select
+                          value={cerebrasModel}
+                          onValueChange={setCerebrasModel}
+                          disabled={!cerebrasApiKey.trim()}
+                        >
+                          <SelectTrigger id="cerebras-model" className="w-full">
+                            <SelectValue
+                              placeholder={
+                                isLoadingCerebrasModels
+                                  ? "Loading models..."
+                                  : "Select a Cerebras model"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {cerebrasModelOptions.map((modelId) => (
+                              <SelectItem key={modelId} value={modelId}>
+                                {modelId}
+                              </SelectItem>
+                            ))}
+                            {cerebrasModelOptions.length === 0 && (
+                              <SelectItem value="__none" disabled>
+                                No models available
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                          {cerebrasApiKey.trim()
+                            ? "Model list is fetched live from Cerebras."
+                            : "Add your API key to fetch available models."}
+                          {cerebrasModelsError && ` Error: ${cerebrasModelsError}`}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="cerebras-reasoning-effort"
+                          className="text-base font-medium"
+                        >
+                          Reasoning Effort
+                        </Label>
+                        <Select
+                          value={cerebrasReasoningEffort}
+                          onValueChange={(value) =>
+                            setCerebrasReasoningEffort(
+                              value as CerebrasReasoningEffort
+                            )
+                          }
+                        >
+                          <SelectTrigger
+                            id="cerebras-reasoning-effort"
+                            className="w-full"
+                          >
+                            <SelectValue placeholder="Select reasoning effort" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Model default</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                          Uses Cerebras provider reasoning effort option.
                         </p>
                       </div>
                     </div>

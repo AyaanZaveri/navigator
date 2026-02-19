@@ -13,6 +13,7 @@
     "electron-build-mac": "electron-builder --mac"
   },
   "dependencies": {
+    "@ai-sdk/cerebras": "^1.0.38",
     "@ai-sdk/google": "^2.0.3",
     "@ai-sdk/groq": "^2.0.4",
     "@ai-sdk/openai": "^2.0.91",
