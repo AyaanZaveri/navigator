@@ -525,6 +525,12 @@ const EpisodeCard = React.memo(function EpisodeCard({
   showId: string;
   isActive?: boolean;
 }) {
+  const [thumbnailLoadFailed, setThumbnailLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setThumbnailLoadFailed(false);
+  }, [episode.thumbnail]);
+
   const formatDate = useCallback((dateString: string | undefined) => {
     if (!dateString) return null;
     const date = new Date(dateString);
@@ -535,6 +541,13 @@ const EpisodeCard = React.memo(function EpisodeCard({
       year: "numeric",
     });
   }, []);
+  const releaseDate = episode.released ? new Date(episode.released) : null;
+  const releaseTimestamp = releaseDate?.getTime();
+  const hasValidReleaseDate =
+    typeof releaseTimestamp === "number" && !Number.isNaN(releaseTimestamp);
+  const isUpcoming = hasValidReleaseDate && releaseTimestamp > Date.now();
+  const hasUsableThumbnail = Boolean(episode.thumbnail) && !thumbnailLoadFailed;
+  const formattedReleaseDate = formatDate(episode.released);
 
   return (
     <div
@@ -551,12 +564,18 @@ const EpisodeCard = React.memo(function EpisodeCard({
         <div className="space-y-3 py-2">
           {/* Episode Thumbnail */}
           <div
-            className={`relative aspect-video rounded-lg overflow-hidden bg-muted shadow-lg group-hover:shadow-xl transition-all duration-300 ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-xl shadow-primary/25" : ""}`}
+            className={`relative aspect-video rounded-lg overflow-hidden shadow-xs transition-all duration-300 ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70" : "bg-muted"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-lg shadow-primary/15 dark:shadow-xl dark:shadow-primary/25" : ""}`}
           >
-            {episode.thumbnail ? (
+            {isUpcoming ? (
+              <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm font-medium text-foreground/85">
+                This episode is still in the oven. Serving starts{" "}
+                {formattedReleaseDate ? `on ${formattedReleaseDate}` : "soon"}.
+              </div>
+            ) : hasUsableThumbnail ? (
               <img
                 src={episode.thumbnail}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                onError={() => setThumbnailLoadFailed(true)}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">
@@ -565,13 +584,15 @@ const EpisodeCard = React.memo(function EpisodeCard({
             )}
 
             {/* Play button overlay */}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
-              <div className="invisible group-hover:visible transition-opacity duration-300">
-                <div className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition-colors">
-                  <Play className="h-6 w-6 text-white fill-white" />
+            {!isUpcoming && (
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
+                <div className="invisible group-hover:visible transition-opacity duration-300">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition-colors">
+                    <Play className="h-6 w-6 text-white fill-white" />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {typeof episode.progressPercent === "number" &&
             episode.progressPercent > 0 ? (
@@ -600,9 +621,9 @@ const EpisodeCard = React.memo(function EpisodeCard({
               <Badge variant="outline" className="text-xs bg-sidebar">
                 S{episode.season} &bull; E{episode.episode}
               </Badge>
-              {formatDate(episode.released) && (
+              {formattedReleaseDate && (
                 <Badge variant="outline" className="text-xs bg-sidebar">
-                  {formatDate(episode.released)}
+                  {formattedReleaseDate}
                 </Badge>
               )}
             </div>
