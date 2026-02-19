@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { AnimatePresence, motion } from "framer-motion";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { BorderBeam } from "../magicui/border-beam";
 import { Button } from "../ui/button";
@@ -454,8 +454,6 @@ const AIAsk = () => {
 
   // Helper function to get tool badge info
   const getToolBadgeInfo = (toolName: string) => {
-    console.log("Current tool:", toolName);
-
     const toolMap: Record<
       string,
       { icon: React.ComponentType<any>; label: string; color?: string }
@@ -702,23 +700,22 @@ const AIAsk = () => {
     return [];
   };
 
-  const getAllToolCalls = () => {
-    const allToolCalls: any[] = [];
+  const allToolCalls = useMemo(() => {
+    const collectedToolCalls: any[] = [];
 
     messages.forEach((message: any, messageIndex: number) => {
       const toolParts = findToolParts(message);
       toolParts.forEach((part: any, partIndex: number) => {
-        allToolCalls.push({
+        collectedToolCalls.push({
           ...part,
           messageIndex,
           partIndex,
-          timestamp: new Date().toISOString(),
         });
       });
     });
 
-    return allToolCalls.reverse();
-  };
+    return collectedToolCalls.reverse();
+  }, [messages]);
 
   const renderMessageContent = (message: any, index: number) => {
     const textContent = renderMessageText(message);
@@ -864,7 +861,7 @@ const AIAsk = () => {
                     className="h-6 w-6 p-0"
                     onClick={() => setIsToolHistoryOpen(true)}
                     title="Tool history"
-                    disabled={getAllToolCalls().length === 0}
+                    disabled={allToolCalls.length === 0}
                   >
                     <GalleryVerticalEnd className="h-3 w-3" />
                   </Button>
@@ -907,7 +904,7 @@ const AIAsk = () => {
 
                     return (
                       <motion.div
-                        key={index}
+                        key={messageId}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
@@ -983,7 +980,7 @@ const AIAsk = () => {
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 max-h-[calc(100vh-120px)] overflow-y-auto px-4">
-            {getAllToolCalls().length === 0 ? (
+            {allToolCalls.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
                 <GalleryVerticalEnd className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p>No tool calls yet</p>
@@ -992,7 +989,7 @@ const AIAsk = () => {
                 </p>
               </div>
             ) : (
-              getAllToolCalls().map((toolCall, index) => (
+              allToolCalls.map((toolCall, index) => (
                 (() => {
                   const durationId =
                     toolCall.toolCallId ||

@@ -35,7 +35,8 @@ function formatReleaseDate(released?: string): string | null {
 }
 
 export const getSeasons = tool({
-  description: "Get seasons for a TV show",
+  description:
+    "Get season list for a known TV series ID. Use before fetching episodes when season info is unknown.",
   inputSchema: z.object({
     tvShowId: z.string().describe("The unique ID of the TV show"),
   }),
@@ -65,7 +66,8 @@ export const getSeasons = tool({
 });
 
 export const getEpisodes = tool({
-  description: "Get episodes for a TV show season",
+  description:
+    "Get episodes for a specific season using seasonId format '<seriesId>:<seasonNumber>'",
   inputSchema: z.object({
     seasonId: z.string().describe("The unique ID of the season"),
   }),

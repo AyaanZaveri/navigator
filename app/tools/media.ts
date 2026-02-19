@@ -1215,14 +1215,31 @@ export const getMediaStreams = tool({
 });
 
 export const getMediaDetails = tool({
-  description: "Get detailed information about a specific movie or TV show",
+  description:
+    "Get detailed metadata for a known media item. Provide mediaType when known to avoid unnecessary lookups.",
   inputSchema: z.object({
     mediaId: z.string().describe("The unique ID of the media item"),
+    mediaType: z
+      .enum(["Movie", "Series"])
+      .optional()
+      .describe("Optional type hint for lookup accuracy"),
   }),
-  execute: async ({ mediaId }) => {
-    console.log("📋 [getMediaDetails] Tool called with mediaId:", mediaId);
+  execute: async ({ mediaId, mediaType }) => {
+    console.log("📋 [getMediaDetails] Tool called with:", { mediaId, mediaType });
     try {
-      const details = await fetchMediaDetails(mediaId);
+      const lookupOrder =
+        mediaType === "Movie"
+          ? ["movie"]
+          : mediaType === "Series"
+            ? ["series"]
+            : ["movie", "series"];
+
+      let details = null;
+      for (const type of lookupOrder) {
+        details = await fetchMediaDetails(mediaId, type);
+        if (details) break;
+      }
+
       if (!details) {
         return {
           success: false,
@@ -1246,7 +1263,10 @@ export const getMediaDetails = tool({
     } catch (error) {
       return {
         success: false,
-        error: "Failed to fetch media details",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch media details",
       };
     }
   },

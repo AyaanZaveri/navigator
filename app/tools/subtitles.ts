@@ -1,4 +1,4 @@
-import { generateText, tool } from "ai";
+import { generateObject, generateText, tool } from "ai";
 import { z } from "zod";
 import { fetchSubtitleFileContent } from "@/app/actions/subtitles";
 import { getSubtitleTracks } from "@/app/actions/utils";
@@ -23,6 +23,17 @@ interface SubtitleLoadResult {
 
 const DEFAULT_SUBTITLE_INDEX = 0;
 const ENGLISH_TRACK_MIN_SCORE = 60;
+const SUBTITLE_CACHE_TTL_MS = 10 * 60 * 1000;
+const parsedSubtitleCache = new Map<
+  string,
+  {
+    cachedAt: number;
+    subtitles: ParsedSubtitleEntry[];
+    selectedTrackLabel?: string;
+    selectedTrackLanguage?: string;
+    selectedTrackIndex?: number;
+  }
+>();
 const STOP_WORDS = new Set([
     "the",
     "a",
@@ -52,6 +63,14 @@ const STOP_WORDS = new Set([
     "when",
     "where",
 ]);
+
+const timestampExtractionSchema = z.object({
+  timestamp: z
+    .string()
+    .describe(
+      "Best matching subtitle timestamp in HH:MM:SS or MM:SS format"
+    ),
+});
 
 function parseSubtitleTimestamp(value: string): number | null {
     const normalized = value.trim().replace(",", ".");
@@ -261,6 +280,17 @@ async function loadParsedSubtitles(
         subtitleIndex
     );
     const selectedTrack = tracks[boundedSubtitleIndex];
+    const cacheKey = `${streamSourceId}:${selectedTrack.src}`;
+    const cached = parsedSubtitleCache.get(cacheKey);
+    if (cached && Date.now() - cached.cachedAt <= SUBTITLE_CACHE_TTL_MS) {
+        return {
+            success: true,
+            subtitles: cached.subtitles,
+            selectedTrackLabel: cached.selectedTrackLabel,
+            selectedTrackLanguage: cached.selectedTrackLanguage,
+            selectedTrackIndex: cached.selectedTrackIndex,
+        };
+    }
 
     const subtitleFileResult = await fetchSubtitleFileContent(selectedTrack.src);
     if (!subtitleFileResult.success) {
@@ -281,13 +311,29 @@ async function loadParsedSubtitles(
         };
     }
 
-    return {
+    const result = {
         success: true,
         subtitles: parsedSubtitles,
         selectedTrackLabel: selectedTrack.label,
         selectedTrackLanguage: selectedTrack.language,
         selectedTrackIndex: boundedSubtitleIndex,
     };
+    parsedSubtitleCache.set(cacheKey, {
+        cachedAt: Date.now(),
+        subtitles: parsedSubtitles,
+        selectedTrackLabel: selectedTrack.label,
+        selectedTrackLanguage: selectedTrack.language,
+        selectedTrackIndex: boundedSubtitleIndex,
+    });
+
+    // Best-effort cache trim to avoid unbounded growth.
+    for (const [key, entry] of parsedSubtitleCache.entries()) {
+        if (Date.now() - entry.cachedAt > SUBTITLE_CACHE_TTL_MS) {
+            parsedSubtitleCache.delete(key);
+        }
+    }
+
+    return result;
 }
 
 async function analyzeText(
@@ -303,10 +349,27 @@ async function analyzeText(
         model: analysisModel,
         prompt,
         maxOutputTokens,
-        temperature: 0.2,
+        temperature: 0.1,
     });
 
     return result.text.trim();
+}
+
+async function extractTimestampWithStructuredOutput(
+    prompt: string,
+    analysisModel: any
+): Promise<string> {
+    if (!analysisModel) {
+        throw new Error("No analysis model provided");
+    }
+
+    const result = await generateObject({
+        model: analysisModel,
+        schema: timestampExtractionSchema,
+        prompt,
+    });
+
+    return result.object.timestamp.trim();
 }
 
 function formatSecondsToTimestamp(seconds: number): string {
@@ -394,18 +457,17 @@ ${subtitleText}
 Task: Find the most relevant timestamp that matches the user's description.
 
 Rules:
-- Return ONLY one timestamp.
-- Use HH:MM:SS when possible. MM:SS is also allowed.
-- Do not include any additional text.`;
+- Return one best timestamp in HH:MM:SS format when possible.
+- If only MM:SS is available, use MM:SS.
+- Return the timestamp value only.`;
 
-                const analysisText = await analyzeText(
+                const extractedTimestamp = await extractTimestampWithStructuredOutput(
                     analysisPrompt,
-                    80,
                     analysisModel
                 );
-                console.log("[skipToSubtitleContent] Analysis result:", analysisText);
+                console.log("[skipToSubtitleContent] Extracted timestamp:", extractedTimestamp);
 
-                const timestampMatch = analysisText.match(
+                const timestampMatch = extractedTimestamp.match(
                     /\d{1,2}:\d{2}:\d{2}(?:\.\d+)?|\d{1,2}:\d{2}(?:\.\d+)?/
                 );
 

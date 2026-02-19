@@ -70,7 +70,7 @@ export function createAllTools(
   currentTimestamp?: number,
   analysisModel?: any
 ) {
-  return {
+  const baseTools = {
     // Media tools
     searchMedia,
     navigateToMedia,
@@ -84,13 +84,20 @@ export function createAllTools(
     // TV Show tools
     getSeasons,
     getEpisodes,
-    
-    // Subtitle tools (context-dependent)
+
+    // Theme tools
+    themeToggle,
+  };
+
+  if (!currentMedia) {
+    return baseTools;
+  }
+
+  return {
+    ...baseTools,
+    // Subtitle tools are available only while media is actively playing.
     skipToSubtitleContent: skipToSubtitleContent(currentMedia, analysisModel),
     explainScene: createExplainScene(currentMedia, analysisModel),
     analyzeMedia: createAnalyzeMedia(currentMedia, analysisModel),
-    
-    // Theme tools
-    themeToggle,
   };
 }

@@ -21,6 +21,11 @@ type OpenRouterReasoningEffort =
   | "xhigh";
 type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
+const MODEL_MESSAGE_WINDOW = 18;
+const MAX_TEXT_PART_CHARS = 1_200;
+const MAX_TOOL_LIST_ITEMS = 20;
+const MAX_FALLBACK_TOOL_PAYLOAD_CHARS = 1_600;
+
 async function getAuthData() {
   const cookieStore = await cookies();
   const authData = cookieStore.get("stremio-auth");
@@ -33,10 +38,161 @@ async function getAuthData() {
   return { user: parsed.user };
 }
 
+function truncateText(value: string, maxChars = MAX_TEXT_PART_CHARS): string {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, maxChars).trimEnd()}...`;
+}
+
+function safeJsonLength(value: unknown): number {
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+function summarizeToolOutput(toolName: string, output: any): any {
+  if (!output || typeof output !== "object") return output;
+
+  switch (toolName) {
+    case "searchMedia":
+      return {
+        success: Boolean(output.success),
+        count: Number(output.count ?? 0),
+        results: Array.isArray(output.results)
+          ? output.results.slice(0, MAX_TOOL_LIST_ITEMS).map((item: any) => ({
+              id: item?.id,
+              name: item?.name,
+              type: item?.type,
+              year: item?.year ?? null,
+            }))
+          : [],
+      };
+    case "getMediaStreams":
+      return {
+        success: Boolean(output.success),
+        mediaId: output.mediaId,
+        mediaType: output.mediaType,
+        selectionId: output.selectionId,
+        streamCount: Number(
+          output.streamCount ??
+            (Array.isArray(output.streams) ? output.streams.length : 0)
+        ),
+        bestStream: output.bestStream
+          ? {
+              choice: output.bestStream.choice,
+              streamId: output.bestStream.streamId,
+              resolution: output.bestStream.resolution,
+              playable: Boolean(output.bestStream.playable),
+            }
+          : null,
+        streams: Array.isArray(output.streams)
+          ? output.streams.slice(0, MAX_TOOL_LIST_ITEMS).map((stream: any) => ({
+              choice: stream?.choice,
+              streamId: stream?.streamId,
+              playable: Boolean(stream?.playable),
+              resolution: stream?.resolution ?? null,
+              tags: Array.isArray(stream?.tags)
+                ? stream.tags.slice(0, 4)
+                : [],
+            }))
+          : [],
+      };
+    case "getEpisodes":
+      return {
+        success: Boolean(output.success),
+        count: Number(output.count ?? 0),
+        returnedCount: Number(output.returnedCount ?? 0),
+        episodes: Array.isArray(output.episodes)
+          ? output.episodes.slice(0, MAX_TOOL_LIST_ITEMS).map((episode: any) => ({
+              id: episode?.id,
+              name: episode?.name,
+              seasonNumber: episode?.seasonNumber,
+              episodeNumber: episode?.episodeNumber,
+            }))
+          : [],
+      };
+    case "findEpisodeByTitle":
+      return {
+        success: Boolean(output.success),
+        seriesId: output.seriesId,
+        seriesName: output.seriesName,
+        episodes: Array.isArray(output.episodes)
+          ? output.episodes.slice(0, MAX_TOOL_LIST_ITEMS).map((episode: any) => ({
+              id: episode?.id,
+              title: episode?.title,
+              seasonNumber: episode?.seasonNumber,
+              episodeNumber: episode?.episodeNumber,
+            }))
+          : [],
+      };
+    default: {
+      if (safeJsonLength(output) <= MAX_FALLBACK_TOOL_PAYLOAD_CHARS) {
+        return output;
+      }
+
+      return {
+        success:
+          typeof output.success === "boolean" ? output.success : undefined,
+        message:
+          typeof output.message === "string"
+            ? truncateText(output.message, 240)
+            : "Tool result available.",
+        truncated: true,
+      };
+    }
+  }
+}
+
+function compactMessagesForModel(rawMessages: any[]): any[] {
+  const recentMessages = rawMessages.slice(-MODEL_MESSAGE_WINDOW);
+
+  return recentMessages.map((message) => {
+    if (!message || typeof message !== "object") return message;
+
+    const compactedMessage: any = { ...message };
+
+    if (typeof compactedMessage.content === "string") {
+      compactedMessage.content = truncateText(compactedMessage.content);
+    }
+
+    if (!Array.isArray(compactedMessage.parts)) {
+      return compactedMessage;
+    }
+
+    compactedMessage.parts = compactedMessage.parts.map((part: any) => {
+      if (!part || typeof part !== "object") return part;
+
+      if (part.type === "text" && typeof part.text === "string") {
+        return {
+          ...part,
+          text: truncateText(part.text),
+        };
+      }
+
+      const toolName = part.type?.startsWith("tool-")
+        ? part.type.slice("tool-".length)
+        : part.toolName;
+
+      if (!toolName || !("output" in part)) {
+        return part;
+      }
+
+      return {
+        ...part,
+        output: summarizeToolOutput(toolName, part.output),
+      };
+    });
+
+    return compactedMessage;
+  });
+}
+
 export async function POST(req: Request) {
   try {
     await getAuthData();
 
+    const requestPayload = await req.json();
     const {
       messages,
       currentMedia,
@@ -53,7 +209,11 @@ export async function POST(req: Request) {
       groqApiKey,
       openrouterApiKey,
       cerebrasApiKey,
-    } = await req.json();
+    } = requestPayload;
+
+    if (!Array.isArray(messages)) {
+      return new Response("Invalid messages payload", { status: 400 });
+    }
 
     const normalizedOpenrouterReasoningEffort: OpenRouterReasoningEffort =
       openrouterReasoningEffort === "none" ||
@@ -169,26 +329,31 @@ export async function POST(req: Request) {
         throw new Error(`Unsupported AI provider: ${aiProvider}`);
     }
 
-    const modelMessages = convertToModelMessages(messages);
+    const compactedMessages = compactMessagesForModel(messages);
+    const modelMessages = convertToModelMessages(compactedMessages);
     const systemPrompt = createSystemPrompt(currentMedia, currentTimestamp);
 
-    // Debug log: exact prompt inputs sent to the model.
-    console.log("[chat] model-input", {
+    console.log("[chat] model-input-summary", {
       aiProvider,
       modelId: String(model),
       messageCount: modelMessages.length,
+      compactedFrom: messages.length,
       systemLength: systemPrompt.length,
-      messages: modelMessages,
-      system: systemPrompt,
+      approxInputChars: safeJsonLength({
+        messages: compactedMessages,
+        system: systemPrompt,
+      }),
     });
 
     const streamSettings: {
       temperature: number;
       maxOutputTokens: number;
+      maxRetries: number;
       providerOptions?: any;
     } = {
-      temperature: 0.2,
-      maxOutputTokens: 400,
+      temperature: 0.1,
+      maxOutputTokens: 700,
+      maxRetries: 2,
     };
 
     if (aiProvider === "cerebras") {
@@ -207,14 +372,29 @@ export async function POST(req: Request) {
     const result = streamText({
       model,
       messages: modelMessages,
-      stopWhen: stepCountIs(10),
+      stopWhen: stepCountIs(6),
       ...streamSettings,
       tools: createAllTools(currentMedia, currentTimestamp, model),
       system: systemPrompt,
-      // onChunk: async (chunk: any) => {
-      //   console.log("🪣 [streamText] New chunk received:", chunk);
-      // },
-      // onFinish: async ({ usage, finishReason, text, toolResults }) => {},
+      onStepFinish: (stepResult) => {
+        console.log("[chat] step-finish", {
+          finishReason: stepResult.finishReason,
+          inputTokens: stepResult.usage?.inputTokens,
+          outputTokens: stepResult.usage?.outputTokens,
+          toolCalls: stepResult.toolCalls?.length ?? 0,
+        });
+      },
+      onFinish: ({ usage, finishReason }) => {
+        console.log("[chat] finish", {
+          finishReason,
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          totalTokens: usage?.totalTokens,
+        });
+      },
+      onError: ({ error }) => {
+        console.error("[chat] stream error", error);
+      },
     });
 
     return result.toUIMessageStreamResponse();
