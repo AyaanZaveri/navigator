@@ -9,8 +9,12 @@
     "lint": "eslint .",
     "electron": "NODE_ENV=development concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron electron/main.js\"",
     "electron-dev": "NODE_ENV=development electron electron/main.js",
-    "electron-pack": "electron-builder",
-    "electron-build-mac": "electron-builder --mac"
+    "prepare:electron-next": "sh scripts/prepare-electron-next.sh",
+    "build:electron-icon": "sh scripts/generate-macos-icon.sh",
+    "prepare:electron-builder-deps": "sh scripts/prepare-electron-builder-deps.sh",
+    "electron-pack": "npm run build && npm run prepare:electron-next && npm run build:electron-icon && npm run prepare:electron-builder-deps && electron-builder",
+    "electron-build-mac": "npm run build && npm run prepare:electron-next && npm run build:electron-icon && npm run prepare:electron-builder-deps && electron-builder --mac",
+    "electron-build-mac-arm64": "npm run build && npm run prepare:electron-next && npm run build:electron-icon && npm run prepare:electron-builder-deps && electron-builder --mac --arm64"
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^1.0.38",
@@ -100,22 +104,24 @@
   "build": {
     "appId": "com.navigator.app",
     "productName": "Navigator",
+    "asar": false,
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
     "directories": {
       "output": "dist",
       "buildResources": "build"
     },
     "files": [
       "electron/**/*",
-      "package.json"
+      ".next/standalone/**/*"
     ],
     "mac": {
-      "icon": "public/logo/desktop/navigator.png",
+      "icon": "build/icon.icns",
       "category": "public.app-category.entertainment",
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "x64",
             "arm64"
           ]
         }
@@ -129,5 +135,9 @@
       "icon": "public/logo/desktop/navigator.png",
       "target": "AppImage"
     }
+  },
+  "optionalDependencies": {
+    "@img/sharp-darwin-x64": "^0.34.5",
+    "@img/sharp-libvips-darwin-x64": "^1.2.4"
   }
 }

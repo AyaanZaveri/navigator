@@ -3,6 +3,20 @@ import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname;
+    const isStaticAsset =
+        path.startsWith("/_next/") ||
+        path.startsWith("/_vercel/") ||
+        path === "/favicon.ico" ||
+        path === "/manifest.json" ||
+        path === "/apple-icon.png" ||
+        path === "/icon0.svg" ||
+        path === "/icon1.png" ||
+        /\.[a-zA-Z0-9]+$/.test(path);
+
+    if (isStaticAsset) {
+        return NextResponse.next();
+    }
+
     const isPublicPath = path === "/login" || path.startsWith("/logo/");
 
     // Get the token from the Stremio auth cookie
@@ -35,10 +49,10 @@ export const config = {
     /*
      * Match all request paths except for the ones starting with:
      * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * - _next (Next.js internals)
+     * - _vercel (Vercel analytics/speed-insights scripts)
+     * - files with an extension (assets, icons, manifests, etc)
      */
-        "/((?!api|_next/static|_next/image|favicon.ico).*)",
+        "/((?!api|_next|_vercel|.*\\..*).*)",
     ],
 };

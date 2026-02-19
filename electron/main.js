@@ -1,7 +1,15 @@
-const { app, BrowserWindow, BrowserView, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const { join, resolve } = require('path');
-const isDev = process.env.NODE_ENV === 'development';
+const { spawn } = require('child_process');
+const http = require('http');
+
+const isDev = !app.isPackaged;
+const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL || 'http://localhost:3000';
+const PROD_HOST = '127.0.0.1';
+const PROD_PORT = Number(process.env.ELECTRON_APP_PORT || 3123);
+const PROD_SERVER_URL = `http://${PROD_HOST}:${PROD_PORT}`;
 let mainWindow;
+let nextServerProcess;
 
 // Enable live reload for Electron in development
 if (isDev) {
@@ -12,99 +20,155 @@ if (isDev) {
 }
 
 async function createWindow() {
-  console.log('Creating window...');
-  
-  // Create the browser window
+  const windowIcon = isDev
+    ? join(__dirname, '..', 'public', 'logo', 'desktop', 'navigator.png')
+    : join(app.getAppPath(), '.next', 'standalone', 'public', 'logo', 'desktop', 'navigator.png');
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    icon: join(__dirname, '..', 'public', 'logo', 'desktop', 'navigator.png'),
+    icon: windowIcon,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
       preload: join(__dirname, 'preload.js'),
-      webSecurity: false, // Disable web security for development
+      webSecurity: !isDev,
     },
     titleBarStyle: 'hiddenInset',
-    show: true, // Show immediately for debugging
-    backgroundColor: '#ffffff', // Set a background color
+    show: true,
+    backgroundColor: '#ffffff',
   });
-  
-  console.log('Window created with dimensions:', mainWindow.getSize());
 
-  // Always load from localhost for now (you'll need to run 'npm start' separately)
+  mainWindow.show();
+  mainWindow.focus();
+
   try {
-    console.log('Loading URL: http://localhost:3000');
-    await mainWindow.loadURL('http://localhost:3000');
-    console.log('URL loaded successfully');
+    if (!isDev) {
+      await startStandaloneServer();
+    }
+    await mainWindow.loadURL(isDev ? DEV_SERVER_URL : PROD_SERVER_URL);
   } catch (error) {
-    console.error('Failed to load URL:', error);
-    // Show error page
+    console.error('Failed to load app:', error);
     mainWindow.loadURL(`data:text/html;charset=utf-8,
       <html>
         <body style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
-          <h1>Connection Error</h1>
-          <p>Could not connect to http://localhost:3000</p>
-          <p>Make sure your Next.js server is running with: <code>npm run dev</code></p>
+          <h1>App Startup Error</h1>
+          <p>Could not load the Navigator application.</p>
+          <p>Mode: ${isDev ? 'development' : 'production'}</p>
           <p>Error: ${error.message}</p>
         </body>
       </html>
     `);
   }
-  
+
   if (isDev) {
-    // Open DevTools in development
     mainWindow.webContents.openDevTools();
   }
-  
-  // Add web contents event listeners for debugging
+
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     console.error('Failed to load:', errorCode, errorDescription, validatedURL);
   });
-  
-  mainWindow.webContents.on('did-finish-load', () => {
-    console.log('Page finished loading');
-  });
-  
-  mainWindow.webContents.on('dom-ready', () => {
-    console.log('DOM is ready');
+
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[renderer:${level}] ${sourceId}:${line} ${message}`);
   });
 
-  // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    mainWindow.focus();
   });
 
-  // Handle window closed
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (!mainWindow) return;
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 
-  // Handle fullscreen changes
   mainWindow.on('enter-full-screen', () => {
-    console.log('Main process: Entered fullscreen');
     mainWindow.webContents.send('fullscreen-changed', true);
   });
 
   mainWindow.on('leave-full-screen', () => {
-    console.log('Main process: Left fullscreen');
     mainWindow.webContents.send('fullscreen-changed', false);
   });
 
-  // Handle external links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
 }
 
+async function startStandaloneServer() {
+  if (nextServerProcess) return;
+
+  const appPath = app.getAppPath();
+  const serverEntry = join(appPath, '.next', 'standalone', 'server.js');
+
+  nextServerProcess = spawn(process.execPath, [serverEntry], {
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      HOSTNAME: PROD_HOST,
+      PORT: String(PROD_PORT),
+      ELECTRON: 'true',
+      ELECTRON_RUN_AS_NODE: '1',
+      NEXT_PRIVATE_STANDALONE: 'true',
+    },
+    stdio: isDev ? 'inherit' : 'pipe',
+  });
+
+  nextServerProcess.on('exit', (code, signal) => {
+    console.error(`Standalone server exited (code=${code}, signal=${signal})`);
+    nextServerProcess = null;
+  });
+
+  await waitForServer(PROD_HOST, PROD_PORT, 15000);
+}
+
+function waitForServer(host, port, timeoutMs) {
+  const startedAt = Date.now();
+  return new Promise((resolvePromise, rejectPromise) => {
+    const tryConnect = () => {
+      const req = http.get({ host, port, path: '/', timeout: 2000 }, (res) => {
+        res.destroy();
+        resolvePromise();
+      });
+
+      req.on('error', () => {
+        if (Date.now() - startedAt > timeoutMs) {
+          rejectPromise(new Error(`Timed out waiting for ${host}:${port}`));
+          return;
+        }
+        setTimeout(tryConnect, 250);
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+      });
+    };
+
+    tryConnect();
+  });
+}
+
+function stopStandaloneServer() {
+  if (!nextServerProcess) return;
+  nextServerProcess.kill('SIGTERM');
+  nextServerProcess = null;
+}
+
 // App event listeners
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
+  stopStandaloneServer();
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -113,15 +177,22 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+    return;
+  }
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
   }
 });
 
 // IPC handler to get current fullscreen state
 ipcMain.handle('get-fullscreen-state', async () => {
   if (mainWindow) {
-    const isFullscreen = mainWindow.isFullScreen();
-    console.log('Current fullscreen state:', isFullscreen);
-    return { isFullscreen };
+    return { isFullscreen: mainWindow.isFullScreen() };
   }
   return { isFullscreen: false };
 });
@@ -134,3 +205,7 @@ if (process.defaultApp) {
 } else {
   app.setAsDefaultProtocolClient('navigator');
 }
+
+app.on('before-quit', () => {
+  stopStandaloneServer();
+});

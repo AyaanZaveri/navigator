@@ -33,6 +33,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const enableVercelTelemetry =
+    process.env.ELECTRON !== "true" && process.env.VERCEL === "1";
+
   const themeInitScript = `
     (() => {
       const storageKey = "theme";
@@ -77,8 +80,8 @@ export default function RootLayout({
           <SettingsProvider>{children}</SettingsProvider>
           <Toaster />
         </ThemeProvider>
-        <Analytics />
-        <SpeedInsights />
+        {enableVercelTelemetry ? <Analytics /> : null}
+        {enableVercelTelemetry ? <SpeedInsights /> : null}
       </body>
     </html>
   );
