@@ -9,12 +9,12 @@ export const isNavigatorEnabledAtom = atom(false);
 // Fullscreen state
 export const isFullscreenAtom = atom(false);
 
-// Electron state
-export const isElectronMacAtom = atom(false);
-export const isElectronFullscreenAtom = atom((get) => {
-  const isElectronMac = get(isElectronMacAtom);
+// Desktop/browser UI state.
+export const isDesktopMacAtom = atom(false);
+export const isDesktopFullscreenAtom = atom((get) => {
+  const isDesktopMac = get(isDesktopMacAtom);
   const isFullscreen = get(isFullscreenAtom);
-  return isElectronMac && isFullscreen;
+  return isDesktopMac && isFullscreen;
 });
 
 // Media Player state

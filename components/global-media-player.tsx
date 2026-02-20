@@ -38,7 +38,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useSettings, BITRATE_OPTIONS } from "@/contexts/settings-context";
+import { useSettings } from "@/contexts/settings-context";
 
 interface GlobalMediaPlayerProps {
   onToggleAIAsk?: () => void;
@@ -195,22 +195,30 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setVideoReady(true);
   }, []);
 
+  const maybeReportPeriodicProgress = useCallback(
+    (timeSeconds: number, durationSeconds?: number) => {
+      const now = Date.now();
+      if (now - lastProgressReportAtRef.current < PROGRESS_REPORT_INTERVAL_MS) {
+        return;
+      }
+      lastProgressReportAtRef.current = now;
+      sendPlaybackUpdate("progress", {
+        currentTimeSeconds: timeSeconds,
+        durationSeconds,
+      });
+    },
+    [sendPlaybackUpdate]
+  );
+
   const handleTimeUpdate = useCallback(() => {
     if (videoRef.current) {
       const time = videoRef.current.currentTime;
       setCurrentTime(time);
       setCurrentTimestamp(time);
 
-      const now = Date.now();
-      if (now - lastProgressReportAtRef.current >= PROGRESS_REPORT_INTERVAL_MS) {
-        lastProgressReportAtRef.current = now;
-        sendPlaybackUpdate("progress", {
-          currentTimeSeconds: time,
-          durationSeconds: videoRef.current.duration,
-        });
-      }
+      maybeReportPeriodicProgress(time, videoRef.current.duration);
     }
-  }, [sendPlaybackUpdate, setCurrentTimestamp]);
+  }, [maybeReportPeriodicProgress, setCurrentTimestamp]);
 
   const handleDurationChange = useCallback(() => {
     if (videoRef.current) {
@@ -469,7 +477,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   // Handle skip timestamp
   useEffect(() => {
-    if (skipTimestamp !== null && videoRef.current) {
+    if (skipTimestamp === null) return;
+
+    if (videoRef.current) {
       videoRef.current.currentTime = skipTimestamp;
       setCurrentTime(skipTimestamp);
     }
@@ -497,7 +507,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const loadingLogo = mediaDetails?.logo;
 
   return (
-    <div className="fixed inset-0 z-[999999] bg-black flex items-center justify-center w-screen">
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
         autoHide
         onEnded={handleVideoEnded}

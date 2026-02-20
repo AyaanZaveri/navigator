@@ -47,11 +47,11 @@ const brandFont = Plus_Jakarta_Sans({
 });
 
 export function AppSidebar({
-  isElectronMac,
-  isElectronFullscreen,
+  isDesktopMac,
+  isDesktopFullscreen,
 }: {
-  isElectronMac: boolean;
-  isElectronFullscreen: boolean;
+  isDesktopMac: boolean;
+  isDesktopFullscreen: boolean;
 }) {
   const { setTheme } = useTheme();
   const [user, setUser] = useState<any>(null);
@@ -78,7 +78,7 @@ export function AppSidebar({
     <Sidebar
       variant="floating"
       collapsible="icon"
-      className={`${isElectronMac && !isElectronFullscreen ? "pt-10" : ""} z-20`}
+      className={`${isDesktopMac && !isDesktopFullscreen ? "pt-10" : ""} z-20`}
     >
       <SidebarHeader>
         <SidebarMenu>

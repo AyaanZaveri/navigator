@@ -7,8 +7,8 @@ import AIAsk from "@/components/navigator/ai-ask";
 import { GlobalMediaPlayer } from "@/components/global-media-player";
 import {
   isAIAskOpenAtom,
-  isElectronMacAtom,
-  isElectronFullscreenAtom,
+  isDesktopMacAtom,
+  isDesktopFullscreenAtom,
   isFullscreenAtom,
   isNavigatorEnabledAtom,
 } from "@/lib/atoms";
@@ -21,8 +21,8 @@ interface LayoutContentProps {
 
 export function LayoutContent({ children }: LayoutContentProps) {
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
-  const [isElectronMac] = useAtom(isElectronMacAtom);
-  const [isElectronFullscreen] = useAtom(isElectronFullscreenAtom);
+  const [isDesktopMac] = useAtom(isDesktopMacAtom);
+  const [isDesktopFullscreen] = useAtom(isDesktopFullscreenAtom);
   const [isFullscreen] = useAtom(isFullscreenAtom);
   const [, setIsNavigatorEnabled] = useAtom(isNavigatorEnabledAtom);
   
@@ -65,11 +65,11 @@ export function LayoutContent({ children }: LayoutContentProps) {
     <div className="flex flex-col h-screen overflow-hidden">
       <SidebarProvider>
         <AppSidebar
-          isElectronMac={isElectronMac}
-          isElectronFullscreen={isElectronFullscreen}
+          isDesktopMac={isDesktopMac}
+          isDesktopFullscreen={isDesktopFullscreen}
         />
         <SidebarInset
-          className={`flex-1 overflow-hidden ${isElectronMac && !isElectronFullscreen ? "pl-2.5" : ""}`}
+          className={`flex-1 overflow-hidden ${isDesktopMac && !isDesktopFullscreen ? "pl-2.5" : ""}`}
         >
           <div className="flex-1 overflow-y-auto no-scrollbar">{children}</div>
         </SidebarInset>
