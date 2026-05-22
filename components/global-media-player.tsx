@@ -90,8 +90,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const lastProgressReportAtRef = useRef(0);
   const playbackStartedReportedRef = useRef(false);
   const playbackStoppedReportedRef = useRef(false);
+  const lastLoadedPlaybackKeyRef = useRef<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  const playbackKey = currentMedia
+    ? [
+        currentMedia.type,
+        currentMedia.seriesId || currentMedia.id,
+        currentMedia.mediaSourceId || currentMedia.id,
+        currentMedia.streamUrl || "",
+        videoBitrate,
+      ].join("::")
+    : null;
 
   // Helper function to format time to HH:MM AM/PM
   const formatEndTime = (currentSeconds: number, durationSeconds: number) => {
@@ -269,6 +280,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setFetchingSubtitles(false);
     setCurrentMediaWithSource(null);
     setVideoReady(false);
+    lastLoadedPlaybackKeyRef.current = null;
   }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible]);
 
   const handleVideoEnded = useCallback(() => {
@@ -377,38 +389,26 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     [subtitleData, processSubtitleText]
   );
 
-  useEffect(() => {
-    if (currentMedia && isPlayerVisible) {
-      playbackStartedReportedRef.current = false;
-      playbackStoppedReportedRef.current = false;
-      lastProgressReportAtRef.current = 0;
-      setVideoReady(false);
-      loadMedia();
-    }
-  }, [currentMedia, isPlayerVisible, videoBitrate]);
-
-  const loadMedia = async () => {
-    if (!currentMedia) return;
-
+  const loadMedia = useCallback(async (media: NonNullable<typeof currentMedia>) => {
     setLoading(true);
     try {
-      const metadataId = currentMedia.seriesId || currentMedia.id;
-      const streamSourceId = currentMedia.mediaSourceId || currentMedia.id;
-      let subtitleFilename = currentMedia.subtitleFilename;
-      let subtitleVideoSize = currentMedia.subtitleVideoSize;
+      const metadataId = media.seriesId || media.id;
+      const streamSourceId = media.mediaSourceId || media.id;
+      let subtitleFilename = media.subtitleFilename;
+      let subtitleVideoSize = media.subtitleVideoSize;
 
       // Fetch media details
-      const details = await fetchMediaDetails(metadataId, currentMedia.type);
+      const details = await fetchMediaDetails(metadataId, media.type);
       setMediaDetails(details || null);
 
       // If a direct stream URL was passed (e.g., from MediaActions), use it
-      if (currentMedia.streamUrl) {
-        setStreamUrl(currentMedia.streamUrl);
+      if (media.streamUrl) {
+        setStreamUrl(media.streamUrl);
       } else {
         // Fetch available streams and use the first one
         const streams = await fetchStreams(
           streamSourceId,
-          currentMedia.type
+          media.type
         );
 
         if (streams.length > 0) {
@@ -424,17 +424,17 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       // Update media context
       setCurrentMediaWithSource({
         id: metadataId,
-        name: currentMedia.name,
-        type: currentMedia.type,
-        streamUrl: currentMedia.streamUrl,
+        name: media.name,
+        type: media.type,
+        streamUrl: media.streamUrl,
         mediaSourceId: streamSourceId,
-        seriesId: currentMedia.seriesId,
-        showName: currentMedia.showName,
-        episodeTitle: currentMedia.episodeTitle,
-        seasonNumber: currentMedia.seasonNumber,
-        episodeNumber: currentMedia.episodeNumber,
+        seriesId: media.seriesId,
+        showName: media.showName,
+        episodeTitle: media.episodeTitle,
+        seasonNumber: media.seasonNumber,
+        episodeNumber: media.episodeNumber,
         backdropUrl:
-          currentMedia.backdropUrl ||
+          media.backdropUrl ||
           details?.background ||
           details?.poster,
         subtitleFilename,
@@ -445,7 +445,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       try {
         const tracks = await getSubtitleTracks(
           streamSourceId,
-          currentMedia.type,
+          media.type,
           {
             filename: subtitleFilename,
             videoSize: subtitleVideoSize,
@@ -467,7 +467,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setCurrentMediaWithSource]);
+
+  useEffect(() => {
+    if (!currentMedia || !isPlayerVisible || !playbackKey) return;
+    if (lastLoadedPlaybackKeyRef.current === playbackKey) return;
+
+    lastLoadedPlaybackKeyRef.current = playbackKey;
+    playbackStartedReportedRef.current = false;
+    playbackStoppedReportedRef.current = false;
+    lastProgressReportAtRef.current = 0;
+    setVideoReady(false);
+    void loadMedia(currentMedia);
+  }, [currentMedia, isPlayerVisible, playbackKey, loadMedia]);
 
   // Update current subtitle
   useEffect(() => {
