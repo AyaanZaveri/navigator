@@ -78,7 +78,7 @@ export function AppSidebar({
     <Sidebar
       variant="floating"
       collapsible="icon"
-      className={`${isDesktopMac && !isDesktopFullscreen ? "pt-10" : ""} z-20`}
+      className="z-20"
     >
       <SidebarHeader>
         <SidebarMenu>

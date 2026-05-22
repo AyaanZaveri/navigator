@@ -1,4 +1,6 @@
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
+import { openai, createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   openrouter,
   createOpenRouter,
@@ -9,6 +11,7 @@ import { cerebras, createCerebras } from "@ai-sdk/cerebras";
 import { createOllama } from "ai-sdk-ollama";
 import { convertToModelMessages, streamText, stepCountIs } from "ai";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
+import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
 import { cookies } from "next/headers";
 
 type OpenRouterReasoningEffort =
@@ -197,7 +200,10 @@ export async function POST(req: Request) {
       messages,
       currentMedia,
       currentTimestamp,
-      aiProvider = "gemini",
+      aiProvider = "openai",
+      openaiBaseUrl = "https://api.openai.com/v1",
+      openaiModel = "gpt-4o-mini",
+      geminiModel = "gemini-flash-lite-latest",
       ollamaBaseUrl = "http://localhost:11434",
       ollamaModel = "phi3",
       groqModel = "llama3-8b-8192",
@@ -205,6 +211,7 @@ export async function POST(req: Request) {
       openrouterReasoningEffort = "default",
       cerebrasModel = "gpt-oss-120b",
       cerebrasReasoningEffort = "default",
+      openaiApiKey,
       googleApiKey,
       groqApiKey,
       openrouterApiKey,
@@ -234,6 +241,9 @@ export async function POST(req: Request) {
 
     console.log({
       aiProvider,
+      openaiBaseUrl,
+      openaiModel,
+      geminiModel,
       ollamaBaseUrl,
       ollamaModel,
       groqModel,
@@ -241,6 +251,7 @@ export async function POST(req: Request) {
       openrouterReasoningEffort: normalizedOpenrouterReasoningEffort,
       cerebrasModel,
       cerebrasReasoningEffort: normalizedCerebrasReasoningEffort,
+      hasOpenaiApiKey: Boolean(openaiApiKey),
       hasGoogleApiKey: Boolean(googleApiKey),
       hasGroqApiKey: Boolean(groqApiKey),
       hasOpenrouterApiKey: Boolean(openrouterApiKey),
@@ -261,15 +272,46 @@ export async function POST(req: Request) {
 
     let model;
     switch (aiProvider) {
+      case "openai":
+        if (openaiApiKey) {
+          if (openaiBaseUrl === OPENAI_DEFAULT_BASE_URL) {
+            const openaiProvider = createOpenAI({
+              apiKey: openaiApiKey,
+              baseURL: openaiBaseUrl,
+            });
+            model = openaiProvider(openaiModel);
+          } else {
+            const openaiCompatibleProvider = createOpenAICompatible({
+              name: "openai-compatible",
+              apiKey: openaiApiKey,
+              baseURL: openaiBaseUrl,
+            });
+            model = openaiCompatibleProvider(openaiModel);
+          }
+        } else if (process.env.OPENAI_API_KEY) {
+          const openaiProvider =
+            openaiBaseUrl && openaiBaseUrl !== "https://api.openai.com/v1"
+              ? createOpenAICompatible({
+                  name: "openai-compatible",
+                  baseURL: openaiBaseUrl,
+                })
+              : openai;
+          model = openaiProvider(openaiModel);
+        } else {
+          throw new Error(
+            "OpenAI API key is required for OpenAI provider. Please set your API key in settings."
+          );
+        }
+        break;
       case "gemini":
         if (googleApiKey) {
           const googleProvider = createGoogleGenerativeAI({
             apiKey: googleApiKey,
           });
-          model = googleProvider("gemini-flash-lite-latest");
+          model = googleProvider(geminiModel);
         } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
           // Fallback to environment variable
-          model = google("gemini-flash-lite-latest");
+          model = google(geminiModel);
         } else {
           throw new Error(
             "Google API key is required for Gemini provider. Please set your API key in settings."

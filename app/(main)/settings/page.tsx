@@ -27,8 +27,45 @@ import { Settings2, Ship } from "lucide-react";
 import { AuroraBackground } from "@/components/aurora-background";
 import { SearchBar } from "@/components/search-component";
 import { Label } from "@/components/ui/label";
-import { Cerebras, Gemini, Groq, OpenRouter } from "@lobehub/icons";
+import { Cerebras, Gemini, Groq, OpenAI, OpenRouter } from "@lobehub/icons";
 import { Ollama } from "@lobehub/icons";
+import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
+
+const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
+const MODELS_DEV_PROVIDER_CACHE_PREFIX = "navigator-modelsdev-provider:";
+
+type ModelsDevProviderResponse = {
+  provider: {
+    id: string;
+    name: string;
+    apiBaseUrl: string;
+    logoUrl: string;
+    models: Array<{
+      id: string;
+      name: string;
+    }>;
+  } | null;
+  error?: string;
+};
+
+function normalizeBaseUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const normalized = new URL(trimmed);
+    const pathname = normalized.pathname.replace(/\/+$/, "");
+    return `${normalized.origin}${pathname}`.toLowerCase();
+  } catch {
+    return trimmed.replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+function getModelsDevProviderCacheKey(baseUrl: string): string | null {
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized) return null;
+  return `${MODELS_DEV_PROVIDER_CACHE_PREFIX}${normalized}`;
+}
 
 export default function SettingsPage() {
   const {
@@ -36,6 +73,12 @@ export default function SettingsPage() {
     setNavigatorEnabled,
     aiProvider,
     setAiProvider,
+    openaiBaseUrl,
+    setOpenaiBaseUrl,
+    openaiModel,
+    setOpenaiModel,
+    geminiModel,
+    setGeminiModel,
     ollamaBaseUrl,
     setOllamaBaseUrl,
     ollamaModel,
@@ -50,6 +93,8 @@ export default function SettingsPage() {
     setCerebrasModel,
     cerebrasReasoningEffort,
     setCerebrasReasoningEffort,
+    openaiApiKey,
+    setOpenaiApiKey,
     googleApiKey,
     setGoogleApiKey,
     groqApiKey,
@@ -65,6 +110,117 @@ export default function SettingsPage() {
   const [cerebrasModelsError, setCerebrasModelsError] = useState<string | null>(
     null
   );
+  const [modelsDevProvider, setModelsDevProvider] =
+    useState<ModelsDevProviderResponse["provider"]>(null);
+  const [isLoadingModelsDevProvider, setIsLoadingModelsDevProvider] =
+    useState(false);
+  const [modelsDevProviderError, setModelsDevProviderError] = useState<
+    string | null
+  >(null);
+  const [geminiModelsProvider, setGeminiModelsProvider] =
+    useState<ModelsDevProviderResponse["provider"]>(null);
+  const [isLoadingGeminiModels, setIsLoadingGeminiModels] = useState(false);
+  const [geminiModelsError, setGeminiModelsError] = useState<string | null>(
+    null
+  );
+
+  const fetchModelsDevProvider = useCallback(async () => {
+    let trimmedBaseUrl = openaiBaseUrl.trim();
+    if (
+      typeof window !== "undefined" &&
+      (!trimmedBaseUrl || trimmedBaseUrl === OPENAI_DEFAULT_BASE_URL)
+    ) {
+      const storedBaseUrl =
+        window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY)?.trim() ?? "";
+      if (storedBaseUrl) {
+        trimmedBaseUrl = storedBaseUrl;
+      }
+    }
+
+    if (!trimmedBaseUrl) {
+      setModelsDevProvider(null);
+      setModelsDevProviderError(null);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
+      if (cacheKey) {
+        const cachedProvider = window.localStorage.getItem(cacheKey);
+        if (cachedProvider) {
+          try {
+            const parsed = JSON.parse(
+              cachedProvider
+            ) as ModelsDevProviderResponse["provider"];
+            setModelsDevProvider(parsed);
+          } catch {
+            window.localStorage.removeItem(cacheKey);
+          }
+        }
+      }
+    }
+
+    setIsLoadingModelsDevProvider(true);
+    setModelsDevProviderError(null);
+
+    try {
+      const params = new URLSearchParams({ baseUrl: trimmedBaseUrl });
+      const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
+      const data = (await response.json()) as ModelsDevProviderResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Failed to load provider info from models.dev."
+        );
+      }
+
+      setModelsDevProvider(data.provider ?? null);
+      if (typeof window !== "undefined") {
+        const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
+        if (cacheKey) {
+          if (data.provider) {
+            window.localStorage.setItem(cacheKey, JSON.stringify(data.provider));
+          } else {
+            window.localStorage.removeItem(cacheKey);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load models.dev provider info:", error);
+      setModelsDevProviderError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load provider info from models.dev."
+      );
+    } finally {
+      setIsLoadingModelsDevProvider(false);
+    }
+  }, [openaiBaseUrl]);
+
+  const fetchGeminiModels = useCallback(async () => {
+    setIsLoadingGeminiModels(true);
+    setGeminiModelsError(null);
+
+    try {
+      const params = new URLSearchParams({ providerId: "google" });
+      const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
+      const data = (await response.json()) as ModelsDevProviderResponse;
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load Gemini models.");
+      }
+
+      setGeminiModelsProvider(data.provider ?? null);
+    } catch (error) {
+      console.error("Failed to load Gemini models:", error);
+      setGeminiModelsProvider(null);
+      setGeminiModelsError(
+        error instanceof Error ? error.message : "Failed to load Gemini models."
+      );
+    } finally {
+      setIsLoadingGeminiModels(false);
+    }
+  }, []);
 
   const fetchCerebrasModels = useCallback(async () => {
     if (!cerebrasApiKey.trim()) {
@@ -108,6 +264,40 @@ export default function SettingsPage() {
   }, [cerebrasApiKey]);
 
   useEffect(() => {
+    if (aiProvider !== "openai") return;
+    void fetchModelsDevProvider();
+  }, [aiProvider, fetchModelsDevProvider]);
+
+  useEffect(() => {
+    if (aiProvider !== "openai") return;
+    if (typeof window === "undefined") return;
+
+    const storedBaseUrl =
+      window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY)?.trim() ?? "";
+    const cacheKey = getModelsDevProviderCacheKey(
+      storedBaseUrl || openaiBaseUrl || OPENAI_DEFAULT_BASE_URL
+    );
+    if (!cacheKey) return;
+
+    const cachedProvider = window.localStorage.getItem(cacheKey);
+    if (!cachedProvider) return;
+
+    try {
+      const parsed = JSON.parse(
+        cachedProvider
+      ) as ModelsDevProviderResponse["provider"];
+      setModelsDevProvider(parsed);
+    } catch {
+      window.localStorage.removeItem(cacheKey);
+    }
+  }, [aiProvider, openaiBaseUrl]);
+
+  useEffect(() => {
+    if (aiProvider !== "gemini") return;
+    void fetchGeminiModels();
+  }, [aiProvider, fetchGeminiModels]);
+
+  useEffect(() => {
     if (aiProvider !== "cerebras") return;
     void fetchCerebrasModels();
   }, [aiProvider, fetchCerebrasModels]);
@@ -118,9 +308,46 @@ export default function SettingsPage() {
     return [cerebrasModel, ...cerebrasModels];
   }, [cerebrasModel, cerebrasModels]);
 
+  const openaiModelOptions = useMemo(() => {
+    const providerModels = modelsDevProvider?.models ?? [];
+    if (!openaiModel) return providerModels;
+    if (providerModels.some((model) => model.id === openaiModel)) {
+      return providerModels;
+    }
+
+    return [
+      {
+        id: openaiModel,
+        name: openaiModel,
+      },
+      ...providerModels,
+    ];
+  }, [modelsDevProvider, openaiModel]);
+
+  const geminiModelOptions = useMemo(() => {
+    const providerModels = geminiModelsProvider?.models ?? [];
+    if (!geminiModel) return providerModels;
+    if (providerModels.some((model) => model.id === geminiModel)) {
+      return providerModels;
+    }
+
+    return [
+      {
+        id: geminiModel,
+        name: geminiModel,
+      },
+      ...providerModels,
+    ];
+  }, [geminiModel, geminiModelsProvider]);
+
   console.log({
     navigatorEnabled,
     aiProvider,
+    openaiBaseUrl,
+    openaiModel,
+    geminiModel,
+    modelsDevProvider,
+    geminiModelsProvider,
     ollamaBaseUrl,
     ollamaModel,
     groqModel,
@@ -128,6 +355,7 @@ export default function SettingsPage() {
     openrouterReasoningEffort,
     cerebrasModel,
     cerebrasReasoningEffort,
+    openaiApiKey,
     googleApiKey,
     groqApiKey,
     openrouterApiKey,
@@ -199,6 +427,12 @@ export default function SettingsPage() {
                         <SelectValue placeholder="Select AI provider" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="openai">
+                          <div className="flex items-center gap-2">
+                            <OpenAI className="h-4 w-4" />
+                            OpenAI
+                          </div>
+                        </SelectItem>
                         <SelectItem value="gemini">
                           <div className="flex items-center gap-2">
                             <Gemini.Color className="h-4 w-4" />
@@ -232,6 +466,8 @@ export default function SettingsPage() {
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground">
+                      {aiProvider === "openai" &&
+                        "Uses OpenAI-compatible chat models with a configurable base URL, API key, and model selection."}
                       {aiProvider === "gemini" &&
                         "Uses Google's Gemini 2.0 Flash model for AI responses. Requires your own API key."}
                       {aiProvider === "ollama" &&
@@ -244,6 +480,124 @@ export default function SettingsPage() {
                         "Uses Cerebras high-speed inference with configurable reasoning and decoding parameters."}
                     </p>
                   </div>
+
+                  {aiProvider === "openai" && (
+                    <div className="space-y-4 pl-4 border-l-2 border-muted">
+                      <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+                        <div className="flex items-center gap-3">
+                          {modelsDevProvider?.logoUrl ? (
+                            <img
+                              src={modelsDevProvider.logoUrl}
+                              alt={`${modelsDevProvider.name} logo`}
+                              className="h-8 w-8 rounded-sm object-contain dark:invert"
+                            />
+                          ) : (
+                            <OpenAI className="h-8 w-8" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium">
+                              {modelsDevProvider?.name ?? "OpenAI-compatible API"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {isLoadingModelsDevProvider
+                                ? "Matching provider from models.dev..."
+                                : modelsDevProvider
+                                  ? `Matched from ${modelsDevProvider.apiBaseUrl}`
+                                  : "No matching provider found for this base URL."}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="openai-base-url"
+                          className="text-base font-medium"
+                        >
+                          Base URL
+                        </Label>
+                        <Input
+                          id="openai-base-url"
+                          type="url"
+                          value={openaiBaseUrl}
+                          onChange={(e) => setOpenaiBaseUrl(e.target.value)}
+                          placeholder={OPENAI_DEFAULT_BASE_URL}
+                          className="w-full"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          The OpenAI-compatible API base URL. Default:{" "}
+                          <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                            {OPENAI_DEFAULT_BASE_URL}
+                          </code>
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="openai-api-key"
+                          className="text-base font-medium"
+                        >
+                          API Key
+                        </Label>
+                        <Input
+                          id="openai-api-key"
+                          type="password"
+                          value={openaiApiKey}
+                          onChange={(e) => setOpenaiApiKey(e.target.value)}
+                          placeholder="Enter your OpenAI API key"
+                          className="w-full"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Get your API key from{" "}
+                          <a
+                            href="https://platform.openai.com/api-keys"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            OpenAI Platform
+                          </a>
+                          . Your key is stored locally and never shared.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="openai-model"
+                          className="text-base font-medium"
+                        >
+                          Model
+                        </Label>
+                        <Select
+                          value={openaiModel}
+                          onValueChange={setOpenaiModel}
+                          disabled={isLoadingModelsDevProvider}
+                        >
+                          <SelectTrigger id="openai-model" className="w-full">
+                            <SelectValue placeholder="Select an OpenAI model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {openaiModelOptions.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.id}
+                              </SelectItem>
+                            ))}
+                            {openaiModelOptions.length === 0 && (
+                              <SelectItem value="__none" disabled>
+                                No models available
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                          {modelsDevProvider
+                            ? `Model list loaded from models.dev for ${modelsDevProvider.name}.`
+                            : "Model list is sourced from models.dev based on the base URL."}
+                          {modelsDevProviderError && ` Error: ${modelsDevProviderError}`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Google API Key Configuration */}
                   {aiProvider === "gemini" && (
@@ -275,6 +629,42 @@ export default function SettingsPage() {
                             Google AI Studio
                           </a>
                           . Your key is stored locally and never shared.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="gemini-model"
+                          className="text-base font-medium"
+                        >
+                          Model
+                        </Label>
+                        <Select
+                          value={geminiModel}
+                          onValueChange={setGeminiModel}
+                          disabled={isLoadingGeminiModels}
+                        >
+                          <SelectTrigger id="gemini-model" className="w-full">
+                            <SelectValue placeholder="Select a Gemini model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {geminiModelOptions.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.id}
+                              </SelectItem>
+                            ))}
+                            {geminiModelOptions.length === 0 && (
+                              <SelectItem value="__none" disabled>
+                                No models available
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                          {geminiModelsProvider
+                            ? "Model list loaded from models.dev for Google."
+                            : "Model list is sourced from models.dev."}
+                          {geminiModelsError && ` Error: ${geminiModelsError}`}
                         </p>
                       </div>
                     </div>

@@ -18,6 +18,7 @@ export const BITRATE_OPTIONS: BitrateOption[] = [
 ];
 
 export type AIProvider =
+  | "openai"
   | "gemini"
   | "ollama"
   | "groq"
@@ -41,6 +42,12 @@ interface SettingsContextType {
   aiProvider: AIProvider;
   setAiProvider: (provider: AIProvider) => void;
   // model settings
+  openaiBaseUrl: string;
+  setOpenaiBaseUrl: (url: string) => void;
+  openaiModel: string;
+  setOpenaiModel: (model: string) => void;
+  geminiModel: string;
+  setGeminiModel: (model: string) => void;
   ollamaBaseUrl: string;
   setOllamaBaseUrl: (url: string) => void;
   ollamaModel: string;
@@ -56,6 +63,8 @@ interface SettingsContextType {
   cerebrasReasoningEffort: CerebrasReasoningEffort;
   setCerebrasReasoningEffort: (effort: CerebrasReasoningEffort) => void;
   // API keys
+  openaiApiKey: string;
+  setOpenaiApiKey: (key: string) => void;
   googleApiKey: string;
   setGoogleApiKey: (key: string) => void;
   groqApiKey: string;
@@ -73,7 +82,14 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [videoBitrate, setVideoBitrateState] = useState<string>("auto");
   const [navigatorEnabled, setNavigatorEnabledState] = useState<boolean>(true);
-  const [aiProvider, setAiProviderState] = useState<AIProvider>("gemini");
+  const [aiProvider, setAiProviderState] = useState<AIProvider>("openai");
+  const [openaiBaseUrl, setOpenaiBaseUrlState] = useState<string>(
+    "https://api.openai.com/v1"
+  );
+  const [openaiModel, setOpenaiModelState] = useState<string>("gpt-4o-mini");
+  const [geminiModel, setGeminiModelState] = useState<string>(
+    "gemini-flash-lite-latest"
+  );
   const [ollamaBaseUrl, setOllamaBaseUrlState] = useState<string>(
     "http://localhost:11434"
   );
@@ -89,6 +105,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     useState<CerebrasReasoningEffort>("default");
 
   // API Key states
+  const [openaiApiKey, setOpenaiApiKeyState] = useState<string>("");
   const [googleApiKey, setGoogleApiKeyState] = useState<string>("");
   const [groqApiKey, setGroqApiKeyState] = useState<string>("");
   const [openrouterApiKey, setOpenrouterApiKeyState] = useState<string>("");
@@ -116,11 +133,26 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) as AIProvider;
     if (
       savedAiProvider &&
-      ["gemini", "ollama", "groq", "openrouter", "cerebras"].includes(
+      ["openai", "gemini", "ollama", "groq", "openrouter", "cerebras"].includes(
         savedAiProvider
       )
     ) {
       setAiProviderState(savedAiProvider);
+    }
+
+    const savedOpenaiBaseUrl = localStorage.getItem("navigator-openai-base-url");
+    if (savedOpenaiBaseUrl) {
+      setOpenaiBaseUrlState(savedOpenaiBaseUrl);
+    }
+
+    const savedOpenaiModel = localStorage.getItem("navigator-openai-model");
+    if (savedOpenaiModel) {
+      setOpenaiModelState(savedOpenaiModel);
+    }
+
+    const savedGeminiModel = localStorage.getItem("navigator-gemini-model");
+    if (savedGeminiModel) {
+      setGeminiModelState(savedGeminiModel);
     }
 
     const savedOllamaBaseUrl = localStorage.getItem("navigator-ollama-base-url");
@@ -171,6 +203,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Load API key settings
+    const savedOpenaiApiKey = localStorage.getItem("navigator-openai-api-key");
+    if (savedOpenaiApiKey) {
+      setOpenaiApiKeyState(savedOpenaiApiKey);
+    }
+
     const savedGoogleApiKey = localStorage.getItem("navigator-google-api-key");
     if (savedGoogleApiKey) {
       setGoogleApiKeyState(savedGoogleApiKey);
@@ -207,6 +244,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("navigator-ai-provider", provider);
   };
 
+  const setOpenaiBaseUrl = (url: string) => {
+    setOpenaiBaseUrlState(url);
+    localStorage.setItem("navigator-openai-base-url", url);
+  };
+
+  const setOpenaiModel = (model: string) => {
+    setOpenaiModelState(model);
+    localStorage.setItem("navigator-openai-model", model);
+  };
+
+  const setGeminiModel = (model: string) => {
+    setGeminiModelState(model);
+    localStorage.setItem("navigator-gemini-model", model);
+  };
+
   const setOllamaBaseUrl = (url: string) => {
     setOllamaBaseUrlState(url);
     localStorage.setItem("navigator-ollama-base-url", url);
@@ -241,6 +293,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   };
 
   // API Key setters
+  const setOpenaiApiKey = (key: string) => {
+    setOpenaiApiKeyState(key);
+    localStorage.setItem("navigator-openai-api-key", key);
+  };
+
   const setGoogleApiKey = (key: string) => {
     setGoogleApiKeyState(key);
     localStorage.setItem("navigator-google-api-key", key);
@@ -269,6 +326,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setNavigatorEnabled,
         aiProvider,
         setAiProvider,
+        openaiBaseUrl,
+        setOpenaiBaseUrl,
+        openaiModel,
+        setOpenaiModel,
+        geminiModel,
+        setGeminiModel,
         ollamaBaseUrl,
         setOllamaBaseUrl,
         ollamaModel,
@@ -283,6 +346,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setCerebrasModel,
         cerebrasReasoningEffort,
         setCerebrasReasoningEffort,
+        openaiApiKey,
+        setOpenaiApiKey,
         googleApiKey,
         setGoogleApiKey,
         groqApiKey,
