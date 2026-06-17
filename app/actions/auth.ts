@@ -10,6 +10,21 @@ import type {
 } from "@/types/stremio";
 
 const STREMIO_API = "https://api.strem.io/api";
+const ADDON_COLLECTION_CACHE_TTL_MS = 60_000;
+
+let addonCollectionCache:
+  | {
+      authKey: string;
+      expiresAt: number;
+      addons: StremioAddon[];
+    }
+  | null = null;
+let addonCollectionRequest:
+  | {
+      authKey: string;
+      promise: Promise<StremioAddon[]>;
+    }
+  | null = null;
 
 // ─── Cookie Helpers ──────────────────────────────────────────────
 
@@ -97,6 +112,8 @@ export async function logout() {
   }
 
   cookieStore.delete("stremio-auth");
+  addonCollectionCache = null;
+  addonCollectionRequest = null;
   redirect("/login");
 }
 
@@ -124,20 +141,51 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function getInstalledAddons(): Promise<StremioAddon[]> {
   try {
     const { authKey } = await getAuthData();
+    const now = Date.now();
 
-    const response = await fetch(`${STREMIO_API}/addonCollectionGet`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "AddonCollectionGet", authKey, update: true }),
-    });
-
-    if (!response.ok) {
-      console.error("Failed to fetch addons:", response.status);
-      return [];
+    if (
+      addonCollectionCache?.authKey === authKey &&
+      addonCollectionCache.expiresAt > now
+    ) {
+      return addonCollectionCache.addons;
     }
 
-    const data = await response.json();
-    return data.result?.addons || [];
+    if (addonCollectionRequest?.authKey === authKey) {
+      return await addonCollectionRequest.promise;
+    }
+
+    const promise = (async () => {
+      const response = await fetch(`${STREMIO_API}/addonCollectionGet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "AddonCollectionGet", authKey, update: true }),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to fetch addons:", response.status);
+        return [];
+      }
+
+      const data = await response.json();
+      const addons = data.result?.addons || [];
+      addonCollectionCache = {
+        authKey,
+        expiresAt: Date.now() + ADDON_COLLECTION_CACHE_TTL_MS,
+        addons,
+      };
+      return addons;
+    })();
+
+    const request = { authKey, promise };
+    addonCollectionRequest = request;
+
+    try {
+      return await promise;
+    } finally {
+      if (addonCollectionRequest === request) {
+        addonCollectionRequest = null;
+      }
+    }
   } catch (error) {
     console.error("Failed to fetch installed addons:", error);
     return [];
@@ -148,4 +196,6 @@ export async function getInstalledAddons(): Promise<StremioAddon[]> {
 export async function clearAuthData() {
   const cookieStore = await cookies();
   cookieStore.delete("stremio-auth");
+  addonCollectionCache = null;
+  addonCollectionRequest = null;
 }

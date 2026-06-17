@@ -10,18 +10,30 @@ import { cache } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
+const ADDON_CATALOG_TIMEOUT_MS = 3_500;
+const QUICK_SEARCH_RESPONSE_MS = 1_500;
+
 async function fetchAddonResource<T>(
   transportUrl: string,
-  path: string
+  path: string,
+  timeoutMs = ADDON_CATALOG_TIMEOUT_MS
 ): Promise<T | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const base = transportUrl.replace(/\/manifest\.json$/, "");
     const url = `${base}/${path}`;
-    const response = await fetch(url, { next: { revalidate: 60 } });
+    const response = await fetch(url, {
+      next: { revalidate: 60 },
+      signal: controller.signal,
+    });
     if (!response.ok) return null;
     return response.json();
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -66,60 +78,97 @@ function mapMetaToSearchResult(
   };
 }
 
+function sortSearchResults(results: SearchResult[]): SearchResult[] {
+  const typePriority: Record<string, number> = {
+    movie: 1,
+    series: 2,
+    channel: 3,
+    tv: 4,
+  };
+
+  return [...results].sort((a, b) => {
+    const ap = typePriority[a.type] || 99;
+    const bp = typePriority[b.type] || 99;
+    return ap - bp;
+  });
+}
+
+async function collectSearchResults(
+  query: string,
+  options: { returnEarlyWithResults?: boolean } = {}
+): Promise<SearchResult[]> {
+  const addons = await getInstalledAddonsCached();
+  const results: SearchResult[] = [];
+  const seenIds = new Set<string>();
+  const encodedQuery = encodeURIComponent(query);
+
+  const addMetas = (
+    metas: StremioCatalogResponse["metas"] | undefined,
+    addonName: string,
+    catalogId?: string,
+    catalogName?: string
+  ) => {
+    if (!metas) return;
+
+    for (const meta of metas) {
+      if (seenIds.has(meta.id)) continue;
+      seenIds.add(meta.id);
+      results.push(mapMetaToSearchResult(meta, addonName, catalogId, catalogName));
+    }
+  };
+
+  const searchPromises = addons.flatMap((addon) =>
+    getSearchableCatalogs(addon).map(async (catalog) => {
+      const data = await fetchAddonResource<StremioCatalogResponse>(
+        addon.transportUrl,
+        `catalog/${catalog.type}/${catalog.id}/search=${encodedQuery}.json`
+      );
+      addMetas(data?.metas, addon.manifest.name, catalog.id, catalog.id);
+    })
+  );
+
+  if (searchPromises.length === 0) return [];
+
+  if (!options.returnEarlyWithResults) {
+    await Promise.allSettled(searchPromises);
+    return sortSearchResults(results);
+  }
+
+  await new Promise<void>((resolve) => {
+    let settledCount = 0;
+    let resolved = false;
+    const resolveOnce = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve();
+    };
+
+    const timer = setTimeout(() => {
+      if (results.length > 0) resolveOnce();
+    }, QUICK_SEARCH_RESPONSE_MS);
+
+    searchPromises.forEach((promise) => {
+      promise.finally(() => {
+        settledCount += 1;
+
+        if (settledCount === searchPromises.length) {
+          clearTimeout(timer);
+          resolveOnce();
+        }
+      });
+    });
+  });
+
+  return sortSearchResults(results);
+}
+
 // ─── Search ──────────────────────────────────────────────────────
 
 export async function searchItems(query: string): Promise<SearchResult[]> {
   if (!query.trim()) return [];
 
   try {
-    const addons = await getInstalledAddonsCached();
-    const results: SearchResult[] = [];
-    const seenIds = new Set<string>();
-
-    // Search through catalogs that support the "search" extra
-    const searchPromises: Promise<void>[] = [];
-
-    for (const addon of addons) {
-      for (const catalog of getSearchableCatalogs(addon)) {
-
-        const promise = (async () => {
-          const encodedQuery = encodeURIComponent(query);
-          const data = await fetchAddonResource<StremioCatalogResponse>(
-            addon.transportUrl,
-            `catalog/${catalog.type}/${catalog.id}/search=${encodedQuery}.json`
-          );
-
-          if (data?.metas) {
-            for (const meta of data.metas) {
-              if (seenIds.has(meta.id)) continue;
-              seenIds.add(meta.id);
-
-              results.push(mapMetaToSearchResult(meta, addon.manifest.name));
-            }
-          }
-        })();
-
-        searchPromises.push(promise);
-      }
-    }
-
-    await Promise.all(searchPromises);
-
-    // Sort: movies first, then series, then everything else
-    const typePriority: Record<string, number> = {
-      movie: 1,
-      series: 2,
-      channel: 3,
-      tv: 4,
-    };
-
-    results.sort((a, b) => {
-      const ap = typePriority[a.type] || 99;
-      const bp = typePriority[b.type] || 99;
-      return ap - bp;
-    });
-
-    return results;
+    return collectSearchResults(query, { returnEarlyWithResults: true });
   } catch (error) {
     console.error("Failed to search items:", error);
     return [];
@@ -155,7 +204,7 @@ export async function searchCatalogSectionsForAddon(
     const searchableCatalogs = getSearchableCatalogs(addon);
     const encodedQuery = encodeURIComponent(query);
 
-    const sections = await Promise.all(
+    const sectionResults = await Promise.allSettled(
       searchableCatalogs.map(async (catalog) => {
         const data = await fetchAddonResource<StremioCatalogResponse>(
           addon.transportUrl,
@@ -175,7 +224,9 @@ export async function searchCatalogSectionsForAddon(
       })
     );
 
-    return sections.filter((section): section is SearchCatalogSection => section !== null);
+    return sectionResults
+      .map((result) => (result.status === "fulfilled" ? result.value : null))
+      .filter((section): section is SearchCatalogSection => section !== null);
   } catch (error) {
     console.error("Failed to search addon catalogs:", error);
     return [];
