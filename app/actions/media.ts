@@ -87,10 +87,29 @@ function metaPreviewToMediaItem(
     description: meta.description,
     releaseInfo: meta.releaseInfo,
     imdbRating: meta.imdbRating,
-    genres: meta.genres,
+    genres: normalizeStringList(meta.genres),
     links: meta.links,
     addonTransportUrl,
   };
+}
+
+function normalizeStringList(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+    return items.length > 0 ? items : undefined;
+  }
+
+  if (typeof value === "string") {
+    const items = value
+      .split(/,\s*/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return items.length > 0 ? items : undefined;
+  }
+
+  return undefined;
 }
 
 function fullMetaToMediaItem(
@@ -99,9 +118,9 @@ function fullMetaToMediaItem(
 ): MediaItem {
   return {
     ...metaPreviewToMediaItem(meta, addonTransportUrl),
-    cast: meta.cast,
-    director: meta.director,
-    writer: meta.writer,
+    cast: normalizeStringList(meta.cast),
+    director: normalizeStringList(meta.director),
+    writer: normalizeStringList(meta.writer),
     runtime: meta.runtime,
     year: meta.year ? meta.year : undefined,
     videos: meta.videos,
