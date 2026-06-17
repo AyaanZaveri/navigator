@@ -13,6 +13,7 @@ import type {
 import { getAuthData, getInstalledAddons } from "./auth";
 
 const STREMIO_API = "https://api.strem.io/api";
+const ADDON_RESOURCE_TIMEOUT_MS = 3_500;
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -43,6 +44,9 @@ async function fetchAddonResource<T>(
   path: string,
   init?: RequestInit
 ): Promise<T | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ADDON_RESOURCE_TIMEOUT_MS);
+
   try {
     // The transport URL may already end with /manifest.json — strip to base
     const base = transportUrl.replace(/\/manifest\.json$/, "");
@@ -52,6 +56,7 @@ async function fetchAddonResource<T>(
 
     const response = await fetch(url, {
       ...(init ?? {}),
+      signal: init?.signal ?? controller.signal,
       ...(init?.cache || init?.next
         ? {}
         : shouldBypassDataCache
@@ -63,6 +68,8 @@ async function fetchAddonResource<T>(
     return response.json();
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -180,18 +187,22 @@ export async function fetchMediaDetails(
       addonSupportsResource(a, "meta", type)
     );
 
-    for (const addon of metaAddons) {
-      const data = await fetchAddonResource<StremioMetaResponse>(
-        addon.transportUrl,
-        `meta/${type}/${mediaItemId}.json`
-      );
+    const metaResult = await Promise.any(
+      metaAddons.map(async (addon) => {
+        const data = await fetchAddonResource<StremioMetaResponse>(
+          addon.transportUrl,
+          `meta/${type}/${mediaItemId}.json`
+        );
 
-      if (data?.meta) {
+        if (!data?.meta) {
+          throw new Error("Addon did not return metadata.");
+        }
+
         return fullMetaToMediaItem(data.meta, addon.transportUrl);
-      }
-    }
+      })
+    ).catch(() => null);
 
-    return null;
+    return metaResult;
   } catch (error) {
     console.error("Failed to fetch media details:", error);
     return null;

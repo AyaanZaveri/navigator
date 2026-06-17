@@ -7,6 +7,7 @@ import { MediaActions } from "@/components/media-actions";
 import { SearchBar } from "@/components/search-component";
 import { Badge } from "@/components/ui/badge";
 import { MediaSection } from "@/components/media-section";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { VibrantLogo } from "@/components/vibrant-logo";
 import { TextAnimate } from "@/components/magicui/text-animate";
@@ -17,22 +18,97 @@ import { PosterImage } from "@/components/media-page/poster-image";
 import type { MediaItem } from "@/types/stremio";
 import { Suspense } from "react";
 
+function formatResumeTime(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+async function MovieProgressOverlay({ movieId }: { movieId: string }) {
+  const playbackProgress = await fetchPlaybackProgress(movieId, movieId);
+
+  if (
+    typeof playbackProgress?.progressPercent !== "number" &&
+    typeof playbackProgress?.resumePositionTicks !== "number" &&
+    typeof playbackProgress?.totalDuration !== "number"
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="absolute inset-x-2 bottom-2 pointer-events-none">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+          {formatResumeTime(playbackProgress?.resumePositionTicks ?? 0)}
+        </span>
+        <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
+          {formatResumeTime(playbackProgress?.totalDuration ?? 0)}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden">
+        <div
+          className="h-full rounded-full bg-white/80 transition-all"
+          style={{
+            width: `${Math.max(
+              0,
+              Math.min(100, playbackProgress?.progressPercent ?? 0)
+            )}%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SimilarMoviesSkeleton() {
+  return (
+    <div className="mt-8 px-6">
+      <div className="mb-6 flex items-center justify-between">
+        <Skeleton className="h-8 w-40 rounded" />
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="h-9 w-20 rounded-md" />
+        </div>
+      </div>
+      <div className="flex gap-4 overflow-hidden">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={`similar-movie-skeleton-${index}`} className="w-36 flex-shrink-0">
+            <Skeleton className="aspect-[2/3] w-full rounded-md" />
+            <Skeleton className="mt-3 h-4 w-11/12 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function SimilarMovies({ movieId }: { movieId: string }) {
+  const similarItems = await fetchSimilarItems(movieId, "movie", 12);
+
+  if (!similarItems || similarItems.length === 0) return null;
+
+  return (
+    <div className="mt-8 px-6">
+      <MediaSection
+        sectionName="More Like This"
+        mediaItems={similarItems}
+      />
+    </div>
+  );
+}
+
 export default async function Movie({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const formatResumeTime = (totalSeconds: number) => {
-    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    const seconds = safeSeconds % 60;
-    if (hours > 0) {
-      return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-    }
-    return `${minutes}:${String(seconds).padStart(2, "0")}`;
-  };
 
   try {
     const movie = await fetchMediaDetails(id, "movie");
@@ -41,12 +117,8 @@ export default async function Movie({
       return <div className="p-4">Movie not found</div>;
     }
 
-    const similarItems = await fetchSimilarItems(id, "movie", 12);
-    const playbackProgress = await fetchPlaybackProgress(id, id);
     const movieWithProgress: MediaItem = {
       ...movie,
-      resumePositionTicks: playbackProgress?.resumePositionTicks,
-      progressPercent: playbackProgress?.progressPercent,
     };
 
     return (
@@ -103,33 +175,9 @@ export default async function Movie({
                   width={500}
                   height={750}
                 />
-                {(typeof playbackProgress?.progressPercent === "number" ||
-                  typeof playbackProgress?.resumePositionTicks === "number" ||
-                  typeof playbackProgress?.totalDuration === "number") && (
-                    <div className="absolute inset-x-2 bottom-2 pointer-events-none">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
-                          {formatResumeTime(
-                            playbackProgress?.resumePositionTicks ?? 0
-                          )}
-                        </span>
-                        <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
-                          {formatResumeTime(playbackProgress?.totalDuration ?? 0)}
-                        </span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-white/80 transition-all"
-                          style={{
-                            width: `${Math.max(
-                              0,
-                              Math.min(100, playbackProgress?.progressPercent ?? 0)
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
+                <Suspense fallback={null}>
+                  <MovieProgressOverlay movieId={id} />
+                </Suspense>
               </div>
             </div>
 
@@ -225,14 +273,9 @@ export default async function Movie({
           </div>
         </div>
 
-        {similarItems && similarItems.length > 0 && (
-          <div className="mt-8 px-6">
-            <MediaSection
-              sectionName="More Like This"
-              mediaItems={similarItems}
-            />
-          </div>
-        )}
+        <Suspense fallback={<SimilarMoviesSkeleton />}>
+          <SimilarMovies movieId={id} />
+        </Suspense>
       </div>
     );
   } catch (error: any) {
