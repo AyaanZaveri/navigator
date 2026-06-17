@@ -21,25 +21,6 @@ async function fetchAddonResource<T>(
   }
 }
 
-function normalizeStringList(value: unknown): string[] | undefined {
-  if (Array.isArray(value)) {
-    const items = value
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter(Boolean);
-    return items.length > 0 ? items : undefined;
-  }
-
-  if (typeof value === "string") {
-    const items = value
-      .split(/,\s*/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-    return items.length > 0 ? items : undefined;
-  }
-
-  return undefined;
-}
-
 function metaToMediaItem(meta: StremioMeta, addonTransportUrl?: string): MediaItem {
   return {
     id: meta.id,
@@ -51,10 +32,10 @@ function metaToMediaItem(meta: StremioMeta, addonTransportUrl?: string): MediaIt
     description: meta.description,
     releaseInfo: meta.releaseInfo,
     imdbRating: meta.imdbRating,
-    genres: normalizeStringList(meta.genres),
-    cast: normalizeStringList(meta.cast),
-    director: normalizeStringList(meta.director),
-    writer: normalizeStringList(meta.writer),
+    genres: meta.genres,
+    cast: meta.cast,
+    director: meta.director,
+    writer: meta.writer,
     runtime: meta.runtime,
     year: meta.year,
     videos: meta.videos,
