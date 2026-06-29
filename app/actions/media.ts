@@ -129,6 +129,27 @@ function fullMetaToMediaItem(
   };
 }
 
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isUsableMediaDetails(item: MediaItem): boolean {
+  if (!hasText(item.name)) return false;
+
+  return Boolean(
+    hasText(item.poster) ||
+      hasText(item.background) ||
+      hasText(item.logo) ||
+      hasText(item.description) ||
+      hasText(item.releaseInfo) ||
+      hasText(item.runtime) ||
+      typeof item.year === "number" ||
+      (Array.isArray(item.genres) && item.genres.length > 0) ||
+      (Array.isArray(item.cast) && item.cast.length > 0) ||
+      (Array.isArray(item.director) && item.director.length > 0)
+  );
+}
+
 // ─── Catalog / Browse ────────────────────────────────────────────
 
 export async function fetchCatalogItems(
@@ -206,22 +227,43 @@ export async function fetchMediaDetails(
       addonSupportsResource(a, "meta", type)
     );
 
-    const metaResult = await Promise.any(
-      metaAddons.map(async (addon) => {
-        const data = await fetchAddonResource<StremioMetaResponse>(
-          addon.transportUrl,
-          `meta/${type}/${mediaItemId}.json`
-        );
+    const metaRequests = metaAddons.map(async (addon) => {
+      const data = await fetchAddonResource<StremioMetaResponse>(
+        addon.transportUrl,
+        `meta/${type}/${mediaItemId}.json`
+      );
 
-        if (!data?.meta) {
-          throw new Error("Addon did not return metadata.");
+      if (!data?.meta) {
+        throw new Error("Addon did not return metadata.");
+      }
+
+      return fullMetaToMediaItem(data.meta, addon.transportUrl);
+    });
+
+    if (type !== "movie") {
+      return await Promise.any(metaRequests).catch(() => null);
+    }
+
+    const usableMetaResult = await Promise.any(
+      metaRequests.map(async (request) => {
+        const item = await request;
+        if (!isUsableMediaDetails(item)) {
+          throw new Error("Addon returned incomplete metadata.");
         }
 
-        return fullMetaToMediaItem(data.meta, addon.transportUrl);
+        return item;
       })
     ).catch(() => null);
 
-    return metaResult;
+    if (usableMetaResult) return usableMetaResult;
+
+    const settledMetaResults = await Promise.allSettled(metaRequests);
+    const fallbackMeta = settledMetaResults.find(
+      (result): result is PromiseFulfilledResult<MediaItem> =>
+        result.status === "fulfilled" && hasText(result.value.name)
+    );
+
+    return fallbackMeta?.value ?? null;
   } catch (error) {
     console.error("Failed to fetch media details:", error);
     return null;
