@@ -108,7 +108,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [cerebrasModel, setCerebrasModelState] = useState<string>("gpt-oss-120b");
   const [cerebrasReasoningEffort, setCerebrasReasoningEffortState] =
     useState<CerebrasReasoningEffort>("default");
-  const [opencodeModel, setOpencodeModelState] = useState<string>("hy3");
+  const [opencodeModel, setOpencodeModelState] = useState<string>("gpt-5.6-luna");
 
   // API Key states
   const [openaiApiKey, setOpenaiApiKeyState] = useState<string>("");

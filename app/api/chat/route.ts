@@ -211,7 +211,7 @@ export async function POST(req: Request) {
       openrouterReasoningEffort = "default",
       cerebrasModel = "gpt-oss-120b",
       cerebrasReasoningEffort = "default",
-      opencodeModel = "hy3",
+      opencodeModel = "gpt-5.6-luna",
       openaiApiKey,
       googleApiKey,
       groqApiKey,
@@ -383,17 +383,25 @@ export async function POST(req: Request) {
         if (typeof opencodeSessionId !== "string" || !opencodeSessionId.trim()) {
           throw new Error("OpenCode Zen requires a stable session ID.");
         }
-        const opencodeProvider = createOpenAICompatible({
-          name: "opencode",
-          baseURL: "https://opencode.ai/zen/go/v1",
-          apiKey,
-          headers: {
-            "x-opencode-session": opencodeSessionId.trim(),
-            "user-agent": "navigator/1.0",
-          },
-          includeUsage: true,
-        });
-        model = opencodeProvider(opencodeModel);
+        const headers = {
+          "x-opencode-session": opencodeSessionId.trim(),
+          "user-agent": "navigator/1.0",
+        };
+        model =
+          opencodeModel === "gpt-5.6-luna"
+            ? createOpenAI({
+                name: "opencode-responses",
+                baseURL: "https://opencode.ai/zen/go/v1",
+                apiKey,
+                headers,
+              }).responses(opencodeModel)
+            : createOpenAICompatible({
+                name: "opencode",
+                baseURL: "https://opencode.ai/zen/go/v1",
+                apiKey,
+                headers,
+                includeUsage: true,
+              })(opencodeModel);
         break;
       }
       default:

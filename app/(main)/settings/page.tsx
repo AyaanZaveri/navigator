@@ -1051,7 +1051,7 @@ export default function SettingsPage() {
                           type="text"
                           value={opencodeModel}
                           onChange={(e) => setOpencodeModel(e.target.value)}
-                          placeholder="hy3"
+                          placeholder="gpt-5.6-luna"
                           className="w-full"
                         />
                         <p className="text-sm text-muted-foreground">
