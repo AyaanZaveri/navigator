@@ -23,7 +23,7 @@ import {
   OpenRouterReasoningEffort,
   useSettings,
 } from "@/contexts/settings-context";
-import { Settings2, Ship } from "lucide-react";
+import { Bot, Settings2, Ship } from "lucide-react";
 import { AuroraBackground } from "@/components/aurora-background";
 import { SearchBar } from "@/components/search-component";
 import { Label } from "@/components/ui/label";
@@ -93,6 +93,8 @@ export default function SettingsPage() {
     setCerebrasModel,
     cerebrasReasoningEffort,
     setCerebrasReasoningEffort,
+    opencodeModel,
+    setOpencodeModel,
     openaiApiKey,
     setOpenaiApiKey,
     googleApiKey,
@@ -103,6 +105,8 @@ export default function SettingsPage() {
     setOpenrouterApiKey,
     cerebrasApiKey,
     setCerebrasApiKey,
+    opencodeApiKey,
+    setOpencodeApiKey,
   } = useSettings();
 
   const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
@@ -355,11 +359,13 @@ export default function SettingsPage() {
     openrouterReasoningEffort,
     cerebrasModel,
     cerebrasReasoningEffort,
+    opencodeModel,
     openaiApiKey,
     googleApiKey,
     groqApiKey,
     openrouterApiKey,
     cerebrasApiKey,
+    opencodeApiKey,
   });
 
   return (
@@ -463,6 +469,12 @@ export default function SettingsPage() {
                             Cerebras
                           </div>
                         </SelectItem>
+                        <SelectItem value="opencode">
+                          <div className="flex items-center gap-2">
+                            <Bot className="h-4 w-4" />
+                            OpenCode Zen
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground">
@@ -478,6 +490,8 @@ export default function SettingsPage() {
                         "Uses OpenRouter's API to access various AI models."}
                       {aiProvider === "cerebras" &&
                         "Uses Cerebras high-speed inference with configurable reasoning and decoding parameters."}
+                      {aiProvider === "opencode" &&
+                        "Uses OpenCode Zen Go with a stable per-chat session ID for routing and prompt-cache affinity."}
                     </p>
                   </div>
 
@@ -1004,6 +1018,44 @@ export default function SettingsPage() {
                         </Select>
                         <p className="text-sm text-muted-foreground">
                           Uses Cerebras provider reasoning effort option.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {aiProvider === "opencode" && (
+                    <div className="space-y-4 pl-4 border-l-2 border-muted">
+                      <div className="space-y-2">
+                        <Label htmlFor="opencode-api-key" className="text-base font-medium">
+                          API Key
+                        </Label>
+                        <Input
+                          id="opencode-api-key"
+                          type="password"
+                          value={opencodeApiKey}
+                          onChange={(e) => setOpencodeApiKey(e.target.value)}
+                          placeholder="Enter your OpenCode Zen API key"
+                          className="w-full"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Your key is stored locally and sent only to OpenCode Zen.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="opencode-model" className="text-base font-medium">
+                          Model
+                        </Label>
+                        <Input
+                          id="opencode-model"
+                          type="text"
+                          value={opencodeModel}
+                          onChange={(e) => setOpencodeModel(e.target.value)}
+                          placeholder="hy3"
+                          className="w-full"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Uses the OpenCode Zen Go chat-completions endpoint. The app generates and sends a stable <code>x-opencode-session</code> ID for each chat.
                         </p>
                       </div>
                     </div>

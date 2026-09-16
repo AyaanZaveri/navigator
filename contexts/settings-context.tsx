@@ -23,7 +23,8 @@ export type AIProvider =
   | "ollama"
   | "groq"
   | "openrouter"
-  | "cerebras";
+  | "cerebras"
+  | "opencode";
 export type OpenRouterReasoningEffort =
   | "default"
   | "none"
@@ -62,6 +63,8 @@ interface SettingsContextType {
   setCerebrasModel: (model: string) => void;
   cerebrasReasoningEffort: CerebrasReasoningEffort;
   setCerebrasReasoningEffort: (effort: CerebrasReasoningEffort) => void;
+  opencodeModel: string;
+  setOpencodeModel: (model: string) => void;
   // API keys
   openaiApiKey: string;
   setOpenaiApiKey: (key: string) => void;
@@ -73,6 +76,8 @@ interface SettingsContextType {
   setOpenrouterApiKey: (key: string) => void;
   cerebrasApiKey: string;
   setCerebrasApiKey: (key: string) => void;
+  opencodeApiKey: string;
+  setOpencodeApiKey: (key: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -103,6 +108,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [cerebrasModel, setCerebrasModelState] = useState<string>("gpt-oss-120b");
   const [cerebrasReasoningEffort, setCerebrasReasoningEffortState] =
     useState<CerebrasReasoningEffort>("default");
+  const [opencodeModel, setOpencodeModelState] = useState<string>("hy3");
 
   // API Key states
   const [openaiApiKey, setOpenaiApiKeyState] = useState<string>("");
@@ -110,6 +116,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [groqApiKey, setGroqApiKeyState] = useState<string>("");
   const [openrouterApiKey, setOpenrouterApiKeyState] = useState<string>("");
   const [cerebrasApiKey, setCerebrasApiKeyState] = useState<string>("");
+  const [opencodeApiKey, setOpencodeApiKeyState] = useState<string>("");
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -133,7 +140,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) as AIProvider;
     if (
       savedAiProvider &&
-      ["openai", "gemini", "ollama", "groq", "openrouter", "cerebras"].includes(
+      ["openai", "gemini", "ollama", "groq", "openrouter", "cerebras", "opencode"].includes(
         savedAiProvider
       )
     ) {
@@ -201,6 +208,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) {
       setCerebrasReasoningEffortState(savedCerebrasReasoningEffort);
     }
+    const savedOpencodeModel = localStorage.getItem("navigator-opencode-model");
+    if (savedOpencodeModel) {
+      setOpencodeModelState(savedOpencodeModel);
+    }
 
     // Load API key settings
     const savedOpenaiApiKey = localStorage.getItem("navigator-openai-api-key");
@@ -225,6 +236,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const savedCerebrasApiKey = localStorage.getItem("navigator-cerebras-api-key");
     if (savedCerebrasApiKey) {
       setCerebrasApiKeyState(savedCerebrasApiKey);
+    }
+    const savedOpencodeApiKey = localStorage.getItem("navigator-opencode-api-key");
+    if (savedOpencodeApiKey) {
+      setOpencodeApiKeyState(savedOpencodeApiKey);
     }
   }, []);
 
@@ -291,6 +306,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setCerebrasReasoningEffortState(effort);
     localStorage.setItem("navigator-cerebras-reasoning-effort", effort);
   };
+  const setOpencodeModel = (model: string) => {
+    setOpencodeModelState(model);
+    localStorage.setItem("navigator-opencode-model", model);
+  };
 
   // API Key setters
   const setOpenaiApiKey = (key: string) => {
@@ -315,6 +334,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const setCerebrasApiKey = (key: string) => {
     setCerebrasApiKeyState(key);
     localStorage.setItem("navigator-cerebras-api-key", key);
+  };
+  const setOpencodeApiKey = (key: string) => {
+    setOpencodeApiKeyState(key);
+    localStorage.setItem("navigator-opencode-api-key", key);
   };
 
   return (
@@ -346,6 +369,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setCerebrasModel,
         cerebrasReasoningEffort,
         setCerebrasReasoningEffort,
+        opencodeModel,
+        setOpencodeModel,
         openaiApiKey,
         setOpenaiApiKey,
         googleApiKey,
@@ -356,6 +381,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setOpenrouterApiKey,
         cerebrasApiKey,
         setCerebrasApiKey,
+        opencodeApiKey,
+        setOpencodeApiKey,
       }}
     >
       {children}

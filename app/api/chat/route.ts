@@ -211,11 +211,14 @@ export async function POST(req: Request) {
       openrouterReasoningEffort = "default",
       cerebrasModel = "gpt-oss-120b",
       cerebrasReasoningEffort = "default",
+      opencodeModel = "hy3",
       openaiApiKey,
       googleApiKey,
       groqApiKey,
       openrouterApiKey,
       cerebrasApiKey,
+      opencodeApiKey,
+      opencodeSessionId,
     } = requestPayload;
 
     if (!Array.isArray(messages)) {
@@ -251,11 +254,14 @@ export async function POST(req: Request) {
       openrouterReasoningEffort: normalizedOpenrouterReasoningEffort,
       cerebrasModel,
       cerebrasReasoningEffort: normalizedCerebrasReasoningEffort,
+      opencodeModel,
       hasOpenaiApiKey: Boolean(openaiApiKey),
       hasGoogleApiKey: Boolean(googleApiKey),
       hasGroqApiKey: Boolean(groqApiKey),
       hasOpenrouterApiKey: Boolean(openrouterApiKey),
       hasCerebrasApiKey: Boolean(cerebrasApiKey),
+      hasOpencodeApiKey: Boolean(opencodeApiKey),
+      hasOpencodeSessionId: Boolean(opencodeSessionId),
     });
 
     const openrouterModelSettings: OpenRouterSharedSettings | undefined =
@@ -367,6 +373,29 @@ export async function POST(req: Request) {
           );
         }
         break;
+      case "opencode": {
+        const apiKey = opencodeApiKey || process.env.OPENCODE_GO_API_KEY;
+        if (!apiKey) {
+          throw new Error(
+            "OpenCode Zen API key is required. Please set your API key in settings."
+          );
+        }
+        if (typeof opencodeSessionId !== "string" || !opencodeSessionId.trim()) {
+          throw new Error("OpenCode Zen requires a stable session ID.");
+        }
+        const opencodeProvider = createOpenAICompatible({
+          name: "opencode",
+          baseURL: "https://opencode.ai/zen/go/v1",
+          apiKey,
+          headers: {
+            "x-opencode-session": opencodeSessionId.trim(),
+            "user-agent": "navigator/1.0",
+          },
+          includeUsage: true,
+        });
+        model = opencodeProvider(opencodeModel);
+        break;
+      }
       default:
         throw new Error(`Unsupported AI provider: ${aiProvider}`);
     }

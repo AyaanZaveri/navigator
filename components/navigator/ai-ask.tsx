@@ -86,6 +86,7 @@ const AIAsk = () => {
   const activeTaskUserMessageIdRef = useRef<string | null>(null);
   const awaitingTaskUserMessageRef = useRef(false);
   const messagesRef = useRef<any[]>([]);
+  const opencodeSessionIdRef = useRef<string | null>(null);
   const {
     aiProvider,
     openaiBaseUrl,
@@ -98,11 +99,13 @@ const AIAsk = () => {
     openrouterReasoningEffort,
     cerebrasModel,
     cerebrasReasoningEffort,
+    opencodeModel,
     openaiApiKey,
     googleApiKey,
     groqApiKey,
     openrouterApiKey,
     cerebrasApiKey,
+    opencodeApiKey,
   } = useSettings();
 
   const formatDuration = (durationMs: number) => {
@@ -342,6 +345,7 @@ const AIAsk = () => {
     activeTaskUserMessageIdRef.current = null;
     awaitingTaskUserMessageRef.current = false;
     messagesRef.current = [];
+    opencodeSessionIdRef.current = null;
   };
 
   const handleCloseAsk = () => {
@@ -779,6 +783,9 @@ const AIAsk = () => {
     }
 
     try {
+      const opencodeSessionId =
+        opencodeSessionIdRef.current ?? crypto.randomUUID();
+      opencodeSessionIdRef.current = opencodeSessionId;
       sendMessage(
         { text: input },
         {
@@ -796,11 +803,14 @@ const AIAsk = () => {
             openrouterReasoningEffort,
             cerebrasModel,
             cerebrasReasoningEffort,
+            opencodeModel,
             openaiApiKey,
             googleApiKey,
             groqApiKey,
             openrouterApiKey,
             cerebrasApiKey,
+            opencodeApiKey,
+            opencodeSessionId,
           },
         }
       );
