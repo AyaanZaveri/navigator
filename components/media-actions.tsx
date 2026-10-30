@@ -12,10 +12,9 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Play, Puzzle, SearchX } from "lucide-react";
+import { Loader2, Play, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
-import { Select } from "@/components/arc/select/select";
 import { SearchField } from "@/components/arc/search-field/search-field";
 import { ChipGroup } from "@/components/arc/chip-group/chip-group";
 import styles from "./media-actions.module.css";
@@ -35,7 +34,6 @@ interface StreamWithAddon extends StremioStream {
   addonName: string;
 }
 
-const HIDDEN_ADDON_IDS = new Set(["org.stremio.local"]);
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p", "480p"] as const;
 const STREAM_TAG_FILTERS = ["HDR", "DV", "WEB"] as const;
 
@@ -47,8 +45,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [hasCheckedStreams, setHasCheckedStreams] = useState(false);
   const [pendingAddons, setPendingAddons] = useState(0);
   const [totalAddons, setTotalAddons] = useState(0);
-  const [addonTargets, setAddonTargets] = useState<StreamAddonTarget[]>([]);
-  const [selectedAddonId, setSelectedAddonId] = useState<string>("all");
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
   const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
   const [selectedStreamTags, setSelectedStreamTags] = useState<string[]>([]);
@@ -105,8 +101,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       setLoading(true);
       setPendingAddons(0);
       setTotalAddons(0);
-      setAddonTargets([]);
-      setSelectedAddonId("all");
       setSelectedResolutions([]);
       setSelectedStreamTags([]);
       try {
@@ -120,7 +114,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
         if (cancelled) return;
 
-        setAddonTargets(targets);
         setTotalAddons(targets.length);
         setPendingAddons(targets.length);
 
@@ -201,18 +194,10 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
   if (!activeMedia) return null;
 
-  const selectableAddonTargets = addonTargets.filter(
-    (addon) => !HIDDEN_ADDON_IDS.has(addon.id),
-  );
-
-  const addonFilteredStreams =
-    selectedAddonId === "all"
-      ? streams
-      : streams.filter((stream) => stream.addonId === selectedAddonId);
   const normalizedSearchQuery = streamSearchQuery.trim().toLowerCase();
   const hasActiveFilters =
     selectedResolutions.length > 0 || selectedStreamTags.length > 0;
-  const filteredStreams = addonFilteredStreams.filter((stream) => {
+  const filteredStreams = streams.filter((stream) => {
     const searchableText = [
       getSourceLabel(stream),
       stream.title,
@@ -325,38 +310,23 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
   return (
     <div className={styles.root}>
-      {(selectableAddonTargets.length > 0 || isAddonLoading) && (
+      {totalAddons > 0 && (
         <div className={styles.toolbar}>
           <div className={styles.search}>
             <SearchField
               label="Search streams"
+              size="sm"
               value={streamSearchQuery}
               onValueChange={setStreamSearchQuery}
               placeholder="Find the least broken stream..."
               autoComplete="off"
             />
           </div>
-          {selectableAddonTargets.length > 0 && (
-            <div className={styles.addon}>
-              <Select
-                label="Addon"
-                value={selectedAddonId}
-                onValueChange={setSelectedAddonId}
-                options={[
-                  { value: "all", label: "All addons", icon: <Puzzle /> },
-                  ...selectableAddonTargets.map((addon) => ({
-                    value: addon.id,
-                    label: addon.name,
-                    icon: <Puzzle />,
-                  })),
-                ]}
-              />
-            </div>
-          )}
           <fieldset className={styles.facet}>
             <legend>Resolution</legend>
             <ChipGroup
               label="Filter by resolution"
+              size="sm"
               multiple
               className={styles.chips}
               options={RESOLUTION_FILTERS.map((resolution) => ({
@@ -371,6 +341,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
             <legend>Format</legend>
             <ChipGroup
               label="Filter by stream format"
+              size="sm"
               multiple
               className={styles.chips}
               options={STREAM_TAG_FILTERS.map((tag) => ({
@@ -406,15 +377,15 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                 return (
                   <div
                     key={index}
-                    className="rounded-lg border border-border/60 bg-card/50 p-3 shadow-xs"
+                    className="rounded-lg border border-border/60 bg-card/50 p-2.5 shadow-xs"
                   >
                     <div className={styles.streamRow}>
                       <div className="min-w-0 flex-1">
-                        <div className="text-base font-medium break-words">
+                        <div className="text-sm font-medium break-words">
                           {getSourceLabel(stream)}
                         </div>
                         {stream.title && (
-                          <div className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere]">
+                          <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {stream.title}
                           </div>
                         )}
@@ -431,12 +402,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                       <div className={styles.playAction}>
                         <Button
                           variant="outline"
-                          className="group h-9 px-3 gap-1.5 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
+                          className="group h-8 px-2.5 gap-1.5 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
                           disabled={!streamUrl}
                           onClick={() => handlePlay(stream)}
                         >
                           <Play className="h-3.5 w-3.5" />
-                          <span className="text-sm">Play</span>
+                          <span className="text-xs">Play</span>
                         </Button>
                       </div>
                     </div>
@@ -461,15 +432,15 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
                   key={item}
-                  className="rounded-lg border border-border/60 bg-card/50 p-3 shadow-xs"
+                  className="rounded-lg border border-border/60 bg-card/50 p-2.5 shadow-xs"
                 >
                   <div className={styles.streamRow}>
                     <div className="min-w-0 flex-1">
-                      <Skeleton className="h-6 w-56 max-w-full rounded-md" />
+                      <Skeleton className="h-5 w-56 max-w-full rounded-md" />
                       <Skeleton className="mt-2 h-3 w-72 max-w-full rounded-md" />
                     </div>
                     <div className={styles.playAction}>
-                      <Skeleton className="h-9 w-[74px] rounded-md" />
+                      <Skeleton className="h-8 w-[68px] rounded-md" />
                     </div>
                   </div>
                 </div>
@@ -488,16 +459,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
             <EmptyTitle>
               {normalizedSearchQuery || hasActiveFilters
                 ? "Your filters were a little too powerful"
-                : selectedAddonId === "all"
-                  ? "No streams crawled out of hiding"
-                  : "This addon is stream-empty right now"}
+                : "No streams crawled out of hiding"}
             </EmptyTitle>
             <EmptyDescription>
               {normalizedSearchQuery || hasActiveFilters
                 ? "Loosen the search/filters a bit and you should find the least broken stream."
-                : selectedAddonId === "all"
-                  ? "Try again in a minute, or switch addons and hunt for a less cursed source."
-                  : "Pick another addon, or clear filters and let chaos do the sorting."}
+                : "Try again in a minute and hunt for a less cursed source."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

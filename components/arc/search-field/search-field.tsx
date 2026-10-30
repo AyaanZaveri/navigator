@@ -7,15 +7,16 @@ import { motionTokens } from "../lib/motion-tokens";
 import styles from "./search-field.module.css";
 export interface SearchFieldProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
-  "type"
+  "type" | "size"
 > {
+  size?: "sm" | "md";
   label: string;
   value: string;
   onValueChange: (value: string) => void;
 }
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
   function SearchField(
-    { label, value, onValueChange, id, className, ...props },
+    { label, value, onValueChange, id, className, size = "md", ...props },
     ref,
   ) {
     const generated = useId();
@@ -33,7 +34,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
       inputRef.current?.focus();
     }
     return (
-      <div className={styles.field}>
+      <div className={styles.field} data-size={size}>
         <label htmlFor={controlId}>{label}</label>
         <div className={styles.shell} data-filled={value ? "true" : undefined}>
           <Search width={18} height={18} aria-hidden="true" />

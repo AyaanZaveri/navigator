@@ -34,6 +34,7 @@ export interface ChipOption {
  * Arrow keys move between chips, Space or Enter toggles, and each chip is a pressed or unpressed button.
  */
 export interface ChipGroupProps {
+  size?: "sm" | "md";
   options: ChipOption[];
   value: string[];
   onValueChange: (value: string[]) => void;
@@ -470,6 +471,7 @@ export function ChipGroup({
   label,
   multiple = true,
   maxVisible = Infinity,
+  size = "md",
   className,
 }: ChipGroupProps) {
   const id = useId();
@@ -545,6 +547,7 @@ export function ChipGroup({
       <HeightFrame morphKey={`${expanded}|${value.join(",")}`} reduce={reduce}>
         <div
           className={[styles.group, className].filter(Boolean).join(" ")}
+          data-size={size}
           role="group"
           aria-label={label}
           onKeyDown={onKeyDown}
