@@ -782,7 +782,7 @@ const GradientASCII = ({
             last = now;
             if (!reduce) {
                 time += dt * s.speed * 0.5;
-                glyphTime += dt * Math.max(s.speed, 0.15);
+                glyphTime += dt * s.speed;
             }
             if (introClock < 1) introClock = Math.min(1, introClock + dt / INTRO_SECONDS);
             grainClock += dt;

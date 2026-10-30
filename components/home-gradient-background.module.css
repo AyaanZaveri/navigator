@@ -18,6 +18,7 @@
 }
 
 :global(.dark) .animation {
+  opacity: .3;
   -webkit-mask-image: none;
   mask-image: none;
 }

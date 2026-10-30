@@ -28,7 +28,7 @@ export function HomeGradientBackground() {
                         characters="·•●"
                         cellSize={18}
                         density={0.8}
-                        speed={0.2}
+                        speed={0.08}
                         flicker={0.05}
                         mouseInteraction={false}
                         clickEffect="none"
