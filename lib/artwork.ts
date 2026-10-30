@@ -13,8 +13,8 @@ export function artworkUrl(
     ?? /^tmdb:\d+$/.exec(id)?.[0];
   if (!mediaId) return undefined;
   const params = new URLSearchParams({ id: mediaId, type, kind });
-  // Previous logo redirects were cached for a day with the old selection.
-  if (kind === "logo") params.set("v", "2");
+  // Invalidate cached logo redirects from before SVG support.
+  if (kind === "logo") params.set("v", "3");
   if (kind === "still") {
     if (type !== "series" || typeof season !== "number" || !Number.isSafeInteger(season) || season < 0
       || typeof episode !== "number" || !Number.isSafeInteger(episode) || episode < 1) return undefined;

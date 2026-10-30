@@ -16,7 +16,11 @@ export function selectArtwork(images: TMDBImage[] = [], kind: ArtworkKind): stri
     return image.iso_639_1 === preferred ? 2
       : image.iso_639_1 == null || image.iso_639_1 === "en" ? 1 : 0;
   };
-  const image = images.filter((item) => /^\/[\w.-]+\.(png|jpg|jpeg|webp)$/i.test(item.file_path)).sort((a, b) => {
+  const image = images.filter((item) => {
+    const raster = /^\/[\w.-]+\.(png|jpg|jpeg|webp)$/i.test(item.file_path);
+    // TMDB's preferred logo can be a vector; the upstream addon keeps it.
+    return raster || (kind === "logo" && /^\/[\w.-]+\.svg$/i.test(item.file_path));
+  }).sort((a, b) => {
     const language = languageRank(b) - languageRank(a);
     // Match the TMDB addon's logo behavior: prefer the language, then keep
     // TMDB's original order. Size or local ratings must not replace its choice.

@@ -21,7 +21,7 @@ async function run() {
     assert.equal(urls.artworkUrl('tt123', 'series', 'still', season, episode), undefined);
   }
   assert.equal(urls.artworkUrl('tt123', 'movie', 'still', 1, 1), undefined);
-  assert.equal(urls.artworkUrl('tmdb:12', 'series', 'logo'), '/api/artwork?id=tmdb%3A12&type=series&kind=logo&v=2');
+  assert.equal(urls.artworkUrl('tmdb:12', 'series', 'logo'), '/api/artwork?id=tmdb%3A12&type=series&kind=logo&v=3');
 
   assert.equal(urls.artworkFromPath('/series/tt123/2/3'), '/api/artwork?id=tt123&type=series&kind=still&season=2&episode=3');
   assert.equal(urls.artworkFromPath('/movie/tmdb%3A12'), '/api/artwork?id=tmdb%3A12&type=movie&kind=poster');
@@ -72,6 +72,16 @@ async function run() {
   assert.equal(artwork.selectArtwork(rehearsalLogos, 'poster'),
     'https://image.tmdb.org/t/p/w500/A1AKYxyqs21ZDdmlOORA19riHgf.png',
     'Other artwork keeps its existing ranking');
+  const modernFamilyLogos = [
+    { file_path: '/loi4uTtq1EazhlBDVKaMYZ26Yih.svg', iso_639_1: 'en', vote_average: 3.334, vote_count: 1, width: 128 },
+    { file_path: '/zbKvUZiiiA2kbj7cBytvcOVS51z.png', iso_639_1: 'en', vote_average: 3.334, vote_count: 1, width: 842 },
+    { file_path: '/rbKhglYrECjMZNYtT2QyihOQ5F.png', iso_639_1: 'en', vote_average: 2.278, vote_count: 3, width: 1277 },
+  ];
+  assert.equal(artwork.selectArtwork(modernFamilyLogos, 'logo'),
+    'https://image.tmdb.org/t/p/original/loi4uTtq1EazhlBDVKaMYZ26Yih.svg',
+    'Modern Family keeps its white-and-orange SVG instead of skipping to the black PNG');
+  assert.equal(artwork.selectArtwork([modernFamilyLogos[0]], 'poster'), undefined, 'Vector support is for title logos');
+  assert.equal(artwork.selectArtwork([{ file_path: '//untrusted.example/logo.svg' }], 'logo'), undefined);
   assert.equal(await artwork.getTMDBArtwork('tt123', 'movie', 'poster'), undefined);
   assert.equal(calls.length, 0, 'No credentials must make no network requests');
   env.TMDB_API_READ_ACCESS_TOKEN = 'test-secret';
