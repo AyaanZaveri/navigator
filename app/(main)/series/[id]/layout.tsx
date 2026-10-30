@@ -87,7 +87,7 @@ export default async function SeriesLayout({
           </div>
         </div>
 
-        <div className="relative z-10 -mt-54 md:pl-6 bg-background/95 dark:bg-background/50 backdrop-blur-xl rounded-2xl mx-4 pb-6">
+        <div className="relative z-10 -mt-54 px-4 md:px-6 bg-background/95 dark:bg-background/50 backdrop-blur-xl rounded-2xl mx-4 pb-6">
           <div
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"
@@ -95,10 +95,16 @@ export default async function SeriesLayout({
           {children}
 
           <div className="mt-10 md:mt-8">
-            <SeriesEpisodesRouteAware showId={id} prefetchedVideos={show.videos} />
+            <SeriesEpisodesRouteAware
+              showId={id}
+              prefetchedVideos={show.videos}
+            />
           </div>
 
-          <EpisodeStreamsRouteAware show={show} prefetchedVideos={show.videos} />
+          <EpisodeStreamsRouteAware
+            show={show}
+            prefetchedVideos={show.videos}
+          />
         </div>
 
         <Suspense fallback={null}>

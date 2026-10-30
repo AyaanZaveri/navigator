@@ -16,7 +16,11 @@ export default async function EpisodeOnSeriesPage({
   const { id, season, episode } = await params;
 
   try {
-    const episodeData = await getSeriesEpisodeSelectionData(id, season, episode);
+    const episodeData = await getSeriesEpisodeSelectionData(
+      id,
+      season,
+      episode,
+    );
 
     if (!episodeData) {
       return <div className="p-4">Episode not found</div>;
@@ -32,76 +36,94 @@ export default async function EpisodeOnSeriesPage({
     } = episodeData;
 
     return (
-      <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
-        <div className="w-full md:w-auto flex-shrink-0 justify-center flex flex-col items-center md:items-start md:block z-50 mt-6">
-          <div className="relative aspect-video rounded-lg overflow-hidden shadow-lg bg-muted max-w-1/2 md:w-[22rem] lg:w-[24rem] md:max-w-none mt-16">
+      <section
+        aria-labelledby="episode-title"
+        className="@container pt-6 md:pt-8"
+      >
+        <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-start @4xl:gap-8">
+          <div className="relative aspect-video w-full max-w-xl overflow-hidden rounded-lg bg-muted shadow-lg @4xl:max-w-none">
             <EpisodeHeroThumbnail
               thumbnail={selectedEpisode.thumbnail}
               released={selectedEpisode.released}
               title={selectedEpisodeTitle}
             />
             <Suspense fallback={null}>
-              <PlaybackProgressOverlay mediaId={show.id} videoId={selectedEpisode.id} />
+              <PlaybackProgressOverlay
+                mediaId={show.id}
+                videoId={selectedEpisode.id}
+              />
             </Suspense>
           </div>
-        </div>
 
-        <div className="w-full min-w-0 flex-1 pt-10 md:pt-8 text-center md:text-start mt-8 md:mt-12">
-          <div className="mb-4 flex justify-center md:justify-start">
-            <h2 className="text-sm font-medium text-muted-foreground md:pl-8 inline-flex items-center">
-              <Link
-                href={buildSeriesPath(id)}
-                prefetch={true}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+          <div className="flex min-w-0 flex-col gap-6 text-start">
+            <div className="flex min-w-0 flex-col gap-3">
+              <nav
+                aria-label="Episode context"
+                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-muted-foreground"
               >
-                <TvIcon className="w-3.5 h-3.5 mr-2" />
-                {show.name}
-              </Link>
-              <span className="mx-2">•</span>
-              <span>Season {seasonNumber}</span>
-            </h2>
-          </div>
+                <Link
+                  href={buildSeriesPath(id)}
+                  prefetch={true}
+                  className="inline-flex min-w-0 max-w-full items-center gap-2 transition-colors hover:text-foreground"
+                >
+                  <TvIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                  <span className="min-w-0 break-words">{show.name}</span>
+                </Link>
+                <span aria-hidden="true">•</span>
+                <span>Season {seasonNumber}</span>
+              </nav>
 
-          <div className="mb-4 flex justify-center md:justify-start">
-            <h1
-              className="text-4xl md:text-5xl font-semibold font-poppins text-foreground md:pl-8 drop-shadow-xl"
-            >
-              {`${episodeNumber}. ${selectedEpisodeTitle}`}
-            </h1>
-          </div>
+              <h1
+                id="episode-title"
+                className="min-w-0 break-words text-3xl font-semibold leading-tight text-foreground text-balance @lg:text-4xl @5xl:text-5xl"
+              >
+                {`${episodeNumber}. ${selectedEpisodeTitle}`}
+              </h1>
 
-          <div className="flex flex-wrap items-center gap-2 mb-2 justify-center md:justify-start md:pl-8">
-            <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-              S{seasonNumber} • E{episodeNumber}
-            </Badge>
-            {selectedEpisode.released && (
-              <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-                {new Date(selectedEpisode.released).getFullYear()}
-              </Badge>
-            )}
-            {show.imdbRating && (
-              <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                {show.imdbRating}
-              </Badge>
-            )}
-            {regularSeasonCount > 0 && (
-              <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-                {regularSeasonCount} Season{regularSeasonCount !== 1 ? "s" : ""}
-              </Badge>
-            )}
-          </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="bg-background/90 backdrop-blur-sm"
+                >
+                  S{seasonNumber} • E{episodeNumber}
+                </Badge>
+                {selectedEpisode.released && (
+                  <Badge
+                    variant="outline"
+                    className="bg-background/90 backdrop-blur-sm"
+                  >
+                    {new Date(selectedEpisode.released).getFullYear()}
+                  </Badge>
+                )}
+                {show.imdbRating && (
+                  <Badge
+                    variant="outline"
+                    className="bg-background/90 backdrop-blur-sm"
+                  >
+                    <Star className="size-3 fill-yellow-400 text-yellow-400" />
+                    {show.imdbRating}
+                  </Badge>
+                )}
+                {regularSeasonCount > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="bg-background/90 backdrop-blur-sm"
+                  >
+                    {regularSeasonCount} Season
+                    {regularSeasonCount !== 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </div>
+            </div>
 
-          <div className="px-8 md:pl-8 md:pt-4 md:pr-16 flex flex-col justify-center md:items-start items-center">
             {selectedEpisode.overview && (
-              <p className="text-md leading-relaxed mb-6 max-w-4xl">
+              <p className="max-w-prose break-words text-base leading-relaxed">
                 {selectedEpisode.overview}
               </p>
             )}
-
           </div>
         </div>
-      </div>
+      </section>
     );
   } catch (error: any) {
     if (error.message?.includes("Authentication expired")) {

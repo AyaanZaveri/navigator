@@ -413,13 +413,13 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
 
   return (
     <div className="mt-3">
-      <div className="flex items-center justify-between gap-4 mb-6 px-1">
-        <div className="relative z-[9999]">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 px-1">
+        <div className="relative z-[9999] min-w-0 max-w-full">
           <Select
             value={selectedSeason?.toString() ?? ""}
             onValueChange={(val) => setSelectedSeason(Number(val))}
           >
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48 max-w-full">
               <SelectValue placeholder="Select season" />
             </SelectTrigger>
             <SelectContent className="z-[9999]">
@@ -434,7 +434,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2 pr-4">
+        <div className="ms-auto flex shrink-0 items-center gap-2">
           <CarouselAction
             size="icon-sm"
             aria-label="Scroll left"
