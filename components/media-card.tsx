@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { mediaArtwork } from "@/lib/artwork";
 import Link from "next/link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
@@ -34,9 +35,10 @@ export function MediaCard({
     linkHref = `/movie/${item.id}`;
   }
 
-  const imageUrl = continueWatching
-    ? item.background || item.poster
-    : item.poster;
+  const artwork = mediaArtwork(item.seriesId || item.id, item.type);
+  const imageUrl = continueWatching ? artwork.background : artwork.poster;
+  const [failedImage, setFailedImage] = useState<string | null>(null);
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const subtitle = continueWatching
     ? item.progressLabel ||
       (item.type === "movie"
@@ -66,7 +68,7 @@ export function MediaCard({
           item.type === "series" ? item.episodeTitle || item.name : undefined,
         seasonNumber: item.seasonNumber,
         episodeNumber: item.episodeNumber,
-        backdropUrl: item.background || item.poster,
+        backdropUrl: artwork.background || artwork.poster,
         subtitleFilename: item.subtitleFilename,
         subtitleVideoSize: item.subtitleVideoSize,
       });
@@ -86,9 +88,11 @@ export function MediaCard({
         }`}
       >
         <Link href={linkHref} prefetch={true} draggable={false} className="block w-full h-full">
-          {imageUrl ? (
+          {imageUrl && failedImage !== imageUrl ? (
             <img
               src={imageUrl}
+              loading="lazy"
+              onError={() => setFailedImage(imageUrl)}
               alt={item.name || ""}
               className="w-full h-full object-cover shadow-lg shadow-sm group-hover:shadow-md rounded-md"
               draggable={false}
@@ -125,10 +129,11 @@ export function MediaCard({
           </div>
         ) : null}
 
-        {continueWatching && item.logo ? (
+        {continueWatching && artwork.logo && failedLogo !== artwork.logo ? (
           <div className="absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6">
             <img
-              src={item.logo}
+              src={artwork.logo}
+              onError={() => setFailedLogo(artwork.logo!)}
               alt={`${item.name} logo`}
               className="max-h-[36%] max-w-[78%] w-auto object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]"
               draggable={false}

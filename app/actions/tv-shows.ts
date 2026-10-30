@@ -1,5 +1,7 @@
 "use server";
 
+import { artworkUrl, mediaArtwork } from "@/lib/artwork";
+
 import type { MediaItem, StremioMeta, StremioMetaResponse
 } from "@/types/stremio";
 import { getInstalledAddons } from "./auth";
@@ -26,9 +28,7 @@ function metaToMediaItem(meta: StremioMeta, addonTransportUrl?: string): MediaIt
     id: meta.id,
     type: meta.type as MediaItem["type"],
     name: meta.name,
-    poster: meta.poster,
-    background: meta.background,
-    logo: meta.logo,
+    ...mediaArtwork(meta.id, meta.type),
     description: meta.description,
     releaseInfo: meta.releaseInfo,
     imdbRating: meta.imdbRating,
@@ -38,7 +38,10 @@ function metaToMediaItem(meta: StremioMeta, addonTransportUrl?: string): MediaIt
     writer: meta.writer,
     runtime: meta.runtime,
     year: meta.year,
-    videos: meta.videos,
+    videos: meta.videos?.map((video) => ({
+      ...video,
+      thumbnail: artworkUrl(meta.id, "series", "still", video.season ?? 1, video.episode ?? 1),
+    })),
     links: meta.links,
     trailers: meta.trailers,
     behaviorHints: meta.behaviorHints,
@@ -139,7 +142,7 @@ export async function fetchEpisodes(
           season: v.season ?? 1,
           episode: v.episode ?? 1,
           overview: v.overview,
-          thumbnail: v.thumbnail,
+          thumbnail: artworkUrl(seriesId, "series", "still", v.season ?? 1, v.episode ?? 1),
           released: v.released,
           resumePositionTicks:
             typeof v.resumePositionTicks === "number"

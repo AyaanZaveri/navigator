@@ -26,8 +26,8 @@ async function run() {
   const env = {};
   const calls = [];
   let fail = false;
-  const { getMediaCast } = load('lib/tmdb-cast.ts', {
-    require: name => name === '@/lib/cast' ? cast : {},
+  const globals = {
+    require: name => name === '@/lib/cast' ? cast : name === '@/lib/tmdb' ? tmdb : {},
     process: { env }, AbortSignal,
     fetch: async (url, options) => {
       calls.push({ url, options });
@@ -36,7 +36,9 @@ async function run() {
         ? { movie_results: [{ id: 157336 }], tv_results: [{ id: 42 }] }
         : { cast: [credit] } };
     },
-  });
+  };
+  const tmdb = load('lib/tmdb.ts', globals);
+  const { getMediaCast } = load('lib/tmdb-cast.ts', globals);
   let result = await getMediaCast('tt0816692', 'movie', ['Known Actor']);
   assert.equal(result.members[0].name, 'Known Actor');
   assert.equal(calls.length, 0, 'No token means no external requests');

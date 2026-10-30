@@ -1,5 +1,7 @@
 "use server";
 
+import { artworkUrl } from "@/lib/artwork";
+
 import type {
   StremioCatalogResponse,
   SearchCatalogSection,
@@ -68,7 +70,7 @@ function mapMetaToSearchResult(
     id: meta.id,
     type: meta.type,
     name: meta.name,
-    poster: meta.poster,
+    poster: artworkUrl(meta.id, meta.type, "poster"),
     description: meta.description,
     releaseInfo: meta.releaseInfo,
     imdbRating: meta.imdbRating,

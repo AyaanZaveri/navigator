@@ -27,9 +27,10 @@ It also checks episode progress isolation and the login redirect. No account
 or installed addons are needed. Browser prefetching should be checked with a
 production build, since Next.js disables automatic prefetching in development.
 
-## Cast artwork
+## TMDB artwork
 
-To show cast headshots and character names on movie and TV pages, add a
+Posters, backdrops, original-color logos, episode stills, and cast headshots
+come from TMDB. Add a
 [TMDB API Read Access Token](https://www.themoviedb.org/settings/api) to your
 local `.env` file:
 
@@ -37,10 +38,16 @@ local `.env` file:
 TMDB_API_READ_ACCESS_TOKEN=your_read_access_token
 ```
 
-The token is used only on the server. Credits are cached for a day. When the
-key is missing or the lookup fails, the cast section uses the names supplied
-by the installed Stremio add-on and avatar initials. Missing individual photos
-also fall back to initials.
+The token is used only on the server. Image metadata and credits are cached
+for a day. Artwork loads on demand through `/api/artwork`, which redirects to
+TMDB's image CDN. English posters/logos and text-free backdrops are preferred;
+logos retain the colors supplied by TMDB.
 
-Run `node scripts/test-cast.cjs` to check credit mapping, movie/TV lookups, and
-fallback behavior without a live TMDB request.
+IMDb IDs are resolved to TMDB IDs; explicit `tmdb:` IDs are also supported.
+Unrecognized addon IDs, missing credentials, and unavailable artwork use neutral
+placeholders, without falling back to another artwork provider. Cast names still
+come from the installed Stremio addon when TMDB credits are unavailable, with
+initials for missing headshots.
+
+Run `node scripts/test-artwork.cjs` and `node scripts/test-cast.cjs` to check
+image selection, routing, credit mapping, and fallbacks without live TMDB requests.

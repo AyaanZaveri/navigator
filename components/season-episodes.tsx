@@ -23,6 +23,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import { buildEpisodePath } from "@/lib/series-route";
+import { artworkUrl } from "@/lib/artwork";
 import type { StremioVideo } from "@/types/stremio";
 
 interface SeasonEpisodesProps {
@@ -77,7 +78,7 @@ function normalizeVideosToEpisodes(
         season,
         episode,
         overview: video.overview,
-        thumbnail: video.thumbnail,
+        thumbnail: artworkUrl(showId, "series", "still", season, episode),
         released: video.released,
         resumePositionTicks:
           typeof video.resumePositionTicks === "number"

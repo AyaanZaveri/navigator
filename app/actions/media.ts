@@ -1,5 +1,8 @@
 "use server";
 
+import { artworkUrl, mediaArtwork } from "@/lib/artwork";
+import { getTMDBArtwork } from "@/lib/tmdb-artwork";
+
 import type {
   StremioAddon,
   StremioMetaPreview,
@@ -82,9 +85,7 @@ function metaPreviewToMediaItem(
     id: meta.id,
     type: meta.type as MediaItem["type"],
     name: meta.name,
-    poster: meta.poster,
-    background: meta.background,
-    logo: meta.logo,
+    ...mediaArtwork(meta.id, meta.type),
     description: meta.description,
     releaseInfo: meta.releaseInfo,
     imdbRating: meta.imdbRating,
@@ -124,7 +125,10 @@ function fullMetaToMediaItem(
     writer: normalizeStringList(meta.writer),
     runtime: meta.runtime,
     year: meta.year ? meta.year : undefined,
-    videos: meta.videos,
+    videos: meta.videos?.map((video) => ({
+      ...video,
+      thumbnail: artworkUrl(meta.id, "series", "still", video.season ?? 1, video.episode ?? 1),
+    })),
     trailers: meta.trailers,
     behaviorHints: meta.behaviorHints,
   };
@@ -620,11 +624,17 @@ async function upsertPlaybackState(
       baseState.timeOffset = 0;
     }
 
+    const poster = firstString(existingItem?.poster, input.poster);
+    // Stremio sync needs a public image URL, not our app-relative redirect.
+    const libraryPoster = poster?.startsWith("/api/artwork?")
+      ? await getTMDBArtwork(input.libraryItemId, input.mediaType, "poster")
+      : poster;
+
     const payload: LibraryItemPayload = {
       _id: input.libraryItemId,
       name: existingItem?.name || input.mediaName,
       type: existingItem?.type || input.mediaType,
-      poster: firstString(existingItem?.poster, input.poster) || null,
+      poster: libraryPoster || null,
       posterShape: firstString(existingItem?.posterShape) || "poster",
       removed: Boolean(existingItem?.removed ?? true),
       temp: Boolean(existingItem?.temp ?? true),
@@ -919,7 +929,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
       })
     );
 
-    return enriched;
+    return enriched.map((item) => ({ ...item, ...mediaArtwork(item.seriesId || item.id, item.type) }));
   } catch (error) {
     console.error("Failed to fetch resume items:", error);
     return [];

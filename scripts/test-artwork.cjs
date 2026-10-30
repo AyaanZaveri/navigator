@@ -1,0 +1,94 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+
+function load(file, globals = {}) {
+  const context = { exports: {}, URL, URLSearchParams, Response, ...globals };
+  const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  vm.runInNewContext(code, context);
+  return context.exports;
+}
+
+async function run() {
+  const urls = load('lib/artwork.ts');
+  assert.equal(urls.artworkUrl('custom-addon-id', 'movie', 'poster'), undefined);
+  assert.equal(urls.artworkUrl('tt123:2:3', 'series', 'poster'), '/api/artwork?id=tt123&type=series&kind=poster');
+  assert.equal(urls.artworkUrl('tt123', 'series', 'still', 0, 1), '/api/artwork?id=tt123&type=series&kind=still&season=0&episode=1');
+  for (const [season, episode] of [[-1, 1], [1, 0], [1.5, 2], [NaN, 1]]) {
+    assert.equal(urls.artworkUrl('tt123', 'series', 'still', season, episode), undefined);
+  }
+  assert.equal(urls.artworkUrl('tt123', 'movie', 'still', 1, 1), undefined);
+  assert.equal(urls.artworkUrl('tmdb:12', 'series', 'logo'), '/api/artwork?id=tmdb%3A12&type=series&kind=logo');
+
+  assert.equal(urls.artworkFromPath('/series/tt123/2/3'), '/api/artwork?id=tt123&type=series&kind=still&season=2&episode=3');
+  assert.equal(urls.artworkFromPath('/movie/tmdb%3A12'), '/api/artwork?id=tmdb%3A12&type=movie&kind=poster');
+  assert.equal(urls.artworkFromPath('//external.example/movie/tt123'), undefined);
+  assert.equal(urls.artworkFromPath('/movie/%E0%A4%A'), undefined);
+
+  const env = {};
+  const calls = [];
+  let failed = false;
+  const globals = {
+    process: { env }, AbortSignal,
+    require: name => name === '@/lib/tmdb' ? tmdb : name === '@/lib/artwork' ? urls : {},
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      if (failed) throw new Error('Network unavailable');
+      return { ok: true, json: async () => url.includes('/find/')
+        ? { movie_results: [{ id: 10 }], tv_results: [{ id: 20 }] }
+        : url.includes('/season/') ? { episodes: [{ episode_number: 3, still_path: '/episode.jpg' }] }
+        : { posters: [{ file_path: '/poster.jpg', iso_639_1: 'en' }],
+            backdrops: [{ file_path: '/backdrop.jpg', iso_639_1: null }],
+            logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] } };
+    },
+  };
+  const tmdb = load('lib/tmdb.ts', globals);
+  const artwork = load('lib/tmdb-artwork.ts', globals);
+  const candidates = [
+    { file_path: '/french.png', iso_639_1: 'fr', vote_average: 10 },
+    { file_path: '/neutral.png', iso_639_1: null, vote_average: 9 },
+    { file_path: '/english.png', iso_639_1: 'en', vote_average: 7 },
+    { file_path: '//untrusted.example/test.png', iso_639_1: 'en', vote_average: 10 },
+  ];
+  assert.equal(artwork.selectArtwork(candidates, 'logo'), 'https://image.tmdb.org/t/p/original/english.png');
+  assert.equal(artwork.selectArtwork(candidates, 'backdrop'), 'https://image.tmdb.org/t/p/w1280/neutral.png');
+  assert.equal(candidates[0].file_path, '/french.png', 'Selection must not reorder the cached response');
+  assert.equal(artwork.selectArtwork([], 'logo'), undefined);
+  assert.equal(await artwork.getTMDBArtwork('tt123', 'movie', 'poster'), undefined);
+  assert.equal(calls.length, 0, 'No credentials must make no network requests');
+  env.TMDB_API_READ_ACCESS_TOKEN = 'test-secret';
+  assert.equal(await artwork.getTMDBArtwork('tt123', 'movie', 'poster'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  assert.ok(calls.at(-1).url.includes('/movie/10/images?include_image_language=en,null'));
+  assert.equal(calls.at(-1).options.next.revalidate, 86400);
+  assert.equal(calls.at(-1).options.headers.Authorization, 'Bearer test-secret');
+  await artwork.getTMDBArtwork('tt123', 'series', 'logo');
+  assert.ok(calls.at(-1).url.includes('/tv/20/images'));
+  assert.equal(await artwork.getTMDBArtwork('tmdb:20', 'series', 'still', 2, 3), 'https://image.tmdb.org/t/p/w500/episode.jpg');
+  assert.ok(calls.at(-1).url.includes('/tv/20/season/2?language=en-US'));
+  assert.equal(await artwork.getTMDBArtwork('tmdb:20', 'series', 'still', 2, 4), undefined);
+  const count = calls.length;
+  assert.equal(await artwork.getTMDBArtwork('unknown', 'movie', 'poster'), undefined);
+  assert.equal(calls.length, count);
+  failed = true;
+  assert.equal(await artwork.getTMDBArtwork('tmdb:10', 'movie', 'poster'), undefined);
+
+  const { GET } = load('app/api/artwork/route.ts', {
+    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w500/poster.jpg' },
+  });
+  const valid = await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster'));
+  assert.equal(valid.status, 307);
+  assert.equal(valid.headers.get('location'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  assert.equal(valid.headers.get('cache-control'), 'public, max-age=86400');
+  for (const query of ['id=unknown&type=movie&kind=poster', 'id=tt123&type=movie&kind=invalid', 'id=tt123&type=series&kind=still&season=-1&episode=2']) {
+    assert.equal((await GET(new Request(`https://navigator.test/api/artwork?${query}`))).status, 400);
+  }
+  const missing = load('app/api/artwork/route.ts', {
+    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => undefined },
+  });
+  assert.equal((await missing.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo'))).status, 404);
+  console.log('PASS: TMDB identity matching, artwork selection, episode stills, caching, route validation, and failures');
+}
+run().catch(error => { console.error(error); process.exitCode = 1; });

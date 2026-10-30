@@ -1,5 +1,7 @@
 "use client";
 
+import { artworkFromPath } from "@/lib/artwork";
+
 import { Film, Tv } from "lucide-react";
 import { ResultCard, ResultBadge } from "./result-card";
 
@@ -27,7 +29,6 @@ export function NavigationCard({
   className,
   index = 0,
 }: NavigationCardProps) {
-  const episode = result.mediaType?.toLowerCase() === "episode";
   return (
     <ResultCard
       className={className}
@@ -38,7 +39,7 @@ export function NavigationCard({
           : "Navigation failed"
       }
       icon={result.mediaType?.toLowerCase() === "movie" ? Film : Tv}
-      image={episode ? result.thumbnail : result.poster}
+      image={artworkFromPath(result.url)}
       href={
         result.success &&
         result.url?.startsWith("/") &&
