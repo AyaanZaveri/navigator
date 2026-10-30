@@ -33,6 +33,11 @@ npm run start        # Start production server
 npm run lint         # ESLint
 ```
 
+## Browser Automation
+
+- Check whether a dev server is running before using `bladebro`.
+- Do not use `bladebro` while the dev server is running without the user's explicit permission. A general request to test or debug the app does not grant that permission.
+
 ## Project Structure
 
 ```
