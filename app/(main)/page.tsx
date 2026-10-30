@@ -61,16 +61,16 @@ function HomeSectionSkeleton({
   const skeletonCount = continueWatching ? 8 : 16;
 
   return (
-    <section className="relative z-10 mb-5">
-      <div className="flex items-center justify-between mb-6">
+    <section className="relative z-10 mb-8">
+      <div className="flex items-center justify-between gap-3 mb-4">
         <Skeleton className="h-8 w-56 rounded-full" />
         <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-9 rounded-md" />
-          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="hidden md:block h-9 w-9 rounded-md" />
+          <Skeleton className="hidden md:block h-9 w-9 rounded-md" />
           <Skeleton className="h-9 w-20 rounded-md" />
         </div>
       </div>
-      <div className="flex gap-4 overflow-hidden pb-6">
+      <div className="flex gap-4 overflow-hidden">
         {Array.from({ length: skeletonCount }).map((_, index) =>
           continueWatching ? (
             <ContinueWatchingCardSkeleton key={`cw-card-skeleton-${index}`} />

@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect } from "react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
+import { CarouselAction } from "@/components/carousel-action";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface CastScrollAreaProps {
@@ -58,22 +58,20 @@ export function CastScrollArea({ cast }: CastScrollAreaProps) {
           Cast
         </h3>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+          <CarouselAction
+            size="icon-sm"
+            aria-label="Scroll left"
             onClick={scrollLeft}
           >
             <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+          </CarouselAction>
+          <CarouselAction
+            size="icon-sm"
+            aria-label="Scroll right"
             onClick={scrollRight}
           >
             <ChevronRight className="h-4 w-4" />
-          </Button>
+          </CarouselAction>
         </div>
       </div>
       <ScrollArea className="w-full pb-6">

@@ -8,7 +8,7 @@ import React, {
   useMemo,
 } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { CarouselAction } from "@/components/carousel-action";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -435,22 +435,20 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
           </Select>
         </div>
         <div className="flex items-center gap-2 pr-4">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+          <CarouselAction
+            size="icon-sm"
+            aria-label="Scroll left"
             onClick={scrollLeft}
           >
             <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+          </CarouselAction>
+          <CarouselAction
+            size="icon-sm"
+            aria-label="Scroll right"
             onClick={scrollRight}
           >
             <ChevronRight className="h-4 w-4" />
-          </Button>
+          </CarouselAction>
         </div>
       </div>
 

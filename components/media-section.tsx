@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { CarouselAction } from "@/components/carousel-action";
 import { MediaCard } from "@/components/media-card";
 import { Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
@@ -52,40 +52,37 @@ export function MediaSection({
   };
 
   return (
-    <section className="relative z-10 mb-5">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-2xl font-semibold text-foreground font-poppins">
+    <section className="relative z-10 mb-8">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h3 className="min-w-0 text-xl sm:text-2xl font-semibold text-foreground font-poppins">
           {sectionName}
         </h3>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+        <div className="flex shrink-0 items-center gap-2">
+          <CarouselAction
+            size="icon-sm"
+            className="hidden md:inline-flex"
+            aria-label="Scroll left"
             onClick={scrollLeft}
           >
             <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-background/10 border-border text-foreground hover:bg-accent p-2"
+          </CarouselAction>
+          <CarouselAction
+            size="icon-sm"
+            className="hidden md:inline-flex"
+            aria-label="Scroll right"
             onClick={scrollRight}
           >
             <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-background/10 border-border text-foreground hover:bg-accent"
+          </CarouselAction>
+          <CarouselAction
             onClick={onViewAll}
           >
             View All
-          </Button>
+          </CarouselAction>
         </div>
       </div>
       {mediaItems.length > 0 ? (
-        <ScrollArea className="w-full pb-6">
+        <ScrollArea className="w-full">
           <div className="flex gap-4 w-max" ref={scrollRef}>
             {mediaItems.map((item, index) => (
               <div
