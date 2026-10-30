@@ -19,8 +19,9 @@ export async function GET(req: Request) {
   }
 
   try {
+    // The full catalog exceeds the Next.js Data Cache item-size limit.
     const upstream = await fetch(MODELS_DEV_API_URL, {
-      next: { revalidate: 60 * 60 * 12 },
+      cache: "no-store",
     });
 
     if (!upstream.ok) {
