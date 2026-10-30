@@ -1,3 +1,4 @@
+import { CastSection } from "@/components/media-page/cast-section";
 import { fetchMediaDetails, fetchSimilarItems } from "@/app/actions";
 import { MediaActions } from "@/components/media-actions";
 import { Badge } from "@/components/ui/badge";
@@ -215,6 +216,10 @@ export default async function Movie({
             <MediaActions movie={movieWithProgress} />
           </div>
         </div>
+
+        <Suspense fallback={null}>
+          <CastSection id={id} type="movie" names={movie.cast} />
+        </Suspense>
 
         <Suspense fallback={<SimilarMoviesSkeleton />}>
           <SimilarMovies movieId={id} />

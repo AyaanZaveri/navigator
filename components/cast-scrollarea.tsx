@@ -1,105 +1,68 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { CarouselAction } from "@/components/carousel-action";
+import { useEffect, useId, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CarouselAction } from "@/components/carousel-action";
+import type { CastMember } from "@/lib/cast";
 
-interface CastScrollAreaProps {
-  cast?: string[];
-}
+export function CastScrollArea({ cast }: { cast: CastMember[] }) {
+    const headingId = useId();
+    const viewport = useRef<HTMLDivElement>(null);
+    const [position, setPosition] = useState({ start: true, end: false });
+    const updatePosition = () => {
+        const element = viewport.current;
+        if (element) setPosition({ start: element.scrollLeft <= 1, end: element.scrollLeft + element.clientWidth >= element.scrollWidth - 1 });
+    };
+    useEffect(() => {
+        const element = viewport.current;
+        if (!element) return;
+        const observer = new ResizeObserver(updatePosition);
+        observer.observe(element);
+        updatePosition();
+        return () => observer.disconnect();
+    }, [cast]);
 
-export function CastScrollArea({ cast }: CastScrollAreaProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
+    const scroll = (direction: number) => {
+        const element = viewport.current;
+        if (!element) return;
+        element.scrollBy({
+            left: direction * element.clientWidth * 0.8,
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        });
+    };
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      const viewport = scrollRef.current
-        .closest('[data-slot="scroll-area"]')
-        ?.querySelector(
-          '[data-slot="scroll-area-viewport"]'
-        ) as HTMLDivElement;
-      if (viewport) {
-        viewportRef.current = viewport;
-      }
-    }
-  }, []);
+    if (!cast.length) return null;
 
-  const scrollLeft = () => {
-    if (viewportRef.current) {
-      viewportRef.current.scrollBy({ left: -300, behavior: "smooth" });
-    }
-  };
-
-  const scrollRight = () => {
-    if (viewportRef.current) {
-      viewportRef.current.scrollBy({ left: 300, behavior: "smooth" });
-    }
-  };
-
-  if (!cast || cast.length === 0) {
     return (
-      <section className="relative z-10 mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-semibold text-foreground font-poppins">
-            Cast
-          </h3>
-        </div>
-        <p className="text-muted-foreground">No cast information available.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="relative z-10 mb-12">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-2xl font-semibold text-foreground font-poppins">
-          Cast
-        </h3>
-        <div className="flex items-center gap-2">
-          <CarouselAction
-            size="icon-sm"
-            aria-label="Scroll left"
-            onClick={scrollLeft}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </CarouselAction>
-          <CarouselAction
-            size="icon-sm"
-            aria-label="Scroll right"
-            onClick={scrollRight}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </CarouselAction>
-        </div>
-      </div>
-      <ScrollArea className="w-full pb-6">
-        <div className="flex gap-4 w-max" ref={scrollRef}>
-          {cast.map((name, index) => (
-            <div key={`${name}-${index}`} className="shrink-0">
-              <figure className="cursor-pointer transition-transform">
-                <div className="overflow-hidden rounded-full shadow-lg">
-                  <div className="aspect-square h-24 w-24 bg-muted rounded-full flex items-center justify-center">
-                    <span className="text-muted-foreground text-lg font-medium font-mono">
-                      {name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
+        <section aria-labelledby={headingId} className="relative z-10 mb-8">
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 id={headingId} className="font-poppins text-xl font-semibold text-foreground sm:text-2xl">Cast</h2>
+                <div className="flex shrink-0 items-center gap-2">
+                    <CarouselAction size="icon-sm" aria-label="Scroll cast left" disabled={position.start} onClick={() => scroll(-1)}>
+                        <ChevronLeft className="size-4" />
+                    </CarouselAction>
+                    <CarouselAction size="icon-sm" aria-label="Scroll cast right" disabled={position.end} onClick={() => scroll(1)}>
+                        <ChevronRight className="size-4" />
+                    </CarouselAction>
                 </div>
-                <figcaption className="pt-3 text-xs text-center text-muted-foreground max-w-24">
-                  <p
-                    className="font-semibold text-foreground truncate"
-                    title={name}
-                  >
-                    {name}
-                  </p>
-                </figcaption>
-              </figure>
             </div>
-          ))}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </section>
-  );
+            <div ref={viewport} onScroll={updatePosition} tabIndex={0} role="region" aria-label="Cast members" className="overflow-x-auto overscroll-x-contain rounded-lg pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <ul className="flex w-max gap-6">
+                    {cast.map((member) => (
+                        <li key={member.id} className="w-28 shrink-0 text-center">
+                            <Avatar className="mx-auto size-24">
+                                {member.image && <AvatarImage src={member.image} alt={member.name} loading="lazy" className="object-cover object-center" />}
+                                <AvatarFallback className="text-2xl font-medium text-muted-foreground">
+                                    {member.name.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0]).join("")}
+                                </AvatarFallback>
+                            </Avatar>
+                            <p className="mt-3 break-words text-sm font-semibold leading-snug text-foreground">{member.name}</p>
+                            {member.role && <p className="mt-1 break-words text-[13px] leading-snug text-muted-foreground">{member.role}</p>}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </section>
+    );
 }

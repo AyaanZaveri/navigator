@@ -1,3 +1,4 @@
+import { CastSection } from "@/components/media-page/cast-section";
 import { MediaSection } from "@/components/media-section";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { HeroWordmark } from "@/components/hero-wordmark";
@@ -106,6 +107,10 @@ export default async function SeriesLayout({
             prefetchedVideos={show.videos}
           />
         </div>
+
+        <Suspense fallback={null}>
+          <CastSection id={id} type="series" names={show.cast} />
+        </Suspense>
 
         <Suspense fallback={null}>
           <SimilarShows showId={id} />
