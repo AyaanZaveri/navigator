@@ -13,7 +13,8 @@ export function CarouselAction({
             size={size}
             {...props}
             className={cn(
-                "bg-background/90 dark:bg-background/70! backdrop-blur-md border-border text-foreground rounded-xl shadow-none hover:bg-accent",
+                "bg-background/90 dark:bg-background/70! backdrop-blur-md border-border text-foreground shadow-none hover:bg-accent",
+                size?.startsWith("icon") ? "rounded-full" : "rounded-xl",
                 className,
             )}
         />
