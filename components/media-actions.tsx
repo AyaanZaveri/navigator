@@ -12,23 +12,18 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FilterX, Loader2, Play, Puzzle, Search, SearchX } from "lucide-react";
+import { FilterX, Loader2, Play, Puzzle, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
+import { Select } from "@/components/arc/select/select";
+import { SearchField } from "@/components/arc/search-field/search-field";
+import { ChipGroup } from "@/components/arc/chip-group/chip-group";
+import styles from "./media-actions.module.css";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MediaActionsProps {
   media?: MediaItem;
@@ -62,9 +57,9 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
   const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
   const [selectedStreamTags, setSelectedStreamTags] = useState<string[]>([]);
-  const [resumePositionTicks, setResumePositionTicks] = useState<number | undefined>(
-    activeMedia?.resumePositionTicks
-  );
+  const [resumePositionTicks, setResumePositionTicks] = useState<
+    number | undefined
+  >(activeMedia?.resumePositionTicks);
 
   useEffect(() => {
     setResumePositionTicks(activeMedia?.resumePositionTicks);
@@ -75,10 +70,14 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     let cancelled = false;
 
     const libraryItemId = activeMedia.seriesId || activeMedia.id;
-    const targetVideoId = activeMedia.episodeId || activeMedia.mediaSourceId || activeMedia.id;
+    const targetVideoId =
+      activeMedia.episodeId || activeMedia.mediaSourceId || activeMedia.id;
 
     void (async () => {
-      const progress = await fetchPlaybackProgress(libraryItemId, targetVideoId);
+      const progress = await fetchPlaybackProgress(
+        libraryItemId,
+        targetVideoId,
+      );
       if (cancelled) return;
       if (
         typeof progress?.resumePositionTicks === "number" &&
@@ -91,7 +90,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeMedia?.episodeId, activeMedia?.id, activeMedia?.mediaSourceId, activeMedia?.seriesId]);
+  }, [
+    activeMedia?.episodeId,
+    activeMedia?.id,
+    activeMedia?.mediaSourceId,
+    activeMedia?.seriesId,
+  ]);
 
   useEffect(() => {
     if (!activeMedia) return;
@@ -112,7 +116,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       setSelectedStreamTags([]);
       try {
         const targetsResponse = await fetch(
-          `/api/streams/addons?type=${encodeURIComponent(activeMedia.type)}`
+          `/api/streams/addons?type=${encodeURIComponent(activeMedia.type)}`,
         );
         const targetsData = await targetsResponse.json();
         const targets: StreamAddonTarget[] = Array.isArray(targetsData?.addons)
@@ -137,10 +141,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
           void (async () => {
             try {
               const streamResponse = await fetch(
-                `/api/streams/addon?mediaItemId=${encodeURIComponent(activeMedia.id)}&type=${encodeURIComponent(activeMedia.type)}&addonId=${encodeURIComponent(target.id)}`
+                `/api/streams/addon?mediaItemId=${encodeURIComponent(activeMedia.id)}&type=${encodeURIComponent(activeMedia.type)}&addonId=${encodeURIComponent(target.id)}`,
               );
               const streamData = await streamResponse.json();
-              const result: StreamWithAddon[] = Array.isArray(streamData?.streams)
+              const result: StreamWithAddon[] = Array.isArray(
+                streamData?.streams,
+              )
                 ? streamData.streams.map((stream: StremioStream) => ({
                     ...stream,
                     addonId: target.id,
@@ -153,7 +159,9 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               if (result.length > 0) {
                 setStreams((previous) => {
                   const existing = new Set(
-                    previous.map((stream) => `${stream.addonId}|${getStreamKey(stream)}`)
+                    previous.map(
+                      (stream) => `${stream.addonId}|${getStreamKey(stream)}`,
+                    ),
                   );
                   const next = [...previous];
                   for (const stream of result) {
@@ -198,13 +206,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
   if (!activeMedia) return null;
 
-  const selectedAddonName =
-    selectedAddonId === "all"
-      ? "All"
-      : addonTargets.find((addon) => addon.id === selectedAddonId)?.name || "All";
-
   const selectableAddonTargets = addonTargets.filter(
-    (addon) => !HIDDEN_ADDON_IDS.has(addon.id)
+    (addon) => !HIDDEN_ADDON_IDS.has(addon.id),
   );
 
   const addonFilteredStreams =
@@ -226,20 +229,28 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       .join(" ")
       .toLowerCase();
 
-    if (normalizedSearchQuery && !searchableText.includes(normalizedSearchQuery)) {
+    if (
+      normalizedSearchQuery &&
+      !searchableText.includes(normalizedSearchQuery)
+    ) {
       return false;
     }
 
     if (selectedResolutions.length > 0) {
       const detectedResolution = detectStreamResolution(searchableText);
-      if (!detectedResolution || !selectedResolutions.includes(detectedResolution)) {
+      if (
+        !detectedResolution ||
+        !selectedResolutions.includes(detectedResolution)
+      ) {
         return false;
       }
     }
 
     if (selectedStreamTags.length > 0) {
       const tags = detectStreamTags(searchableText);
-      const matchesAnySelectedTag = selectedStreamTags.some((tag) => tags.has(tag));
+      const matchesAnySelectedTag = selectedStreamTags.some((tag) =>
+        tags.has(tag),
+      );
       if (!matchesAnySelectedTag) {
         return false;
       }
@@ -269,8 +280,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       streamUrl,
       mediaSourceId: isEpisode ? activeMedia.episodeId : activeMedia.id,
       seriesId: isEpisode ? activeMedia.seriesId : undefined,
-      showName: isEpisode ? activeMedia.showName || activeMedia.name : undefined,
-      episodeTitle: isEpisode ? activeMedia.episodeTitle || activeMedia.name : undefined,
+      showName: isEpisode
+        ? activeMedia.showName || activeMedia.name
+        : undefined,
+      episodeTitle: isEpisode
+        ? activeMedia.episodeTitle || activeMedia.name
+        : undefined,
       seasonNumber: isEpisode ? activeMedia.seasonNumber : undefined,
       episodeNumber: isEpisode ? activeMedia.episodeNumber : undefined,
       backdropUrl: activeMedia.background || activeMedia.poster,
@@ -309,107 +324,97 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   }
 
   const formatVideoSize = (sizeInBytes?: number) =>
-    typeof sizeInBytes === "number" ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB` : null;
+    typeof sizeInBytes === "number"
+      ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB`
+      : null;
 
   return (
     <div className="flex flex-col gap-2 mb-6 w-full">
       {(selectableAddonTargets.length > 0 || isAddonLoading) && (
-        <div className="mb-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 flex-1 items-center gap-2 flex-wrap">
-              <InputGroup className="max-w-sm">
-                <InputGroupInput
-                  value={streamSearchQuery}
-                  onChange={(event) => setStreamSearchQuery(event.target.value)}
-                  aria-label="Search stream results"
-                  placeholder="Find the least broken stream..."
-                />
-                <InputGroupAddon align="inline-end">
-                  <Search className="h-4 w-4" />
-                </InputGroupAddon>
-              </InputGroup>
-              {selectableAddonTargets.length > 0 && (
-                <Select value={selectedAddonId} onValueChange={setSelectedAddonId}>
-                  <SelectTrigger className="h-9 gap-1.5">
-                    <Puzzle className="h-3 w-3" />
-                    <SelectValue>{selectedAddonName}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom" align="start" sideOffset={6}>
-                    <SelectItem value="all">All</SelectItem>
-                    {selectableAddonTargets.map((addon) => (
-                      <SelectItem key={addon.id} value={addon.id}>
-                        {addon.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <ToggleGroup
-                type="multiple"
-                variant="outline"
-                size="default"
-                value={selectedResolutions}
-                onValueChange={setSelectedResolutions}
-                className="flex-wrap shadow-xs"
-                aria-label="Filter by resolution"
-              >
-                {RESOLUTION_FILTERS.map((resolution) => (
-                  <ToggleGroupItem
-                    key={resolution}
-                    value={resolution}
-                    aria-label={`Filter by ${resolution}`}
-                  >
-                    {resolution}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              <ToggleGroup
-                type="multiple"
-                variant="outline"
-                size="default"
-                value={selectedStreamTags}
-                onValueChange={setSelectedStreamTags}
-                className="flex-wrap shadow-xs"
-                aria-label="Filter by stream tags"
-              >
-                {STREAM_TAG_FILTERS.map((tag) => (
-                  <ToggleGroupItem
-                    key={tag}
-                    value={tag}
-                    aria-label={`Filter by ${tag}`}
-                  >
-                    {tag}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              {hasActiveFilters && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label="Clear filters"
-                      onClick={() => {
-                        setSelectedResolutions([]);
-                        setSelectedStreamTags([]);
-                      }}
-                    >
-                      <FilterX className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={6}>
-                    Clear filters
-                  </TooltipContent>
-                </Tooltip>
-              )}
+        <div className={styles.toolbar}>
+          <div className={styles.fields}>
+            <div className={styles.search}>
+              <SearchField
+                label="Search streams"
+                value={streamSearchQuery}
+                onValueChange={setStreamSearchQuery}
+                placeholder="Find the least broken stream..."
+                autoComplete="off"
+              />
             </div>
+            {selectableAddonTargets.length > 0 && (
+              <div className={styles.addon}>
+                <Select
+                  label="Addon"
+                  value={selectedAddonId}
+                  onValueChange={setSelectedAddonId}
+                  options={[
+                    { value: "all", label: "All addons", icon: <Puzzle /> },
+                    ...selectableAddonTargets.map((addon) => ({
+                      value: addon.id,
+                      label: addon.name,
+                      icon: <Puzzle />,
+                    })),
+                  ]}
+                />
+              </div>
+            )}
             {isAddonLoading && (
-              <div className="mr-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-xs backdrop-blur-sm">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <div role="status" className={styles.loading}>
+                <Loader2
+                  aria-hidden="true"
+                  className="size-3.5 animate-spin motion-reduce:animate-none"
+                />
                 <span>
                   {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
                 </span>
               </div>
+            )}
+          </div>
+          <div className={styles.facets}>
+            <fieldset className={styles.facet}>
+              <legend>Resolution</legend>
+              <ChipGroup
+                label="Filter by resolution"
+                multiple
+                options={RESOLUTION_FILTERS.map((resolution) => ({
+                  value: resolution,
+                  label: resolution,
+                }))}
+                value={selectedResolutions}
+                onValueChange={setSelectedResolutions}
+              />
+            </fieldset>
+            <fieldset className={styles.facet}>
+              <legend>Format</legend>
+              <ChipGroup
+                label="Filter by stream format"
+                multiple
+                options={STREAM_TAG_FILTERS.map((tag) => ({
+                  value: tag,
+                  label: tag,
+                }))}
+                value={selectedStreamTags}
+                onValueChange={setSelectedStreamTags}
+              />
+            </fieldset>
+            {hasActiveFilters && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Clear filters"
+                    onClick={() => {
+                      setSelectedResolutions([]);
+                      setSelectedStreamTags([]);
+                    }}
+                  >
+                    <FilterX className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>Clear filters</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>
@@ -465,7 +470,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
           </ScrollArea>
           <div className="-mb-3 mt-3 flex justify-end pr-3">
             <span className="text-xs text-muted-foreground font-mono">
-              {filteredStreams.length} stream{filteredStreams.length === 1 ? "" : "s"} found
+              {filteredStreams.length} stream
+              {filteredStreams.length === 1 ? "" : "s"} found
             </span>
           </div>
         </div>
@@ -506,15 +512,15 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               {normalizedSearchQuery || hasActiveFilters
                 ? "Your filters were a little too powerful"
                 : selectedAddonId === "all"
-                ? "No streams crawled out of hiding"
-                : "This addon is stream-empty right now"}
+                  ? "No streams crawled out of hiding"
+                  : "This addon is stream-empty right now"}
             </EmptyTitle>
             <EmptyDescription>
               {normalizedSearchQuery || hasActiveFilters
                 ? "Loosen the search/filters a bit and you should find the least broken stream."
                 : selectedAddonId === "all"
-                ? "Try again in a minute, or switch addons and hunt for a less cursed source."
-                : "Pick another addon, or clear filters and let chaos do the sorting."}
+                  ? "Try again in a minute, or switch addons and hunt for a less cursed source."
+                  : "Pick another addon, or clear filters and let chaos do the sorting."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

@@ -1,0 +1,66 @@
+.toolbar {
+  --accent: var(--primary);
+  --accent-strong: var(--primary);
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-block-end: var(--space-3);
+}
+
+.fields {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.search {
+  flex: 1 1 20rem;
+  min-width: 0;
+  max-width: 30rem;
+}
+
+.addon {
+  flex: 0 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.facets {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-4) var(--space-6);
+}
+
+.facet {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.facet legend {
+  margin-block-end: var(--space-2);
+  padding: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: var(--leading-body);
+}
+
+.loading {
+  display: inline-flex;
+  min-height: var(--control-height-md);
+  max-width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
