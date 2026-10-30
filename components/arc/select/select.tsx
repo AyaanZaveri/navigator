@@ -13,6 +13,7 @@ export interface SelectProps extends Omit<ComponentPropsWithoutRef<typeof Select
   "aria-describedby"?: string;
   "aria-busy"?: boolean;
   label: string;
+  hideLabel?: boolean;
   description?: string;
   placeholder?: string;
   id?: string;
@@ -30,7 +31,7 @@ const valueRoll: Variants = {
 const valueFade: Variants = { enter: { opacity: 0 }, center: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: motionTokens.duration.instant } }, exit: { opacity: 0, transition: { duration: motionTokens.duration.instant } } };
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select(
-    { "aria-describedby": describedBy, "aria-busy": busy, label, description, placeholder = "Select an option", options, id, className, disabled, onValueChange, ...rootProps },
+    { "aria-describedby": describedBy, "aria-busy": busy, label, hideLabel = false, description, placeholder = "Select an option", options, id, className, disabled, onValueChange, ...rootProps },
     ref,
 ) {
     const generatedId = useId();
@@ -47,7 +48,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
 
     return (
         <div className={styles.field}>
-            <label htmlFor={controlId}>{label}</label>
+            <label htmlFor={controlId} className={hideLabel ? styles.srOnly : undefined}>{label}</label>
             <SelectPrimitive.Root {...rootProps} disabled={disabled} onValueChange={(next) => { setUncontrolledValue(next); onValueChange?.(next); }}>
                 <SelectPrimitive.Trigger
                     ref={ref}

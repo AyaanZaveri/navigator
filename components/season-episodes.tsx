@@ -11,13 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { CarouselAction } from "@/components/carousel-action";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/arc/select/select";
 import {
   fetchSeasons,
   fetchEpisodes,
@@ -425,25 +419,18 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   return (
     <div className="mt-3">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4 px-1">
-        <div className="relative z-[9999] min-w-0 max-w-full">
+        <div className="w-48 min-w-0 max-w-full">
           <Select
+            label="Season"
+            hideLabel
             value={selectedSeason?.toString() ?? ""}
-            onValueChange={(val) => setSelectedSeason(Number(val))}
-          >
-            <SelectTrigger className="w-48 max-w-full">
-              <SelectValue placeholder="Select season" />
-            </SelectTrigger>
-            <SelectContent className="z-[9999]">
-              {seasons.map((season) => (
-                <SelectItem
-                  key={season.number}
-                  value={season.number.toString()}
-                >
-                  {season.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={(value) => setSelectedSeason(Number(value))}
+            placeholder="Select season"
+            options={seasons.map((season) => ({
+              value: season.number.toString(),
+              label: season.name,
+            }))}
+          />
         </div>
         <div className="ms-auto flex shrink-0 items-center gap-2">
           <CarouselAction
