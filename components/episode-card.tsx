@@ -39,7 +39,7 @@ export function EpisodeCard({
   return (
     <div className="cursor-pointer group overflow-hidden transition select-none w-64">
       <div className="relative w-full border rounded-md overflow-hidden active:scale-[0.98] transition aspect-video">
-        <Link href={linkHref} draggable={false} className="block w-full h-full">
+        <Link href={linkHref} prefetch={true} draggable={false} className="block w-full h-full">
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -69,7 +69,7 @@ export function EpisodeCard({
           </div>
         </div>
       </div>
-      <Link href={linkHref} draggable={false}>
+      <Link href={linkHref} prefetch={true} draggable={false}>
         <div className="px-1">
           <div className="mt-2.5 text-sm font-medium text-foreground line-clamp-2 group-hover:underline">
             {episode.title}

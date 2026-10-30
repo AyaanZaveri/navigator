@@ -86,7 +86,7 @@ export function MediaCard({
           continueWatching ? "aspect-video" : "aspect-[2/3]"
         }`}
       >
-        <Link href={linkHref} draggable={false} className="block w-full h-full">
+        <Link href={linkHref} prefetch={true} draggable={false} className="block w-full h-full">
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -143,7 +143,7 @@ export function MediaCard({
           </div>
         ) : null}
       </div>
-      <Link href={linkHref} draggable={false}>
+      <Link href={linkHref} prefetch={true} draggable={false}>
         <div className="px-1">
           <div className="mt-2.5 text-sm font-medium text-foreground truncate group-hover:underline">
             {item.name}

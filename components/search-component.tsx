@@ -43,6 +43,18 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
   const inputRef = useRef<HTMLInputElement>(null);
   const urlQuery = (searchParams.get("q") ?? "").trim();
 
+  useEffect(() => {
+    if (!showSuggestions || isPlayerVisible) return;
+
+    // Suggestions use router.push rather than Link. Warm the same full-route
+    // cache as the catalog cards while the (at most six) results are shown.
+    for (const item of suggestions) {
+      if (item.type === "movie" || item.type === "series") {
+        router.prefetch(`/${item.type}/${item.id}`);
+      }
+    }
+  }, [suggestions, showSuggestions, isPlayerVisible, router]);
+
   const loadingComponent = useMemo(
     () => (
       <div className="flex justify-center items-center p-8">

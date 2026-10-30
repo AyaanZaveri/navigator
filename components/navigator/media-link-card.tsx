@@ -120,6 +120,7 @@ export const MediaLinkCard: React.FC<MediaLinkCardProps> = ({
       }}
     >
       <Link
+        prefetch={true}
         className={cn(
           "group cursor-pointer transition duration-200 bg-card backdrop-blur-sm p-3 rounded-xl hover:bg-card/50 w-full block active:scale-[0.99] relative overflow-hidden",
           className

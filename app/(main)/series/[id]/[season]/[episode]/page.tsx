@@ -1,11 +1,11 @@
 import { Badge } from "@/components/ui/badge";
-import { TextAnimate } from "@/components/magicui/text-animate";
 import { Star, TvIcon } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildSeriesPath } from "@/lib/series-route";
 import { getSeriesEpisodeSelectionData } from "../../_shared/series-data";
-import { fetchPlaybackProgress } from "@/app/actions";
+import { Suspense } from "react";
+import { PlaybackProgressOverlay } from "@/components/media-page/playback-progress-overlay";
 import { EpisodeHeroThumbnail } from "@/components/episode-hero-thumbnail";
 
 export default async function EpisodeOnSeriesPage({
@@ -14,16 +14,6 @@ export default async function EpisodeOnSeriesPage({
   params: Promise<{ id: string; season: string; episode: string }>;
 }) {
   const { id, season, episode } = await params;
-  const formatResumeTime = (totalSeconds: number) => {
-    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    const seconds = safeSeconds % 60;
-    if (hours > 0) {
-      return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-    }
-    return `${minutes}:${String(seconds).padStart(2, "0")}`;
-  };
 
   try {
     const episodeData = await getSeriesEpisodeSelectionData(id, season, episode);
@@ -40,7 +30,6 @@ export default async function EpisodeOnSeriesPage({
       selectedEpisodeTitle,
       regularSeasonCount,
     } = episodeData;
-    const playbackProgress = await fetchPlaybackProgress(show.id, selectedEpisode.id);
 
     return (
       <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
@@ -51,33 +40,9 @@ export default async function EpisodeOnSeriesPage({
               released={selectedEpisode.released}
               title={selectedEpisodeTitle}
             />
-            {(typeof playbackProgress?.progressPercent === "number" ||
-              typeof playbackProgress?.resumePositionTicks === "number" ||
-              typeof playbackProgress?.totalDuration === "number") && (
-                <div className="absolute inset-x-2 bottom-2 pointer-events-none">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
-                      {formatResumeTime(
-                        playbackProgress?.resumePositionTicks ?? 0
-                      )}
-                    </span>
-                    <span className="rounded-full bg-black/35 backdrop-blur-md border border-white/20 px-1.5 py-0.5 text-[11px] leading-none font-mono text-white/90">
-                      {formatResumeTime(playbackProgress?.totalDuration ?? 0)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-white/80 transition-all"
-                      style={{
-                        width: `${Math.max(
-                          0,
-                          Math.min(100, playbackProgress?.progressPercent ?? 0)
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
+            <Suspense fallback={null}>
+              <PlaybackProgressOverlay mediaId={show.id} videoId={selectedEpisode.id} />
+            </Suspense>
           </div>
         </div>
 
@@ -86,6 +51,7 @@ export default async function EpisodeOnSeriesPage({
             <h2 className="text-sm font-medium text-muted-foreground md:pl-8 inline-flex items-center">
               <Link
                 href={buildSeriesPath(id)}
+                prefetch={true}
                 className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
               >
                 <TvIcon className="w-3.5 h-3.5 mr-2" />
@@ -97,15 +63,11 @@ export default async function EpisodeOnSeriesPage({
           </div>
 
           <div className="mb-4 flex justify-center md:justify-start">
-            <TextAnimate
-              as="h1"
+            <h1
               className="text-4xl md:text-5xl font-semibold font-poppins text-foreground md:pl-8 drop-shadow-xl"
-              animation="blurInUp"
-              by="character"
-              once
             >
               {`${episodeNumber}. ${selectedEpisodeTitle}`}
-            </TextAnimate>
+            </h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mb-2 justify-center md:justify-start md:pl-8">

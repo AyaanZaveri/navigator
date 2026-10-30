@@ -1,17 +1,15 @@
 import { cache } from "react";
-import { fetchMediaDetails, fetchSimilarItems } from "@/app/actions";
+import { fetchMediaDetails } from "@/app/actions";
 import type { MediaItem, StremioVideo } from "@/types/stremio";
 
 export interface SeriesLayoutData {
   show: MediaItem;
   regularSeasonCount: number;
-  similarItems: MediaItem[];
 }
 
 export interface SeriesEpisodeSelectionData {
   show: MediaItem;
   regularSeasonCount: number;
-  similarItems: MediaItem[];
   seasonNumber: number;
   episodeNumber: number;
   selectedEpisode: StremioVideo;
@@ -21,10 +19,9 @@ export interface SeriesEpisodeSelectionData {
 
 export const getSeriesLayoutData = cache(
   async (id: string): Promise<SeriesLayoutData | null> => {
-    const [show, similarItems] = await Promise.all([
-      fetchMediaDetails(id, "series"),
-      fetchSimilarItems(id, "series", 12),
-    ]);
+    // Recommendations belong to the layout's streamed section, not the
+    // critical path shared by the overview and every episode selection.
+    const show = await fetchMediaDetails(id, "series");
 
     if (!show) {
       return null;
@@ -42,7 +39,6 @@ export const getSeriesLayoutData = cache(
     return {
       show,
       regularSeasonCount: seasonNumbers.size,
-      similarItems,
     };
   }
 );

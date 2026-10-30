@@ -14,6 +14,18 @@ import {
 } from "@/lib/series-route";
 import { getSeriesLayoutData } from "./_shared/series-data";
 import { Suspense } from "react";
+import { fetchSimilarItems } from "@/app/actions";
+
+async function SimilarShows({ showId }: { showId: string }) {
+  const items = await fetchSimilarItems(showId, "series", 12);
+  if (!items.length) return null;
+
+  return (
+    <div className="mt-8 px-6">
+      <MediaSection sectionName="More Like This" mediaItems={items} />
+    </div>
+  );
+}
 
 export default async function SeriesLayout({
   children,
@@ -36,7 +48,7 @@ export default async function SeriesLayout({
       return <div className="p-4">Show not found</div>;
     }
 
-    const { show, similarItems } = layoutData;
+    const { show } = layoutData;
 
     return (
       <div className="min-h-screen overflow-hidden md:pr-1 pb-8">
@@ -57,6 +69,7 @@ export default async function SeriesLayout({
             {show.logo && (
               <Link
                 href={buildSeriesPath(id)}
+                prefetch={true}
                 aria-label={`Go to ${show.name} series page`}
                 className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-w-2/3 invisible md:visible transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
               >
@@ -95,14 +108,9 @@ export default async function SeriesLayout({
           <EpisodeStreamsRouteAware show={show} prefetchedVideos={show.videos} />
         </div>
 
-        {similarItems && similarItems.length > 0 && (
-          <div className="mt-8 px-6">
-            <MediaSection
-              sectionName="More Like This"
-              mediaItems={similarItems}
-            />
-          </div>
-        )}
+        <Suspense fallback={null}>
+          <SimilarShows showId={id} />
+        </Suspense>
       </div>
     );
   } catch (error: any) {

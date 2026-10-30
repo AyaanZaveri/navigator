@@ -557,6 +557,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
     >
       <Link
         href={buildEpisodePath(showId, episode.season, episode.episode)}
+        prefetch={true}
         className="block"
         draggable={false}
         scroll={false}

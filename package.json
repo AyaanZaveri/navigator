@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:navigation": "node scripts/test-navigation.mjs"
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^1.0.38",
