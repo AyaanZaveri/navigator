@@ -1,6 +1,6 @@
 import { MediaSection } from "@/components/media-section";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
-import { VibrantLogo } from "@/components/vibrant-logo";
+import { HeroWordmark } from "@/components/hero-wordmark";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
@@ -71,15 +71,13 @@ export default async function SeriesLayout({
                   href={buildSeriesPath(id)}
                   prefetch={true}
                   aria-label={`Go to ${show.name} series page`}
-                  className="pointer-events-auto block w-[min(30rem,60%)] transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
+                  className="pointer-events-auto block w-[min(40rem,70%)] transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
                 >
-                  <VibrantLogo
+                  <HeroWordmark
                     src={show.logo}
                     alt={`${show.name} logo`}
                     movieName={show.name || ""}
-                    width={480}
-                    height={154}
-                    className="max-h-28 w-full h-auto object-contain"
+                    className="w-full"
                   />
                 </Link>
               </div>

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { MediaSection } from "@/components/media-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
-import { VibrantLogo } from "@/components/vibrant-logo";
+import { HeroWordmark } from "@/components/hero-wordmark";
 import { Star } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
@@ -88,13 +88,11 @@ export default async function Movie({
             />
             {movie.logo && (
               <div className="pointer-events-none absolute inset-x-0 top-16 bottom-54 z-10 hidden place-items-center md:grid">
-                <VibrantLogo
+                <HeroWordmark
                   src={movie.logo}
                   alt={`${movie.name} logo`}
                   movieName={movie.name || ""}
-                  width={480}
-                  height={154}
-                  className="max-h-28 w-[min(30rem,60%)] h-auto object-contain"
+                  className="w-[min(40rem,70%)]"
                 />
               </div>
             )}
