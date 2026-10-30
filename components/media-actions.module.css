@@ -1,40 +1,27 @@
-.toolbar {
-  --accent: var(--primary);
-  --accent-strong: var(--primary);
+.root {
+  container-type: inline-size;
   display: flex;
   min-width: 0;
   width: 100%;
   flex-direction: column;
   gap: var(--space-4);
-  margin-block-end: var(--space-3);
+  margin-block-end: var(--space-6);
 }
 
-.fields {
-  display: flex;
+.toolbar {
+  --accent: var(--primary);
+  --accent-strong: var(--primary);
+  display: grid;
   min-width: 0;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
 }
 
-.search {
-  flex: 1 1 20rem;
-  min-width: 0;
-  max-width: 30rem;
-}
-
+.search,
 .addon {
-  flex: 0 1 12rem;
   min-width: 0;
-  max-width: 100%;
-}
-
-.facets {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: var(--space-4) var(--space-6);
+  line-height: var(--leading-body);
 }
 
 .facet {
@@ -52,15 +39,82 @@
   font-size: var(--text-sm);
   font-weight: 500;
   line-height: var(--leading-body);
+  letter-spacing: var(--tracking-body);
+}
+
+/* Match the search and select's control row, even when chips wrap. */
+.chips {
+  min-height: var(--control-height-md);
+  align-items: center;
+  align-content: center;
+}
+
+.feedback {
+  grid-column: 1 / -1;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .loading {
   display: inline-flex;
-  min-height: var(--control-height-md);
-  max-width: 100%;
+  min-width: 0;
   align-items: center;
   gap: var(--space-2);
-  margin-inline-start: auto;
   color: var(--muted-foreground);
   font-size: var(--text-xs);
+}
+
+.reset {
+  margin-inline-start: auto;
+}
+
+.results,
+.streamList {
+  min-width: 0;
+}
+
+.streamList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.streamRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.playAction {
+  display: flex;
+  flex-shrink: 0;
+  justify-self: end;
+}
+
+@container (min-width: 24rem) {
+  .streamRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@container (min-width: 40rem) {
+  .toolbar {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    column-gap: var(--space-6);
+  }
+}
+
+/* Leave enough room for every chip to be selected without crowding search. */
+@container (min-width: 72rem) {
+  .toolbar {
+    grid-template-columns: minmax(16rem, 1fr) minmax(
+        10rem,
+        12rem
+      ) max-content max-content;
+  }
 }

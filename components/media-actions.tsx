@@ -19,11 +19,6 @@ import { Select } from "@/components/arc/select/select";
 import { SearchField } from "@/components/arc/search-field/search-field";
 import { ChipGroup } from "@/components/arc/chip-group/chip-group";
 import styles from "./media-actions.module.css";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface MediaActionsProps {
   media?: MediaItem;
@@ -329,101 +324,100 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       : null;
 
   return (
-    <div className="flex flex-col gap-2 mb-6 w-full">
+    <div className={styles.root}>
       {(selectableAddonTargets.length > 0 || isAddonLoading) && (
         <div className={styles.toolbar}>
-          <div className={styles.fields}>
-            <div className={styles.search}>
-              <SearchField
-                label="Search streams"
-                value={streamSearchQuery}
-                onValueChange={setStreamSearchQuery}
-                placeholder="Find the least broken stream..."
-                autoComplete="off"
+          <div className={styles.search}>
+            <SearchField
+              label="Search streams"
+              value={streamSearchQuery}
+              onValueChange={setStreamSearchQuery}
+              placeholder="Find the least broken stream..."
+              autoComplete="off"
+            />
+          </div>
+          {selectableAddonTargets.length > 0 && (
+            <div className={styles.addon}>
+              <Select
+                label="Addon"
+                value={selectedAddonId}
+                onValueChange={setSelectedAddonId}
+                options={[
+                  { value: "all", label: "All addons", icon: <Puzzle /> },
+                  ...selectableAddonTargets.map((addon) => ({
+                    value: addon.id,
+                    label: addon.name,
+                    icon: <Puzzle />,
+                  })),
+                ]}
               />
             </div>
-            {selectableAddonTargets.length > 0 && (
-              <div className={styles.addon}>
-                <Select
-                  label="Addon"
-                  value={selectedAddonId}
-                  onValueChange={setSelectedAddonId}
-                  options={[
-                    { value: "all", label: "All addons", icon: <Puzzle /> },
-                    ...selectableAddonTargets.map((addon) => ({
-                      value: addon.id,
-                      label: addon.name,
-                      icon: <Puzzle />,
-                    })),
-                  ]}
-                />
-              </div>
-            )}
-            {isAddonLoading && (
-              <div role="status" className={styles.loading}>
-                <Loader2
-                  aria-hidden="true"
-                  className="size-3.5 animate-spin motion-reduce:animate-none"
-                />
-                <span>
-                  {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
-                </span>
-              </div>
-            )}
-          </div>
-          <div className={styles.facets}>
-            <fieldset className={styles.facet}>
-              <legend>Resolution</legend>
-              <ChipGroup
-                label="Filter by resolution"
-                multiple
-                options={RESOLUTION_FILTERS.map((resolution) => ({
-                  value: resolution,
-                  label: resolution,
-                }))}
-                value={selectedResolutions}
-                onValueChange={setSelectedResolutions}
-              />
-            </fieldset>
-            <fieldset className={styles.facet}>
-              <legend>Format</legend>
-              <ChipGroup
-                label="Filter by stream format"
-                multiple
-                options={STREAM_TAG_FILTERS.map((tag) => ({
-                  value: tag,
-                  label: tag,
-                }))}
-                value={selectedStreamTags}
-                onValueChange={setSelectedStreamTags}
-              />
-            </fieldset>
-            {hasActiveFilters && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Clear filters"
-                    onClick={() => {
-                      setSelectedResolutions([]);
-                      setSelectedStreamTags([]);
-                    }}
-                  >
-                    <FilterX className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent sideOffset={6}>Clear filters</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
+          )}
+          <fieldset className={styles.facet}>
+            <legend>Resolution</legend>
+            <ChipGroup
+              label="Filter by resolution"
+              multiple
+              className={styles.chips}
+              options={RESOLUTION_FILTERS.map((resolution) => ({
+                value: resolution,
+                label: resolution,
+              }))}
+              value={selectedResolutions}
+              onValueChange={setSelectedResolutions}
+            />
+          </fieldset>
+          <fieldset className={styles.facet}>
+            <legend>Format</legend>
+            <ChipGroup
+              label="Filter by stream format"
+              multiple
+              className={styles.chips}
+              options={STREAM_TAG_FILTERS.map((tag) => ({
+                value: tag,
+                label: tag,
+              }))}
+              value={selectedStreamTags}
+              onValueChange={setSelectedStreamTags}
+            />
+          </fieldset>
+          {(isAddonLoading || hasActiveFilters) && (
+            <div className={styles.feedback}>
+              {isAddonLoading && (
+                <div role="status" className={styles.loading}>
+                  <Loader2
+                    aria-hidden="true"
+                    className="size-3.5 animate-spin motion-reduce:animate-none"
+                  />
+                  <span>
+                    {pendingAddons} addon{pendingAddons === 1 ? "" : "s"}{" "}
+                    loading
+                  </span>
+                </div>
+              )}
+              {hasActiveFilters && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={styles.reset}
+                  onClick={() => {
+                    setSelectedResolutions([]);
+                    setSelectedStreamTags([]);
+                  }}
+                >
+                  <FilterX aria-hidden="true" className="size-4" />
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {filteredStreams.length > 0 && (
-        <div className="-ml-3 -mt-3">
+        <div className={styles.results}>
           <ScrollArea className="w-full h-[24rem] rounded-xl">
-            <div className="p-3 space-y-2">
+            <div className={styles.streamList}>
               {filteredStreams.map((stream, index) => {
                 const streamUrl = stream.url || stream.externalUrl;
                 return (
@@ -431,19 +425,19 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                     key={index}
                     className="rounded-lg border border-border/60 bg-card/50 p-3 shadow-xs"
                   >
-                    <div className="flex items-start gap-3">
+                    <div className={styles.streamRow}>
                       <div className="min-w-0 flex-1">
                         <div className="text-base font-medium break-words">
                           {getSourceLabel(stream)}
                         </div>
                         {stream.title && (
-                          <div className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                          <div className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {stream.title}
                           </div>
                         )}
                         {(stream.behaviorHints?.filename ||
                           stream.behaviorHints?.videoSize) && (
-                          <div className="mt-1 text-xs text-muted-foreground font-mono break-all">
+                          <div className="mt-1 text-xs text-muted-foreground font-mono [overflow-wrap:anywhere]">
                             {stream.behaviorHints?.filename ?? "Unknown file"}
                             {formatVideoSize(stream.behaviorHints?.videoSize) &&
                               ` ~ ${formatVideoSize(stream.behaviorHints?.videoSize)}`}
@@ -451,7 +445,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                         )}
                       </div>
 
-                      <div className="flex shrink-0 self-center items-center gap-2">
+                      <div className={styles.playAction}>
                         <Button
                           variant="outline"
                           className="group h-9 px-3 gap-1.5 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
@@ -468,7 +462,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               })}
             </div>
           </ScrollArea>
-          <div className="-mb-3 mt-3 flex justify-end pr-3">
+          <div className="mt-3 flex justify-end">
             <span className="text-xs text-muted-foreground font-mono">
               {filteredStreams.length} stream
               {filteredStreams.length === 1 ? "" : "s"} found
@@ -478,20 +472,20 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       )}
 
       {loading && filteredStreams.length === 0 && (
-        <div className="-ml-3 -mt-3">
+        <div className={styles.results}>
           <ScrollArea className="w-full h-[22rem] rounded-xl">
-            <div className="p-3 space-y-2">
+            <div className={styles.streamList}>
               {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
                   key={item}
                   className="rounded-lg border border-border/60 bg-card/50 p-3 shadow-xs"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className={styles.streamRow}>
                     <div className="min-w-0 flex-1">
-                      <Skeleton className="h-6 w-56 rounded-md" />
-                      <Skeleton className="mt-2 h-3 w-72 rounded-md" />
+                      <Skeleton className="h-6 w-56 max-w-full rounded-md" />
+                      <Skeleton className="mt-2 h-3 w-72 max-w-full rounded-md" />
                     </div>
-                    <div className="flex shrink-0 self-center items-center gap-2">
+                    <div className={styles.playAction}>
                       <Skeleton className="h-9 w-[74px] rounded-md" />
                     </div>
                   </div>
