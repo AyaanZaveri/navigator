@@ -5,7 +5,7 @@ import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy
 import { MediaSection } from "@/components/media-section";
 import { SearchBar } from "@/components/search-component";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
+import { HomeGradientBackground } from "@/components/home-gradient-background";
 import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { MediaItem, StremioAddonCatalog } from "@/types/stremio";
@@ -93,24 +93,6 @@ function HomeCatalogsFallback() {
         />
       ))}
     </>
-  );
-}
-
-async function HomeBackground({
-  continueWatchingPromise,
-}: {
-  continueWatchingPromise: Promise<MediaItem[]>;
-}) {
-  const continueWatchingItems = await continueWatchingPromise;
-  const continueWatchingBackdrop =
-    continueWatchingItems[0]?.background || continueWatchingItems[0]?.poster;
-
-  return (
-    <VibrantAuroraBackground
-      backdropUrl={continueWatchingBackdrop}
-      amplitude={0.5}
-      className="fixed inset-0 z-0 pointer-events-none opacity-40"
-    />
   );
 }
 
@@ -210,16 +192,7 @@ export default function Home() {
   return (
     <AuthErrorHandler>
       <div className="relative px-4 py-6 max-w-full overflow-hidden">
-        <Suspense
-          fallback={
-            <VibrantAuroraBackground
-              amplitude={0.5}
-              className="fixed inset-0 z-0 pointer-events-none opacity-40"
-            />
-          }
-        >
-          <HomeBackground continueWatchingPromise={continueWatchingPromise} />
-        </Suspense>
+        <HomeGradientBackground />
 
         <div className="relative z-[9999] mb-8">
           <div className="mb-6">

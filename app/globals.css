@@ -98,10 +98,11 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-sunghyun-sans), sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-poppins: var(--font-poppins);
-  --font-family-poppins: var(--font-poppins);
+  /* Keep existing heading utilities aligned with the app font. */
+  --font-poppins: var(--font-sunghyun-sans), sans-serif;
+  --font-family-poppins: var(--font-sunghyun-sans), sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
