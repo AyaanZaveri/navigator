@@ -6,24 +6,9 @@ import { Eye, EyeOff, KeyRound } from "lucide-react";
 import { OpenCodeIcon } from "@/components/opencode-icon";
 import { ModelIcon } from "@/components/model-icon";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
-import { Switch } from "@/components/ui/switch";
-import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
-    Combobox,
-    ComboboxContent,
-    ComboboxEmpty,
-    ComboboxInput,
-    ComboboxItem,
-    ComboboxList,
-    useComboboxAnchor,
-} from "@/components/ui/combobox";
+import { Switch } from "@/components/arc/switch/switch";
+import { Select } from "@/components/arc/select/select";
+import { Combobox } from "@/components/arc/combobox/combobox";
 import {
     InputGroup,
     InputGroupAddon,
@@ -201,27 +186,17 @@ function SettingsSelect({ id, label, value, onValueChange, options, description,
 
     return (
         <Field data-disabled={unavailable || undefined}>
-            <FieldLabel htmlFor={id}>{label}</FieldLabel>
-            <Select value={value} onValueChange={onValueChange} disabled={unavailable}>
-                <SelectTrigger
-                    id={id}
-                    className="w-full min-w-0"
-                    aria-describedby={describedBy}
-                    aria-busy={loading || undefined}
-                >
-                    <SelectValue placeholder={loading ? "Loading models…" : `Select ${label.toLowerCase()}`} />
-                </SelectTrigger>
-                <SelectContent className="overscroll-contain">
-                    <SelectGroup>
-                        {options.map((option) => (
-                            <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
-                        ))}
-                        {options.length === 0 && (
-                            <SelectItem value="__no_options__" disabled>No options available</SelectItem>
-                        )}
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
+            <Select
+                id={id}
+                label={label}
+                value={value}
+                onValueChange={onValueChange}
+                disabled={unavailable}
+                aria-describedby={describedBy}
+                aria-busy={loading || undefined}
+                placeholder={loading ? "Loading models…" : `Select ${label.toLowerCase()}`}
+                options={options.length ? options.map((option) => ({ value: option.id, label: option.name })) : [{ value: "__no_options__", label: "No options available", disabled: true }]}
+            />
             {(loading || description) && (
                 <FieldDescription id={`${id}-description`} role="status">
                     {loading ? "Loading available models…" : description}
@@ -233,7 +208,6 @@ function SettingsSelect({ id, label, value, onValueChange, options, description,
 }
 
 function ModelCombobox({ id, value, onValueChange, options, description, loading, error, disabled }: Omit<SettingsSelectProps, "label">) {
-    const anchor = useComboboxAnchor();
     const selected = options.find((option) => option.id === value) ?? (value ? { id: value, name: value } : null);
     const unavailable = disabled || (loading && options.length === 0);
     const describedBy = [
@@ -243,51 +217,23 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
 
     return (
         <Field data-disabled={unavailable || undefined}>
-            <FieldLabel htmlFor={id}>Model</FieldLabel>
             <Combobox
-                items={options}
-                value={selected}
-                onValueChange={(model) => {
-                    if (model) onValueChange(model.id);
-                }}
-                itemToStringLabel={(model) => model.name}
-                itemToStringValue={(model) => model.id}
-                isItemEqualToValue={(model, current) => model.id === current.id}
-                filter={(model, query) => {
-                    const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-                    return normalize(`${model.name} ${model.id}`).includes(normalize(query));
-                }}
-                autoHighlight
+                id={id}
+                label="Model"
+                value={value}
+                onValueChange={onValueChange}
+                options={(selected && !options.some((option) => option.id === value) ? [selected, ...options] : options).map((model) => ({
+                    value: model.id,
+                    label: model.name,
+                    keywords: [model.id],
+                    icon: <ModelIcon model={model} />,
+                }))}
+                placeholder={loading ? "Loading models…" : "Search models…"}
+                emptyMessage={loading ? "Loading models…" : "No models found."}
+                aria-describedby={describedBy}
+                aria-busy={loading || undefined}
                 disabled={unavailable}
-            >
-                <div ref={anchor}>
-                    <ComboboxInput
-                        id={id}
-                        className="w-full min-w-0"
-                        placeholder={loading ? "Loading models…" : "Search models…"}
-                        aria-describedby={describedBy}
-                        aria-busy={loading || undefined}
-                        disabled={unavailable}
-                    >
-                        {selected && (
-                            <InputGroupAddon align="inline-start">
-                                <ModelIcon model={selected} />
-                            </InputGroupAddon>
-                        )}
-                    </ComboboxInput>
-                </div>
-                <ComboboxContent anchor={anchor} className="min-w-0">
-                    <ComboboxEmpty>{loading ? "Loading models…" : "No models found."}</ComboboxEmpty>
-                    <ComboboxList className="max-h-[min(16rem,var(--available-height))] overscroll-contain">
-                        {(model: ModelOption) => (
-                            <ComboboxItem key={model.id} value={model} title={model.name}>
-                                <ModelIcon model={model} />
-                                <span className="min-w-0 truncate">{model.name}</span>
-                            </ComboboxItem>
-                        )}
-                    </ComboboxList>
-                </ComboboxContent>
-            </Combobox>
+            />
             {(loading || description) && (
                 <FieldDescription id={`${id}-description`} role="status">
                     {loading ? "Loading available models…" : description}
@@ -701,27 +647,17 @@ export default function SettingsPage() {
                             <>
                                 <Separator />
                                 <Field>
-                                    <FieldLabel htmlFor="ai-provider">AI provider</FieldLabel>
-                                    <Select value={aiProvider} onValueChange={setAiProvider}>
-                                        <SelectTrigger id="ai-provider" className="w-full min-w-0" aria-describedby="ai-provider-description">
-                                            <SelectValue placeholder="Select a provider" />
-                                        </SelectTrigger>
-                                        <SelectContent className="overscroll-contain">
-                                            <SelectGroup>
-                                                {PROVIDERS.map((provider) => {
-                                                    const Icon = provider.icon;
-                                                    return (
-                                                        <SelectItem key={provider.value} value={provider.value}>
-                                                            <span className="flex items-center gap-2">
-                                                                <Icon />
-                                                                {provider.name}
-                                                            </span>
-                                                        </SelectItem>
-                                                    );
-                                                })}
-                                            </SelectGroup>
-                                        </SelectContent>
-                                    </Select>
+                                    <Select
+                                        id="ai-provider"
+                                        label="AI provider"
+                                        value={aiProvider}
+                                        onValueChange={(value) => setAiProvider(value as AIProvider)}
+                                        aria-describedby="ai-provider-description"
+                                        options={PROVIDERS.map((provider) => {
+                                            const Icon = provider.icon;
+                                            return { value: provider.value, label: provider.name, icon: <Icon /> };
+                                        })}
+                                    />
                                     <FieldDescription id="ai-provider-description">{selectedProvider.description}</FieldDescription>
                                 </Field>
 
@@ -748,11 +684,11 @@ export default function SettingsPage() {
                                         description="The address where your Ollama instance is running."
                                     />
                                 ) : (
-                                    <ApiKeyInput key={aiProvider} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
+                                    <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
                                 )}
 
                                 {currentModel.options ? (
-                                    <ModelCombobox key={aiProvider} id={`${aiProvider}-model`} {...currentModel} options={currentModel.options} />
+                                    <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} options={currentModel.options} />
                                 ) : (
                                     <SettingsInput
                                         id={`${aiProvider}-model`}
