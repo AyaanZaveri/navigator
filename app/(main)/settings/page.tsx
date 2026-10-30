@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
 import { OpenCodeIcon } from "@/components/opencode-icon";
@@ -44,7 +44,6 @@ import {
     OpenRouterReasoningEffort,
     useSettings,
 } from "@/contexts/settings-context";
-import { SearchBar } from "@/components/search-component";
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 
 const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
@@ -665,12 +664,7 @@ export default function SettingsPage() {
     const currentModel = modelSettings[aiProvider];
 
     return (
-        <div className="px-4 py-6 sm:px-6 lg:px-8">
-            <div className="mb-10">
-                <Suspense fallback={null}>
-                    <SearchBar />
-                </Suspense>
-            </div>
+        <div className="px-[var(--page-gutter)] py-6">
 
             <div className="flex w-full max-w-4xl flex-col gap-8 pb-10">
                 <header className="flex flex-col gap-2">

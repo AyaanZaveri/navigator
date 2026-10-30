@@ -1,4 +1,3 @@
-import { SearchBar } from "@/components/search-component";
 import { MediaSection } from "@/components/media-section";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { VibrantLogo } from "@/components/vibrant-logo";
@@ -85,12 +84,6 @@ export default async function SeriesLayout({
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90 md:rounded-xl" />
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent md:rounded-xl" />
-          </div>
-
-          <div className="absolute top-8 left-0 right-0 z-20 px-6">
-            <Suspense fallback={null}>
-              <SearchBar />
-            </Suspense>
           </div>
         </div>
 

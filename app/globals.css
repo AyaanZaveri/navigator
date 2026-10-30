@@ -1,9 +1,18 @@
+@import "../components/arc/foundation.css" layer(arc);
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --page-gutter: 1rem;
+  /* Arc surfaces follow the existing app theme rather than replacing it. */
+  --surface: var(--card);
+  --surface-raised: var(--popover);
+  --surface-muted: var(--muted);
+  --text-secondary: var(--muted-foreground);
+  --text-muted: var(--muted-foreground);
+  --font-body: var(--font-sunghyun-sans), sans-serif;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -15,7 +24,7 @@
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.50 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.58 0.22 27);
@@ -95,6 +104,14 @@
   --jellyfin-blue: #78d6ee;
   --jellyfin-purple-alt: #57bed8;
   --jellyfin-blue-alt: #8fe0f4;
+}
+
+@media (min-width: 40rem) {
+  :root { --page-gutter: 1.5rem; }
+}
+
+@media (min-width: 64rem) {
+  :root { --page-gutter: 2rem; }
 }
 
 @theme inline {

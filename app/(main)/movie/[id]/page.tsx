@@ -3,7 +3,6 @@ import {
   fetchSimilarItems,
 } from "@/app/actions";
 import { MediaActions } from "@/components/media-actions";
-import { SearchBar } from "@/components/search-component";
 import { Badge } from "@/components/ui/badge";
 import { MediaSection } from "@/components/media-section";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -102,12 +101,6 @@ export default async function Movie({
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90 md:rounded-xl" />
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent md:rounded-xl" />
-          </div>
-
-          <div className="absolute top-8 left-0 right-0 z-20 px-6">
-            <Suspense fallback={null}>
-              <SearchBar />
-            </Suspense>
           </div>
         </div>
 

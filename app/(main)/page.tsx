@@ -3,7 +3,6 @@ import { getInstalledAddons } from "@/app/actions/auth";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { MediaSection } from "@/components/media-section";
-import { SearchBar } from "@/components/search-component";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
 import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
@@ -191,16 +190,8 @@ export default function Home() {
 
   return (
     <AuthErrorHandler>
-      <div className="relative px-4 py-6 max-w-full overflow-hidden">
+      <div className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
         <HomeGradientBackground />
-
-        <div className="relative z-[9999] mb-8">
-          <div className="mb-6">
-            <Suspense fallback={null}>
-              <SearchBar />
-            </Suspense>
-          </div>
-        </div>
 
         <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
           <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />

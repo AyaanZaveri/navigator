@@ -1,14 +1,11 @@
 "use client";
 
 import { useAtom } from "jotai";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppHeader } from "@/components/app-header";
 import AIAsk from "@/components/navigator/ai-ask";
 import { GlobalMediaPlayer } from "@/components/global-media-player";
 import {
   isAIAskOpenAtom,
-  isDesktopMacAtom,
-  isDesktopFullscreenAtom,
   isFullscreenAtom,
   isNavigatorEnabledAtom,
 } from "@/lib/atoms";
@@ -17,12 +14,11 @@ import { useEffect } from "react";
 
 interface LayoutContentProps {
   children: React.ReactNode;
+  email: string;
 }
 
-export function LayoutContent({ children }: LayoutContentProps) {
+export function LayoutContent({ children, email }: LayoutContentProps) {
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
-  const [isDesktopMac] = useAtom(isDesktopMacAtom);
-  const [isDesktopFullscreen] = useAtom(isDesktopFullscreenAtom);
   const [isFullscreen] = useAtom(isFullscreenAtom);
   const [, setIsNavigatorEnabled] = useAtom(isNavigatorEnabledAtom);
   
@@ -62,18 +58,11 @@ export function LayoutContent({ children }: LayoutContentProps) {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      <SidebarProvider>
-        <AppSidebar
-          isDesktopMac={isDesktopMac}
-          isDesktopFullscreen={isDesktopFullscreen}
-        />
-        <SidebarInset
-          className={`flex-1 overflow-hidden ${isDesktopMac && !isDesktopFullscreen ? "pl-2.5" : ""}`}
-        >
-          <div className="flex-1 overflow-y-auto no-scrollbar">{children}</div>
-        </SidebarInset>
-      </SidebarProvider>
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <AppHeader email={email} />
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-[env(safe-area-inset-bottom)]">
+        {children}
+      </main>
       {navigatorEnabled && <AIAsk />}
       <GlobalMediaPlayer onToggleAIAsk={navigatorEnabled ? handleToggleAIAsk : undefined} />
     </div>

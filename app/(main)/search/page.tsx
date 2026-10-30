@@ -1,7 +1,6 @@
 import { listSearchAddonTargets, searchCatalogSectionsForAddon } from "@/app/actions";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { MediaCard } from "@/components/media-card";
-import { SearchBar } from "@/components/search-component";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SearchIcon } from "lucide-react";
 import { Suspense } from "react";
@@ -143,16 +142,8 @@ export default async function Search({
   const query = normalizeQueryParam(params.q);
 
   return (
-    <div className="relative px-4 py-6 max-w-full">
+    <div className="relative px-[var(--page-gutter)] py-6 max-w-full">
       <VibrantAuroraBackground amplitude={0.8} blend={0.4} />
-
-      <div className="relative z-[9999] mb-8">
-        <div className="mb-6">
-          <Suspense fallback={null}>
-            <SearchBar initialQuery={query} />
-          </Suspense>
-        </div>
-      </div>
 
       <section className="relative z-10 mb-12">
         {query ? (

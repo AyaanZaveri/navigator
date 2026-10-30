@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
@@ -31,6 +31,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
+
 export const metadata: Metadata = {
   title: "Navigator",
   description: "A modern streaming client powered by Stremio",
@@ -44,32 +51,6 @@ export default function RootLayout({
   const enableVercelTelemetry =
     process.env.ELECTRON !== "true" && process.env.VERCEL === "1";
 
-  const themeInitScript = `
-    (() => {
-      const storageKey = "theme";
-      const darkBg = "oklch(0.145 0 0)";
-      const lightBg = "oklch(1 0 0)";
-      const root = document.documentElement;
-
-      let storedTheme = "system";
-      try {
-        storedTheme = localStorage.getItem(storageKey) || "system";
-      } catch {}
-
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const resolvedTheme =
-        storedTheme === "system" ? (prefersDark ? "dark" : "light") : storedTheme;
-
-      root.classList.remove("light", "dark");
-      if (resolvedTheme === "dark" || resolvedTheme === "light") {
-        root.classList.add(resolvedTheme);
-      }
-
-      root.style.backgroundColor = resolvedTheme === "dark" ? darkBg : lightBg;
-      root.style.colorScheme = resolvedTheme === "dark" ? "dark" : "light";
-    })();
-  `;
-
   return (
     <html
       lang="en"
@@ -78,13 +59,12 @@ export default function RootLayout({
     >
       <head>
         <meta name="apple-mobile-web-app-title" content="Navigator" />
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body
         className={`${sunghyunSans.className} antialiased`}
       >
         <ThemeProvider
-          attribute="class"
+          attribute={["class", "data-theme"]}
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange

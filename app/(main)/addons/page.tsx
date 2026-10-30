@@ -1,5 +1,4 @@
 import { getInstalledAddons } from "@/app/actions/auth";
-import { SearchBar } from "@/components/search-component";
 import { AuroraBackground } from "@/components/aurora-background";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Puzzle, Package, Film, Tv, Subtitles, Globe } from "lucide-react";
 import Image from "next/image";
-import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -72,20 +70,12 @@ export default async function AddonsPage() {
   );
 
   return (
-    <div className="relative px-4 py-6 max-w-full overflow-hidden">
+    <div className="relative px-[var(--page-gutter)] py-6 max-w-full overflow-hidden">
       <AuroraBackground
         colorStops={["#6FE3F5", "#2FB8D6", "#4EA6BF"]}
         amplitude={0.5}
         className="fixed inset-0 z-0 pointer-events-none opacity-40"
       />
-
-      <div className="relative z-[9999] mb-8">
-        <div className="mb-6">
-          <Suspense fallback={null}>
-            <SearchBar />
-          </Suspense>
-        </div>
-      </div>
 
       <div className="relative z-10 mb-8">
         <div className="flex items-center gap-3 mb-2">

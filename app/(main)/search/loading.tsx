@@ -1,7 +1,5 @@
-import { SearchBar } from "@/components/search-component";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
-import { Suspense } from "react";
 
 function AddonSectionSkeleton() {
   return (
@@ -24,16 +22,8 @@ function AddonSectionSkeleton() {
 
 export default function SearchLoading() {
   return (
-    <div className="relative px-4 py-6 max-w-full">
+    <div className="relative px-[var(--page-gutter)] py-6 max-w-full">
       <VibrantAuroraBackground amplitude={0.8} blend={0.4} />
-
-      <div className="relative z-[9999] mb-8">
-        <div className="mb-6">
-          <Suspense fallback={null}>
-            <SearchBar />
-          </Suspense>
-        </div>
-      </div>
 
       <section className="relative z-10 mb-12 space-y-12">
         {Array.from({ length: 3 }).map((_, index) => (

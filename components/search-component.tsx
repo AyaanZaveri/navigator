@@ -1,24 +1,51 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Search } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Film, Tv } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  listSearchAddonTargets,
-  searchCatalogSectionsForAddon,
-  searchItems,
-} from "@/app/actions";
-import { SearchSuggestionItem } from "./search-suggestion-item";
+import { listSearchAddonTargets, searchCatalogSectionsForAddon, searchItems } from "@/app/actions";
+import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expanding-search/expanding-search";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
-import { Kbd } from "@/components/ui/kbd";
-import { TextShimmer } from "./motion-primitives/text-shimmer";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import type { SearchResult } from "@/types/stremio";
+
+const normalizeText = (value: string): string =>
+  value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s]|_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getNameRelevanceScore = (query: string, name: string): number => {
+  const normalizedQuery = normalizeText(query);
+  const normalizedName = normalizeText(name);
+  if (!normalizedQuery || !normalizedName) return 0;
+
+  let score = 0;
+  if (normalizedName === normalizedQuery) score += 1_000;
+  else if (normalizedName.startsWith(normalizedQuery)) score += 700;
+  else if (normalizedName.includes(normalizedQuery)) score += 450;
+
+  const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+  const nameTokens = normalizedName.split(" ").filter(Boolean);
+  for (const token of queryTokens) {
+    if (nameTokens.includes(token)) score += 120;
+    else if (nameTokens.some((nameToken) => nameToken.startsWith(token))) score += 65;
+    else if (normalizedName.includes(token)) score += 30;
+  }
+
+  return score;
+};
+
+const getMetadataQualityScore = (item: Pick<SearchResult, "poster" | "imdbRating">): number => {
+  let score = 0;
+  if (item.poster) score += 10;
+  if (item.imdbRating) {
+    const parsed = Number(item.imdbRating);
+    if (!Number.isNaN(parsed)) score += parsed;
+  }
+  return score;
+};
 
 interface SearchBarProps {
   className?: string;
@@ -29,8 +56,6 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
   const [searchQuery, setSearchQuery] = useState(initialQuery.trim());
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [addonsLoadingCount, setAddonsLoadingCount] = useState(0);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -39,12 +64,11 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
   const searchRequestIdRef = useRef(0);
   const skipNextSuggestSearchRef = useRef(false);
   const lastAppliedUrlQueryRef = useRef<string | null>(null);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const urlQuery = (searchParams.get("q") ?? "").trim();
 
   useEffect(() => {
-    if (!showSuggestions || isPlayerVisible) return;
+    if (isPlayerVisible) return;
 
     // Suggestions use router.push rather than Link. Warm the same full-route
     // cache as the catalog cards while the (at most six) results are shown.
@@ -53,57 +77,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         router.prefetch(`/${item.type}/${item.id}`);
       }
     }
-  }, [suggestions, showSuggestions, isPlayerVisible, router]);
-
-  const loadingComponent = useMemo(
-    () => (
-      <div className="flex justify-center items-center p-8">
-        <TextShimmer className="text-sm font-mono">
-          Searching...
-        </TextShimmer>
-      </div>
-    ),
-    []
-  );
-
-  const normalizeText = (value: string): string =>
-    value
-      .toLowerCase()
-      .normalize("NFKD")
-      .replace(/[^\w\s]|_/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-  const getNameRelevanceScore = (query: string, name: string): number => {
-    const normalizedQuery = normalizeText(query);
-    const normalizedName = normalizeText(name);
-    if (!normalizedQuery || !normalizedName) return 0;
-
-    let score = 0;
-    if (normalizedName === normalizedQuery) score += 1_000;
-    else if (normalizedName.startsWith(normalizedQuery)) score += 700;
-    else if (normalizedName.includes(normalizedQuery)) score += 450;
-
-    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
-    const nameTokens = normalizedName.split(" ").filter(Boolean);
-    for (const token of queryTokens) {
-      if (nameTokens.includes(token)) score += 120;
-      else if (nameTokens.some((nameToken) => nameToken.startsWith(token))) score += 65;
-      else if (normalizedName.includes(token)) score += 30;
-    }
-
-    return score;
-  };
-
-  const getMetadataQualityScore = (item: Pick<SearchResult, "poster" | "imdbRating">): number => {
-    let score = 0;
-    if (item.poster) score += 10;
-    if (item.imdbRating) {
-      const parsed = Number(item.imdbRating);
-      if (!Number.isNaN(parsed)) score += parsed;
-    }
-    return score;
-  };
+  }, [suggestions, isPlayerVisible, router]);
 
   useEffect(() => {
     if (pathname !== "/search") {
@@ -119,9 +93,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
     searchRequestIdRef.current += 1;
     setSearchQuery(queryFromUrl);
     setSuggestions([]);
-    setShowSuggestions(false);
     setIsLoading(false);
-    setAddonsLoadingCount(0);
   }, [pathname, urlQuery, initialQuery]);
 
   // Debounced search
@@ -137,7 +109,6 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
 
     if (searchQuery.trim().length > 2) {
       setIsLoading(true);
-      setShowSuggestions(true);
       const requestId = ++searchRequestIdRef.current;
       searchTimeout.current = setTimeout(async () => {
         try {
@@ -156,7 +127,6 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             string,
             { result: SearchResult; relevanceScore: number }
           >();
-          setAddonsLoadingCount(addonTargets.length);
 
           const publishSuggestions = () => {
             const ranked = Array.from(bestById.values())
@@ -203,30 +173,24 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
                 publishSuggestions();
               } catch (error) {
                 console.error("Addon search failed:", error);
-              } finally {
-                if (requestId !== searchRequestIdRef.current) return;
-                setAddonsLoadingCount((count) => Math.max(0, count - 1));
               }
             })
           );
         } catch (error) {
           console.error("Search failed:", error);
-          setSuggestions([]);
+          if (requestId === searchRequestIdRef.current) setSuggestions([]);
         } finally {
-          if (requestId !== searchRequestIdRef.current) return;
-          setIsLoading(false);
-          setAddonsLoadingCount(0);
+          if (requestId === searchRequestIdRef.current) setIsLoading(false);
         }
       }, 300);
     } else {
       searchRequestIdRef.current += 1;
       setSuggestions([]);
-      setShowSuggestions(false);
       setIsLoading(false);
-      setAddonsLoadingCount(0);
     }
 
     return () => {
+      searchRequestIdRef.current += 1;
       if (searchTimeout.current) {
         clearTimeout(searchTimeout.current);
       }
@@ -254,109 +218,55 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
   }, []);
 
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(event.target as Node)
-      ) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      setShowSuggestions(false);
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-    }
+  const handleQueryChange = (query: string) => {
+    skipNextSuggestSearchRef.current = false;
+    searchRequestIdRef.current += 1;
+    setSearchQuery(query);
+    setSuggestions([]);
+    setIsLoading(query.trim().length > 2);
   };
 
-  const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSearch(e);
-    else if (e.key === "Escape") setShowSuggestions(false);
+  const handleSearch = (query: string) => {
+    if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`);
   };
 
-  const handleSuggestionClick = (item: SearchResult) => {
-    setShowSuggestions(false);
-    if (item.type === "movie") {
-      router.push(`/movie/${item.id}`);
-    } else if (item.type === "series") {
-      router.push(`/series/${item.id}`);
-    } else {
-      router.push(`/search?q=${encodeURIComponent(item.name)}`);
-    }
+  const handleSelect = (selected: ExpandingSearchItem) => {
+    const item = suggestions.find(result => `${result.type}:${result.id}` === selected.id);
+    if (!item) return;
+    if (item.type === "movie" || item.type === "series") router.push(`/${item.type}/${item.id}`);
+    else handleSearch(item.name);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-    if (e.target.value.trim().length > 2) setShowSuggestions(true);
-  };
+  const items = useMemo<ExpandingSearchItem[]>(() => suggestions.map(item => ({
+    id: `${item.type}:${item.id}`,
+    title: item.name,
+    group: item.type === "movie" ? "Movies" : item.type === "series" ? "TV shows" : "More",
+    meta: [item.releaseInfo, item.imdbRating ? `${item.imdbRating} ★` : ""].filter(Boolean).join(" · "),
+    icon: item.poster
+      ? <img src={item.poster} alt="" loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />
+      : item.type === "movie" ? <Film size={18} /> : <Tv size={18} />,
+  })), [suggestions]);
 
   if (isPlayerVisible) return null;
 
   return (
-    <div
-      className={`relative z-[9999] md:max-w-xl ${className}`}
-      ref={suggestionsRef}
-    >
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <div className="md:hidden">
-          <SidebarTrigger className="dark:bg-background/70! bg-background/90 border-border border text-foreground hover:bg-accent rounded-2xl h-11 w-11 p-0 backdrop-blur-sm" />
-        </div>
-
-        <InputGroup className="flex-1 h-11 rounded-2xl md:rounded-xl border-border text-foreground backdrop-blur-md dark:bg-background/70! bg-background/90 shadow-none">
-          <InputGroupAddon>
-            <Search className="h-4 w-4 text-muted-foreground" />
-          </InputGroupAddon>
-          <InputGroupInput
-            ref={inputRef}
-            type="text"
-            placeholder="Search movies and TV shows..."
-            value={searchQuery}
-            onChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onFocus={() => {
-              if (searchQuery.trim().length > 2 && suggestions.length > 0) {
-                setShowSuggestions(true);
-              }
-            }}
-            className="h-11 text-foreground placeholder:text-muted-foreground"
-          />
-          <InputGroupAddon align="inline-end" className="pr-3 has-[>kbd]:mr-0">
-            <Kbd>/</Kbd>
-          </InputGroupAddon>
-        </InputGroup>
-      </form>
-
-      {(showSuggestions || isLoading) && (
-        <div className="absolute top-full left-0 right-0 mt-2 dark:bg-background/70! bg-background/90 backdrop-blur-md rounded-xl border shadow-xl shadow-accent/30 z-[9999] max-h-96 overflow-y-auto">
-          {isLoading && suggestions.length === 0 && loadingComponent}
-
-          {suggestions.length > 0 && (
-            <div className="p-2">
-              {suggestions.map((item) => (
-                <SearchSuggestionItem
-                  key={item.id}
-                  item={item}
-                  onClick={() => handleSuggestionClick(item)}
-                />
-              ))}
-            </div>
-          )}
-
-          {!isLoading && suggestions.length === 0 && searchQuery.trim().length > 2 && (
-              <div className="p-4 text-center text-muted-foreground">
-                <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No results found for &ldquo;{searchQuery}&rdquo;</p>
-              </div>
-            )}
-        </div>
-      )}
-    </div>
+    <ExpandingSearch
+      ref={inputRef}
+      className={className}
+      label="Search movies and TV shows"
+      placeholder="Search movies and TV shows…"
+      value={searchQuery}
+      onValueChange={handleQueryChange}
+      items={items}
+      loading={isLoading}
+      filterResults={false}
+      minQueryLength={3}
+      onSelect={handleSelect}
+      onSubmit={handleSearch}
+      emptyHint="Try another title, or press Enter to search all add-ons."
+      expandedWidth={576}
+      persistent
+      anchor="start"
+    />
   );
 }

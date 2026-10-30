@@ -1,7 +1,5 @@
 import { fetchLibraryItems, getLibraryById } from "@/app/actions";
-import { SearchBar } from "@/components/search-component";
 import { LibraryMediaList } from "@/components/library-media-list";
-import { Suspense } from "react";
 
 export default async function LibraryPage({
   params,
@@ -19,15 +17,8 @@ export default async function LibraryPage({
   const libraryName = libraryDetails?.Name || "Library";
 
   return (
-    <div className="relative px-4 py-6 max-w-full overflow-hidden">
+    <div className="relative px-[var(--page-gutter)] py-6 max-w-full overflow-hidden">
       <div className="relative z-10">
-        <div className="relative z-[9999] mb-8">
-          <div className="mb-6">
-            <Suspense fallback={null}>
-              <SearchBar />
-            </Suspense>
-          </div>
-        </div>
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-3xl font-semibold text-foreground font-poppins">
