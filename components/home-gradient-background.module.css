@@ -1,0 +1,23 @@
+.background {
+  background:
+    radial-gradient(ellipse 90% 28rem at 0% 0%, oklch(0.96 0.03 170), transparent 100%),
+    radial-gradient(ellipse 80% 24rem at 100% 0%, oklch(0.98 0.015 175), transparent 100%),
+    #fff;
+}
+
+.animation {
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent min(28rem, 65vh));
+  mask-image: linear-gradient(to bottom, #000, transparent min(28rem, 65vh));
+}
+
+:global(.dark) .background {
+  background:
+    radial-gradient(ellipse 100% 65% at 0% 0%, oklch(0.32 0.075 175), transparent 100%),
+    radial-gradient(ellipse 90% 55% at 100% 10%, oklch(0.24 0.045 185), transparent 100%),
+    oklch(0.145 0 0);
+}
+
+:global(.dark) .animation {
+  -webkit-mask-image: none;
+  mask-image: none;
+}

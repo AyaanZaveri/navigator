@@ -1,7 +1,7 @@
 'use client';
 
 // GradientASCII from React Bits: https://reactbits.dev/backgrounds/gradient-ascii
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './gradient-ascii.css';
 
 const MAX_COLORS = 8;
@@ -508,6 +508,25 @@ const GradientASCII = ({
         dpr
     };
     const settingsRef = useRef(settings);
+    const [contextVersion, setContextVersion] = useState(0);
+    const [ready, setReady] = useState(false);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return undefined;
+        const onLost = event => {
+            // Opt in to browser restoration; the CSS background stays visible.
+            event.preventDefault();
+            setReady(false);
+        };
+        const onRestored = () => setContextVersion(version => version + 1);
+        canvas.addEventListener('webglcontextlost', onLost);
+        canvas.addEventListener('webglcontextrestored', onRestored);
+        return () => {
+            canvas.removeEventListener('webglcontextlost', onLost);
+            canvas.removeEventListener('webglcontextrestored', onRestored);
+        };
+    }, []);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -519,7 +538,7 @@ const GradientASCII = ({
             depth: false,
             stencil: false
         });
-        if (!container || !canvas || !gl) return undefined;
+        if (!container || !canvas || !gl || gl.isContextLost()) return undefined;
 
         const field = link(gl, FIELD);
         const halo = link(gl, HALO);
@@ -570,6 +589,7 @@ const GradientASCII = ({
         let last = 0;
         let visible = true;
         let disposed = false;
+        let presented = false;
 
         const syncAtlas = () => {
             const s = settingsRef.current;
@@ -631,6 +651,7 @@ const GradientASCII = ({
         };
 
         const draw = () => {
+            if (disposed || gl.isContextLost()) return;
             const s = settingsRef.current;
             const aspect = view.width / view.height;
             syncAtlas();
@@ -696,6 +717,10 @@ const GradientASCII = ({
             gl.uniform1f(cu.uGrain, s.grain);
             gl.uniform1f(cu.uFrame, frameSeed);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
+            if (!presented && !gl.isContextLost()) {
+                presented = true;
+                setReady(true);
+            }
         };
 
         const resize = () => {
@@ -751,7 +776,7 @@ const GradientASCII = ({
 
         const frame = now => {
             raf = 0;
-            if (disposed || !visible || document.hidden) return;
+            if (disposed || !visible || document.hidden || gl.isContextLost()) return;
             const s = settingsRef.current;
             const dt = last ? clamp((now - last) / 1000, 0.001, 0.05) : 1 / 60;
             last = now;
@@ -851,9 +876,10 @@ const GradientASCII = ({
             if (atlas) gl.deleteTexture(atlas.texture);
             gl.deleteVertexArray(vao);
             [field, halo, blur, composite].forEach(item => gl.deleteProgram(item.program));
-            gl.getExtension('WEBGL_lose_context')?.loseContext();
+            // React Strict Mode replays setup on this same canvas. Releasing
+            // the resources above is sufficient; loseContext() makes replay fail.
         };
-    }, []);
+    }, [contextVersion]);
 
     useEffect(() => {
         settingsRef.current = settings;
@@ -867,7 +893,12 @@ const GradientASCII = ({
             style={style}
             {...rest}
         >
-            <canvas ref={canvasRef} className="gradient-ascii-canvas" aria-hidden="true" />
+            <canvas
+                ref={canvasRef}
+                className="gradient-ascii-canvas"
+                aria-hidden="true"
+                style={{ visibility: ready ? 'visible' : 'hidden' }}
+            />
         </div>
     );
 };

@@ -1,36 +1,46 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import GradientASCII from "@/components/gradient-ascii/gradient-ascii";
+import styles from "./home-gradient-background.module.css";
 
-// Emerald 700 / 50 / 200 / 400 preserve the original blue palette's
-// dark edge, near-white highlight, pale tint, and brighter final color.
-const HOME_COLORS = [
-    "oklch(50.8% 0.118 165.612)",
-    "oklch(97.9% 0.021 166.113)",
-    "oklch(90.5% 0.093 164.15)",
-    "oklch(76.5% 0.177 163.223)",
-];
+// sRGB avoids depending on Canvas2D support for newer CSS color syntax.
+const subscribe = () => () => {};
+
+const HOME_COLORS = ["#047857", "#ecfdf5", "#a7f3d0", "#34d399"];
+
+const LIGHT_HOME_COLORS = ["#6ee7b7", "#ecfdf5", "#d1fae5", "#a7f3d0"];
 
 export function HomeGradientBackground() {
     const { resolvedTheme } = useTheme();
+    const light = resolvedTheme !== "dark";
+    const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
 
     return (
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 opacity-40">
-            <GradientASCII
-                colors={HOME_COLORS}
-                shape="horizon"
-                characters=" .·•●"
-                cellSize={18}
-                density={0.8}
-                speed={0.2}
-                flicker={0.05}
-                mouseInteraction={false}
-                clickEffect="none"
-                gradientOpacity={1}
-                lightMode={resolvedTheme === "light"}
-                dpr={1.5}
-            />
+        <div aria-hidden="true" data-home-gradient="" className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>
+            {/* CSS supplies both themes before hydration and during GPU loss. */}
+            {hydrated && (
+                <div className={`${styles.animation} absolute inset-0`}>
+                    <GradientASCII
+                        colors={light ? LIGHT_HOME_COLORS : HOME_COLORS}
+                        shape="horizon"
+                        characters="·•●"
+                        cellSize={18}
+                        density={0.8}
+                        speed={0.2}
+                        flicker={0.05}
+                        mouseInteraction={false}
+                        clickEffect="none"
+                        gradientOpacity={light ? 0.18 : 0.4}
+                        glyphOpacity={0.85}
+                        glow={light ? 0 : 0.2}
+                        grain={light ? 0 : 0.08}
+                        lightMode={light}
+                        dpr={1.5}
+                    />
+                </div>
+            )}
         </div>
     );
 }

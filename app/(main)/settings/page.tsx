@@ -5,6 +5,7 @@ import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/ico
 import { Eye, EyeOff, KeyRound } from "lucide-react";
 import { OpenCodeIcon } from "@/components/opencode-icon";
 import { ModelIcon } from "@/components/model-icon";
+import { HomeGradientBackground } from "@/components/home-gradient-background";
 import { Switch } from "@/components/ui/switch";
 import {
     Select,
@@ -664,9 +665,10 @@ export default function SettingsPage() {
     const currentModel = modelSettings[aiProvider];
 
     return (
-        <div className="px-[var(--page-gutter)] py-6">
+        <div className="relative px-[var(--page-gutter)] py-6">
+            <HomeGradientBackground />
 
-            <div className="flex w-full max-w-4xl flex-col gap-8 pb-10">
+            <div className="relative z-10 flex w-full max-w-4xl flex-col gap-8 pb-10">
                 <header className="flex flex-col gap-2">
                     <h1 className="font-poppins text-3xl font-semibold tracking-tight">Settings</h1>
                 </header>
