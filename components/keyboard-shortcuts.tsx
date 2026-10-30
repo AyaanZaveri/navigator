@@ -1,8 +1,12 @@
 "use client";
 
-import { useAtom } from 'jotai';
-import { isAIAskOpenAtom, isFullscreenAtom, isNavigatorEnabledAtom } from '@/lib/atoms';
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
+import { useAtom } from "jotai";
+import {
+  isAIAskOpenAtom,
+  isFullscreenAtom,
+  isNavigatorEnabledAtom,
+} from "@/lib/atoms";
+import { useEffect } from "react";
 
 export function KeyboardShortcuts() {
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
@@ -12,11 +16,13 @@ export function KeyboardShortcuts() {
   // Function to handle opening AI Ask with fullscreen exit if needed
   const handleToggleAIAsk = async () => {
     // Don't handle shortcuts if navigator is disabled
-    if (!isNavigatorEnabled) {
+    if (
+      !isNavigatorEnabled ||
+      document.activeElement?.closest("[data-navigator-click-zone]")
+    ) {
       return;
     }
 
-    // ...existing code...
     if (isFullscreen && !isAIAskOpen) {
       // Exit fullscreen first when opening AI Ask
       try {
@@ -43,37 +49,25 @@ export function KeyboardShortcuts() {
     }
   };
 
-  // Handle Cmd+K (Mac) / Ctrl+K (Windows/Linux) to toggle AI Ask
-  useKeyboardShortcut(
-    {
-      key: "k",
-      metaKey: true, // Command key on Mac
-    },
-    handleToggleAIAsk
-  );
-
-  // Also handle Ctrl+K for non-Mac users
-  useKeyboardShortcut(
-    {
-      key: "k",
-      ctrlKey: true,
-    },
-    handleToggleAIAsk
-  );
-
-  // Handle Escape key to close AI Ask when it's open
-  useKeyboardShortcut(
-    {
-      key: "Escape",
-      allowInInputFields: true, // Allow Escape to work even when focused on input fields
-    },
-    () => {
-      // Only handle escape if navigator is enabled and AI Ask is open
-      if (isNavigatorEnabled && isAIAskOpen) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        !isNavigatorEnabled ||
+        (event.target instanceof Element &&
+          event.target.closest("[data-navigator-click-zone]"))
+      )
+        return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        void handleToggleAIAsk();
+      } else if (event.key === "Escape" && isAIAskOpen) {
         setIsAIAskOpen(false);
       }
-    }
-  );
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
 
-  return null; // This component doesn't render anything
+  return null;
 }
