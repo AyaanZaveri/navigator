@@ -66,9 +66,8 @@ function HomeSectionSkeleton({
       <div className="flex items-center justify-between gap-3 mb-4">
         <Skeleton className="h-8 w-56 rounded-full" />
         <div className="flex items-center gap-2">
-          <Skeleton className="hidden md:block h-9 w-9 rounded-md" />
-          <Skeleton className="hidden md:block h-9 w-9 rounded-md" />
-          <Skeleton className="h-9 w-20 rounded-md" />
+          <Skeleton className="hidden md:block size-8 rounded-full" />
+          <Skeleton className="hidden md:block size-8 rounded-full" />
         </div>
       </div>
       <div className="flex gap-4 overflow-hidden">

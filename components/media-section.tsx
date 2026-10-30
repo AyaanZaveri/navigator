@@ -11,7 +11,6 @@ import type { MediaItem } from "@/types/stremio";
 interface MediaSectionProps {
   sectionName: string;
   mediaItems: MediaItem[];
-  onViewAll?: () => void;
   isLoading?: boolean;
   continueWatching?: boolean;
 }
@@ -19,7 +18,6 @@ interface MediaSectionProps {
 export function MediaSection({
   sectionName,
   mediaItems,
-  onViewAll,
   isLoading = false,
   continueWatching = false,
 }: MediaSectionProps) {
@@ -73,11 +71,6 @@ export function MediaSection({
             onClick={scrollRight}
           >
             <ChevronRight className="h-4 w-4" />
-          </CarouselAction>
-          <CarouselAction
-            onClick={onViewAll}
-          >
-            View All
           </CarouselAction>
         </div>
       </div>
