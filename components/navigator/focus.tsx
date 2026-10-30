@@ -536,7 +536,7 @@ export function NavigatorFocus({
                         </div>
                       ) : null}
                       <InputGroup className="h-10! rounded-lg! border-transparent bg-transparent shadow-none! ring-0 focus-within:border-transparent focus-within:ring-0 has-disabled:bg-transparent has-disabled:opacity-100 has-[[data-slot=input-group-control]:focus-visible]:border-transparent! has-[[data-slot=input-group-control]:focus-visible]:ring-0! dark:bg-transparent dark:has-disabled:bg-transparent">
-                        <InputGroupAddon className="cursor-default pl-1">
+                        <InputGroupAddon className="cursor-default px-2.5">
                           <Ship
                             aria-hidden="true"
                             className="size-5 stroke-[1.5]"
