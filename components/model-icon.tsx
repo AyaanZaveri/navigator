@@ -16,7 +16,6 @@ import {
     Stepfun,
     Zhipu,
 } from "@lobehub/icons";
-import { Cpu } from "lucide-react";
 import type { ModelsDevModel } from "@/lib/models-dev";
 
 const MODEL_ICONS: Array<[RegExp, ComponentType]> = [
@@ -37,11 +36,11 @@ const MODEL_ICONS: Array<[RegExp, ComponentType]> = [
     [/^nemotron/, Nvidia],
 ];
 
-export function ModelIcon({ model }: { model: ModelsDevModel }) {
+export function ModelIcon({ model, fallbackIcon }: { model: ModelsDevModel; fallbackIcon: ComponentType<{ className?: string }> }) {
     const identities = [model.family, model.id.split("/").at(-1)]
         .filter((identity): identity is string => Boolean(identity))
         .map((identity) => identity.toLowerCase());
-    const Icon = MODEL_ICONS.find(([pattern]) => identities.some((identity) => pattern.test(identity)))?.[1] ?? Cpu;
+    const Icon = MODEL_ICONS.find(([pattern]) => identities.some((identity) => pattern.test(identity)))?.[1] ?? fallbackIcon;
 
     return (
         <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">

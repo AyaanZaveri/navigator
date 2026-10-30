@@ -1,0 +1,87 @@
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 16px 32px;
+  min-width: 0;
+  padding-block: 24px;
+}
+
+@media (max-width: 640px) {
+  .section {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: 20px;
+  }
+}
+
+.content {
+  --settings-description-color: color-mix(in oklab, var(--foreground) 65%, var(--background));
+}
+
+.content [data-slot="field-label"] {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.content [data-slot="field"][data-orientation="vertical"] {
+  gap: 8px;
+}
+
+.content [data-slot="field-description"],
+.description,
+.keyLink {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--settings-description-color);
+}
+
+.apiKeyInput[data-slot="input-group"] {
+  height: var(--control-height-md);
+  gap: var(--space-2);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: none;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .apiKeyInput[data-slot="input-group"]:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-muted);
+  }
+}
+
+.apiKeyInput[data-slot="input-group"]:focus-within {
+  border-color: var(--ring);
+  background: var(--surface-muted);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+.apiKeyInput > input[data-slot="input-group-control"] {
+  height: 100%;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.apiKeyInput > [data-slot="input-group-addon"] {
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.apiKeyInput > [data-align="inline-end"] {
+  padding-right: 4px;
+}
+
+.apiKeyInput > [data-align="inline-end"] > button {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apiKeyInput[data-slot="input-group"] { transition: none; }
+}

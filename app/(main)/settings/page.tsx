@@ -23,7 +23,6 @@ import {
     FieldGroup,
     FieldLabel,
 } from "@/components/ui/field";
-import { Separator } from "@/components/ui/separator";
 import {
     type AIProvider,
     CerebrasReasoningEffort,
@@ -31,6 +30,7 @@ import {
     useSettings,
 } from "@/contexts/settings-context";
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
+import styles from "./settings.module.css";
 
 const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
 const MODELS_DEV_PROVIDER_CACHE_PREFIX = "navigator-modelsdev-provider:";
@@ -126,13 +126,13 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl }: {
                         href={keyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="shrink-0 whitespace-nowrap text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                        className={`${styles.keyLink} shrink-0 whitespace-nowrap underline underline-offset-4 hover:text-foreground`}
                     >
                         Get an API key
                     </a>
                 )}
             </div>
-            <InputGroup>
+            <InputGroup className={styles.apiKeyInput}>
                 <InputGroupInput
                     id={id}
                     type={visible ? "text" : "password"}
@@ -207,7 +207,7 @@ function SettingsSelect({ id, label, value, onValueChange, options, description,
     );
 }
 
-function ModelCombobox({ id, value, onValueChange, options, description, loading, error, disabled }: Omit<SettingsSelectProps, "label">) {
+function ModelCombobox({ id, value, onValueChange, options, description, loading, error, disabled, providerIcon }: Omit<SettingsSelectProps, "label"> & { providerIcon: ComponentType<{ className?: string }> }) {
     const selected = options.find((option) => option.id === value) ?? (value ? { id: value, name: value } : null);
     const unavailable = disabled || (loading && options.length === 0);
     const describedBy = [
@@ -226,7 +226,7 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
                     value: model.id,
                     label: model.name,
                     keywords: [model.id],
-                    icon: <ModelIcon model={model} />,
+                    icon: <ModelIcon model={model} fallbackIcon={providerIcon} />,
                 }))}
                 placeholder={loading ? "Loading models…" : "Search models…"}
                 emptyMessage={loading ? "Loading models…" : "No models found."}
@@ -612,23 +612,23 @@ export default function SettingsPage() {
 
     return (
         <div className="relative px-[var(--page-gutter)] py-6">
-            <HomeGradientBackground />
+            <HomeGradientBackground dotOpacity={0.18} />
 
-            <div className="relative z-10 flex w-full max-w-4xl flex-col gap-8 pb-10">
+            <div className={`${styles.content} relative z-10 flex w-full max-w-[960px] flex-col gap-8 pb-10`}>
                 <header className="flex flex-col gap-2">
-                    <h1 className="font-poppins text-3xl font-semibold tracking-tight">Settings</h1>
+                    <h1 className="font-poppins text-3xl font-medium tracking-tight">Settings</h1>
                 </header>
 
-                <section aria-labelledby="navigator-settings-title" className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-12">
+                <section aria-labelledby="navigator-settings-title" className={styles.section}>
                     <div className="flex flex-col gap-2">
-                        <h2 id="navigator-settings-title" className="text-base font-medium">Navigator</h2>
-                        <p className="text-sm leading-relaxed text-muted-foreground">
+                        <h2 id="navigator-settings-title" className="text-lg font-medium">Navigator</h2>
+                        <p className={styles.description}>
                             Find and play movies and shows with natural language.
                         </p>
                     </div>
 
                     <FieldGroup className="min-w-0 gap-6">
-                        <Field orientation="horizontal">
+                        <Field orientation="horizontal" className="mb-2">
                             <FieldContent>
                                 <FieldLabel htmlFor="navigator-enabled">Enable Navigator</FieldLabel>
                                 <FieldDescription id="navigator-enabled-description">
@@ -645,7 +645,6 @@ export default function SettingsPage() {
 
                         {navigatorEnabled && (
                             <>
-                                <Separator />
                                 <Field>
                                     <Select
                                         id="ai-provider"
@@ -688,7 +687,7 @@ export default function SettingsPage() {
                                 )}
 
                                 {currentModel.options ? (
-                                    <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} options={currentModel.options} />
+                                    <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} options={currentModel.options} providerIcon={selectedProvider.icon} />
                                 ) : (
                                     <SettingsInput
                                         id={`${aiProvider}-model`}

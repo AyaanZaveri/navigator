@@ -12,7 +12,7 @@ const HOME_COLORS = ["#047857", "#ecfdf5", "#a7f3d0", "#34d399"];
 
 const LIGHT_HOME_COLORS = ["#6ee7b7", "#ecfdf5", "#d1fae5", "#a7f3d0"];
 
-export function HomeGradientBackground() {
+export function HomeGradientBackground({ dotOpacity = 0.85 }: { dotOpacity?: number }) {
     const { resolvedTheme } = useTheme();
     const light = resolvedTheme !== "dark";
     const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
@@ -33,7 +33,7 @@ export function HomeGradientBackground() {
                         mouseInteraction={false}
                         clickEffect="none"
                         gradientOpacity={light ? 0.18 : 0.4}
-                        glyphOpacity={0.85}
+                        glyphOpacity={dotOpacity}
                         glow={light ? 0 : 0.2}
                         grain={light ? 0 : 0.08}
                         lightMode={light}

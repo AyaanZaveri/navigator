@@ -2,6 +2,7 @@
 
 import { animate, AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
 import {
     forwardRef,
     useEffect,
@@ -126,17 +127,6 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
         }
     }, [activeIndex, filteredOptions, open]);
 
-    useEffect(() => {
-        const handlePointerDown = (event: PointerEvent) => {
-            if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-                setOpen(false);
-                setQuery("");
-            }
-        };
-        document.addEventListener("pointerdown", handlePointerDown);
-        return () => document.removeEventListener("pointerdown", handlePointerDown);
-    }, []);
-
     const choose = (option: ComboboxOption) => {
         if (option.disabled) return;
         setUncontrolledValue(option.value);
@@ -196,93 +186,113 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
     const activeOption = activeIndex >= 0 ? filteredOptions[activeIndex] : undefined;
 
     return (
-        <div ref={rootRef} className={styles.field}>
-            <label htmlFor={controlId}>{label}</label>
-            <div className={[styles.control, open ? styles.open : "", disabled ? styles.disabled : "", className ?? ""].filter(Boolean).join(" ")}>
-                {selectedOption?.icon ? <span className={styles.optionIcon} aria-hidden="true">{selectedOption.icon}</span> : <Search className={styles.searchIcon} size={16} strokeWidth={1.75} aria-hidden="true" />}
-                <input
-                    {...inputProps}
-                    ref={inputRef}
-                    id={controlId}
-                    type="text"
-                    role="combobox"
-                    value={inputValue}
-                    // While searching, the chosen label stays in place as muted placeholder copy instead of vanishing.
-                    placeholder={selectedOption?.label ?? placeholder}
-                    disabled={disabled}
-                    aria-describedby={[hintId, inputProps["aria-describedby"]].filter(Boolean).join(" ") || undefined}
-                    aria-expanded={open}
-                    aria-controls={open ? listboxId : undefined}
-                    aria-autocomplete="list"
-                    aria-activedescendant={open && activeOption ? `${controlId}-option-${activeOption.value}` : undefined}
-                    onFocus={(event) => {
-                        onFocus?.(event);
-                        openMenu();
-                    }}
-                    onClick={openMenu}
-                    onChange={(event) => {
-                        setQuery(event.target.value);
-                        setOpen(true);
-                        setActiveIndex(-1);
-                    }}
-                    onKeyDown={handleKeyDown}
-                />
-                <AnimatePresence initial={false}>
-                    {selectedOption && !disabled && (
-                        <motion.button
-                            type="button"
-                            className={styles.clear}
-                            aria-label="Clear selection"
-                            onMouseDown={event => event.preventDefault()}
-                            onClick={clear}
-                            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6, filter: `blur(${motionTokens.blur.subtle}px)` }}
-                            animate={{ opacity: 1, scale: 1, filter: "blur(0px)", transition: reduceMotion ? { duration: motionTokens.duration.instant } : { ...motionTokens.spring.snappy, opacity: { duration: motionTokens.duration.fast } } }}
-                            exit={{ opacity: 0, ...(reduceMotion ? {} : { scale: 0.6, filter: `blur(${motionTokens.blur.subtle}px)` }), transition: { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } }}
-                            whileTap={{ scale: reduceMotion ? 1 : 0.96, transition: { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } }}
-                        >
-                            <X size={16} strokeWidth={1.75} aria-hidden="true" />
-                        </motion.button>
-                    )}
-                </AnimatePresence>
-                <ChevronDown className={styles.chevron} size={16} strokeWidth={1.75} aria-hidden="true" />
+        <PopoverPrimitive.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) setQuery(""); }}>
+            <div ref={rootRef} className={styles.field}>
+                <label htmlFor={controlId}>{label}</label>
+                <PopoverPrimitive.Anchor asChild>
+                    <div className={[styles.control, open ? styles.open : "", disabled ? styles.disabled : "", className ?? ""].filter(Boolean).join(" ")}>
+                        {selectedOption?.icon ? <span className={styles.optionIcon} aria-hidden="true">{selectedOption.icon}</span> : <Search className={styles.searchIcon} size={16} strokeWidth={1.75} aria-hidden="true" />}
+                        <input
+                            {...inputProps}
+                            ref={inputRef}
+                            id={controlId}
+                            type="text"
+                            role="combobox"
+                            value={inputValue}
+                            // While searching, the chosen label stays in place as muted placeholder copy instead of vanishing.
+                            placeholder={selectedOption?.label ?? placeholder}
+                            disabled={disabled}
+                            aria-describedby={[hintId, inputProps["aria-describedby"]].filter(Boolean).join(" ") || undefined}
+                            aria-expanded={open}
+                            aria-controls={open ? listboxId : undefined}
+                            aria-autocomplete="list"
+                            aria-activedescendant={open && activeOption ? `${controlId}-option-${activeOption.value}` : undefined}
+                            onFocus={(event) => {
+                                onFocus?.(event);
+                                openMenu();
+                            }}
+                            onClick={openMenu}
+                            onChange={(event) => {
+                                setQuery(event.target.value);
+                                setOpen(true);
+                                setActiveIndex(-1);
+                            }}
+                            onKeyDown={handleKeyDown}
+                        />
+                        <AnimatePresence initial={false}>
+                            {selectedOption && !disabled && (
+                                <motion.button
+                                    type="button"
+                                    className={styles.clear}
+                                    aria-label="Clear selection"
+                                    onMouseDown={event => event.preventDefault()}
+                                    onClick={clear}
+                                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6, filter: `blur(${motionTokens.blur.subtle}px)` }}
+                                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)", transition: reduceMotion ? { duration: motionTokens.duration.instant } : { ...motionTokens.spring.snappy, opacity: { duration: motionTokens.duration.fast } } }}
+                                    exit={{ opacity: 0, ...(reduceMotion ? {} : { scale: 0.6, filter: `blur(${motionTokens.blur.subtle}px)` }), transition: { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } }}
+                                    whileTap={{ scale: reduceMotion ? 1 : 0.96, transition: { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } }}
+                                >
+                                    <X size={16} strokeWidth={1.75} aria-hidden="true" />
+                                </motion.button>
+                            )}
+                        </AnimatePresence>
+                        <ChevronDown className={styles.chevron} size={16} strokeWidth={1.75} aria-hidden="true" />
+                    </div>
+                </PopoverPrimitive.Anchor>
+                {description && <span id={hintId} className={styles.hint}>{description}</span>}
+                <PopoverPrimitive.Portal forceMount>
+                    <AnimatePresence initial={false}>
+                        {open && (
+                            <PopoverPrimitive.Content
+                                asChild
+                                forceMount
+                                side="bottom"
+                                align="start"
+                                sideOffset={8}
+                                collisionPadding={12}
+                                onOpenAutoFocus={(event) => event.preventDefault()}
+                                onCloseAutoFocus={(event) => event.preventDefault()}
+                                onInteractOutside={(event) => {
+                                    if (rootRef.current?.contains(event.target as Node)) event.preventDefault();
+                                }}
+                            >
+                                <motion.div
+                                    className={styles.popover}
+                                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.97 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1, transition: reduceMotion ? { duration: motionTokens.duration.instant } : { ...motionTokens.spring.snappy, opacity: { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.enter] } } }}
+                                    exit={{ opacity: 0, ...(reduceMotion ? {} : { y: -4, scale: 0.98 }), transition: { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } }}
+                                    role="presentation"
+                                >
+                                    <AutoHeight reduceMotion={reduceMotion}>
+                                        <div id={listboxId} className={styles.listbox} role="listbox" aria-label={`${label} options`}>
+                                            {filteredOptions.length ? filteredOptions.map((option, index) => (
+                                                <div
+                                                    key={option.value}
+                                                    ref={(element) => { optionRefs.current[option.value] = element; }}
+                                                    id={`${controlId}-option-${option.value}`}
+                                                    className={styles.option}
+                                                    data-active={index === activeIndex ? "true" : undefined}
+                                                    data-disabled={option.disabled ? "true" : undefined}
+                                                    role="option"
+                                                    aria-selected={option.value === selectedValue}
+                                                    aria-disabled={option.disabled || undefined}
+                                                    onMouseDown={(event) => event.preventDefault()}
+                                                    onMouseEnter={() => !option.disabled && setActiveIndex(index)}
+                                                    onClick={() => choose(option)}
+                                                >
+                                                    <span className={styles.optionLabel}>{option.icon && <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span>}<span>{option.label}</span></span>
+                                                    {option.value === selectedValue && <Check className={styles.check} size={16} strokeWidth={1.75} aria-hidden="true" />}
+                                                </div>
+                                            )) : <motion.div className={styles.empty} role="status" initial={reduceMotion ? false : { opacity: 0, y: 4, filter: `blur(${motionTokens.blur.soft}px)` }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] }}>{emptyMessage}</motion.div>}
+                                        </div>
+                                    </AutoHeight>
+                                </motion.div>
+                            </PopoverPrimitive.Content>
+                        )}
+                    </AnimatePresence>
+                </PopoverPrimitive.Portal>
             </div>
-            {description && <span id={hintId} className={styles.hint}>{description}</span>}
-            <AnimatePresence initial={false}>
-                {open && (
-                    <motion.div
-                        className={styles.popover}
-                        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1, transition: reduceMotion ? { duration: motionTokens.duration.instant } : { ...motionTokens.spring.snappy, opacity: { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.enter] } } }}
-                        exit={{ opacity: 0, ...(reduceMotion ? {} : { y: -4, scale: 0.98 }), transition: { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } }}
-                        role="presentation"
-                    >
-                        <AutoHeight reduceMotion={reduceMotion}>
-                            <div id={listboxId} className={styles.listbox} role="listbox" aria-label={`${label} options`}>
-                                {filteredOptions.length ? filteredOptions.map((option, index) => (
-                                    <div
-                                        key={option.value}
-                                        ref={(element) => { optionRefs.current[option.value] = element; }}
-                                        id={`${controlId}-option-${option.value}`}
-                                        className={styles.option}
-                                        data-active={index === activeIndex ? "true" : undefined}
-                                        data-disabled={option.disabled ? "true" : undefined}
-                                        role="option"
-                                        aria-selected={option.value === selectedValue}
-                                        aria-disabled={option.disabled || undefined}
-                                        onMouseDown={(event) => event.preventDefault()}
-                                        onMouseEnter={() => !option.disabled && setActiveIndex(index)}
-                                        onClick={() => choose(option)}
-                                    >
-                                        <span className={styles.optionLabel}>{option.icon && <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span>}<span>{option.label}</span></span>
-                                        {option.value === selectedValue && <Check className={styles.check} size={16} strokeWidth={1.75} aria-hidden="true" />}
-                                    </div>
-                                )) : <motion.div className={styles.empty} role="status" initial={reduceMotion ? false : { opacity: 0, y: 4, filter: `blur(${motionTokens.blur.soft}px)` }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] }}>{emptyMessage}</motion.div>}
-                            </div>
-                        </AutoHeight>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+        </PopoverPrimitive.Root>
     );
 });
 
