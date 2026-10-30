@@ -55,7 +55,7 @@ export default async function EpisodeOnSeriesPage({
             </Suspense>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-6 text-start">
+          <div className="flex min-w-0 flex-col gap-6 text-start @4xl:pt-3">
             <div className="flex min-w-0 flex-col gap-3">
               <nav
                 aria-label="Episode context"

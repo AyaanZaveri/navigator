@@ -35,7 +35,7 @@ export function EpisodeDetailsLoading() {
       <span className="sr-only">Loading episode…</span>
       <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-start @4xl:gap-8">
         <Skeleton className="aspect-video w-full max-w-xl rounded-lg @4xl:max-w-none" />
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6 @4xl:pt-3">
           <div className="flex flex-col gap-3">
             <Skeleton className="h-5 w-40 max-w-full" />
             <Skeleton className="h-12 w-3/4" />
