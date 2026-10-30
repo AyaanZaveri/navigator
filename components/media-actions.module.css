@@ -67,10 +67,6 @@
   font-size: var(--text-xs);
 }
 
-.reset {
-  margin-inline-start: auto;
-}
-
 .results,
 .streamList {
   min-width: 0;
@@ -109,12 +105,10 @@
   }
 }
 
-/* Leave enough room for every chip to be selected without crowding search. */
+/* Reserve the fully selected chip widths. Their checks can morph without
+   borrowing space from search or moving the addon and format columns. */
 @container (min-width: 72rem) {
   .toolbar {
-    grid-template-columns: minmax(16rem, 1fr) minmax(
-        10rem,
-        12rem
-      ) max-content max-content;
+    grid-template-columns: minmax(16rem, 1fr) 12rem 23rem 15rem;
   }
 }

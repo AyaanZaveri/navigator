@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FilterX, Loader2, Play, Puzzle, SearchX } from "lucide-react";
+import { Loader2, Play, Puzzle, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { Select } from "@/components/arc/select/select";
@@ -381,34 +381,17 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               onValueChange={setSelectedStreamTags}
             />
           </fieldset>
-          {(isAddonLoading || hasActiveFilters) && (
+          {isAddonLoading && (
             <div className={styles.feedback}>
-              {isAddonLoading && (
-                <div role="status" className={styles.loading}>
-                  <Loader2
-                    aria-hidden="true"
-                    className="size-3.5 animate-spin motion-reduce:animate-none"
-                  />
-                  <span>
-                    {pendingAddons} addon{pendingAddons === 1 ? "" : "s"}{" "}
-                    loading
-                  </span>
-                </div>
-              )}
-              {hasActiveFilters && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={styles.reset}
-                  onClick={() => {
-                    setSelectedResolutions([]);
-                    setSelectedStreamTags([]);
-                  }}
-                >
-                  <FilterX aria-hidden="true" className="size-4" />
-                  Clear filters
-                </Button>
-              )}
+              <div role="status" className={styles.loading}>
+                <Loader2
+                  aria-hidden="true"
+                  className="size-3.5 animate-spin motion-reduce:animate-none"
+                />
+                <span>
+                  {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
+                </span>
+              </div>
             </div>
           )}
         </div>
