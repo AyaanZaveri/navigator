@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAtom, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { Vibrant } from "node-vibrant/browser";
 import { AuroraBackground } from "@/components/aurora-background";
-import { auroraColorsAtom, updateAuroraColorsAtom } from "@/lib/atoms";
+import { updateAuroraColorsAtom } from "@/lib/atoms";
 
 interface VibrantAuroraBackgroundProps {
   backdropUrl?: string;
@@ -21,19 +21,26 @@ export function VibrantAuroraBackground({
   amplitude = 0.8,
   blend = 0.4,
 }: VibrantAuroraBackgroundProps) {
-  const [colorStops] = useAtom(auroraColorsAtom);
   const updateColors = useSetAtom(updateAuroraColorsAtom);
 
   useEffect(() => {
-    const sourceUrl = backdropUrl || posterUrl;
-    if (!sourceUrl) return;
+    const paletteSources = Array.from(new Set(
+      [backdropUrl, posterUrl].filter(isDefined).filter(Boolean).flatMap(buildPaletteSources),
+    ));
+    if (!paletteSources.length) return;
+    let cancelled = false;
 
     const extractColors = async () => {
-      const paletteSources = buildPaletteSources(sourceUrl);
-
       for (const paletteSource of paletteSources) {
+        if (cancelled) return;
         try {
-          const palette = await Vibrant.from(paletteSource).getPalette();
+          // Set CORS mode before loading, even for our same-origin redirects.
+          // Vibrant only does this automatically for visibly cross-origin URLs.
+          const image = new Image();
+          image.crossOrigin = "anonymous";
+          image.src = paletteSource;
+          const palette = await Vibrant.from(image).getPalette();
+          if (cancelled) return;
           const swatches = [
             palette.Vibrant,
             palette.LightVibrant,
@@ -59,10 +66,8 @@ export function VibrantAuroraBackground({
           const primary = ranked[0];
           const secondary = ranked[1];
           const tertiary = ranked[2] ?? primary;
-          const quaternary = ranked[3];
-          const finalColors = quaternary
-            ? [primary, secondary, tertiary, quaternary]
-            : [primary, secondary, tertiary];
+          // AuroraTransition declares exactly three color stops in its shader.
+          const finalColors = [primary, secondary, tertiary];
 
           updateColors(finalColors);
           return;
@@ -71,16 +76,17 @@ export function VibrantAuroraBackground({
         }
       }
 
+      if (cancelled) return;
       console.warn("Failed to extract aurora colors from image sources");
       // Keep previous colors on error - they're already in the atom
     };
 
-    extractColors();
+    void extractColors();
+    return () => { cancelled = true; };
   }, [backdropUrl, posterUrl, updateColors]);
 
   return (
     <AuroraBackground
-      colorStops={colorStops}
       amplitude={amplitude}
       blend={blend}
       className={className}

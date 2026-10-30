@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import AuroraTransition from "@/components/Aurora/AuroraTransition";
 import { auroraColorsAtom, previousAuroraColorsAtom } from "@/lib/atoms";
@@ -36,6 +36,7 @@ export function AuroraBackground({
       const startTime = Date.now();
       const duration = 3000;
 
+      let frame = 0;
       const animateTransition = () => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
@@ -45,11 +46,12 @@ export function AuroraBackground({
         setTransitionProgress(easedProgress);
 
         if (progress < 1) {
-          requestAnimationFrame(animateTransition);
+          frame = requestAnimationFrame(animateTransition);
         }
       };
 
-      requestAnimationFrame(animateTransition);
+      frame = requestAnimationFrame(animateTransition);
+      return () => cancelAnimationFrame(frame);
     }
   }, [currentColors, previousColors]);
 

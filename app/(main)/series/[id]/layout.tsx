@@ -53,7 +53,8 @@ export default async function SeriesLayout({
     return (
       <div className="min-h-screen overflow-hidden pb-8">
         <VibrantAuroraBackground
-          backdropUrl={show.background || show.poster || ""}
+          backdropUrl={show.background}
+          posterUrl={show.poster}
           className="fixed inset-0 z-10 pointer-events-none opacity-50"
         />
 
