@@ -18,7 +18,7 @@ import { PlaybackProgressOverlay } from "@/components/media-page/playback-progre
 
 function SimilarMoviesSkeleton() {
   return (
-    <div className="mt-8 px-6">
+    <div className="mt-8 px-6 md:px-10">
       <div className="mb-6 flex items-center justify-between">
         <Skeleton className="h-8 w-40 rounded" />
         <div className="flex gap-2">
@@ -45,7 +45,7 @@ async function SimilarMovies({ movieId }: { movieId: string }) {
   if (!similarItems || similarItems.length === 0) return null;
 
   return (
-    <div className="mt-8 px-6">
+    <div className="mt-8 px-6 md:px-10">
       <MediaSection
         sectionName="More Like This"
         mediaItems={similarItems}
@@ -73,7 +73,7 @@ export default async function Movie({
     };
 
     return (
-      <div className="min-h-screen overflow-hidden md:pr-1 pb-8">
+      <div className="min-h-screen overflow-hidden pb-8">
         <VibrantAuroraBackground
           backdropUrl={movie.background || movie.poster || ""}
           className="fixed inset-0 z-10 pointer-events-none opacity-50"
@@ -81,7 +81,7 @@ export default async function Movie({
 
         {/* Backdrop section */}
         <div className="relative">
-          <div className="relative h-[46vh] md:h-[62vh] overflow-hidden md:rounded-xl md:mt-2.5">
+          <div className="relative h-[46vh] md:h-[62vh] overflow-hidden">
             <BackdropImage
               movie={movie}
               backdropImage={movie.background || ""}
@@ -99,8 +99,8 @@ export default async function Movie({
                 className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-h-24 md:max-h-32 w-auto object-contain max-w-2/3 invisible md:visible"
               />
             )}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90 md:rounded-xl" />
-            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent md:rounded-xl" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90" />
+            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
           </div>
         </div>
 

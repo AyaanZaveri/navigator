@@ -1,6 +1,7 @@
 "use client";
 
 import { useAtom } from "jotai";
+import { usePathname } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import AIAsk from "@/components/navigator/ai-ask";
 import { GlobalMediaPlayer } from "@/components/global-media-player";
@@ -18,6 +19,9 @@ interface LayoutContentProps {
 }
 
 export function LayoutContent({ children, email }: LayoutContentProps) {
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+  const overlayHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
   const [isFullscreen] = useAtom(isFullscreenAtom);
   const [, setIsNavigatorEnabled] = useAtom(isNavigatorEnabledAtom);
@@ -58,10 +62,15 @@ export function LayoutContent({ children, email }: LayoutContentProps) {
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
-      <AppHeader email={email} />
+    <div className="relative flex h-dvh flex-col overflow-hidden">
+      {isHome && <AppHeader email={email} />}
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-[env(safe-area-inset-bottom)]">
-        {children}
+        {isHome ? children : (
+          <div className="relative min-h-full">
+            <AppHeader email={email} overlay={overlayHeader} />
+            {children}
+          </div>
+        )}
       </main>
       {navigatorEnabled && <AIAsk />}
       <GlobalMediaPlayer onToggleAIAsk={navigatorEnabled ? handleToggleAIAsk : undefined} />

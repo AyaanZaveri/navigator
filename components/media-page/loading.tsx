@@ -2,9 +2,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function MediaDetailsLoading() {
     return (
-        <div role="status" aria-label="Loading media details" className="min-h-screen overflow-hidden pb-8 md:pr-1">
+        <div role="status" aria-label="Loading media details" className="min-h-screen overflow-hidden pb-8">
             <span className="sr-only">Loading media details…</span>
-            <Skeleton className="h-[46vh] w-full md:mt-2.5 md:h-[62vh] md:rounded-xl" />
+            <Skeleton className="h-[46vh] w-full rounded-none md:h-[62vh]" />
             <div className="relative mx-4 -mt-54 rounded-2xl bg-background p-6">
                 <div className="flex flex-col items-center gap-8 md:flex-row md:items-start">
                     <Skeleton className="aspect-[2/3] w-40 shrink-0 rounded-lg md:w-56" />

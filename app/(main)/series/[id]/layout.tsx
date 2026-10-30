@@ -20,7 +20,7 @@ async function SimilarShows({ showId }: { showId: string }) {
   if (!items.length) return null;
 
   return (
-    <div className="mt-8 px-6">
+    <div className="mt-8 px-6 md:px-10">
       <MediaSection sectionName="More Like This" mediaItems={items} />
     </div>
   );
@@ -50,14 +50,14 @@ export default async function SeriesLayout({
     const { show } = layoutData;
 
     return (
-      <div className="min-h-screen overflow-hidden md:pr-1 pb-8">
+      <div className="min-h-screen overflow-hidden pb-8">
         <VibrantAuroraBackground
           backdropUrl={show.background || show.poster || ""}
           className="fixed inset-0 z-10 pointer-events-none opacity-50"
         />
 
         <div className="relative">
-          <div className="relative h-[46vh] md:h-[62vh] overflow-hidden md:rounded-xl md:mt-2.5">
+          <div className="relative h-[46vh] md:h-[62vh] overflow-hidden">
             <BackdropImage
               movie={show}
               backdropImage={show.background || ""}
@@ -82,8 +82,8 @@ export default async function SeriesLayout({
                 />
               </Link>
             )}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90 md:rounded-xl" />
-            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent md:rounded-xl" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90" />
+            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
           </div>
         </div>
 

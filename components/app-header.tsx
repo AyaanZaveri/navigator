@@ -2,11 +2,13 @@
 
 import { Suspense, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Home, Puzzle, Settings } from "lucide-react";
+import { Home, Puzzle, Settings, Ship } from "lucide-react";
 import { logout } from "@/app/actions";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { SearchBar } from "@/components/search-component";
+import { Button } from "@/components/ui/button";
 import { UserMenu, type ThemePreference } from "@/components/arc/user-menu/user-menu";
 
 const subscribe = () => () => {};
@@ -32,13 +34,18 @@ function ProfileMenu({ email }: { email: string }) {
     );
 }
 
-export function AppHeader({ email }: { email: string }) {
+export function AppHeader({ email, overlay = false }: { email: string; overlay?: boolean }) {
     const { isPlayerVisible } = useMediaPlayer();
     if (isPlayerVisible) return null;
 
     return (
-        <header className="relative z-50 shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]">
-            <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-3 py-5 sm:gap-5">
+        <header className={`${overlay ? "absolute inset-x-0 top-0" : "relative"} z-50 shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]`}>
+            <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-2 py-5">
+                <Button asChild variant="ghost" size="icon" className="size-11 rounded-xl border border-border bg-background/90 text-foreground/80 backdrop-blur-md hover:bg-background hover:text-foreground dark:border-white/12 dark:bg-background/70 dark:hover:bg-background/90">
+                    <Link href="/" aria-label="Navigator home" draggable={false}>
+                        <Ship aria-hidden="true" className="size-5" strokeWidth={1.75} />
+                    </Link>
+                </Button>
                 <div className="min-w-0 flex-1 sm:max-w-xl">
                     <Suspense fallback={<div className="h-11 rounded-xl bg-muted" />}>
                         <SearchBar />
