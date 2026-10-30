@@ -96,7 +96,7 @@ export default async function Movie({
                 movieName={movie.name || ""}
                 width={600}
                 height={192}
-                className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-h-32 md:max-h-44 w-[min(38rem,80%)] h-auto object-contain invisible md:visible"
+                className="absolute top-[28%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-h-32 md:max-h-44 w-[min(38rem,80%)] h-auto object-contain invisible md:visible"
               />
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90" />

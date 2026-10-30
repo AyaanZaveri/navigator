@@ -70,7 +70,7 @@ export default async function SeriesLayout({
                 href={buildSeriesPath(id)}
                 prefetch={true}
                 aria-label={`Go to ${show.name} series page`}
-                className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-[min(38rem,80%)] invisible md:visible transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
+                className="absolute top-[28%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-[min(38rem,80%)] invisible md:visible transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
               >
                 <VibrantLogo
                   src={show.logo}
