@@ -1,0 +1,128 @@
+.row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 0.5rem;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  text-align: start;
+  text-decoration: none;
+}
+.interactive {
+  cursor: pointer;
+  outline: none;
+  transition: transform 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+.interactive:focus-visible {
+  background: var(--muted);
+}
+.interactive:active {
+  transform: scale(0.995);
+}
+.image,
+.icon {
+  display: flex;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--radius) * 0.6);
+}
+.image {
+  object-fit: cover;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent);
+}
+.icon {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.copy {
+  display: block;
+  min-width: 0;
+  flex: 1;
+}
+.title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
+}
+.titleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arrow {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transform: scale(0.25);
+  transition:
+    opacity 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.metadata {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-block-start: 0.25rem;
+}
+.description,
+.error {
+  display: block;
+  margin-block-start: 0.25rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.error {
+  color: var(--destructive);
+}
+.body {
+  display: block;
+  margin-block-start: 0.5rem;
+}
+.interactive:focus-visible .arrow {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .interactive:hover {
+    background: var(--muted);
+  }
+  .interactive:hover .arrow {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .interactive,
+  .arrow {
+    transform: none;
+    transition: none;
+  }
+  .interactive:active {
+    transform: none;
+  }
+}
+
+/* Informational tool rows have no destination for a full title, so let them wrap. */
+.row:not(.interactive) .titleText {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

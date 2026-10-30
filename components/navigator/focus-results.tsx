@@ -274,5 +274,5 @@ export function NavigatorTraceRow({ trace }: { trace: Trace }) {
 }
 
 export function NavigatorResultCards({ cards }: { cards: ReactNode }) {
-  return <div className="flex w-full flex-col gap-2">{cards}</div>;
+  return <div className="flex w-full flex-col gap-1">{cards}</div>;
 }
