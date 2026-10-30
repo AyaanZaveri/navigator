@@ -35,7 +35,6 @@ interface StreamWithAddon extends StremioStream {
 }
 
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p", "480p"] as const;
-const STREAM_TAG_FILTERS = ["HDR", "DV", "WEB"] as const;
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const activeMedia = media ?? movie;
@@ -47,7 +46,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [totalAddons, setTotalAddons] = useState(0);
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
   const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
-  const [selectedStreamTags, setSelectedStreamTags] = useState<string[]>([]);
   const [resumePositionTicks, setResumePositionTicks] = useState<
     number | undefined
   >(activeMedia?.resumePositionTicks);
@@ -102,7 +100,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       setPendingAddons(0);
       setTotalAddons(0);
       setSelectedResolutions([]);
-      setSelectedStreamTags([]);
       try {
         const targetsResponse = await fetch(
           `/api/streams/addons?type=${encodeURIComponent(activeMedia.type)}`,
@@ -195,8 +192,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   if (!activeMedia) return null;
 
   const normalizedSearchQuery = streamSearchQuery.trim().toLowerCase();
-  const hasActiveFilters =
-    selectedResolutions.length > 0 || selectedStreamTags.length > 0;
+  const hasActiveFilters = selectedResolutions.length > 0;
   const filteredStreams = streams.filter((stream) => {
     const searchableText = [
       getSourceLabel(stream),
@@ -226,15 +222,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       }
     }
 
-    if (selectedStreamTags.length > 0) {
-      const tags = detectStreamTags(searchableText);
-      const matchesAnySelectedTag = selectedStreamTags.some((tag) =>
-        tags.has(tag),
-      );
-      if (!matchesAnySelectedTag) {
-        return false;
-      }
-    }
 
     return true;
   });
@@ -295,14 +282,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     return null;
   }
 
-  function detectStreamTags(text: string) {
-    const tags = new Set<string>();
-    if (/\b(hdr|hdr10|hdr10\+|hlg)\b/i.test(text)) tags.add("HDR");
-    if (/\b(dv|dovi|dolby[ .-]?vision)\b/i.test(text)) tags.add("DV");
-    if (/\bweb([ .-]?(dl|rip))?\b/i.test(text)) tags.add("WEB");
-    return tags;
-  }
-
   const formatVideoSize = (sizeInBytes?: number) =>
     typeof sizeInBytes === "number"
       ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB`
@@ -315,7 +294,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
           <div className={styles.search}>
             <SearchField
               label="Search streams"
-              size="sm"
+              hideLabel
               value={streamSearchQuery}
               onValueChange={setStreamSearchQuery}
               placeholder="Find the least broken stream..."
@@ -323,10 +302,9 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
             />
           </div>
           <fieldset className={styles.facet}>
-            <legend>Resolution</legend>
+            <legend className="sr-only">Resolution</legend>
             <ChipGroup
               label="Filter by resolution"
-              size="sm"
               multiple
               className={styles.chips}
               options={RESOLUTION_FILTERS.map((resolution) => ({
@@ -335,21 +313,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               }))}
               value={selectedResolutions}
               onValueChange={setSelectedResolutions}
-            />
-          </fieldset>
-          <fieldset className={styles.facet}>
-            <legend>Format</legend>
-            <ChipGroup
-              label="Filter by stream format"
-              size="sm"
-              multiple
-              className={styles.chips}
-              options={STREAM_TAG_FILTERS.map((tag) => ({
-                value: tag,
-                label: tag,
-              }))}
-              value={selectedStreamTags}
-              onValueChange={setSelectedStreamTags}
             />
           </fieldset>
           {isAddonLoading && (

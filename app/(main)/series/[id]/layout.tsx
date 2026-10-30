@@ -70,15 +70,15 @@ export default async function SeriesLayout({
                 href={buildSeriesPath(id)}
                 prefetch={true}
                 aria-label={`Go to ${show.name} series page`}
-                className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-w-2/3 invisible md:visible transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
+                className="absolute md:top-[38%] top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-[min(38rem,80%)] invisible md:visible transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
               >
                 <VibrantLogo
                   src={show.logo}
                   alt={`${show.name} logo`}
                   movieName={show.name || ""}
-                  width={420}
-                  height={134}
-                  className="max-h-24 md:max-h-32 w-auto object-contain"
+                  width={600}
+                  height={192}
+                  className="max-h-32 md:max-h-44 w-full h-auto object-contain"
                 />
               </Link>
             )}

@@ -11,12 +11,13 @@ export interface SearchFieldProps extends Omit<
 > {
   size?: "sm" | "md";
   label: string;
+  hideLabel?: boolean;
   value: string;
   onValueChange: (value: string) => void;
 }
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
   function SearchField(
-    { label, value, onValueChange, id, className, size = "md", ...props },
+    { label, hideLabel = false, value, onValueChange, id, className, size = "md", ...props },
     ref,
   ) {
     const generated = useId();
@@ -35,7 +36,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
     }
     return (
       <div className={styles.field} data-size={size}>
-        <label htmlFor={controlId}>{label}</label>
+        <label htmlFor={controlId} className={hideLabel ? styles.srOnly : undefined}>{label}</label>
         <div className={styles.shell} data-filled={value ? "true" : undefined}>
           <Search width={18} height={18} aria-hidden="true" />
           <input
