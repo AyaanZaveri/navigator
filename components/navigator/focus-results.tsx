@@ -1,12 +1,9 @@
 "use client";
 
-import type { ComponentType } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import type { ComponentProps, ComponentType, ReactNode } from "react";
 import {
-  ArrowRight,
   ArrowUpRight,
   BookOpen,
-  Film,
   Layers,
   List,
   Palette,
@@ -15,13 +12,18 @@ import {
   ScanText,
   Search,
   Subtitles,
-  Tv,
 } from "lucide-react";
-import Link from "next/link";
-import { Badge } from "./focus-ui/badge";
-import { buildEpisodePath, toEpisodeNavigationPath } from "@/lib/series-route";
+import { MediaLinkCard } from "./media-link-card";
+import { MediaDetailsCard } from "./media-details-card";
+import { SeasonCard } from "./season-card";
+import { StreamListCard } from "./stream-list-card";
+import { NavigationCard } from "./navigation-card";
+import { PlayMediaCard } from "./play-media-card";
+import { ThemeToggleCard } from "./theme-toggle-card";
+import { SubtitleSkipCard } from "./subtitle-skip-card";
+import { SceneExplainCard } from "./scene-explain-card";
+import { MediaAnalysisCard } from "./media-analysis-card";
 
-// Navigator's tool data in the same compact trace/result presentation as Focus.
 type RecordValue = Record<string, unknown>;
 const record = (value: unknown): RecordValue =>
   typeof value === "object" && value !== null ? (value as RecordValue) : {};
@@ -43,19 +45,10 @@ type Trace = {
     "aria-hidden"?: boolean | "true" | "false";
   }>;
 };
-type Result = {
-  key: string;
-  title: string;
-  image?: string;
-  badges?: string[];
-  subtitle?: string;
-  href?: string;
-  icon: Trace["icon"];
-};
 export type NavigatorSegment =
   | { kind: "text"; key: string; text: string; streaming: boolean }
   | { kind: "trace"; key: string; trace: Trace }
-  | { kind: "results"; key: string; results: { rows: Result[] } };
+  | { kind: "results"; key: string; results: { cards: ReactNode } };
 
 const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   searchMedia: ["Searching media", "Searched media", Search],
@@ -78,88 +71,105 @@ const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   themeToggle: ["Changing theme", "Changed theme", Palette],
 };
 
-function mediaResult(item: RecordValue, index: number): Result {
-  const type = text(item.type).toLowerCase();
-  const id = text(item.id || item.Id);
-  let href: string | undefined;
-  if (id) {
-    if (type === "episode" || item.episodeNumber !== undefined) {
-      href =
-        item.seriesId &&
-        item.seasonNumber !== undefined &&
-        item.episodeNumber !== undefined
-          ? buildEpisodePath(
-              text(item.seriesId),
-              Number(item.seasonNumber),
-              Number(item.episodeNumber),
-            )
-          : toEpisodeNavigationPath(id);
-    } else if (type === "movie" || type === "series")
-      href = `/${type}/${encodeURIComponent(id)}`;
-  }
-  const badges = [
-    type ? type[0].toUpperCase() + type.slice(1) : "",
-    text(item.year || item.releaseInfo),
-    item.seasonNumber !== undefined && item.episodeNumber !== undefined
-      ? `S${item.seasonNumber} · E${item.episodeNumber}`
-      : "",
-    item.rating || item.communityRating
-      ? `★ ${item.rating || item.communityRating}`
-      : "",
-  ].filter(Boolean);
-  return {
-    key: `${id}-${index}`,
-    title: text(item.name || item.title) || "Untitled",
-    image: text(item.poster || item.thumbnail) || undefined,
-    badges,
-    href,
-    icon: type === "movie" ? Film : Tv,
-  };
-}
-
-function toolResults(
+function toolCards(
   name: string,
   output: RecordValue,
   input: RecordValue,
-): Result[] {
-  if (output.success === false) return [];
-  if (Array.isArray(output.results))
-    return list(output.results).map(mediaResult);
-  if (Array.isArray(output.episodes))
-    return list(output.episodes).map((item, index) =>
-      mediaResult({ type: "episode", ...item }, index),
-    );
-  if (output.details) return [mediaResult(record(output.details), 0)];
-  if (Array.isArray(output.seasons))
-    return list(output.seasons).map((season, index) => {
-      const match = text(season.id).match(/^(.*):(\d+)$/);
-      const seriesId = text(input.tvShowId) || match?.[1];
-      const number = Number(season.seasonNumber ?? match?.[2] ?? 1);
-      return {
-        key: text(season.id) || String(index),
-        title: text(season.name) || `Season ${number}`,
-        icon: Layers,
-        badges: [
-          season.episodeCount ? `${season.episodeCount} episodes` : "",
-          text(season.year),
-        ].filter(Boolean),
-        href: seriesId ? buildEpisodePath(seriesId, number, 1) : undefined,
-      };
-    });
-  if (name === "getMediaStreams")
-    return list(output.streams).map((stream, index) => ({
-      key: text(stream.streamId) || String(index),
-      title:
-        text(stream.title || stream.name || stream.filename) ||
-        `Stream ${index + 1}`,
-      icon: Radio,
-      badges: [
-        text(stream.resolution),
-        text(stream.addonName),
-        ...(Array.isArray(stream.tags) ? stream.tags.map(text) : []),
-      ].filter(Boolean),
-    }));
-  return [];
+): ReactNode {
+  // Reuse Navigator's original cards, including their navigation and playback behavior.
+  switch (name) {
+    case "getMediaStreams":
+      return (
+        <StreamListCard
+          result={output as ComponentProps<typeof StreamListCard>["result"]}
+        />
+      );
+    case "navigateToMedia":
+    case "navigateToEpisode":
+    case "navigateToMediaByQuery":
+      return (
+        <NavigationCard
+          result={output as ComponentProps<typeof NavigationCard>["result"]}
+        />
+      );
+    case "playMedia":
+      return (
+        <PlayMediaCard
+          result={output as ComponentProps<typeof PlayMediaCard>["result"]}
+        />
+      );
+    case "themeToggle":
+      return output.success ? <ThemeToggleCard /> : null;
+    case "skipToSubtitleContent":
+      return (
+        <SubtitleSkipCard
+          result={output as ComponentProps<typeof SubtitleSkipCard>["result"]}
+        />
+      );
+    case "explainScene":
+      return (
+        <SceneExplainCard
+          result={output as ComponentProps<typeof SceneExplainCard>["result"]}
+        />
+      );
+    case "analyzeMedia":
+      return (
+        <MediaAnalysisCard
+          result={output as ComponentProps<typeof MediaAnalysisCard>["result"]}
+        />
+      );
+    case "getMediaDetails": {
+      if (!output.success || !output.details) return null;
+      const details = record(output.details);
+      return (
+        <MediaDetailsCard
+          media={
+            {
+              ...details,
+              type:
+                text(details.type).toLowerCase() === "series"
+                  ? "Series"
+                  : text(details.type).toLowerCase() === "episode"
+                    ? "Episode"
+                    : "Movie",
+            } as ComponentProps<typeof MediaDetailsCard>["media"]
+          }
+        />
+      );
+    }
+    case "getSeasons": {
+      const seasons = list(output.seasons);
+      if (!output.success || !seasons.length) return null;
+      return seasons.map((season, index) => (
+        <SeasonCard
+          key={text(season.id) || index}
+          season={season as ComponentProps<typeof SeasonCard>["season"]}
+          seriesId={text(input.tvShowId) || undefined}
+          index={index}
+        />
+      ));
+    }
+    default: {
+      if (output.success === false) return null;
+      const items = Array.isArray(output.results)
+        ? list(output.results)
+        : list(output.episodes);
+      if (!items.length) return null;
+      return items.map((item, index) => (
+        <MediaLinkCard
+          key={`${text(item.id || item.Id)}-${index}`}
+          item={
+            {
+              ...item,
+              id: text(item.id || item.Id),
+              ...(Array.isArray(output.episodes) ? { type: "Episode" } : {}),
+            } as ComponentProps<typeof MediaLinkCard>["item"]
+          }
+          index={index}
+        />
+      ));
+    }
+  }
 }
 
 export function toNavigatorSegments(
@@ -194,10 +204,14 @@ export function toNavigatorSegments(
       "Completed step",
       Search,
     ];
-    const rows =
-      part.state === "output-available" ? toolResults(name, output, input) : [];
-    const count = rows.length
-      ? ` · ${rows.length} ${rows.length === 1 ? "result" : "results"}`
+    const cards =
+      part.state === "output-available" ? toolCards(name, output, input) : null;
+    const resultCount =
+      [output.results, output.episodes, output.seasons, output.streams].find(
+        Array.isArray,
+      )?.length ?? 0;
+    const count = resultCount
+      ? ` · ${resultCount} ${resultCount === 1 ? "result" : "results"}`
       : "";
     const detail = text(
       part.errorText ||
@@ -218,11 +232,11 @@ export function toNavigatorSegments(
         icon,
       },
     });
-    if (rows.length)
+    if (cards)
       segments.push({
         kind: "results",
         key: `results-${index}`,
-        results: { rows },
+        results: { cards },
       });
     // Tool-only replies still expose their user-facing result, without duplicating assistant text.
     const hasAnswer = parts.some((rawPart) => {
@@ -232,7 +246,7 @@ export function toNavigatorSegments(
     const resultText = text(
       output.explanation || output.analysis || output.answer || output.message,
     );
-    if (complete && !failed && !rows.length && resultText && !hasAnswer)
+    if (complete && !failed && resultText && !hasAnswer)
       segments.push({
         kind: "text",
         key: `tool-text-${index}`,
@@ -259,95 +273,6 @@ export function NavigatorTraceRow({ trace }: { trace: Trace }) {
   );
 }
 
-export function NavigatorResultRows({
-  rows,
-  onNavigate,
-}: {
-  rows: Result[];
-  onNavigate?: () => void;
-}) {
-  const reduceMotion = useReducedMotion();
-  return (
-    <div className="w-full space-y-1">
-      {rows.map((row, index) => {
-        const Icon = row.icon;
-        const content = (
-          <>
-            {row.image ? (
-              <img
-                alt=""
-                aria-hidden="true"
-                className="size-8 shrink-0 rounded-sm object-cover shadow-xs ring-1 ring-border/50"
-                src={row.image}
-              />
-            ) : (
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-muted text-muted-foreground">
-                <Icon className="size-4" />
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="flex min-w-0 items-center gap-1 font-medium">
-                <span className="truncate">{row.title}</span>
-                {row.href && (
-                  <ArrowRight
-                    aria-hidden="true"
-                    className="navigator-result-arrow size-4 shrink-0 text-muted-foreground"
-                  />
-                )}
-              </p>
-              {row.badges && row.badges.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {row.badges.map((badge, i) => (
-                    <Badge
-                      key={`${badge}-${i}`}
-                      className="h-5 max-w-full border-border bg-background px-1.5 text-[11px]"
-                      variant="outline"
-                    >
-                      <span className="truncate">{badge}</span>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              {row.subtitle && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {row.subtitle}
-                </p>
-              )}
-            </div>
-          </>
-        );
-        const classes =
-          "navigator-result-row group/command-item flex w-full min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-sm outline-hidden transition-transform duration-150 ease-[cubic-bezier(0.2,0,0,1)] hover:bg-muted focus-visible:bg-muted active:scale-[0.995] motion-reduce:transform-none motion-reduce:transition-none";
-        return (
-          <motion.div
-            key={row.key}
-            animate={{ opacity: 1, transform: "translateY(0)" }}
-            initial={{
-              opacity: 0,
-              transform: reduceMotion ? "none" : "translateY(10px)",
-            }}
-            transition={{
-              delay: reduceMotion ? 0 : index * 0.05,
-              duration: 0.18,
-              ease: [0.23, 1, 0.32, 1],
-            }}
-          >
-            {row.href ? (
-              <Link
-                className={`${classes} cursor-pointer`}
-                href={row.href}
-                draggable={false}
-                onDragStart={(event) => event.preventDefault()}
-                onClick={onNavigate}
-              >
-                {content}
-              </Link>
-            ) : (
-              <div className={classes}>{content}</div>
-            )}
-          </motion.div>
-        );
-      })}
-    </div>
-  );
+export function NavigatorResultCards({ cards }: { cards: ReactNode }) {
+  return <div className="flex w-full flex-col gap-2">{cards}</div>;
 }

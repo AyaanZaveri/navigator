@@ -36,15 +36,26 @@ import {
 import { NavigatorActivityStatus } from "./activity-status";
 import {
   NavigatorTraceRow,
-  NavigatorResultRows,
+  NavigatorResultCards,
   toNavigatorSegments,
 } from "./focus-results";
 import {
   getNavigatorActivityLabel,
   NAVIGATOR_ACTIVITY_VARIANT_COUNT,
 } from "@/lib/navigator-activity-label";
-import { focusFont } from "./focus-font";
 import "./focus.css";
+
+const navigatorBeamColors = `
+[data-beam="{id}"][data-active]::after,
+[data-beam="{id}"][data-fading]::after {
+  background: linear-gradient(135deg, var(--color-1), var(--color-4), var(--color-2));
+}
+[data-beam="{id}"][data-active]::before,
+[data-beam="{id}"][data-fading]::before {
+  background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 18%, transparent), color-mix(in oklab, var(--color-2) 10%, transparent));
+  box-shadow: inset 0 0 9px 1px color-mix(in oklab, var(--primary) 20%, transparent);
+}
+`;
 
 function ActivityPill({
   label,
@@ -264,7 +275,7 @@ export function NavigatorFocus({
   return (
     <div
       data-navigator-focus-ui=""
-      className={`${focusFont.className} pointer-events-none fixed inset-x-0 bottom-4 z-[9999999] flex justify-center px-4`}
+      className="pointer-events-none fixed inset-x-0 bottom-4 z-[9999999] flex justify-center px-4"
     >
       <div className="pointer-events-auto flex w-full max-w-xl flex-col items-center">
         {isOpen ? (
@@ -359,13 +370,13 @@ export function NavigatorFocus({
                 <BorderBeam
                   active={isBusy && !reduceMotion}
                   size="md"
-                  colorVariant="forest"
+                  css={navigatorBeamColors}
                   theme={resolvedTheme === "dark" ? "dark" : "light"}
                   staticColors
                   duration={4}
                   strength={1}
                   glowSize={1}
-                  className="w-full shadow-2xl shadow-emerald-500/10 ring-1 ring-border dark:shadow-emerald-500/15"
+                  className="w-full shadow-2xl shadow-primary/10 ring-1 ring-border dark:shadow-primary/15"
                 >
                   <motion.section
                     aria-label="Ask Navigator"
@@ -411,7 +422,7 @@ export function NavigatorFocus({
                             return (
                               <motion.div
                                 animate={{ opacity: 1 }}
-                                className={`ml-auto w-fit max-w-[80%] bg-emerald-500/10 px-4 py-2 text-emerald-950 backdrop-blur-sm dark:bg-emerald-400/10 dark:text-emerald-100 ${isShortUserMessage ? "rounded-full" : "rounded-2xl"}`}
+                                className={`ml-auto w-fit max-w-[80%] bg-primary/10 px-4 py-2 text-primary backdrop-blur-sm ${isShortUserMessage ? "rounded-full" : "rounded-2xl"}`}
                                 initial={{ opacity: 0 }}
                                 key={message.id}
                               >
@@ -468,9 +479,8 @@ export function NavigatorFocus({
                                 if (segment.kind === "results") {
                                   return (
                                     <div className={spacing} key={segment.key}>
-                                      <NavigatorResultRows
+                                      <NavigatorResultCards
                                         {...segment.results}
-                                        onNavigate={() => onOpenChange(false)}
                                       />
                                     </div>
                                   );
@@ -605,7 +615,7 @@ export function NavigatorFocus({
             <Button
               aria-expanded={isOpen}
               aria-keyshortcuts="Meta+K Control+K"
-              className="h-9 rounded-full border border-border backdrop-blur-sm bg-popover/85 dark:bg-popover/75 px-3.5 shadow-xl shadow-emerald-500/7 dark:shadow-emerald-500/6 hover:bg-muted/75!"
+              className="h-9 rounded-full border border-border backdrop-blur-sm bg-popover/85 dark:bg-popover/75 px-3.5 shadow-xl shadow-primary/7 dark:shadow-primary/6 hover:bg-muted/75!"
               onClick={() => onOpen()}
               type="button"
               variant="outline"
