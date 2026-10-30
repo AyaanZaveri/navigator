@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { Badge } from "@/components/ui/badge";
 import { CarouselAction } from "@/components/carousel-action";
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -391,17 +392,27 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
 
   if (loading) {
     return (
-      <div className="mt-3">
-        <div className="space-y-6">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-10 w-48" />
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-24 w-full" />
-            ))}
+      <LoadingPlaceholder className="mt-3">
+        <div className="mb-6 flex items-center justify-between gap-4 px-1">
+          <Skeleton className="h-9 w-48 max-w-full" />
+          <div className="flex gap-2">
+            <Skeleton className="size-8 rounded-full" />
+            <Skeleton className="size-8 rounded-full" />
           </div>
         </div>
-      </div>
+        <div
+          className={`flex gap-4 overflow-hidden px-1 ${episodesBottomSpacingClass}`}
+        >
+          {[1, 2, 3, 4, 5].map((item) => (
+            <div key={item} className="w-72 shrink-0 space-y-3 py-2">
+              <Skeleton className="aspect-video w-full rounded-lg" />
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-6 w-16" />
+            </div>
+          ))}
+        </div>
+      </LoadingPlaceholder>
     );
   }
 
@@ -453,30 +464,32 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       </div>
 
       {episodesLoading ? (
-        <ScrollArea className="w-full whitespace-nowrap -ml-3">
-          <div
-            ref={scrollContentRef}
-            className={`flex w-max space-x-4 ${episodesBottomSpacingClass} px-4`}
-          >
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="shrink-0 w-72">
-                <div className="space-y-3 py-2">
-                  <div className="relative aspect-video rounded-lg overflow-hidden bg-muted shadow-lg">
-                    <Skeleton className="w-full h-full" />
-                  </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-full" />
-                    <Skeleton className="h-4 w-5/6" />
-                    <div className="flex items-center gap-2 mt-2.5">
-                      <Skeleton className="h-6 w-16 rounded-md" />
+        <LoadingPlaceholder>
+          <ScrollArea className="w-full whitespace-nowrap -ml-3">
+            <div
+              ref={scrollContentRef}
+              className={`flex w-max space-x-4 ${episodesBottomSpacingClass} px-4`}
+            >
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="shrink-0 w-72">
+                  <div className="space-y-3 py-2">
+                    <div className="relative aspect-video rounded-lg overflow-hidden bg-muted shadow-lg">
+                      <Skeleton className="w-full h-full" />
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-5 w-full" />
+                      <Skeleton className="h-4 w-5/6" />
+                      <div className="flex items-center gap-2 mt-2.5">
+                        <Skeleton className="h-6 w-16 rounded-md" />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          <ScrollBar orientation="horizontal" className="opacity-0" />
-        </ScrollArea>
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" className="opacity-0" />
+          </ScrollArea>
+        </LoadingPlaceholder>
       ) : episodes.length === 0 ? (
         <div className="text-muted-foreground">
           No episodes found for this season

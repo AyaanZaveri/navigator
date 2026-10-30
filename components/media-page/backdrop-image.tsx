@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import type { MediaItem } from "@/types/stremio";
 
 interface BackdropImageProps {
@@ -20,31 +20,23 @@ export function BackdropImage({
   width = 1920,
   height = 1080,
 }: BackdropImageProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const mediaName = name ?? movie?.name ?? "Media";
 
-  return (
-    <>
-      {!imageLoaded && (
-        <div className={`${className} absolute inset-0 bg-gray-800`} />
-      )}
+  if (!backdropImage || failedSrc === backdropImage) {
+    return <div aria-hidden="true" className={`${className} bg-background`} />;
+  }
 
-      <img
-        className={`${className} transition-opacity duration-300 ${
-          imageLoaded ? "opacity-100" : "opacity-0"
-        }`}
-        src={backdropImage}
-        alt={`${mediaName} backdrop`}
-        width={width}
-        height={height}
-        onLoad={() => setImageLoaded(true)}
-        onError={() => console.error("Failed to load backdrop image")}
-        ref={(img) => {
-          if (img && img.complete && img.naturalHeight !== 0) {
-            setImageLoaded(true);
-          }
-        }}
-      />
-    </>
+  return (
+    <img
+      className={className}
+      src={backdropImage}
+      alt={`${mediaName} backdrop`}
+      width={width}
+      height={height}
+      fetchPriority="high"
+      decoding="async"
+      onError={() => setFailedSrc(backdropImage)}
+    />
   );
 }

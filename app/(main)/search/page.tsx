@@ -1,7 +1,7 @@
 import { listSearchAddonTargets, searchCatalogSectionsForAddon } from "@/app/actions";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { MediaCard } from "@/components/media-card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SearchSectionLoading } from "@/components/search-section-loading";
 import { SearchIcon } from "lucide-react";
 import { Suspense } from "react";
 import type { SearchResult, MediaItem } from "@/types/stremio";
@@ -30,28 +30,6 @@ function normalizeQueryParam(
 ): string {
   if (Array.isArray(value)) return value[0]?.trim() ?? "";
   return value?.trim() ?? "";
-}
-
-function AddonSectionSkeleton({ addonName }: { addonName: string }) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-72 max-w-full" />
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <SearchIcon className="h-4 w-4" />
-          <span>Searching {addonName}...</span>
-        </div>
-      </div>
-      <div className="flex flex-row flex-wrap gap-8">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton
-            key={`${addonName}-skeleton-${index}`}
-            className="h-[320px] w-[210px] rounded-xl"
-          />
-        ))}
-      </div>
-    </div>
-  );
 }
 
 async function AddonSection({
@@ -124,7 +102,7 @@ async function SearchResultsByAddon({ query }: { query: string }) {
       {addonTargets.map((target) => (
         <Suspense
           key={target.transportUrl}
-          fallback={<AddonSectionSkeleton addonName={target.addonName} />}
+          fallback={<SearchSectionLoading addonName={target.addonName} />}
         >
           <AddonSection query={query} target={target} />
         </Suspense>

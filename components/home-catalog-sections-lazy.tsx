@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MediaSection } from "@/components/media-section";
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
@@ -20,7 +21,7 @@ function PosterCardSkeleton() {
 
 function HomeSectionSkeleton() {
   return (
-    <section className="relative z-10 mb-8">
+    <LoadingPlaceholder className="relative z-10 mb-8">
       <div className="flex items-center justify-between gap-3 mb-4">
         <Skeleton className="h-8 w-56 rounded-full" />
         <div className="flex items-center gap-2">
@@ -34,7 +35,7 @@ function HomeSectionSkeleton() {
           <PosterCardSkeleton key={`home-catalog-lazy-skeleton-${index}`} />
         ))}
       </div>
-    </section>
+    </LoadingPlaceholder>
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import type { MediaItem } from "@/types/stremio";
 
 interface PosterImageProps {
@@ -20,37 +20,34 @@ export function PosterImage({
   width = 500,
   height = 750,
 }: PosterImageProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const mediaName = name ?? movie?.name ?? "Media";
   const resolvedPosterImage = posterImage.includes("/poster/small/")
     ? posterImage.replace("/poster/small/", "/poster/large/")
     : posterImage;
 
-  return (
-    <>
-      {!imageLoaded && (
-        <div
-          className={`${className} bg-gray-800`}
-          style={{ aspectRatio: `${width} / ${height}` }}
-        />
-      )}
+  if (!resolvedPosterImage || failedSrc === resolvedPosterImage) {
+    return (
+      <div
+        role="img"
+        aria-label={`${mediaName} poster unavailable`}
+        className={`${className} flex items-center justify-center bg-muted text-sm text-muted-foreground`}
+        style={{ aspectRatio: `${width} / ${height}` }}
+      >
+        Poster unavailable
+      </div>
+    );
+  }
 
-      <img
-        className={`${className} transition-opacity duration-300 ${
-          imageLoaded ? "opacity-100" : "opacity-0"
-        } ${!imageLoaded ? "absolute top-0 left-0" : ""}`}
-        src={resolvedPosterImage}
-        alt={`${mediaName} poster`}
-        width={width}
-        height={height}
-        onLoad={() => setImageLoaded(true)}
-        onError={() => console.error("Failed to load poster image")}
-        ref={(img) => {
-          if (img && img.complete && img.naturalHeight !== 0) {
-            setImageLoaded(true);
-          }
-        }}
-      />
-    </>
+  return (
+    <img
+      className={className}
+      src={resolvedPosterImage}
+      alt={`${mediaName} poster`}
+      width={width}
+      height={height}
+      decoding="async"
+      onError={() => setFailedSrc(resolvedPosterImage)}
+    />
   );
 }

@@ -11,6 +11,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Play, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
@@ -388,9 +389,9 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
         </div>
       )}
 
-      {loading && filteredStreams.length === 0 && (
-        <div className={styles.results}>
-          <ScrollArea className="w-full h-[22rem] rounded-xl">
+      {loading && streams.length === 0 && (
+        <LoadingPlaceholder className={styles.results}>
+          <ScrollArea className="w-full h-[24rem] rounded-xl">
             <div className={styles.streamList}>
               {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
@@ -410,28 +411,33 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               ))}
             </div>
           </ScrollArea>
-        </div>
+        </LoadingPlaceholder>
       )}
 
-      {!loading && hasCheckedStreams && filteredStreams.length === 0 && (
-        <Empty className="border border-border/60 bg-card/30 py-10">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SearchX className="size-5" />
-            </EmptyMedia>
-            <EmptyTitle>
-              {normalizedSearchQuery || hasActiveFilters
-                ? "Your filters were a little too powerful"
-                : "No streams crawled out of hiding"}
-            </EmptyTitle>
-            <EmptyDescription>
-              {normalizedSearchQuery || hasActiveFilters
-                ? "Loosen the search/filters a bit and you should find the least broken stream."
-                : "Try again in a minute and hunt for a less cursed source."}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
+      {filteredStreams.length === 0 &&
+        ((!loading && hasCheckedStreams) || streams.length > 0) && (
+          <Empty className="border border-border/60 bg-card/30 py-10">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <SearchX className="size-5" />
+              </EmptyMedia>
+              <EmptyTitle>
+                {loading
+                  ? "No matching streams yet"
+                  : normalizedSearchQuery || hasActiveFilters
+                  ? "Your filters were a little too powerful"
+                  : "No streams crawled out of hiding"}
+              </EmptyTitle>
+              <EmptyDescription>
+                {loading
+                  ? "More addons are still loading. Try adjusting your search or resolution filters."
+                  : normalizedSearchQuery || hasActiveFilters
+                  ? "Loosen the search/filters a bit and you should find the least broken stream."
+                  : "Try again in a minute and hunt for a less cursed source."}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
     </div>
   );
 }

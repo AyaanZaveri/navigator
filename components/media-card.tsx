@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
@@ -17,7 +17,6 @@ export function MediaCard({
   fullWidth?: boolean;
 }) {
   const { playMedia, setIsPlayerVisible } = useMediaPlayer();
-  const [imageLoaded, setImageLoaded] = useState(false);
 
   let linkHref = "";
   if (
@@ -91,14 +90,8 @@ export function MediaCard({
             <img
               src={imageUrl}
               alt={item.name || ""}
-              className="w-full h-full object-cover transition-opacity duration-300 shadow-lg shadow-sm group-hover:shadow-md rounded-md opacity-100"
-              onLoad={() => setImageLoaded(true)}
+              className="w-full h-full object-cover shadow-lg shadow-sm group-hover:shadow-md rounded-md"
               draggable={false}
-              ref={(img) => {
-                if (img && img.complete && img.naturalHeight !== 0) {
-                  setImageLoaded(true);
-                }
-              }}
             />
           ) : (
             <div className="w-full h-full bg-gray-800 flex items-center justify-center rounded-lg shadow-lg">

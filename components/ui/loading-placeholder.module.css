@@ -1,0 +1,12 @@
+.placeholder {
+  animation: reveal-placeholder 0s linear 180ms both;
+}
+
+@keyframes reveal-placeholder {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}

@@ -3,6 +3,7 @@ import { getInstalledAddons } from "@/app/actions/auth";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { MediaSection } from "@/components/media-section";
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
 import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
@@ -61,7 +62,7 @@ function HomeSectionSkeleton({
   const skeletonCount = continueWatching ? 8 : 16;
 
   return (
-    <section className="relative z-10 mb-8">
+    <LoadingPlaceholder className="relative z-10 mb-8">
       <div className="flex items-center justify-between gap-3 mb-4">
         <Skeleton className="h-8 w-56 rounded-full" />
         <div className="flex items-center gap-2">
@@ -79,7 +80,7 @@ function HomeSectionSkeleton({
           )
         )}
       </div>
-    </section>
+    </LoadingPlaceholder>
   );
 }
 
