@@ -21,7 +21,7 @@ async function run() {
     assert.equal(urls.artworkUrl('tt123', 'series', 'still', season, episode), undefined);
   }
   assert.equal(urls.artworkUrl('tt123', 'movie', 'still', 1, 1), undefined);
-  assert.equal(urls.artworkUrl('tmdb:12', 'series', 'logo'), '/api/artwork?id=tmdb%3A12&type=series&kind=logo');
+  assert.equal(urls.artworkUrl('tmdb:12', 'series', 'logo'), '/api/artwork?id=tmdb%3A12&type=series&kind=logo&v=2');
 
   assert.equal(urls.artworkFromPath('/series/tt123/2/3'), '/api/artwork?id=tt123&type=series&kind=still&season=2&episode=3');
   assert.equal(urls.artworkFromPath('/movie/tmdb%3A12'), '/api/artwork?id=tmdb%3A12&type=movie&kind=poster');
@@ -57,6 +57,21 @@ async function run() {
   assert.equal(artwork.selectArtwork(candidates, 'backdrop'), 'https://image.tmdb.org/t/p/w1280/neutral.png');
   assert.equal(candidates[0].file_path, '/french.png', 'Selection must not reorder the cached response');
   assert.equal(artwork.selectArtwork([], 'logo'), undefined);
+  const rehearsalLogos = [
+    { file_path: '/qCypzBQss8KetGBD7Vqqnjhh2Sm.png', iso_639_1: 'en', vote_average: 2.542, vote_count: 4, width: 4220 },
+    { file_path: '/A1AKYxyqs21ZDdmlOORA19riHgf.png', iso_639_1: 'en', vote_average: 2.542, vote_count: 4, width: 4320 },
+    { file_path: '/10HT3cItBzNAmJfREukVQKCQ1DQ.png', iso_639_1: 'en', vote_average: 1.75, vote_count: 3, width: 4220 },
+  ];
+  assert.equal(artwork.selectArtwork(rehearsalLogos, 'logo'),
+    'https://image.tmdb.org/t/p/original/qCypzBQss8KetGBD7Vqqnjhh2Sm.png',
+    'The Rehearsal must keep the original white logo ahead of the wider black variant');
+  assert.equal(artwork.selectArtwork([
+    { file_path: '/first.png', iso_639_1: 'en', vote_average: 5 },
+    { file_path: '/larger.png', iso_639_1: 'en', vote_average: 10, vote_count: 100, width: 8000 },
+  ], 'logo'), 'https://image.tmdb.org/t/p/original/first.png', 'Logo selection preserves provider order within a language');
+  assert.equal(artwork.selectArtwork(rehearsalLogos, 'poster'),
+    'https://image.tmdb.org/t/p/w500/A1AKYxyqs21ZDdmlOORA19riHgf.png',
+    'Other artwork keeps its existing ranking');
   assert.equal(await artwork.getTMDBArtwork('tt123', 'movie', 'poster'), undefined);
   assert.equal(calls.length, 0, 'No credentials must make no network requests');
   env.TMDB_API_READ_ACCESS_TOKEN = 'test-secret';
