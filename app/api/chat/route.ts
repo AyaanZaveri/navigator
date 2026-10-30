@@ -377,11 +377,11 @@ export async function POST(req: Request) {
         const apiKey = opencodeApiKey || process.env.OPENCODE_GO_API_KEY;
         if (!apiKey) {
           throw new Error(
-            "OpenCode Zen API key is required. Please set your API key in settings."
+            "OpenCode Go API key is required. Please set your API key in settings."
           );
         }
         if (typeof opencodeSessionId !== "string" || !opencodeSessionId.trim()) {
-          throw new Error("OpenCode Zen requires a stable session ID.");
+          throw new Error("OpenCode Go requires a stable session ID.");
         }
         const headers = {
           "x-opencode-session": opencodeSessionId.trim(),

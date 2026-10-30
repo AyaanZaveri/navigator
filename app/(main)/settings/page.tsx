@@ -1,1071 +1,812 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Suspense } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Suspense, useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
+import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { OpenCodeIcon } from "@/components/opencode-icon";
+import { ModelIcon } from "@/components/model-icon";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import {
-  CerebrasReasoningEffort,
-  OpenRouterReasoningEffort,
-  useSettings,
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+    useComboboxAnchor,
+} from "@/components/ui/combobox";
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+    Field,
+    FieldContent,
+    FieldDescription,
+    FieldError,
+    FieldGroup,
+    FieldLabel,
+} from "@/components/ui/field";
+import { Separator } from "@/components/ui/separator";
+import {
+    type AIProvider,
+    CerebrasReasoningEffort,
+    OpenRouterReasoningEffort,
+    useSettings,
 } from "@/contexts/settings-context";
-import { Bot, Settings2, Ship } from "lucide-react";
-import { AuroraBackground } from "@/components/aurora-background";
 import { SearchBar } from "@/components/search-component";
-import { Label } from "@/components/ui/label";
-import { Cerebras, Gemini, Groq, OpenAI, OpenRouter } from "@lobehub/icons";
-import { Ollama } from "@lobehub/icons";
-import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
+import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 
 const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
 const MODELS_DEV_PROVIDER_CACHE_PREFIX = "navigator-modelsdev-provider:";
 
 type ModelsDevProviderResponse = {
-  provider: {
-    id: string;
-    name: string;
-    apiBaseUrl: string;
-    logoUrl: string;
-    models: Array<{
-      id: string;
-      name: string;
-    }>;
-  } | null;
-  error?: string;
+    provider: {
+        id: string;
+        name: string;
+        apiBaseUrl: string;
+        logoUrl: string;
+        models: ModelsDevModel[];
+    } | null;
+    error?: string;
 };
 
 function normalizeBaseUrl(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
+    const trimmed = value.trim();
+    if (!trimmed) return "";
 
-  try {
-    const normalized = new URL(trimmed);
-    const pathname = normalized.pathname.replace(/\/+$/, "");
-    return `${normalized.origin}${pathname}`.toLowerCase();
-  } catch {
-    return trimmed.replace(/\/+$/, "").toLowerCase();
-  }
+    try {
+        const normalized = new URL(trimmed);
+        const pathname = normalized.pathname.replace(/\/+$/, "");
+        return `${normalized.origin}${pathname}`.toLowerCase();
+    } catch {
+        return trimmed.replace(/\/+$/, "").toLowerCase();
+    }
 }
 
 function getModelsDevProviderCacheKey(baseUrl: string): string | null {
-  const normalized = normalizeBaseUrl(baseUrl);
-  if (!normalized) return null;
-  return `${MODELS_DEV_PROVIDER_CACHE_PREFIX}${normalized}`;
+    const normalized = normalizeBaseUrl(baseUrl);
+    if (!normalized) return null;
+    return `${MODELS_DEV_PROVIDER_CACHE_PREFIX}${normalized}`;
+}
+
+const PROVIDERS: Array<{ value: AIProvider; name: string; description: string; icon: ComponentType<{ className?: string }> }> = [
+    { value: "openai", name: "OpenAI", icon: OpenAI, description: "Connect OpenAI or another compatible API." },
+    { value: "gemini", name: "Gemini", icon: Gemini.Color, description: "Use Google's Gemini models." },
+    { value: "ollama", name: "Ollama", icon: Ollama, description: "Use models running on your own Ollama instance." },
+    { value: "groq", name: "Groq", icon: Groq, description: "Use models hosted by Groq." },
+    { value: "openrouter", name: "OpenRouter", icon: OpenRouter, description: "Access models from multiple providers through OpenRouter." },
+    { value: "cerebras", name: "Cerebras", icon: Cerebras, description: "Use models hosted by Cerebras." },
+    { value: "opencode", name: "OpenCode Go", icon: OpenCodeIcon, description: "Use models included in your OpenCode Go subscription." },
+];
+
+type ModelOption = ModelsDevModel;
+
+type SettingsInputProps = {
+    id: string;
+    label: string;
+    value: string;
+    onValueChange: (_value: string) => void;
+    placeholder?: string;
+    description: ReactNode;
+    type?: "text" | "url";
+};
+
+function SettingsInput({ id, label, value, onValueChange, placeholder, description, type = "text" }: SettingsInputProps) {
+    return (
+        <Field>
+            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+            <InputGroup>
+                <InputGroupInput
+                    id={id}
+                    type={type}
+                    value={value}
+                    onChange={(event) => onValueChange(event.target.value)}
+                    placeholder={placeholder}
+                    aria-describedby={`${id}-description`}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                />
+            </InputGroup>
+            <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
+        </Field>
+    );
+}
+
+function ApiKeyInput({ id, value, onValueChange, keyUrl }: {
+    id: string;
+    value: string;
+    onValueChange: (_value: string) => void;
+    keyUrl?: string;
+}) {
+    const [visible, setVisible] = useState(false);
+
+    return (
+        <Field>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <FieldLabel htmlFor={id}>API key</FieldLabel>
+                {keyUrl && (
+                    <a
+                        href={keyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 whitespace-nowrap text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    >
+                        Get an API key
+                    </a>
+                )}
+            </div>
+            <InputGroup>
+                <InputGroupInput
+                    id={id}
+                    type={visible ? "text" : "password"}
+                    value={value}
+                    onChange={(event) => onValueChange(event.target.value)}
+                    placeholder="Enter your API key"
+                    aria-describedby={`${id}-description`}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                />
+                <InputGroupAddon align="inline-start">
+                    <KeyRound aria-hidden="true" />
+                </InputGroupAddon>
+                <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                        size="icon-xs"
+                        aria-label={visible ? "Hide API key" : "Show API key"}
+                        aria-controls={id}
+                        onClick={() => setVisible((current) => !current)}
+                    >
+                        {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                    </InputGroupButton>
+                </InputGroupAddon>
+            </InputGroup>
+            <FieldDescription id={`${id}-description`}>
+                Stored in this browser and sent to your provider.
+            </FieldDescription>
+        </Field>
+    );
+}
+
+type SettingsSelectProps = {
+    id: string;
+    label: string;
+    value: string;
+    onValueChange: (_value: string) => void;
+    options: ModelOption[];
+    description?: ReactNode;
+    loading?: boolean;
+    error?: string | null;
+    disabled?: boolean;
+};
+
+function SettingsSelect({ id, label, value, onValueChange, options, description, loading, error, disabled }: SettingsSelectProps) {
+    const unavailable = disabled || (loading && options.length === 0);
+    const describedBy = [
+        (loading || description) && `${id}-description`,
+        error && `${id}-error`,
+    ].filter(Boolean).join(" ") || undefined;
+
+    return (
+        <Field data-disabled={unavailable || undefined}>
+            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+            <Select value={value} onValueChange={onValueChange} disabled={unavailable}>
+                <SelectTrigger
+                    id={id}
+                    className="w-full min-w-0"
+                    aria-describedby={describedBy}
+                    aria-busy={loading || undefined}
+                >
+                    <SelectValue placeholder={loading ? "Loading models…" : `Select ${label.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent className="overscroll-contain">
+                    <SelectGroup>
+                        {options.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
+                        ))}
+                        {options.length === 0 && (
+                            <SelectItem value="__no_options__" disabled>No options available</SelectItem>
+                        )}
+                    </SelectGroup>
+                </SelectContent>
+            </Select>
+            {(loading || description) && (
+                <FieldDescription id={`${id}-description`} role="status">
+                    {loading ? "Loading available models…" : description}
+                </FieldDescription>
+            )}
+            {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
+        </Field>
+    );
+}
+
+function ModelCombobox({ id, value, onValueChange, options, description, loading, error, disabled }: Omit<SettingsSelectProps, "label">) {
+    const anchor = useComboboxAnchor();
+    const selected = options.find((option) => option.id === value) ?? (value ? { id: value, name: value } : null);
+    const unavailable = disabled || (loading && options.length === 0);
+    const describedBy = [
+        (loading || description) && `${id}-description`,
+        error && `${id}-error`,
+    ].filter(Boolean).join(" ") || undefined;
+
+    return (
+        <Field data-disabled={unavailable || undefined}>
+            <FieldLabel htmlFor={id}>Model</FieldLabel>
+            <Combobox
+                items={options}
+                value={selected}
+                onValueChange={(model) => {
+                    if (model) onValueChange(model.id);
+                }}
+                itemToStringLabel={(model) => model.name}
+                itemToStringValue={(model) => model.id}
+                isItemEqualToValue={(model, current) => model.id === current.id}
+                filter={(model, query) => {
+                    const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+                    return normalize(`${model.name} ${model.id}`).includes(normalize(query));
+                }}
+                autoHighlight
+                disabled={unavailable}
+            >
+                <div ref={anchor}>
+                    <ComboboxInput
+                        id={id}
+                        className="w-full min-w-0"
+                        placeholder={loading ? "Loading models…" : "Search models…"}
+                        aria-describedby={describedBy}
+                        aria-busy={loading || undefined}
+                        disabled={unavailable}
+                    >
+                        {selected && (
+                            <InputGroupAddon align="inline-start">
+                                <ModelIcon model={selected} />
+                            </InputGroupAddon>
+                        )}
+                    </ComboboxInput>
+                </div>
+                <ComboboxContent anchor={anchor} className="min-w-0">
+                    <ComboboxEmpty>{loading ? "Loading models…" : "No models found."}</ComboboxEmpty>
+                    <ComboboxList className="max-h-[min(16rem,var(--available-height))] overscroll-contain">
+                        {(model: ModelOption) => (
+                            <ComboboxItem key={model.id} value={model} title={model.name}>
+                                <ModelIcon model={model} />
+                                <span className="min-w-0 truncate">{model.name}</span>
+                            </ComboboxItem>
+                        )}
+                    </ComboboxList>
+                </ComboboxContent>
+            </Combobox>
+            {(loading || description) && (
+                <FieldDescription id={`${id}-description`} role="status">
+                    {loading ? "Loading available models…" : description}
+                </FieldDescription>
+            )}
+            {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
+        </Field>
+    );
 }
 
 export default function SettingsPage() {
-  const {
-    navigatorEnabled,
-    setNavigatorEnabled,
-    aiProvider,
-    setAiProvider,
-    openaiBaseUrl,
-    setOpenaiBaseUrl,
-    openaiModel,
-    setOpenaiModel,
-    geminiModel,
-    setGeminiModel,
-    ollamaBaseUrl,
-    setOllamaBaseUrl,
-    ollamaModel,
-    setOllamaModel,
-    groqModel,
-    setGroqModel,
-    openrouterModel,
-    setOpenrouterModel,
-    openrouterReasoningEffort,
-    setOpenrouterReasoningEffort,
-    cerebrasModel,
-    setCerebrasModel,
-    cerebrasReasoningEffort,
-    setCerebrasReasoningEffort,
-    opencodeModel,
-    setOpencodeModel,
-    openaiApiKey,
-    setOpenaiApiKey,
-    googleApiKey,
-    setGoogleApiKey,
-    groqApiKey,
-    setGroqApiKey,
-    openrouterApiKey,
-    setOpenrouterApiKey,
-    cerebrasApiKey,
-    setCerebrasApiKey,
-    opencodeApiKey,
-    setOpencodeApiKey,
-  } = useSettings();
+    const {
+        navigatorEnabled,
+        setNavigatorEnabled,
+        aiProvider,
+        setAiProvider,
+        openaiBaseUrl,
+        setOpenaiBaseUrl,
+        openaiModel,
+        setOpenaiModel,
+        geminiModel,
+        setGeminiModel,
+        ollamaBaseUrl,
+        setOllamaBaseUrl,
+        ollamaModel,
+        setOllamaModel,
+        groqModel,
+        setGroqModel,
+        openrouterModel,
+        setOpenrouterModel,
+        openrouterReasoningEffort,
+        setOpenrouterReasoningEffort,
+        cerebrasModel,
+        setCerebrasModel,
+        cerebrasReasoningEffort,
+        setCerebrasReasoningEffort,
+        opencodeModel,
+        setOpencodeModel,
+        openaiApiKey,
+        setOpenaiApiKey,
+        googleApiKey,
+        setGoogleApiKey,
+        groqApiKey,
+        setGroqApiKey,
+        openrouterApiKey,
+        setOpenrouterApiKey,
+        cerebrasApiKey,
+        setCerebrasApiKey,
+        opencodeApiKey,
+        setOpencodeApiKey,
+    } = useSettings();
 
-  const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
-  const [isLoadingCerebrasModels, setIsLoadingCerebrasModels] = useState(false);
-  const [cerebrasModelsError, setCerebrasModelsError] = useState<string | null>(
-    null
-  );
-  const [modelsDevProvider, setModelsDevProvider] =
+    const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
+    const [isLoadingCerebrasModels, setIsLoadingCerebrasModels] = useState(false);
+    const [cerebrasModelsError, setCerebrasModelsError] = useState<string | null>(
+        null
+    );
+    const [modelsDevProvider, setModelsDevProvider] =
     useState<ModelsDevProviderResponse["provider"]>(null);
-  const [isLoadingModelsDevProvider, setIsLoadingModelsDevProvider] =
+    const [isLoadingModelsDevProvider, setIsLoadingModelsDevProvider] =
     useState(false);
-  const [modelsDevProviderError, setModelsDevProviderError] = useState<
+    const [modelsDevProviderError, setModelsDevProviderError] = useState<
     string | null
   >(null);
-  const [geminiModelsProvider, setGeminiModelsProvider] =
+    const [geminiModelsProvider, setGeminiModelsProvider] =
     useState<ModelsDevProviderResponse["provider"]>(null);
-  const [isLoadingGeminiModels, setIsLoadingGeminiModels] = useState(false);
-  const [geminiModelsError, setGeminiModelsError] = useState<string | null>(
-    null
-  );
-
-  const fetchModelsDevProvider = useCallback(async () => {
-    let trimmedBaseUrl = openaiBaseUrl.trim();
-    if (
-      typeof window !== "undefined" &&
-      (!trimmedBaseUrl || trimmedBaseUrl === OPENAI_DEFAULT_BASE_URL)
-    ) {
-      const storedBaseUrl =
-        window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY)?.trim() ?? "";
-      if (storedBaseUrl) {
-        trimmedBaseUrl = storedBaseUrl;
-      }
-    }
-
-    if (!trimmedBaseUrl) {
-      setModelsDevProvider(null);
-      setModelsDevProviderError(null);
-      return;
-    }
-
-    if (typeof window !== "undefined") {
-      const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
-      if (cacheKey) {
-        const cachedProvider = window.localStorage.getItem(cacheKey);
-        if (cachedProvider) {
-          try {
-            const parsed = JSON.parse(
-              cachedProvider
-            ) as ModelsDevProviderResponse["provider"];
-            setModelsDevProvider(parsed);
-          } catch {
-            window.localStorage.removeItem(cacheKey);
-          }
-        }
-      }
-    }
-
-    setIsLoadingModelsDevProvider(true);
-    setModelsDevProviderError(null);
-
-    try {
-      const params = new URLSearchParams({ baseUrl: trimmedBaseUrl });
-      const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
-      const data = (await response.json()) as ModelsDevProviderResponse;
-
-      if (!response.ok) {
-        throw new Error(
-          data.error || "Failed to load provider info from models.dev."
-        );
-      }
-
-      setModelsDevProvider(data.provider ?? null);
-      if (typeof window !== "undefined") {
-        const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
-        if (cacheKey) {
-          if (data.provider) {
-            window.localStorage.setItem(cacheKey, JSON.stringify(data.provider));
-          } else {
-            window.localStorage.removeItem(cacheKey);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load models.dev provider info:", error);
-      setModelsDevProviderError(
-        error instanceof Error
-          ? error.message
-          : "Failed to load provider info from models.dev."
-      );
-    } finally {
-      setIsLoadingModelsDevProvider(false);
-    }
-  }, [openaiBaseUrl]);
-
-  const fetchGeminiModels = useCallback(async () => {
-    setIsLoadingGeminiModels(true);
-    setGeminiModelsError(null);
-
-    try {
-      const params = new URLSearchParams({ providerId: "google" });
-      const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
-      const data = (await response.json()) as ModelsDevProviderResponse;
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load Gemini models.");
-      }
-
-      setGeminiModelsProvider(data.provider ?? null);
-    } catch (error) {
-      console.error("Failed to load Gemini models:", error);
-      setGeminiModelsProvider(null);
-      setGeminiModelsError(
-        error instanceof Error ? error.message : "Failed to load Gemini models."
-      );
-    } finally {
-      setIsLoadingGeminiModels(false);
-    }
-  }, []);
-
-  const fetchCerebrasModels = useCallback(async () => {
-    if (!cerebrasApiKey.trim()) {
-      setCerebrasModels([]);
-      setCerebrasModelsError(null);
-      return;
-    }
-
-    setIsLoadingCerebrasModels(true);
-    setCerebrasModelsError(null);
-
-    try {
-      const response = await fetch("/api/cerebras/models", {
-        method: "GET",
-        headers: {
-          "x-cerebras-api-key": cerebrasApiKey.trim(),
-        },
-      });
-
-      const data = (await response.json()) as {
-        models?: string[];
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch Cerebras models.");
-      }
-
-      setCerebrasModels(Array.isArray(data.models) ? data.models : []);
-    } catch (error) {
-      console.error("Failed to load Cerebras models:", error);
-      setCerebrasModels([]);
-      setCerebrasModelsError(
-        error instanceof Error
-          ? error.message
-          : "Failed to load Cerebras models."
-      );
-    } finally {
-      setIsLoadingCerebrasModels(false);
-    }
-  }, [cerebrasApiKey]);
-
-  useEffect(() => {
-    if (aiProvider !== "openai") return;
-    void fetchModelsDevProvider();
-  }, [aiProvider, fetchModelsDevProvider]);
-
-  useEffect(() => {
-    if (aiProvider !== "openai") return;
-    if (typeof window === "undefined") return;
-
-    const storedBaseUrl =
-      window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY)?.trim() ?? "";
-    const cacheKey = getModelsDevProviderCacheKey(
-      storedBaseUrl || openaiBaseUrl || OPENAI_DEFAULT_BASE_URL
+    const [isLoadingGeminiModels, setIsLoadingGeminiModels] = useState(false);
+    const [geminiModelsError, setGeminiModelsError] = useState<string | null>(
+        null
     );
-    if (!cacheKey) return;
+    const [opencodeModelsProvider, setOpencodeModelsProvider] =
+    useState<ModelsDevProviderResponse["provider"]>(null);
+    const [isLoadingOpencodeModels, setIsLoadingOpencodeModels] = useState(false);
+    const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
+        null
+    );
 
-    const cachedProvider = window.localStorage.getItem(cacheKey);
-    if (!cachedProvider) return;
+    const fetchModelsDevProvider = useCallback(async () => {
+        let trimmedBaseUrl = openaiBaseUrl.trim();
+        if (
+            typeof window !== "undefined" &&
+      (!trimmedBaseUrl || trimmedBaseUrl === OPENAI_DEFAULT_BASE_URL)
+        ) {
+            const storedBaseUrl =
+        window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY)?.trim() ?? "";
+            if (storedBaseUrl) {
+                trimmedBaseUrl = storedBaseUrl;
+            }
+        }
 
-    try {
-      const parsed = JSON.parse(
-        cachedProvider
-      ) as ModelsDevProviderResponse["provider"];
-      setModelsDevProvider(parsed);
-    } catch {
-      window.localStorage.removeItem(cacheKey);
-    }
-  }, [aiProvider, openaiBaseUrl]);
+        if (!trimmedBaseUrl) {
+            setModelsDevProvider(null);
+            setModelsDevProviderError(null);
+            return;
+        }
 
-  useEffect(() => {
-    if (aiProvider !== "gemini") return;
-    void fetchGeminiModels();
-  }, [aiProvider, fetchGeminiModels]);
+        if (typeof window !== "undefined") {
+            const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
+            if (cacheKey) {
+                const cachedProvider = window.localStorage.getItem(cacheKey);
+                if (cachedProvider) {
+                    try {
+                        const parsed = JSON.parse(
+                            cachedProvider
+                        ) as ModelsDevProviderResponse["provider"];
+                        setModelsDevProvider(parsed);
+                    } catch {
+                        window.localStorage.removeItem(cacheKey);
+                    }
+                }
+            }
+        }
 
-  useEffect(() => {
-    if (aiProvider !== "cerebras") return;
-    void fetchCerebrasModels();
-  }, [aiProvider, fetchCerebrasModels]);
+        setIsLoadingModelsDevProvider(true);
+        setModelsDevProviderError(null);
 
-  const cerebrasModelOptions = useMemo(() => {
-    if (!cerebrasModel) return cerebrasModels;
-    if (cerebrasModels.includes(cerebrasModel)) return cerebrasModels;
-    return [cerebrasModel, ...cerebrasModels];
-  }, [cerebrasModel, cerebrasModels]);
+        try {
+            const params = new URLSearchParams({ baseUrl: trimmedBaseUrl });
+            const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
+            const data = (await response.json()) as ModelsDevProviderResponse;
 
-  const openaiModelOptions = useMemo(() => {
-    const providerModels = modelsDevProvider?.models ?? [];
-    if (!openaiModel) return providerModels;
-    if (providerModels.some((model) => model.id === openaiModel)) {
-      return providerModels;
-    }
+            if (!response.ok) {
+                throw new Error(
+                    data.error || "Failed to load provider info from models.dev."
+                );
+            }
 
-    return [
-      {
-        id: openaiModel,
-        name: openaiModel,
-      },
-      ...providerModels,
-    ];
-  }, [modelsDevProvider, openaiModel]);
+            setModelsDevProvider(data.provider ?? null);
+            if (typeof window !== "undefined") {
+                const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
+                if (cacheKey) {
+                    if (data.provider) {
+                        window.localStorage.setItem(cacheKey, JSON.stringify(data.provider));
+                    } else {
+                        window.localStorage.removeItem(cacheKey);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load models.dev provider info:", error);
+            setModelsDevProviderError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load provider info from models.dev."
+            );
+        } finally {
+            setIsLoadingModelsDevProvider(false);
+        }
+    }, [openaiBaseUrl]);
 
-  const geminiModelOptions = useMemo(() => {
-    const providerModels = geminiModelsProvider?.models ?? [];
-    if (!geminiModel) return providerModels;
-    if (providerModels.some((model) => model.id === geminiModel)) {
-      return providerModels;
-    }
+    const fetchGeminiModels = useCallback(async () => {
+        setIsLoadingGeminiModels(true);
+        setGeminiModelsError(null);
 
-    return [
-      {
-        id: geminiModel,
-        name: geminiModel,
-      },
-      ...providerModels,
-    ];
-  }, [geminiModel, geminiModelsProvider]);
+        try {
+            const params = new URLSearchParams({ providerId: "google" });
+            const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
+            const data = (await response.json()) as ModelsDevProviderResponse;
 
-  console.log({
-    navigatorEnabled,
-    aiProvider,
-    openaiBaseUrl,
-    openaiModel,
-    geminiModel,
-    modelsDevProvider,
-    geminiModelsProvider,
-    ollamaBaseUrl,
-    ollamaModel,
-    groqModel,
-    openrouterModel,
-    openrouterReasoningEffort,
-    cerebrasModel,
-    cerebrasReasoningEffort,
-    opencodeModel,
-    openaiApiKey,
-    googleApiKey,
-    groqApiKey,
-    openrouterApiKey,
-    cerebrasApiKey,
-    opencodeApiKey,
-  });
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to load Gemini models.");
+            }
 
-  return (
-    <div className="relative px-4 py-6 max-w-full overflow-hidden">
-      {/* Aurora background */}
-      <AuroraBackground colorStops={["#34d399", "#38bdf8", "#2dd4bf"]} />
+            setGeminiModelsProvider(data.provider ?? null);
+        } catch (error) {
+            console.error("Failed to load Gemini models:", error);
+            setGeminiModelsProvider(null);
+            setGeminiModelsError(
+                error instanceof Error ? error.message : "Failed to load Gemini models."
+            );
+        } finally {
+            setIsLoadingGeminiModels(false);
+        }
+    }, []);
 
-      {/* Main content with higher z-index */}
-      <div className="relative z-10">
-        <div className="relative z-[9999] mb-8">
-          <div className="mb-6">
-            <Suspense fallback={null}>
-              <SearchBar />
-            </Suspense>
-          </div>
-        </div>
-        <div className="mb-8">
-          <h2 className="text-3xl font-semibold text-foreground mb-2 font-poppins flex items-center gap-2">
-            <Settings2 className="h-8 w-8" />
-            Settings
-          </h2>
-        </div>
+    const fetchCerebrasModels = useCallback(async () => {
+        if (!cerebrasApiKey.trim()) {
+            setCerebrasModels([]);
+            setCerebrasModelsError(null);
+            return;
+        }
 
-        <div className="grid gap-6">
-          {/* Navigator Settings */}
-          <Card className="bg-card/75">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-poppins text-lg">
-                <Ship className="h-5 w-5" />
-                Navigator
-              </CardTitle>
-              <CardDescription>
-                Configure the AI-powered navigation assistant that helps you
-                find and play content using natural language.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <div className="text-base font-medium">Enable Navigator</div>
-                  <div className="text-sm text-muted-foreground">
-                    Allow the Navigator to help you search and play content.
-                    When disabled, the Navigator button and keyboard shortcuts
-                    will be hidden.
-                  </div>
-                </div>
-                <Switch
-                  checked={navigatorEnabled}
-                  onCheckedChange={setNavigatorEnabled}
-                  className="scale-125"
-                />
-              </div>
+        setIsLoadingCerebrasModels(true);
+        setCerebrasModelsError(null);
 
-              {navigatorEnabled && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="ai-provider"
-                      className="text-base font-medium"
-                    >
-                      AI Provider
-                    </Label>
-                    <Select value={aiProvider} onValueChange={setAiProvider}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select AI provider" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="openai">
-                          <div className="flex items-center gap-2">
-                            <OpenAI className="h-4 w-4" />
-                            OpenAI
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="gemini">
-                          <div className="flex items-center gap-2">
-                            <Gemini.Color className="h-4 w-4" />
-                            Gemini
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="ollama">
-                          <div className="flex items-center gap-2">
-                            <Ollama className="h-4 w-4 fill-foreground" />
-                            Ollama
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="groq">
-                          <div className="flex items-center gap-2">
-                            <Groq className="h-4 w-4 fill-[#F55036]" />
-                            Groq
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="openrouter">
-                          <div className="flex items-center gap-2">
-                            <OpenRouter className="h-4 w-4 fill-foreground" />
-                            OpenRouter
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="cerebras">
-                          <div className="flex items-center gap-2">
-                            <Cerebras className="h-4 w-4" />
-                            Cerebras
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="opencode">
-                          <div className="flex items-center gap-2">
-                            <Bot className="h-4 w-4" />
-                            OpenCode Zen
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground">
-                      {aiProvider === "openai" &&
-                        "Uses OpenAI-compatible chat models with a configurable base URL, API key, and model selection."}
-                      {aiProvider === "gemini" &&
-                        "Uses Google's Gemini 2.0 Flash model for AI responses. Requires your own API key."}
-                      {aiProvider === "ollama" &&
-                        "Uses a locally running Ollama instance for AI responses."}
-                      {aiProvider === "groq" &&
-                        "Uses Groq's high-speed inference API for AI responses."}
-                      {aiProvider === "openrouter" &&
-                        "Uses OpenRouter's API to access various AI models."}
-                      {aiProvider === "cerebras" &&
-                        "Uses Cerebras high-speed inference with configurable reasoning and decoding parameters."}
-                      {aiProvider === "opencode" &&
-                        "Uses OpenCode Zen Go with a stable per-chat session ID for routing and prompt-cache affinity."}
-                    </p>
-                  </div>
+        try {
+            const response = await fetch("/api/cerebras/models", {
+                method: "GET",
+                headers: {
+                    "x-cerebras-api-key": cerebrasApiKey.trim(),
+                },
+            });
 
-                  {aiProvider === "openai" && (
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
-                      <div className="rounded-lg border border-border/60 bg-background/40 p-3">
-                        <div className="flex items-center gap-3">
-                          {modelsDevProvider?.logoUrl ? (
-                            <img
-                              src={modelsDevProvider.logoUrl}
-                              alt={`${modelsDevProvider.name} logo`}
-                              className="h-8 w-8 rounded-sm object-contain dark:invert"
+            const data = (await response.json()) as {
+                models?: string[];
+                error?: string;
+            };
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to fetch Cerebras models.");
+            }
+
+            setCerebrasModels(Array.isArray(data.models) ? data.models : []);
+        } catch (error) {
+            console.error("Failed to load Cerebras models:", error);
+            setCerebrasModels([]);
+            setCerebrasModelsError(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load Cerebras models."
+            );
+        } finally {
+            setIsLoadingCerebrasModels(false);
+        }
+    }, [cerebrasApiKey]);
+
+    useEffect(() => {
+        if (aiProvider !== "openai") return;
+        const timeout = window.setTimeout(() => void fetchModelsDevProvider(), 300);
+        return () => window.clearTimeout(timeout);
+    }, [aiProvider, fetchModelsDevProvider]);
+
+    useEffect(() => {
+        if (aiProvider !== "gemini") return;
+        const timeout = window.setTimeout(() => void fetchGeminiModels(), 0);
+        return () => window.clearTimeout(timeout);
+    }, [aiProvider, fetchGeminiModels]);
+
+    useEffect(() => {
+        if (aiProvider !== "cerebras") return;
+        const timeout = window.setTimeout(() => void fetchCerebrasModels(), 400);
+        return () => window.clearTimeout(timeout);
+    }, [aiProvider, fetchCerebrasModels]);
+
+    useEffect(() => {
+        if (aiProvider !== "opencode") return;
+
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 15_000);
+        let active = true;
+
+        async function fetchOpencodeModels() {
+            setIsLoadingOpencodeModels(true);
+            setOpencodeModelsError(null);
+
+            try {
+                const params = new URLSearchParams({ providerId: "opencode-go" });
+                const response = await fetch(`/api/models-dev/provider?${params}`, {
+                    signal: controller.signal,
+                });
+                const data = (await response.json()) as ModelsDevProviderResponse;
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Failed to load OpenCode Go models.");
+                }
+                if (!data.provider?.models.length) {
+                    throw new Error("No OpenCode Go models are currently available.");
+                }
+
+                if (active) setOpencodeModelsProvider(data.provider);
+            } catch (error) {
+                if (active) {
+                    setOpencodeModelsError(
+                        controller.signal.aborted
+                            ? "Loading models timed out. Your saved model is still available."
+                            : error instanceof Error
+                                ? error.message
+                                : "Failed to load OpenCode Go models."
+                    );
+                }
+            } finally {
+                window.clearTimeout(timeout);
+                if (active) setIsLoadingOpencodeModels(false);
+            }
+        }
+
+        void fetchOpencodeModels();
+        return () => {
+            active = false;
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [aiProvider]);
+
+    const opencodeModelOptions = useMemo(() => {
+        const providerModels = opencodeModelsProvider?.models ?? [];
+        if (!opencodeModel || providerModels.some((model) => model.id === opencodeModel)) {
+            return providerModels;
+        }
+
+        return [{ id: opencodeModel, name: opencodeModel }, ...providerModels];
+    }, [opencodeModel, opencodeModelsProvider]);
+
+    const cerebrasModelOptions = useMemo(() => {
+        if (!cerebrasModel) return cerebrasModels;
+        if (cerebrasModels.includes(cerebrasModel)) return cerebrasModels;
+        return [cerebrasModel, ...cerebrasModels];
+    }, [cerebrasModel, cerebrasModels]);
+
+    const openaiModelOptions = useMemo(() => {
+        const providerModels = modelsDevProvider?.models ?? [];
+        if (!openaiModel) return providerModels;
+        if (providerModels.some((model) => model.id === openaiModel)) {
+            return providerModels;
+        }
+
+        return [
+            {
+                id: openaiModel,
+                name: openaiModel,
+            },
+            ...providerModels,
+        ];
+    }, [modelsDevProvider, openaiModel]);
+
+    const geminiModelOptions = useMemo(() => {
+        const providerModels = geminiModelsProvider?.models ?? [];
+        if (!geminiModel) return providerModels;
+        if (providerModels.some((model) => model.id === geminiModel)) {
+            return providerModels;
+        }
+
+        return [
+            {
+                id: geminiModel,
+                name: geminiModel,
+            },
+            ...providerModels,
+        ];
+    }, [geminiModel, geminiModelsProvider]);
+
+    const selectedProvider = PROVIDERS.find((provider) => provider.value === aiProvider)!;
+    const apiKeySettings = {
+        openai: { value: openaiApiKey, onValueChange: setOpenaiApiKey, keyUrl: openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL ? "https://platform.openai.com/api-keys" : undefined },
+        gemini: { value: googleApiKey, onValueChange: setGoogleApiKey, keyUrl: "https://aistudio.google.com/apikey" },
+        groq: { value: groqApiKey, onValueChange: setGroqApiKey, keyUrl: "https://console.groq.com/keys" },
+        openrouter: { value: openrouterApiKey, onValueChange: setOpenrouterApiKey, keyUrl: "https://openrouter.ai/keys" },
+        cerebras: { value: cerebrasApiKey, onValueChange: setCerebrasApiKey, keyUrl: "https://cloud.cerebras.ai" },
+        opencode: { value: opencodeApiKey, onValueChange: setOpencodeApiKey, keyUrl: "https://opencode.ai/auth" },
+    };
+    const modelSettings: Record<AIProvider, Omit<SettingsSelectProps, "id" | "label" | "options"> & { options?: ModelOption[]; placeholder?: string }> = {
+        openai: {
+            value: openaiModel, onValueChange: setOpenaiModel, options: openaiModelOptions,
+            loading: isLoadingModelsDevProvider, error: modelsDevProviderError,
+            description: modelsDevProvider ? `Models available through ${modelsDevProvider.name}.` : "Choose a model for your API endpoint.",
+        },
+        gemini: {
+            value: geminiModel, onValueChange: setGeminiModel, options: geminiModelOptions,
+            loading: isLoadingGeminiModels, error: geminiModelsError,
+            description: "Choose the Gemini model Navigator uses for responses.",
+        },
+        ollama: {
+            value: ollamaModel, onValueChange: setOllamaModel, placeholder: "phi3",
+            description: <>Enter the name of a model installed in Ollama. <a href="https://ollama.com/search?c=tools" target="_blank" rel="noopener noreferrer">Browse models</a>.</>,
+        },
+        groq: {
+            value: groqModel, onValueChange: setGroqModel, placeholder: "llama3-8b-8192",
+            description: <>Enter a model ID from <a href="https://console.groq.com/docs/models" target="_blank" rel="noopener noreferrer">Groq&apos;s model list</a>.</>,
+        },
+        openrouter: {
+            value: openrouterModel, onValueChange: setOpenrouterModel, placeholder: "qwen/qwen3-coder:free",
+            description: <>Enter a model ID from <a href="https://openrouter.ai/models?fmt=cards&supported_parameters=tools" target="_blank" rel="noopener noreferrer">OpenRouter&apos;s model list</a>.</>,
+        },
+        cerebras: {
+            value: cerebrasModel, onValueChange: setCerebrasModel,
+            options: cerebrasModelOptions.map((id) => ({ id, name: id })),
+            loading: isLoadingCerebrasModels, error: cerebrasModelsError, disabled: !cerebrasApiKey.trim(),
+            description: cerebrasApiKey.trim() ? "Choose the Cerebras model Navigator uses for responses." : "Add your API key to load available models.",
+        },
+        opencode: {
+            value: opencodeModel, onValueChange: setOpencodeModel, options: opencodeModelOptions,
+            loading: isLoadingOpencodeModels, error: opencodeModelsError,
+        },
+    };
+    const currentModel = modelSettings[aiProvider];
+
+    return (
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mb-10">
+                <Suspense fallback={null}>
+                    <SearchBar />
+                </Suspense>
+            </div>
+
+            <div className="flex w-full max-w-4xl flex-col gap-8 pb-10">
+                <header className="flex flex-col gap-2">
+                    <h1 className="font-poppins text-3xl font-semibold tracking-tight">Settings</h1>
+                </header>
+
+                <section aria-labelledby="navigator-settings-title" className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-12">
+                    <div className="flex flex-col gap-2">
+                        <h2 id="navigator-settings-title" className="text-base font-medium">Navigator</h2>
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                            Find and play movies and shows with natural language.
+                        </p>
+                    </div>
+
+                    <FieldGroup className="min-w-0 gap-6">
+                        <Field orientation="horizontal">
+                            <FieldContent>
+                                <FieldLabel htmlFor="navigator-enabled">Enable Navigator</FieldLabel>
+                                <FieldDescription id="navigator-enabled-description">
+                                    Show the assistant and enable its keyboard shortcuts.
+                                </FieldDescription>
+                            </FieldContent>
+                            <Switch
+                                id="navigator-enabled"
+                                checked={navigatorEnabled}
+                                onCheckedChange={setNavigatorEnabled}
+                                aria-describedby="navigator-enabled-description"
                             />
-                          ) : (
-                            <OpenAI className="h-8 w-8" />
-                          )}
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium">
-                              {modelsDevProvider?.name ?? "OpenAI-compatible API"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {isLoadingModelsDevProvider
-                                ? "Matching provider from models.dev..."
-                                : modelsDevProvider
-                                  ? `Matched from ${modelsDevProvider.apiBaseUrl}`
-                                  : "No matching provider found for this base URL."}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        </Field>
 
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="openai-base-url"
-                          className="text-base font-medium"
-                        >
-                          Base URL
-                        </Label>
-                        <Input
-                          id="openai-base-url"
-                          type="url"
-                          value={openaiBaseUrl}
-                          onChange={(e) => setOpenaiBaseUrl(e.target.value)}
-                          placeholder={OPENAI_DEFAULT_BASE_URL}
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          The OpenAI-compatible API base URL. Default:{" "}
-                          <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                            {OPENAI_DEFAULT_BASE_URL}
-                          </code>
-                        </p>
-                      </div>
+                        {navigatorEnabled && (
+                            <>
+                                <Separator />
+                                <Field>
+                                    <FieldLabel htmlFor="ai-provider">AI provider</FieldLabel>
+                                    <Select value={aiProvider} onValueChange={setAiProvider}>
+                                        <SelectTrigger id="ai-provider" className="w-full min-w-0" aria-describedby="ai-provider-description">
+                                            <SelectValue placeholder="Select a provider" />
+                                        </SelectTrigger>
+                                        <SelectContent className="overscroll-contain">
+                                            <SelectGroup>
+                                                {PROVIDERS.map((provider) => {
+                                                    const Icon = provider.icon;
+                                                    return (
+                                                        <SelectItem key={provider.value} value={provider.value}>
+                                                            <span className="flex items-center gap-2">
+                                                                <Icon />
+                                                                {provider.name}
+                                                            </span>
+                                                        </SelectItem>
+                                                    );
+                                                })}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                    <FieldDescription id="ai-provider-description">{selectedProvider.description}</FieldDescription>
+                                </Field>
 
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="openai-api-key"
-                          className="text-base font-medium"
-                        >
-                          API Key
-                        </Label>
-                        <Input
-                          id="openai-api-key"
-                          type="password"
-                          value={openaiApiKey}
-                          onChange={(e) => setOpenaiApiKey(e.target.value)}
-                          placeholder="Enter your OpenAI API key"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Get your API key from{" "}
-                          <a
-                            href="https://platform.openai.com/api-keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            OpenAI Platform
-                          </a>
-                          . Your key is stored locally and never shared.
-                        </p>
-                      </div>
+                                {aiProvider === "openai" && (
+                                    <SettingsInput
+                                        id="openai-base-url"
+                                        label="Base URL"
+                                        type="url"
+                                        value={openaiBaseUrl}
+                                        onValueChange={setOpenaiBaseUrl}
+                                        placeholder={OPENAI_DEFAULT_BASE_URL}
+                                        description="Use the default OpenAI URL or an OpenAI-compatible endpoint."
+                                    />
+                                )}
 
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="openai-model"
-                          className="text-base font-medium"
-                        >
-                          Model
-                        </Label>
-                        <Select
-                          value={openaiModel}
-                          onValueChange={setOpenaiModel}
-                          disabled={isLoadingModelsDevProvider}
-                        >
-                          <SelectTrigger id="openai-model" className="w-full">
-                            <SelectValue placeholder="Select an OpenAI model" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {openaiModelOptions.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.id}
-                              </SelectItem>
-                            ))}
-                            {openaiModelOptions.length === 0 && (
-                              <SelectItem value="__none" disabled>
-                                No models available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-sm text-muted-foreground">
-                          {modelsDevProvider
-                            ? `Model list loaded from models.dev for ${modelsDevProvider.name}.`
-                            : "Model list is sourced from models.dev based on the base URL."}
-                          {modelsDevProviderError && ` Error: ${modelsDevProviderError}`}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                                {aiProvider === "ollama" ? (
+                                    <SettingsInput
+                                        id="ollama-base-url"
+                                        label="Base URL"
+                                        type="url"
+                                        value={ollamaBaseUrl}
+                                        onValueChange={setOllamaBaseUrl}
+                                        placeholder="http://localhost:11434"
+                                        description="The address where your Ollama instance is running."
+                                    />
+                                ) : (
+                                    <ApiKeyInput key={aiProvider} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
+                                )}
 
-                  {/* Google API Key Configuration */}
-                  {aiProvider === "gemini" && (
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="google-api-key"
-                          className="text-base font-medium"
-                        >
-                          Google API Key
-                        </Label>
-                        <Input
-                          id="google-api-key"
-                          type="password"
-                          value={googleApiKey}
-                          onChange={(e) => setGoogleApiKey(e.target.value)}
-                          placeholder="Enter your Google Generative AI API key"
-                          className="w-full"
-                          required
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Get your API key from{" "}
-                          <a
-                            href="https://makersuite.google.com/app/apikey"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            Google AI Studio
-                          </a>
-                          . Your key is stored locally and never shared.
-                        </p>
-                      </div>
+                                {currentModel.options ? (
+                                    <ModelCombobox key={aiProvider} id={`${aiProvider}-model`} {...currentModel} options={currentModel.options} />
+                                ) : (
+                                    <SettingsInput
+                                        id={`${aiProvider}-model`}
+                                        label="Model"
+                                        value={currentModel.value}
+                                        onValueChange={currentModel.onValueChange}
+                                        placeholder={currentModel.placeholder}
+                                        description={currentModel.description}
+                                    />
+                                )}
 
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="gemini-model"
-                          className="text-base font-medium"
-                        >
-                          Model
-                        </Label>
-                        <Select
-                          value={geminiModel}
-                          onValueChange={setGeminiModel}
-                          disabled={isLoadingGeminiModels}
-                        >
-                          <SelectTrigger id="gemini-model" className="w-full">
-                            <SelectValue placeholder="Select a Gemini model" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {geminiModelOptions.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.id}
-                              </SelectItem>
-                            ))}
-                            {geminiModelOptions.length === 0 && (
-                              <SelectItem value="__none" disabled>
-                                No models available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-sm text-muted-foreground">
-                          {geminiModelsProvider
-                            ? "Model list loaded from models.dev for Google."
-                            : "Model list is sourced from models.dev."}
-                          {geminiModelsError && ` Error: ${geminiModelsError}`}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                                {aiProvider === "openrouter" && (
+                                    <SettingsSelect
+                                        id="openrouter-reasoning-effort"
+                                        label="Reasoning effort"
+                                        value={openrouterReasoningEffort}
+                                        onValueChange={(value) => setOpenrouterReasoningEffort(value as OpenRouterReasoningEffort)}
+                                        options={[
+                                            { id: "default", name: "Model default" },
+                                            { id: "none", name: "None" },
+                                            { id: "minimal", name: "Minimal" },
+                                            { id: "low", name: "Low" },
+                                            { id: "medium", name: "Medium" },
+                                            { id: "high", name: "High" },
+                                            { id: "xhigh", name: "Extra high" },
+                                        ]}
+                                        description="Set how much reasoning supported models use before responding."
+                                    />
+                                )}
 
-                  {aiProvider === "ollama" && (
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="ollama-base-url"
-                          className="text-base font-medium"
-                        >
-                          Base URL
-                        </Label>
-                        <Input
-                          id="ollama-base-url"
-                          type="url"
-                          value={ollamaBaseUrl}
-                          onChange={(e) => setOllamaBaseUrl(e.target.value)}
-                          placeholder="http://localhost:11434"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          The base URL for your Ollama instance:{" "}
-                          <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                            http://localhost:11434
-                          </code>
-                          ,{" "}
-                          <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                            https://ollama.mydomain.com
-                          </code>
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="ollama-model"
-                          className="text-base font-medium"
-                        >
-                          Model
-                        </Label>
-                        <Input
-                          id="ollama-model"
-                          type="text"
-                          value={ollamaModel}
-                          onChange={(e) => setOllamaModel(e.target.value)}
-                          placeholder="phi3"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          The Ollama model to use. Check out{" "}
-                          <a
-                            href="https://ollama.com/search?c=tools"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            all available models
-                          </a>
-                          .
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {aiProvider === "groq" && (
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="groq-api-key"
-                          className="text-base font-medium"
-                        >
-                          API Key
-                        </Label>
-                        <Input
-                          id="groq-api-key"
-                          type="password"
-                          value={groqApiKey}
-                          onChange={(e) => setGroqApiKey(e.target.value)}
-                          placeholder="Enter your Groq API key"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Get your API key from{" "}
-                          <a
-                            href="https://console.groq.com/keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            Groq Console
-                          </a>
-                          . Your key is stored locally and never shared.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="groq-model"
-                          className="text-base font-medium"
-                        >
-                          Model
-                        </Label>
-                        <Input
-                          id="groq-model"
-                          type="text"
-                          value={groqModel}
-                          onChange={(e) => setGroqModel(e.target.value)}
-                          placeholder="llama3-8b-8192"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          The Groq model to use. Check out{" "}
-                          <a
-                            href="https://console.groq.com/docs/models"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            available models
-                          </a>
-                          . Popular options include{" "}
-                          <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                            llama3-8b-8192
-                          </code>
-                          ,{" "}
-                          <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                            mixtral-8x7b-32768
-                          </code>
-                          .
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {aiProvider === "openrouter" && (
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="openrouter-api-key"
-                          className="text-base font-medium"
-                        >
-                          API Key
-                        </Label>
-                        <Input
-                          id="openrouter-api-key"
-                          type="password"
-                          value={openrouterApiKey}
-                          onChange={(e) => setOpenrouterApiKey(e.target.value)}
-                          placeholder="Enter your OpenRouter API key"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Get your API key from{" "}
-                          <a
-                            href="https://openrouter.ai/keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            OpenRouter Dashboard
-                          </a>
-                          . Your key is stored locally and never shared.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="openrouter-model"
-                          className="text-base font-medium"
-                        >
-                          Model
-                        </Label>
-                        <Input
-                          id="openrouter-model"
-                          type="text"
-                          value={openrouterModel}
-                          onChange={(e) => setOpenrouterModel(e.target.value)}
-                          placeholder="qwen/qwen3-coder:free"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          The OpenRouter model to use. Check out{" "}
-                          <a
-                            href="https://openrouter.ai/models?fmt=cards&supported_parameters=tools"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            available models
-                          </a>
-                          .
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="openrouter-reasoning-effort"
-                          className="text-base font-medium"
-                        >
-                          Reasoning Effort
-                        </Label>
-                        <Select
-                          value={openrouterReasoningEffort}
-                          onValueChange={(value) =>
-                            setOpenrouterReasoningEffort(
-                              value as OpenRouterReasoningEffort
-                            )
-                          }
-                        >
-                          <SelectTrigger
-                            id="openrouter-reasoning-effort"
-                            className="w-full"
-                          >
-                            <SelectValue placeholder="Select reasoning effort" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="default">
-                              Model default (off)
-                            </SelectItem>
-                            <SelectItem value="none">None</SelectItem>
-                            <SelectItem value="minimal">Minimal</SelectItem>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                            <SelectItem value="xhigh">XHigh</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-sm text-muted-foreground">
-                          Sets OpenRouter&apos;s <code>reasoning.effort</code>:
-                          {" "}xhigh, high, medium, low, minimal, or none.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {aiProvider === "cerebras" && (
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="cerebras-api-key"
-                          className="text-base font-medium"
-                        >
-                          API Key
-                        </Label>
-                        <Input
-                          id="cerebras-api-key"
-                          type="password"
-                          value={cerebrasApiKey}
-                          onChange={(e) => setCerebrasApiKey(e.target.value)}
-                          placeholder="Enter your Cerebras API key"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Get your API key from{" "}
-                          <a
-                            href="https://cloud.cerebras.ai"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            Cerebras Cloud
-                          </a>
-                          . Your key is stored locally and never shared.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="cerebras-model"
-                          className="text-base font-medium"
-                        >
-                          Model
-                        </Label>
-                        <Select
-                          value={cerebrasModel}
-                          onValueChange={setCerebrasModel}
-                          disabled={!cerebrasApiKey.trim()}
-                        >
-                          <SelectTrigger id="cerebras-model" className="w-full">
-                            <SelectValue
-                              placeholder={
-                                isLoadingCerebrasModels
-                                  ? "Loading models..."
-                                  : "Select a Cerebras model"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cerebrasModelOptions.map((modelId) => (
-                              <SelectItem key={modelId} value={modelId}>
-                                {modelId}
-                              </SelectItem>
-                            ))}
-                            {cerebrasModelOptions.length === 0 && (
-                              <SelectItem value="__none" disabled>
-                                No models available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-sm text-muted-foreground">
-                          {cerebrasApiKey.trim()
-                            ? "Model list is fetched live from Cerebras."
-                            : "Add your API key to fetch available models."}
-                          {cerebrasModelsError && ` Error: ${cerebrasModelsError}`}
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="cerebras-reasoning-effort"
-                          className="text-base font-medium"
-                        >
-                          Reasoning Effort
-                        </Label>
-                        <Select
-                          value={cerebrasReasoningEffort}
-                          onValueChange={(value) =>
-                            setCerebrasReasoningEffort(
-                              value as CerebrasReasoningEffort
-                            )
-                          }
-                        >
-                          <SelectTrigger
-                            id="cerebras-reasoning-effort"
-                            className="w-full"
-                          >
-                            <SelectValue placeholder="Select reasoning effort" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="default">Model default</SelectItem>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-sm text-muted-foreground">
-                          Uses Cerebras provider reasoning effort option.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {aiProvider === "opencode" && (
-                    <div className="space-y-4 pl-4 border-l-2 border-muted">
-                      <div className="space-y-2">
-                        <Label htmlFor="opencode-api-key" className="text-base font-medium">
-                          API Key
-                        </Label>
-                        <Input
-                          id="opencode-api-key"
-                          type="password"
-                          value={opencodeApiKey}
-                          onChange={(e) => setOpencodeApiKey(e.target.value)}
-                          placeholder="Enter your OpenCode Zen API key"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Your key is stored locally and sent only to OpenCode Zen.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="opencode-model" className="text-base font-medium">
-                          Model
-                        </Label>
-                        <Input
-                          id="opencode-model"
-                          type="text"
-                          value={opencodeModel}
-                          onChange={(e) => setOpencodeModel(e.target.value)}
-                          placeholder="gpt-5.6-luna"
-                          className="w-full"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Uses the OpenCode Zen Go chat-completions endpoint. The app generates and sends a stable <code>x-opencode-session</code> ID for each chat.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                                {aiProvider === "cerebras" && (
+                                    <SettingsSelect
+                                        id="cerebras-reasoning-effort"
+                                        label="Reasoning effort"
+                                        value={cerebrasReasoningEffort}
+                                        onValueChange={(value) => setCerebrasReasoningEffort(value as CerebrasReasoningEffort)}
+                                        options={[
+                                            { id: "default", name: "Model default" },
+                                            { id: "low", name: "Low" },
+                                            { id: "medium", name: "Medium" },
+                                            { id: "high", name: "High" },
+                                        ]}
+                                        description="Set how much reasoning supported models use before responding."
+                                    />
+                                )}
+                            </>
+                        )}
+                    </FieldGroup>
+                </section>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
