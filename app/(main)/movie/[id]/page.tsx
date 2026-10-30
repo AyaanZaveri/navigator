@@ -87,7 +87,7 @@ export default async function Movie({
               height={1080}
             />
             {movie.logo && (
-              <div className="pointer-events-none absolute inset-x-0 top-0 bottom-54 z-10 hidden place-items-center md:grid">
+              <div className="pointer-events-none absolute inset-x-0 top-16 bottom-54 z-10 hidden place-items-center md:grid">
                 <VibrantLogo
                   src={movie.logo}
                   alt={`${movie.name} logo`}
