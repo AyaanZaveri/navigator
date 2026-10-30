@@ -11,6 +11,7 @@ import type {
   StremioStreamResponse,
 } from "@/types/stremio";
 import { getAuthData, getInstalledAddons } from "./auth";
+import { completeMediaDescription } from "@/lib/media-description";
 
 const STREMIO_API = "https://api.strem.io/api";
 const ADDON_RESOURCE_TIMEOUT_MS = 3_500;
@@ -240,8 +241,28 @@ export async function fetchMediaDetails(
       return fullMetaToMediaItem(data.meta, addon.transportUrl);
     });
 
+    const withCompleteDescription = (item: MediaItem) =>
+      completeMediaDescription(
+        item,
+        metaRequests,
+        /^tt\d+$/.test(mediaItemId) && (type === "movie" || type === "series")
+          ? async () => {
+              // Cinemeta v3 can return a truncated synopsis. Its live endpoint
+              // can supply a complete description for the same IMDb id.
+              const data = await fetchAddonResource<StremioMetaResponse>(
+                "https://cinemeta-live.strem.io",
+                `meta/${type}/${mediaItemId}.json`,
+              );
+              return data?.meta?.id === mediaItemId
+                ? data.meta.description
+                : undefined;
+            }
+          : undefined,
+      );
+
     if (type !== "movie") {
-      return await Promise.any(metaRequests).catch(() => null);
+      const item = await Promise.any(metaRequests).catch(() => null);
+      return item ? await withCompleteDescription(item) : null;
     }
 
     const usableMetaResult = await Promise.any(
@@ -255,7 +276,7 @@ export async function fetchMediaDetails(
       })
     ).catch(() => null);
 
-    if (usableMetaResult) return usableMetaResult;
+    if (usableMetaResult) return await withCompleteDescription(usableMetaResult);
 
     const settledMetaResults = await Promise.allSettled(metaRequests);
     const fallbackMeta = settledMetaResults.find(
@@ -263,7 +284,7 @@ export async function fetchMediaDetails(
         result.status === "fulfilled" && hasText(result.value.name)
     );
 
-    return fallbackMeta?.value ?? null;
+    return fallbackMeta ? await withCompleteDescription(fallbackMeta.value) : null;
   } catch (error) {
     console.error("Failed to fetch media details:", error);
     return null;
