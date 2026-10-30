@@ -66,21 +66,23 @@ export default async function SeriesLayout({
               height={1080}
             />
             {show.logo && (
-              <Link
-                href={buildSeriesPath(id)}
-                prefetch={true}
-                aria-label={`Go to ${show.name} series page`}
-                className="absolute top-[28%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-[min(30rem,60%)] invisible md:visible transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
-              >
-                <VibrantLogo
-                  src={show.logo}
-                  alt={`${show.name} logo`}
-                  movieName={show.name || ""}
-                  width={480}
-                  height={154}
-                  className="max-h-24 md:max-h-28 w-full h-auto object-contain"
-                />
-              </Link>
+              <div className="pointer-events-none absolute inset-x-0 top-0 bottom-54 z-10 hidden place-items-center md:grid">
+                <Link
+                  href={buildSeriesPath(id)}
+                  prefetch={true}
+                  aria-label={`Go to ${show.name} series page`}
+                  className="pointer-events-auto block w-[min(30rem,60%)] transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
+                >
+                  <VibrantLogo
+                    src={show.logo}
+                    alt={`${show.name} logo`}
+                    movieName={show.name || ""}
+                    width={480}
+                    height={154}
+                    className="max-h-28 w-full h-auto object-contain"
+                  />
+                </Link>
+              </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90" />
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />

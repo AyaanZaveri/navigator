@@ -87,14 +87,16 @@ export default async function Movie({
               height={1080}
             />
             {movie.logo && (
-              <VibrantLogo
-                src={movie.logo}
-                alt={`${movie.name} logo`}
-                movieName={movie.name || ""}
-                width={480}
-                height={154}
-                className="absolute top-[28%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 max-h-24 md:max-h-28 w-[min(30rem,60%)] h-auto object-contain invisible md:visible"
-              />
+              <div className="pointer-events-none absolute inset-x-0 top-0 bottom-54 z-10 hidden place-items-center md:grid">
+                <VibrantLogo
+                  src={movie.logo}
+                  alt={`${movie.name} logo`}
+                  movieName={movie.name || ""}
+                  width={480}
+                  height={154}
+                  className="max-h-28 w-[min(30rem,60%)] h-auto object-contain"
+                />
+              </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90" />
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
