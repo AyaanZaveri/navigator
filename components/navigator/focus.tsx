@@ -43,6 +43,7 @@ import {
   getNavigatorActivityLabel,
   NAVIGATOR_ACTIVITY_VARIANT_COUNT,
 } from "@/lib/navigator-activity-label";
+import { cn } from "@/lib/utils";
 import "./focus.css";
 import { navigatorBeamColors } from "@/lib/navigator-beam";
 
@@ -268,7 +269,12 @@ export function NavigatorFocus({
   return (
     <div
       data-navigator-focus-ui=""
-      className="pointer-events-none fixed inset-x-0 bottom-4 z-[9999999] flex justify-center px-4"
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-4",
+        showLauncher
+          ? "z-[var(--layer-navigator)]"
+          : "z-[var(--layer-player-navigator)]",
+      )}
     >
       <div className="pointer-events-auto flex w-full max-w-xl flex-col items-center">
         {isOpen ? (

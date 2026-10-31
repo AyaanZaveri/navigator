@@ -569,7 +569,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const Video = nativePlayback ? MpvVideo : MuxVideo;
   return (
-    <div data-native-player-shell={nativePlayback ? "" : undefined} className="fixed inset-0 z-[999999] flex items-center justify-center w-screen bg-black">
+    <div data-native-player-shell={nativePlayback ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
         autoHide
         onEnded={handleVideoEnded}
@@ -654,7 +654,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
         {/* Loading overlay */}
         {(loading || !streamUrl || !videoReady || playbackError) && (
-          <div className="fixed inset-0 bg-black z-[1000000]">
+          <div className="fixed inset-0 bg-black z-40">
             <Button
               variant="ghost"
               className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
@@ -777,7 +777,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {/* Current subtitle */}
         {(currentSubtitle || nativeSubtitle) && !loading && videoReady && (
           <div
-            className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-[100] text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md whitespace-pre-line ${
+            className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md whitespace-pre-line ${
               currentSubtitle?.positionTop ? "top-[15%]" : "bottom-[10%]"
             }`}
           >
@@ -787,7 +787,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </div>
         )}
 
-        <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-[9999]">
+        <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
           <Button
             variant="ghost"
             className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
@@ -878,7 +878,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     </MediaPlayerTooltip>
                   </PopoverTrigger>
                   <PopoverContent
-                    className="w-80 bg-black/90 border-white/20 text-white z-[1000000]"
+                    className="w-80 bg-black/90 border-white/20 text-white"
                     side="top"
                   >
                     <div className="space-y-3">

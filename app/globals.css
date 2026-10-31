@@ -35,6 +35,15 @@ navigator-mpv {
 }
 
 :root {
+  /* Global layers. Portaled overlays share a level so mount order also
+     handles nested dialogs and menus; each backdrop precedes its surface. */
+  --layer-navigator: 30;
+  --layer-header: 35;
+  --layer-player: 40;
+  --layer-player-navigator: 45;
+  --layer-overlay: 50;
+  --layer-tooltip: 60;
+  --layer-toast: 70;
   --page-gutter: 1rem;
   /* Arc surfaces follow the existing app theme rather than replacing it. */
   --surface: var(--card);

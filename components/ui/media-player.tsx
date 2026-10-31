@@ -2205,7 +2205,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             <div
               ref={tooltipRef}
               aria-hidden={!seekState.isHovering || tooltipDisabled}
-              className="pointer-events-none z-[1000001] [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
+              className="pointer-events-none z-[var(--layer-tooltip)] [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
               style={{
                 position: "fixed" as const,
                 left: `var(${SEEK_TOOLTIP_X}, 0rem)`,
@@ -3029,7 +3029,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
         side="top"
         sideOffset={sideOffset}
         container={context.portalContainer}
-        className="w-56 data-[side=top]:mb-3.5 z-[1000000]"
+        className="w-56 data-[side=top]:mb-3.5"
       >
         <DropdownMenuLabel className="sr-only">Settings</DropdownMenuLabel>
         <DropdownMenuSub>
@@ -3245,7 +3245,7 @@ function MediaPlayerTooltip(props: MediaPlayerTooltipProps) {
       <TooltipContent
         container={context.portalContainer}
         sideOffset={tooltipSideOffset}
-        className="flex items-center gap-2 border bg-accent px-2 py-1 font-medium text-foreground data-[side=top]:mb-3.5 dark:bg-zinc-900 [&>span]:hidden z-[1000000]"
+        className="flex items-center gap-2 border bg-accent px-2 py-1 font-medium text-foreground data-[side=top]:mb-3.5 dark:bg-zinc-900 [&>span]:hidden"
       >
         <p>{tooltip}</p>
         {Array.isArray(shortcut) ? (
