@@ -9,16 +9,17 @@ html[data-native-engine="exoplayer"] :is([data-app-layout], body > .h-dvh) {
   box-sizing: border-box;
   padding-left: var(--navigator-inset-left);
   padding-right: var(--navigator-inset-right);
-  padding-bottom: var(--navigator-inset-bottom);
 }
 html[data-native-engine="exoplayer"] [data-desktop-app-content] header {
   padding-top: var(--navigator-inset-top);
   padding-left: var(--page-gutter, 1rem) !important;
   padding-right: var(--page-gutter, 1rem) !important;
 }
-/* The outer app layout already reserves the navigation inset once. */
+/* Keep the scrollport full-height. End padding protects the last item while
+   allowing scrolling content to paint behind the transparent home indicator. */
 html[data-native-engine="exoplayer"] [data-desktop-app-content] > main {
-  padding-bottom: 0 !important;
+  padding-bottom: var(--navigator-inset-bottom) !important;
+  scroll-padding-bottom: var(--navigator-inset-bottom);
 }
 html[data-native-engine="exoplayer"] body > .min-h-screen {
   box-sizing: border-box;

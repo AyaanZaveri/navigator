@@ -101,6 +101,10 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
   values to the document for older WebView compatibility. Only the header,
   app content, and fixed controls receive safe spacing; the background/video
   stays full-window. System icon appearance follows the web page's theme.
+  The home-indicator/navigation area is explicitly transparent, including legacy
+  navigation-bar scrims/dividers. Bottom safe spacing belongs to scroll content
+  and fixed controls, so it does not create a stationary empty strip. Fullscreen
+  exit preserves the edge-to-edge layout flags on older Android versions.
 - Normal startup uses the AndroidX Navigator splash until the first web frame
   is ready. Retry/App settings appear only for an actual load failure or a
   30-second no-content timeout, rather than on every page load.
