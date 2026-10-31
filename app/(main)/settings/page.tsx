@@ -30,6 +30,8 @@ import {
     useSettings,
 } from "@/contexts/settings-context";
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
+import { Button } from "@/components/ui/button";
+import { getArtworkSettings, saveArtworkToken, removeArtworkToken, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
 import styles from "./settings.module.css";
 
 const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
@@ -109,18 +111,24 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
     );
 }
 
-function ApiKeyInput({ id, value, onValueChange, keyUrl }: {
+function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", description = "Stored in this browser and sent to your provider.", placeholder = "Enter your API key", keyLinkLabel = "Get an API key", error, disabled }: {
     id: string;
     value: string;
     onValueChange: (_value: string) => void;
     keyUrl?: string;
+    label?: string;
+    description?: string;
+    placeholder?: string;
+    keyLinkLabel?: string;
+    error?: string | null;
+    disabled?: boolean;
 }) {
     const [visible, setVisible] = useState(false);
 
     return (
-        <Field>
+        <Field data-invalid={!!error || undefined} data-disabled={disabled || undefined}>
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <FieldLabel htmlFor={id}>API key</FieldLabel>
+                <FieldLabel htmlFor={id}>{label}</FieldLabel>
                 {keyUrl && (
                     <a
                         href={keyUrl}
@@ -128,7 +136,7 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl }: {
                         rel="noopener noreferrer"
                         className={`${styles.keyLink} shrink-0 whitespace-nowrap underline underline-offset-4 hover:text-foreground`}
                     >
-                        Get an API key
+                        {keyLinkLabel}
                     </a>
                 )}
             </div>
@@ -138,8 +146,10 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl }: {
                     type={visible ? "text" : "password"}
                     value={value}
                     onChange={(event) => onValueChange(event.target.value)}
-                    placeholder="Enter your API key"
-                    aria-describedby={`${id}-description`}
+                    placeholder={placeholder}
+                    aria-describedby={`${id}-description${error ? ` ${id}-error` : ""}`}
+                    aria-invalid={!!error || undefined}
+                    disabled={disabled}
                     autoComplete="off"
                     autoCapitalize="none"
                     spellCheck={false}
@@ -150,8 +160,11 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl }: {
                 <InputGroupAddon align="inline-end">
                     <InputGroupButton
                         size="icon-xs"
-                        aria-label={visible ? "Hide API key" : "Show API key"}
+                        type="button"
+                        disabled={disabled}
+                        aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`}
                         aria-controls={id}
+                        aria-pressed={visible}
                         onClick={() => setVisible((current) => !current)}
                     >
                         {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
@@ -159,9 +172,76 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl }: {
                 </InputGroupAddon>
             </InputGroup>
             <FieldDescription id={`${id}-description`}>
-                Stored in this browser and sent to your provider.
+                {description}
             </FieldDescription>
+            {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
         </Field>
+    );
+}
+
+function ArtworkSettings() {
+    const [state, setState] = useState<ArtworkSettingsState>({ configured: false, personal: false });
+    const [token, setToken] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [pending, setPending] = useState<"save" | "remove" | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [status, setStatus] = useState("");
+    useEffect(() => {
+        let active = true;
+        getArtworkSettings().then((value) => {
+            if (active) setState(value);
+        }).catch(() => {
+            if (active) setError("Couldn’t load artwork settings. Reload the page to try again.");
+        }).finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, []);
+
+    async function update(operation: "save" | "remove") {
+        setPending(operation);
+        setError(null);
+        setStatus("");
+        try {
+            const result = operation === "save" ? await saveArtworkToken(token) : await removeArtworkToken();
+            if (!result.success) { setError(result.error); return; }
+            setState({ configured: result.configured, personal: result.personal });
+            setToken("");
+            setStatus(operation === "save" ? "Token saved. Artwork is ready." : "Token removed.");
+        } catch {
+            setError("Couldn’t update artwork settings. Check your connection and try again.");
+        } finally { setPending(null); }
+    }
+
+    return (
+        <section aria-labelledby="artwork-settings-title" className={styles.section}>
+            <div className="flex flex-col gap-2">
+                <h2 id="artwork-settings-title" className="text-lg font-medium">Artwork</h2>
+                <p className={styles.description}>Posters, backdrops, logos, and cast photos from TMDB.</p>
+            </div>
+            <form className="min-w-0" aria-busy={loading || !!pending} onSubmit={(event) => { event.preventDefault(); if (!pending && token.trim()) void update("save"); }}>
+                <FieldGroup className="gap-4">
+                    <ApiKeyInput
+                        id="tmdb-read-access-token"
+                        label="TMDB read access token"
+                        value={token}
+                        onValueChange={(value) => { setToken(value); setError(null); setStatus(""); }}
+                        keyUrl="https://www.themoviedb.org/settings/api"
+                        keyLinkLabel="Get a TMDB token"
+                        placeholder={state.personal ? "Enter a replacement token" : "Enter your read access token"}
+                        description={loading ? "Loading artwork settings…" : state.personal
+                            ? "Your token is saved on this device. Enter a new token to replace it."
+                            : state.configured ? "Your server provides artwork access. You can save a different token for this device."
+                                : "Use the API Read Access Token from your TMDB settings. Save it to enable artwork on this device."}
+                        disabled={loading || !!pending}
+                        error={error}
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Button type="submit" disabled={loading || !!pending || !token.trim()}>{pending === "save" ? "Checking token…" : "Save token"}</Button>
+                        {state.personal && <Button type="button" variant="ghost" disabled={loading || !!pending} onClick={() => void update("remove")}>{pending === "remove" ? "Removing…" : "Remove token"}</Button>}
+                    </div>
+                    <p role="status" className={styles.description}>{status}</p>
+                </FieldGroup>
+            </form>
+        </section>
     );
 }
 
@@ -737,6 +817,7 @@ export default function SettingsPage() {
                         )}
                     </FieldGroup>
                 </section>
+                <ArtworkSettings />
             </div>
         </div>
     );

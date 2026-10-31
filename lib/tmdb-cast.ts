@@ -2,10 +2,11 @@ import "server-only";
 
 import { normalizeCast, type CastMember, type TMDBCastCredit } from "@/lib/cast";
 import { fetchTMDB, resolveTMDBId } from "@/lib/tmdb";
+import { getTMDBToken } from "@/lib/tmdb-credentials";
 
 export async function getMediaCast(id: string, type: "movie" | "series", names: string[] = []): Promise<{ members: CastMember[]; sourceUrl?: string }> {
     const fallback = { members: [...new Set(names)].slice(0, 30).map((name) => ({ id: name, name })) };
-    const token = process.env.TMDB_API_READ_ACCESS_TOKEN?.trim();
+    const token = await getTMDBToken();
     if (!token) return fallback;
 
     const mediaType = type === "series" ? "tv" : "movie";

@@ -1,6 +1,7 @@
 import "server-only";
 import { fetchTMDB, resolveTMDBId } from "@/lib/tmdb";
 import type { ArtworkKind } from "@/lib/artwork";
+import { getTMDBToken } from "@/lib/tmdb-credentials";
 
 export interface TMDBImage {
   file_path: string;
@@ -39,7 +40,7 @@ export async function getTMDBArtwork(
   id: string, type: "movie" | "series", kind: ArtworkKind,
   season?: number, episode?: number,
 ): Promise<string | undefined> {
-  const token = process.env.TMDB_API_READ_ACCESS_TOKEN?.trim();
+  const token = await getTMDBToken();
   if (!token) return undefined;
   const tmdbId = await resolveTMDBId(id, type, token);
   if (!tmdbId) return undefined;

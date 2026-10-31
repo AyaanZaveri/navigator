@@ -34,15 +34,22 @@ production build, since Next.js disables automatic prefetching in development.
 ## TMDB artwork
 
 Posters, backdrops, original-color logos, episode stills, and cast headshots
-come from TMDB. Add a
-[TMDB API Read Access Token](https://www.themoviedb.org/settings/api) to your
-local `.env` file:
+come from TMDB. Open **Settings → Artwork** and save your
+[TMDB API Read Access Token](https://www.themoviedb.org/settings/api).
+Navigator validates it before saving. You can replace or remove it there;
+an invalid replacement keeps the existing token. The desktop app needs no
+environment variables for artwork.
+
+The token is stored in a persistent HttpOnly cookie for this device/browser
+profile and is never returned by Settings or included in artwork URLs. Hosted
+web deployments can optionally provide a shared server token in `.env`:
 
 ```dotenv
 TMDB_API_READ_ACCESS_TOKEN=your_read_access_token
 ```
 
-The token is used only on the server. Image metadata and credits are cached
+Personal Settings tokens take precedence over the hosted server token. Desktop
+uses only the token saved in Settings. Image metadata and credits are cached
 for a day. Artwork loads on demand through `/api/artwork`, which redirects to
 TMDB's image CDN. English posters/logos and text-free backdrops are preferred;
 logos retain the colors supplied by TMDB.
@@ -53,5 +60,5 @@ placeholders, without falling back to another artwork provider. Cast names still
 come from the installed Stremio addon when TMDB credits are unavailable, with
 initials for missing headshots.
 
-Run `node scripts/test-artwork.cjs` and `node scripts/test-cast.cjs` to check
-image selection, routing, credit mapping, and fallbacks without live TMDB requests.
+Run `npm run test:desktop` to check credential validation/storage, image
+selection, routing, credit mapping, and fallbacks without live TMDB requests.

@@ -7,7 +7,7 @@
     "desktop:check": "node scripts/desktop.mjs check",
     "desktop:fetch-libs": "node scripts/fetch-desktop-libs.mjs",
     "desktop:package": "node scripts/desktop.mjs package",
-    "test:desktop": "node scripts/test-desktop.cjs && node scripts/test-desktop-auth.cjs",
+    "test:desktop": "node scripts/test-desktop.cjs && node scripts/test-desktop-auth.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-artwork.cjs && node scripts/test-cast.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

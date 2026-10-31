@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cookieRequiresHttps } from "@/lib/cookie-policy";
 import type {
   StremioAuthData,
   StremioUser,
@@ -31,16 +32,11 @@ let addonCollectionRequest:
 
 async function setAuthCookie(data: StremioAuthData) {
   const cookieStore = await cookies();
-  // The packaged server is production code bound to HTTP loopback. WebKit
-  // cannot retain an HTTPS-only session there. Hosted production keeps Secure.
-  const desktopLoopback =
-    process.env.NAVIGATOR_DESKTOP === "1" &&
-    process.env.HOSTNAME === "127.0.0.1";
   cookieStore.set("stremio-auth", JSON.stringify(data), {
     path: "/",
     maxAge: 60 * 60 * 24 * 30, // 30 days
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production" && !desktopLoopback,
+    secure: cookieRequiresHttps(),
     httpOnly: false,
   });
 }

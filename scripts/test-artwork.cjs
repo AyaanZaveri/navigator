@@ -46,7 +46,9 @@ async function run() {
   let failed = false;
   const globals = {
     process: { env }, AbortSignal,
-    require: name => name === '@/lib/tmdb' ? tmdb : name === '@/lib/artwork' ? urls : {},
+    require: name => name === '@/lib/tmdb' ? tmdb : name === '@/lib/artwork' ? urls
+      : name === '@/lib/tmdb-credentials' ? credentials
+      : name === 'next/headers' ? { cookies: async () => ({ get: () => undefined }) } : {},
     fetch: async (url, options) => {
       calls.push({ url, options });
       if (failed) throw new Error('Network unavailable');
@@ -59,6 +61,7 @@ async function run() {
     },
   };
   const tmdb = load('lib/tmdb.ts', globals);
+  const credentials = load('lib/tmdb-credentials.ts', globals);
   const artwork = load('lib/tmdb-artwork.ts', globals);
   const candidates = [
     { file_path: '/french.png', iso_639_1: 'fr', vote_average: 10 },
@@ -119,7 +122,8 @@ async function run() {
   const valid = await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster'));
   assert.equal(valid.status, 307);
   assert.equal(valid.headers.get('location'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
-  assert.equal(valid.headers.get('cache-control'), 'public, max-age=86400');
+  assert.equal(valid.headers.get('cache-control'), 'private, max-age=86400');
+  assert.equal(valid.headers.get('vary'), 'Cookie', 'Artwork credentials must not share a public redirect cache');
   for (const query of ['id=unknown&type=movie&kind=poster', 'id=tt123&type=movie&kind=invalid', 'id=tt123&type=series&kind=still&v=1&season=-1&episode=2']) {
     assert.equal((await GET(new Request(`https://navigator.test/api/artwork?${query}`))).status, 400);
   }

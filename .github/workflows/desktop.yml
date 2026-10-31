@@ -9,6 +9,14 @@ on:
       - "components/global-media-player.tsx"
       - "components/ui/media-player.tsx"
       - "scripts/*desktop*"
+      - "scripts/test-artwork*"
+      - "scripts/test-cast.cjs"
+      - "app/actions/auth.ts"
+      - "app/actions/artwork-settings.ts"
+      - "app/(main)/settings/**"
+      - "app/api/artwork/**"
+      - "lib/tmdb*.ts"
+      - "lib/cookie-policy.ts"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 

@@ -46,7 +46,9 @@ try {
         await cp(native, join(bin, nativeName));
         await cp(standalone, join(resources, "server"), {
             recursive: true, dereference: true,
-            filter: (source) => !basename(source).startsWith(".env"),
+            // Never distribute local credentials or cached runtime responses.
+            filter: (source) => !basename(source).startsWith(".env")
+                && source !== join(standalone, ".next", "cache"),
         });
         if (await exists(join(root, "public"))) await cp(join(root, "public"), join(resources, "server", "public"), { recursive: true });
         await cp(join(root, ".next", "static"), join(resources, "server", ".next", "static"), { recursive: true });

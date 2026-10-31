@@ -10,9 +10,14 @@ const compiled = ts.transpileModule(fs.readFileSync("app/actions/auth.ts", "utf8
 
 async function authenticate(env) {
     const written = [];
+    const policy = { exports: {}, process: { env } };
+    vm.runInNewContext(ts.transpileModule(fs.readFileSync("lib/cookie-policy.ts", "utf8"), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText, policy);
     const context = {
         exports: {}, process: { env }, console, Date,
         require(name) {
+            if (name === "@/lib/cookie-policy") return policy.exports;
             if (name === "next/headers") return { cookies: async () => ({ set: (...args) => written.push(args) }) };
             if (name === "next/navigation") return { redirect() { throw new Error("Unexpected redirect"); } };
             throw new Error(`Unexpected dependency: ${name}`);

@@ -44,6 +44,12 @@ Only one native instance may use a profile. Cookies and web storage are kept in
 the platform's local data directory under `Navigator Desktop/webview`.
 Restarting with a different server origin starts that origin's own session.
 
+Configure provider keys in **Settings → Navigator**, and the TMDB API Read
+Access Token in **Settings → Artwork**. Artwork tokens are validated before
+saving, persist in the WebView's HttpOnly cookie storage for a year, and can
+be replaced or removed in Settings. Desktop artwork does not read environment
+credentials. Rejected replacements preserve the working token.
+
 ## Verification
 
 ```sh
@@ -96,9 +102,9 @@ npm run desktop:package -- --skip-build
 Packaging is an explicit action: it runs Next's build and Cargo's release build,
 then copies the Next standalone server **plus `public` and `.next/static`**.
 It downloads an official, checksum-verified Node runtime so a Homebrew-linked
-Node binary is not accidentally shipped. `.env*` files are excluded. Supply
-server credentials through the launch environment; do not embed secrets in an
-app distribution. A pre-provisioned portable library bundle can be supplied with
+Node binary is not accidentally shipped. `.env*` files and the runtime response
+cache are excluded. Users configure their provider and artwork credentials in
+Settings. A pre-provisioned portable library bundle can be supplied with
 `NAVIGATOR_LIBS_DIR`.
 
 Output is `dist/desktop-<platform>-<arch>`; macOS produces `Navigator.app` with
@@ -156,6 +162,11 @@ It plays the HTTP(S) stream URLs Navigator already obtains from addons.
   with the installed 4.12.0 MediaStore implementation/types.
 - [Next standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output):
   server packaging, static/public assets, HOSTNAME, and PORT.
+- [Next cookies](https://nextjs.org/docs/app/api-reference/functions/cookies):
+  persistent HttpOnly cookies in Server Actions and rendering after updates.
+- [TMDB application authentication](https://developer.themoviedb.org/docs/authentication-application)
+  and [token validation](https://developer.themoviedb.org/reference/authentication-validate-key):
+  API Read Access Tokens, Bearer headers, and validation before saving.
 - [shadcn dropdown menus](https://ui.shadcn.com/docs/components/radix/dropdown-menu):
   existing Radix menus, radio groups, portal containers, and accessible labels.
 - [Node official release artifacts](https://nodejs.org/dist/v26.7.0/): portable
