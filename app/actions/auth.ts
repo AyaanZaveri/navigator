@@ -11,6 +11,7 @@ import type {
 
 const STREMIO_API = "https://api.strem.io/api";
 const ADDON_COLLECTION_CACHE_TTL_MS = 60_000;
+let addonCollectionGeneration = 0;
 
 let addonCollectionCache:
   | {
@@ -154,6 +155,7 @@ export async function getInstalledAddons(): Promise<StremioAddon[]> {
       return await addonCollectionRequest.promise;
     }
 
+    const generation = addonCollectionGeneration;
     const promise = (async () => {
       const response = await fetch(`${STREMIO_API}/addonCollectionGet`, {
         method: "POST",
@@ -168,7 +170,7 @@ export async function getInstalledAddons(): Promise<StremioAddon[]> {
 
       const data = await response.json();
       const addons = data.result?.addons || [];
-      addonCollectionCache = {
+      if (generation === addonCollectionGeneration) addonCollectionCache = {
         authKey,
         expiresAt: Date.now() + ADDON_COLLECTION_CACHE_TTL_MS,
         addons,
@@ -190,6 +192,12 @@ export async function getInstalledAddons(): Promise<StremioAddon[]> {
     console.error("Failed to fetch installed addons:", error);
     return [];
   }
+}
+
+export async function invalidateAddonCollection() {
+  addonCollectionGeneration += 1;
+  addonCollectionCache = null;
+  addonCollectionRequest = null;
 }
 
 // Server Action to clear invalid auth data

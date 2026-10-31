@@ -36,13 +36,12 @@
 }
 
 .list {
+  display: grid;
+  gap: 16px;
   min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--background) 92%, transparent);
 }
 
 .row {
@@ -52,10 +51,41 @@
   gap: 16px 20px;
   min-width: 0;
   padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--background) 92%, transparent);
 }
 
-.row + .row {
-  border-block-start: 1px solid var(--border);
+.actions {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.protected {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  padding-inline: 4px;
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.error {
+  color: var(--destructive);
+  overflow-wrap: anywhere;
 }
 
 .logo[data-slot="avatar"] {
@@ -152,5 +182,5 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .list { background: var(--background); }
+  .row { background: var(--background); }
 }

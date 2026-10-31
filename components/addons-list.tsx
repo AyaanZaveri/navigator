@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AddonActions } from "@/components/addon-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,17 +14,27 @@ import styles from "./addons-list.module.css";
 export function AddonsList({ addons }: { addons: AddonListItem[] }) {
     const [query, setQuery] = useState("");
     const [capability, setCapability] = useState("all");
-    const results = useMemo(() => filterAddons(addons, query, capability), [addons, query, capability]);
+    const [removed, setRemoved] = useState<Set<string>>(() => new Set());
+    const search = useRef<HTMLInputElement>(null);
+    const emptyTitle = useRef<HTMLDivElement>(null);
+    const installed = useMemo(() => addons.filter((addon) => !removed.has(addon.id)), [addons, removed]);
+    const results = useMemo(() => filterAddons(installed, query, capability), [installed, query, capability]);
     const filters = [
         { value: "all", label: "All" },
-        ...ADDON_CAPABILITIES.filter((item) => addons.some((addon) => addon.capabilities.includes(item.value))),
+        ...ADDON_CAPABILITIES.filter((item) => installed.some((addon) => addon.capabilities.includes(item.value) || item.value === capability)),
     ];
 
-    if (!addons.length) {
+    useEffect(() => {
+        if (!removed.size) return;
+        const frame = requestAnimationFrame(() => (search.current ?? emptyTitle.current)?.focus());
+        return () => cancelAnimationFrame(frame);
+    }, [removed]);
+
+    if (!installed.length) {
         return (
             <Empty className={styles.empty}>
                 <EmptyHeader>
-                    <EmptyTitle>No addons installed</EmptyTitle>
+                    <EmptyTitle ref={emptyTitle} tabIndex={-1}>No addons installed</EmptyTitle>
                     <EmptyDescription>Install addons in Stremio, then refresh this page to see them here.</EmptyDescription>
                 </EmptyHeader>
             </Empty>
@@ -34,13 +45,13 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
         <div className={styles.directory}>
             <div className={styles.toolbar}>
                 <div className={styles.search}>
-                    <SearchField label="Search addons" hideLabel placeholder="Search addons…" value={query} onValueChange={setQuery} autoComplete="off" />
+                    <SearchField ref={search} label="Search addons" hideLabel placeholder="Search addons…" value={query} onValueChange={setQuery} autoComplete="off" />
                 </div>
                 <ChipGroup label="Filter addons by capability" multiple={false} options={filters} value={[capability]} onValueChange={(values) => setCapability(values[0] ?? "all")} />
             </div>
 
             <p role="status" aria-live="polite" className={styles.resultCount}>
-                {results.length === addons.length ? `${addons.length} installed` : `${results.length} of ${addons.length} addons`}
+                {results.length === installed.length ? `${installed.length} installed` : `${results.length} of ${installed.length} addons`}
             </p>
 
             {results.length ? (
@@ -70,6 +81,9 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
                                 </div>
                                 {addon.catalogCount > 0 && <p className={styles.catalogCount}>{addon.catalogCount} catalog{addon.catalogCount === 1 ? "" : "s"}</p>}
                             </div>
+                            <AddonActions addon={addon} onUninstalled={() => {
+                                setRemoved((previous) => new Set(previous).add(addon.id));
+                            }} />
                         </li>
                     ))}
                 </ul>

@@ -16,6 +16,8 @@ export interface AddonListItem {
     capabilities: string[];
     types: string[];
     catalogCount: number;
+    configurable: boolean;
+    protected: boolean;
 }
 
 export function addonTypeLabel(type: string): string {
@@ -45,6 +47,8 @@ export function toAddonListItem(addon: StremioAddon, index: number): AddonListIt
         capabilities,
         types: [...new Set(manifest.types ?? [])],
         catalogCount: manifest.catalogs?.length ?? 0,
+        configurable: !!(manifest.behaviorHints?.configurable || manifest.behaviorHints?.configurationRequired),
+        protected: !!addon.flags?.protected,
     };
 }
 
