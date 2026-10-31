@@ -32,6 +32,8 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
     const bucket = previewBucket(time, duration);
     const androidNative = !!native && typeof window !== "undefined" && window.navigatorDesktop?.platform === "android";
     const browserMode = !native || fallback || (!androidNative && /\.(m3u8|mpd)(?:[?#]|$)/i.test(source));
+    const muxPreview = /\.(m3u8|mpd)(?:[?#]|$)/i.test(source)
+        || !!(media as unknown as { nativeEl?: HTMLVideoElement } | null)?.nativeEl?.currentSrc?.startsWith("blob:");
     const wanted = useRef<number | null>(null);
     useLayoutEffect(() => { wanted.current = active ? bucket : null; }, [active, bucket]);
 
@@ -54,15 +56,18 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
     useLayoutEffect(() => {
         const video = videoNode.current;
         if (!browserMode || !videoAttached || !video || !source) return;
-        const provider = new BrowserPreviewFrames(video, (at, src, videoFrame) => {
-            if (wanted.current !== null) setFrame({ time: at, src, video: !!videoFrame, unavailable: !src && !videoFrame });
-        }, window.matchMedia("(dynamic-range: high)").matches);
+        const provider = new BrowserPreviewFrames(video, (at, src, videoFrame, unavailable) => {
+            if (wanted.current !== null) setFrame(previous => src || videoFrame
+                ? { time: at, src, video: !!videoFrame, unavailable: false }
+                : unavailable ? { ...previous, time: at, unavailable: true }
+                : { ...previous, unavailable: false });
+        }, false, !muxPreview);
         browser.current = provider;
         // Restore the source after Strict Mode's effect cleanup on the same element.
         video.muted = true;
         if (video.getAttribute("src") !== source) video.src = source;
         return () => { provider.dispose(); if (browser.current === provider) browser.current = null; };
-    }, [browserMode, videoAttached, source]);
+    }, [browserMode, videoAttached, source, muxPreview]);
 
     useLayoutEffect(() => {
         if (!active || bucket === null || !source) {
@@ -101,18 +106,25 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
         });
     }, [active, bucket, source, native, browserMode, videoAttached, invalidate, androidNative]);
 
-    const ready = (androidNative && !!frame.src) || (frame.time === bucket && !frame.unavailable);
+    const ready = !!frame.src || (frame.video && frame.time === bucket);
     const unavailable = frame.time === bucket && frame.unavailable;
     return (
-        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && !ready && !unavailable} className="relative h-32 w-56 overflow-hidden rounded-t-md bg-black">
-            {browserMode && source && (
+        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && (!ready || frame.time !== bucket) && !unavailable} className="relative h-32 w-56 overflow-hidden rounded-lg bg-black">
+            {browserMode && source && (muxPreview ? (
                 <MuxVideo
                     ref={videoRef}
                     src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback disableTracking
                     aria-hidden="true" tabIndex={-1}
                     className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
                 />
-            )}
+            ) : (
+                <video
+                    ref={videoRef}
+                    src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback
+                    aria-hidden="true" tabIndex={-1}
+                    className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
+                />
+            ))}
             {frame.src && <img src={frame.src} alt="" className="absolute inset-0 size-full object-contain" draggable={false} />}
             {!ready && !unavailable && <Skeleton className="absolute inset-0 size-full rounded-none bg-white/10" />}
             {unavailable && <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60">Preview unavailable</div>}

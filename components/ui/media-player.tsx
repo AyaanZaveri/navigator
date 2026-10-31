@@ -2360,7 +2360,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             >
               <div
                 className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-md bg-background/98 text-foreground shadow-sm backdrop-blur-[12px] dark:bg-background/70",
+                  "flex flex-col items-center gap-1.5 rounded-xl bg-background/98 p-1 text-foreground shadow-sm ring-1 ring-inset ring-black/10 backdrop-blur-[12px] dark:bg-background/70 dark:ring-white/10",
                   thumbnail && "min-h-10",
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
@@ -2369,7 +2369,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"
-                    className="overflow-hidden rounded-md rounded-b-none"
+                    className="overflow-hidden rounded-lg"
                     style={{
                       width: `${SPRITE_CONTAINER_WIDTH}px`,
                       height: `${SPRITE_CONTAINER_HEIGHT}px`,
@@ -2403,7 +2403,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   data-slot="media-player-seek-time"
                   className={cn(
                     "whitespace-nowrap text-center font-sans text-xs font-semibold tabular-nums",
-                    (thumbnail || previewFrames) && "pb-1.5",
+                    (thumbnail || previewFrames) && "pt-1 pb-1.5",
                     !(thumbnail || previewFrames || currentChapterCue) && "px-2.5 py-1"
                   )}
                 >

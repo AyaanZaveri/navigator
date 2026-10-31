@@ -175,8 +175,13 @@ enables on-demand extraction when a stream supplies no storyboard.
   reused; the page can request only its current session's thumbnail, not an
   arbitrary URL or file. Responses are checked against the latest keyframe and
   request before publication.
-- Web uses a separate muted Mux/HTML video element, preloads metadata, uses
-  `fastSeek` where supported, and captures small sRGB JPEGs into a 96-frame LRU.
+- Web uses a separate muted HTML video decoder (Mux/MSE for manifest streams),
+  preloads metadata, uses `fastSeek` where supported, and captures small sRGB
+  JPEGs into a 96-frame LRU. Late seek errors cannot overwrite cached frames;
+  canplay/progress events finish frames that were not ready at seeked. Progressive
+  streams can retry once without anonymous CORS and display the decoded video
+  directly when canvas readback is forbidden. Loading timeouts remain loading,
+  while actual media errors can report unavailable.
   Requests use two-second buckets and a leading/trailing 60 ms throttle. Rapid
   movement skips obsolete work; hover exit cancels publication and source
   changes reset caches. The last frame stays under the loading skeleton.
@@ -184,10 +189,10 @@ enables on-demand extraction when a stream supplies no storyboard.
   MKV/WebM or MP4/MOV and byte-range support. Unsupported streams show a preview
   unavailable state while normal playback and seeking remain usable. No server
   transcoding or extra backend is needed.
-- Native JPEG previews of HDR10/HLG sources are tone-mapped to SDR. Browsers on
-  HDR-capable displays can retain the actual video element for previews, keeping
-  the browser's HDR pipeline rather than flattening into a JPEG. True HDR preview
-  output depends on the browser/codec/display; main HDR playback is unchanged.
+- Native JPEG previews of HDR10/HLG sources are tone-mapped to SDR. Browser
+  previews also prefer cached sRGB snapshots, including on HDR-capable displays;
+  a display capability alone no longer disables the thumbnail cache. Capture
+  restrictions fall back to a visible video frame. Main HDR playback is unchanged.
 
 `npm run test:desktop` checks caching, cancellation, stale sessions, and both
 preview backends' scheduling. `npm run test:webkit-previews` runs actual video →

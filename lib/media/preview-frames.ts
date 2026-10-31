@@ -33,20 +33,24 @@ export class BrowserPreviewFrames {
     private context?: CanvasRenderingContext2D | null;
     private canvas?: HTMLCanvasElement;
     private video: PreviewMedia;
-    private ready: (_time: number, _src: string | null, _videoFrame?: boolean) => void;
+    private ready: (_time: number, _src: string | null, _videoFrame?: boolean, _unavailable?: boolean) => void;
     private preserveVideo: boolean;
-    constructor(video: PreviewMedia, ready: (_time: number, _src: string | null, _videoFrame?: boolean) => void, preserveVideo = false) {
-        this.video = video; this.ready = ready; this.preserveVideo = preserveVideo;
+    private allowCorsRetry: boolean;
+    private retriedWithoutCors = false;
+    private captureBlocked = false;
+    constructor(video: PreviewMedia, ready: (_time: number, _src: string | null, _videoFrame?: boolean, _unavailable?: boolean) => void, preserveVideo = false, allowCorsRetry = false) {
+        this.video = video; this.ready = ready; this.preserveVideo = preserveVideo; this.allowCorsRetry = allowCorsRetry;
         video.addEventListener('loadeddata', this.loaded);
         video.addEventListener('loadedmetadata', this.pump);
         video.addEventListener('seeked', this.captured);
+        for (const event of ['canplay', 'timeupdate', 'progress']) video.addEventListener(event, this.loaded);
         video.addEventListener('error', this.failed);
     }
     want(time: number) {
         this.wanted = time;
         const cached = this.cache.get(time);
         if (cached) { this.ready(time, cached); return; }
-        if (this.video.error) { this.ready(time, null); return; }
+        if (this.video.error) { this.failed(); return; }
         if (this.video.readyState < 1 && !this.timer) this.timer = setTimeout(this.failed, 6000);
         this.pump();
     }
@@ -54,7 +58,7 @@ export class BrowserPreviewFrames {
         this.wanted = null;
         if (this.decoding === null) { clearTimeout(this.timer); this.timer = undefined; }
     }
-    private loaded = () => { this.captured(); this.pump(); };
+    private loaded = () => { if (this.decoding !== null) this.captured(); else this.pump(); };
     private pump = () => {
         if (this.closed || this.decoding !== null || this.wanted === null || this.video.readyState < 1) return;
         const target = this.wanted;
@@ -81,7 +85,7 @@ export class BrowserPreviewFrames {
         this.decoding = null;
         let src: string | null = null;
         try {
-            if (!this.preserveVideo) {
+            if (!this.preserveVideo && !this.captureBlocked) {
                 this.canvas ??= document.createElement('canvas');
                 const width = this.video.videoWidth || 16, height = this.video.videoHeight || 9;
                 const scale = Math.min(448 / width, 252 / height, 1);
@@ -93,7 +97,7 @@ export class BrowserPreviewFrames {
                 this.context?.drawImage(source, 0, 0, this.canvas.width, this.canvas.height);
                 src = this.context ? this.canvas.toDataURL('image/jpeg', 0.72) : null;
             }
-        } catch { /* CORS/DRM may forbid capture even when video playback is allowed. */ }
+        } catch { this.captureBlocked = true; /* Display the decoded video when capture is forbidden. */ }
         if (src) this.cache.set(target, src);
         if (this.wanted === target) this.ready(target, src, !src);
         if (this.wanted !== null && this.wanted !== target) this.pump();
@@ -102,7 +106,22 @@ export class BrowserPreviewFrames {
         clearTimeout(this.timer);
         this.timer = undefined;
         this.decoding = null;
-        if (!this.closed && this.wanted !== null) this.ready(this.wanted, null);
+        if (this.closed || this.wanted === null) return;
+        // An older in-flight seek may fail after the pointer returns to cache.
+        const cached = this.cache.get(this.wanted);
+        if (cached) { this.ready(this.wanted, cached); return; }
+        // CORS can reject a progressive video's anonymous load even when a
+        // normal video element could play it. Retry once, then show that element
+        // directly if canvas readback is forbidden. MSE manifests still need CORS.
+        if (this.allowCorsRetry && !this.retriedWithoutCors && this.video.crossOrigin
+            && this.video.error && this.video.error.code !== 3) {
+            this.retriedWithoutCors = true;
+            this.video.crossOrigin = null;
+            this.video.load();
+            this.timer = setTimeout(this.failed, 6000);
+            return;
+        }
+        this.ready(this.wanted, null, false, !!this.video.error);
     };
     dispose() {
         this.closed = true;
@@ -110,6 +129,7 @@ export class BrowserPreviewFrames {
         this.video.removeEventListener('loadeddata', this.loaded);
         this.video.removeEventListener('loadedmetadata', this.pump);
         this.video.removeEventListener('seeked', this.captured);
+        for (const event of ['canplay', 'timeupdate', 'progress']) this.video.removeEventListener(event, this.loaded);
         this.video.removeEventListener('error', this.failed);
         this.video.pause();
         this.video.removeAttribute('src');

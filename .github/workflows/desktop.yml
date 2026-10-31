@@ -32,6 +32,7 @@ on:
       - "components/seek-preview.tsx"
       - "lib/media/**"
       - "scripts/test-previews.cjs"
+      - "scripts/test-browser-preview-recovery.cjs"
       - "scripts/test-webkit-previews.cjs"
       - "scripts/fixtures/seek-preview.mp4"
       - "scripts/*desktop*"
