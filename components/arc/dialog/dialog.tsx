@@ -29,7 +29,8 @@ export interface DialogContentProps extends ComponentPropsWithoutRef<typeof Dial
 }
 
 const fade: Transition = { duration: motionTokens.duration.instant };
-const leave: Transition = { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.standard] };
+const enter: Transition = { duration: motionTokens.duration.standard, ease: [...motionTokens.ease.out] };
+const leave: Transition = { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.out] };
 
 /** When the title or description changes while open, the new copy rises in and the old copy leaves upward. */
 function SwapText({ text }: { text: string }) {
@@ -60,12 +61,12 @@ export function DialogContent({ title, description, children, className, onPoint
         <DialogPrimitive.Overlay className={`${styles.overlay} ${styles.keyframes}`}/>
         <DialogPrimitive.Content {...props} onPointerDownOutside={pressOutside} className={`${classes} ${styles.keyframes}`}>{inner}</DialogPrimitive.Content>
     </DialogPrimitive.Portal>;
-    // The overlay fades while the dialog rises 8px and scales up on a spring. Closing is shorter and quieter, and starts from wherever the entrance is.
+    // A centered modal fades and gently scales in; the shorter exit retargets from its current state.
     return <AnimatePresence>
         {open && <DialogPrimitive.Portal key="dialog" forceMount>
-            <DialogPrimitive.Overlay asChild forceMount><motion.div className={styles.overlay} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: reduced ? fade : leave }} transition={reduced ? fade : { duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] }}/></DialogPrimitive.Overlay>
+            <DialogPrimitive.Overlay asChild forceMount><motion.div className={styles.overlay} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: reduced ? fade : leave }} transition={reduced ? fade : leave}/></DialogPrimitive.Overlay>
             <DialogPrimitive.Content {...props} onPointerDownOutside={pressOutside} asChild forceMount>
-                <motion.div className={classes} initial={reduced ? { opacity: 0 } : { opacity: 0, y: 8, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={reduced ? { opacity: 0, transition: fade } : { opacity: 0, y: 4, scale: .98, transition: leave }} transition={reduced ? fade : { default: motionTokens.spring.smooth, opacity: { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.enter] } }}>{inner}</motion.div>
+                <motion.div className={classes} initial={{ opacity: 0, transform: reduced ? "scale(1)" : "scale(0.97)" }} animate={{ opacity: 1, transform: "scale(1)" }} exit={{ opacity: 0, transform: reduced ? "scale(1)" : "scale(0.97)", transition: reduced ? fade : leave }} transition={reduced ? fade : enter}>{inner}</motion.div>
             </DialogPrimitive.Content>
         </DialogPrimitive.Portal>}
     </AnimatePresence>;
