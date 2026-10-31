@@ -612,7 +612,7 @@ export default function SettingsPage() {
 
     return (
         <div className="relative px-[var(--page-gutter)] py-6">
-            <HomeGradientBackground dotOpacity={0.18} />
+            <HomeGradientBackground />
 
             <div className={`${styles.content} relative z-10 flex w-full max-w-[960px] flex-col gap-8 pb-10`}>
                 <header className="flex flex-col gap-2">

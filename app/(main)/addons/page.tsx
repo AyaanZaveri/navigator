@@ -1,5 +1,5 @@
 import { getInstalledAddons } from "@/app/actions/auth";
-import { AuroraBackground } from "@/components/aurora-background";
+import { HomeGradientBackground } from "@/components/home-gradient-background";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -71,11 +71,7 @@ export default async function AddonsPage() {
 
   return (
     <div className="relative px-[var(--page-gutter)] py-6 max-w-full overflow-hidden">
-      <AuroraBackground
-        colorStops={["#6FE3F5", "#2FB8D6", "#4EA6BF"]}
-        amplitude={0.5}
-        className="fixed inset-0 z-0 pointer-events-none opacity-40"
-      />
+      <HomeGradientBackground />
 
       <div className="relative z-10 mb-8">
         <div className="flex items-center gap-3 mb-2">
