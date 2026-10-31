@@ -153,6 +153,10 @@ export class MpvController extends EventTarget {
   private receive(message: NativeMessage) {
     if (this.disposed || !("session" in message) || message.session !== this.session) return;
     switch (message.type) {
+      case "thumbnail-frame":
+        if (!Number.isFinite(message.position) || message.position < 0 || !message.src?.startsWith("data:image/jpeg;base64,")) break;
+        this.dispatchEvent(new CustomEvent("previewframe", { detail: { position: message.position, src: message.src } }));
+        break;
       case "thumbnail":
         if (this.previewPending?.id === message.request) {
           const pending = this.previewPending;

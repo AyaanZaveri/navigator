@@ -148,10 +148,9 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
 - Only the selected origin receives the document-start bridge. Subframes and
   foreign origins cannot issue player commands. Other HTTP(S) navigation opens
   the system browser. File/content navigation and SSL-error bypasses are disabled.
-- HTML timeline hover previews retain their browser fallback, which depends on
-  WebView format support. Hidden-controls swipe scrubbing uses the separate native
-  keyframe extractor described below; it never seeks the playing decoder to
-  generate previews.
+- HTML timeline hover previews and whole-screen horizontal scrubs share the same
+  native 480p SDR frame provider. ExoPlayer's main HDR/HLG surface stays separate;
+  thumbnail decoding and JPEG encoding run asynchronously without a remote service.
 
 ### HDR video and control-window brightness
 
@@ -227,12 +226,13 @@ swipes beginning in Android's Back region remain with the system; vertical side
 swipes reach the physical edges. Multitouch and TalkBack exploration never claim
 a video gesture. There are no per-move JS bridge messages.
 
-With controls hidden, horizontal swiping seeks with a thumbnail, target time,
-signed offset, and the same rounded timeline styling used by visible controls.
-The injected UI reports the real seek track bounds only on mount/size/layout
-changes. Native seeking copies that position, thickness, white fill, faint track
-and buffered range, without a thumb/dot. Viewport validation and rotation cleanup
-prevent stale geometry; a 6 dp track with normal gutters is the fallback.
+With controls hidden, horizontal swiping reveals the existing React timeline
+and thumbnail tooltip. Native gestures send at most one position update per
+animation frame. The tooltip follows the actual thumb, clamped inside the
+viewport, while its requested time follows the precision-adjusted seek target.
+The range reuses the normal rounded rectangle and has no dot; only its displayed
+fill glides for 100 ms with `cubic-bezier(.23, 1, .32, 1)` (disabled for reduced
+motion). Other controls remain hidden. No native preview window is created.
 Moving toward the top slows scrubbing;
 moving toward the bottom speeds it up. Incremental movement allows changing
 height during one drag without jumping the target. The decoder pauses during
@@ -241,30 +241,28 @@ and restores that state. Cancelling, rotating, backgrounding, or changing the
 source cannot commit an old seek to a new session. Live/unseekable streams do
 not enter scrub mode.
 
-Media3 1.11.1's `media3-inspector-frame` extracts 180 px high keyframes using
-`CLOSEST_SYNC` and the hardware decoder selector. A separate asynchronous decoder
-uses the same origin-scoped HTTP header and redirect policy as playback. Requests
-are bucketed to two seconds: one extraction runs at a time and pending movement
-replaces the desired target. An 8 MB bitmap cache and one warm request when
-controls hide improve responsiveness. Idle decoders release after ten
-seconds, extraction times out after eight seconds, and source changes/backgrounding
-clear the cache and decoder. Failed extraction leaves time and progress usable
-and retries after a cooldown. The initial preview uses a loading placeholder;
-a cached frame stays visible while the next frame loads. HDR inputs produce
-SDR tone-mapped thumbnails; main HDR/HLG playback remains on its native surface.
+Media3 1.11.1's `media3-inspector-frame` extracts 480 px high keyframes using
+`CLOSEST_SYNC` and the hardware decoder selector. The extractor uses the same
+origin-scoped HTTP header and redirect policy as playback. Requests are bucketed
+to two seconds: one extraction runs at a time and pending movement replaces the
+desired target. A bounded worker encodes JPEGs off the UI thread and sends data
+URLs through the existing thumbnail bridge. Completed frames also stream with
+their own bucket, so React can retain the last available frame while the newest
+request decodes. The encoded cache is capped at 8 MB and controls hiding warms
+one request. Idle decoders release after ten seconds, extraction times out after
+eight seconds, and source changes/backgrounding clear the cache and decoder.
+Failed extraction leaves time and progress usable and retries after a cooldown.
+Media3's default `extractHdrFrames=false` tone-maps HDR thumbnails to SDR BT.709;
+main HDR/HLG playback remains on its native surface.
 
-The native preview caption uses Sunghyun Sans SemiBold (600), with regular text
-for secondary labels. The same project's WOFF2 fonts are repackaged as OpenType
-for Android, with the OFL license bundled; no replacement system face is used.
-The web/desktop timestamp also declares `font-sans font-semibold`. The preview
-background matches the dark web preview: 12 dp background blur with 70% background
-opacity, without a border. Android 12+ uses a small translucent, non-focusable,
-non-touchable window so the compositor can blur the native video behind the
-caption; a blur of the caption's own pixels or a CSS blur inside WebView cannot
-sample that separate video surface. The window never takes input/focus from the
-gesture. If Android disables window blur or an older OS is used, opacity increases
-to 90% for readability. Blur listeners and the preview window are removed on
-hide/detach. Physical blur appearance and frame pacing require the Pixel check.
+The normal web preview supplies its existing skeleton, borderless panel, Sunghyun
+Sans semibold timestamp, and `backdrop-blur-[12px]` styling. CSS backdrop blur
+samples the WebView layer, rather than the independent native video surface.
+The APK injects a small adapter so whole-screen scrubs drive the same React seek
+component even before this PR is merged. Deployed HLS/DASH clients additionally
+receive JPEGs in their existing HTML thumbnail instead of attempting browser
+HEVC/HDR decoding. Updated React clients use the native provider directly for
+all stream types; the compatibility provider automatically stands down.
 
 Firecore documents directional seeking, side brightness/volume gestures, and live
 preview thumbnails. It does not publish a numeric finger-height sensitivity curve;
@@ -364,7 +362,6 @@ References used:
 
 - [Android background-window blur, translucent backgrounds and graceful fallback](https://source.android.com/docs/core/display/window-blurs)
 - [System animator duration scale](https://developer.android.com/reference/android/animation/ValueAnimator#getDurationScale())
-- [Sunghyun Sans source and font license](https://github.com/anaclumos/sunghyun-sans)
 
 - [Media3 1.11.1 Brightness effect explicitly rejects HDR](https://github.com/androidx/media/blob/1.11.1/libraries/effect/src/main/java/androidx/media3/effect/Brightness.java)
 

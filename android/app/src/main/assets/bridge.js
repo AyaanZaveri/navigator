@@ -51,8 +51,8 @@
       engine: 'exoplayer',
       get fullscreen() { return fullscreen; },
       send(message) {
-        if (message.type === 'load') session = message.session;
-        if (message.type === 'stop' && message.session === session) session = '';
+        if (message.type === 'load') { webScrub.reset(); session = message.session; }
+        if (message.type === 'stop' && message.session === session) { webScrub.reset(); session = ''; }
         send(message);
       },
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
@@ -119,7 +119,9 @@
   const disposePlayerUI = __PLAYER_UI__(document, window, send);
   const navigation = __BACK_NAVIGATION__(document, window, send);
   const disposeTouchControls = __TOUCH_CONTROLS__(document, window.navigatorDesktop);
+  const webScrub = __WEB_SCRUB__(document, window, window.navigatorDesktop);
   window.addEventListener('pagehide', () => {
+    webScrub.dispose();
     disposeTouchControls();
     disposePlayerUI();
     navigation.dispose();

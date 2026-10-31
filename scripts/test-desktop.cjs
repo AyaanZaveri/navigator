@@ -5,7 +5,7 @@ const crypto = require("node:crypto");
 const ts = require("typescript");
 
 function load(file, globals = {}) {
-    const context = { exports: {}, Event, EventTarget, DOMException, URL, crypto, setTimeout, clearTimeout, ...globals };
+    const context = { exports: {}, Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...globals };
     const code = ts.transpileModule(fs.readFileSync(file, "utf8"), {
         fileName: file,
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -31,6 +31,15 @@ async function testController() {
     const headers = { Referer: "https://example.test", "X-Test": "a,b" };
     media.load("https://example.test/video.mkv", headers);
     const first = sent.find((m) => m.type === "load").session;
+    const frames = [];
+    media.addEventListener("previewframe", event => frames.push(event.detail));
+    receive({ type: "thumbnail-frame", session: "old-session", position: 2, src: "data:image/jpeg;base64,AA==" });
+    receive({ type: "thumbnail-frame", session: first, position: 2, src: "javascript:bad" });
+    receive({ type: "thumbnail-frame", session: first, position: NaN, src: "data:image/jpeg;base64,AA==" });
+    assert.equal(frames.length, 0, "Stale sessions and invalid streamed thumbnails never enter the web preview");
+    receive({ type: "thumbnail-frame", session: first, position: 2, src: "data:image/jpeg;base64,AA==" });
+    assert.equal(frames.length, 1, "Completed native frames stream independently of latest request cancellation");
+    assert.equal(frames[0].position, 2);
     let subtitleChanges = 0;
     media.addEventListener("subtitlechange", () => subtitleChanges++);
     receive({ type: "subtitle", session: first, text: "First line\nSecond line" });

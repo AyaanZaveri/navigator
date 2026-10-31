@@ -1,7 +1,6 @@
 package app.navigator.android;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.view.Gravity;
 import android.view.SurfaceView;
@@ -50,6 +49,7 @@ final class NativePlayer {
     private final OkHttpClient http = new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build();
     private ExoPlayer player;
     private SeekPreviews previews;
+    private Long thumbnailRequest,thumbnailPosition;
     private boolean scrubbing;
     private boolean scrubWasPlaying;
     private DefaultTrackSelector selector;
@@ -100,16 +100,31 @@ final class NativePlayer {
         if (commit) { seeking=true; player.seekTo(Math.max(0,Math.min(durationMs(),target))); }
         boolean resume=scrubWasPlaying; scrubbing=false; player.setPlayWhenReady(resume); state();
     }
-    void preview(String owner,long at,Consumer<Bitmap> callback) {
-        if (!session.equals(owner) || !foreground || !canScrub()) return;
-        if (previews == null) {
-            var data=new DefaultDataSource.Factory(context,
-                new OkHttpDataSource.Factory(ScopedHttp.forStream(http,URI.create(url),headers)).setUserAgent("NavigatorAndroid/0.1"));
-            previews=new SeekPreviews(context,MediaItem.fromUri(Uri.parse(url)),new DefaultMediaSourceFactory(data));
-        }
-        previews.request(at,callback);
+    private void preparePreviews() {
+        if (previews!=null || !canScrub()) return;
+        var data=new DefaultDataSource.Factory(context,
+            new OkHttpDataSource.Factory(ScopedHttp.forStream(http,URI.create(url),headers)).setUserAgent("NavigatorAndroid/0.1"));
+        String owner=session;
+        previews=new SeekPreviews(context,MediaItem.fromUri(Uri.parse(url)),new DefaultMediaSourceFactory(data),(at,src) -> {
+            if (!owner.equals(session) || !foreground || thumbnailRequest==null) return;
+            if (src!=null) emit.accept(object("type","thumbnail-frame","session",session,"position",at/1000.0,"src",src));
+            if (thumbnailPosition!=null && thumbnailPosition.equals(at)) emit.accept(object("type","thumbnail","session",session,
+                "request",thumbnailRequest,"src",src==null ? JSONObject.NULL : src,"position",at/1000.0));
+        });
     }
-    void warmPreview() { if (canScrub()) preview(session,positionMs(),ignored -> {}); }
+    void warmPreview() { preparePreviews(); if (previews!=null) previews.request(positionMs()); }
+    private void thumbnail(JSONObject message) {
+        thumbnailRequest=thumbnailPosition=null;
+        if (message.isNull("position")) { if (previews!=null) previews.cancel(); return; }
+        double at=message.optDouble("position",Double.NaN);
+        if (!Double.isFinite(at) || at<0) return;
+        thumbnailRequest=message.optLong("request");
+        thumbnailPosition=SeekPreviews.bucket((long)Math.min(at*1000,durationMs()));
+        preparePreviews();
+        if (previews!=null) previews.request(thumbnailPosition);
+        else emit.accept(object("type","thumbnail","session",session,"request",thumbnailRequest,
+            "src",JSONObject.NULL,"position",JSONObject.NULL));
+    }
 
     boolean readyForGestures() { return active() && ready; }
     boolean active() { return !session.isEmpty(); }
@@ -190,11 +205,7 @@ final class NativePlayer {
                 select(kind.equals("audio") ? C.TRACK_TYPE_AUDIO : C.TRACK_TYPE_TEXT, id);
                 break;
             }
-            case "thumbnail":
-                // Browser fallback can supply supported previews without seeking the native player.
-                if (!message.isNull("position")) emit.accept(object("type", "thumbnail", "session", session,
-                    "request", message.optLong("request"), "src", JSONObject.NULL, "position", JSONObject.NULL));
-                break;
+            case "thumbnail": thumbnail(message); break;
             default: return;
         }
         state();
@@ -350,7 +361,7 @@ final class NativePlayer {
     }
     void destroy() { stop(); http.dispatcher().cancelAll(); http.connectionPool().evictAll(); }
     private void release() {
-        scrubbing=false;
+        scrubbing=false; thumbnailRequest=thumbnailPosition=null;
         if (previews!=null) { previews.close(); previews=null; }
         ExoPlayer previous = player;
         player = null;

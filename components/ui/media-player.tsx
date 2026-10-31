@@ -2220,7 +2220,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
               width: `${bufferedProgress * 100}%`,
             }}
           />
-          <SliderPrimitive.Range className="absolute h-full bg-white will-change-[width]" />
+          <SliderPrimitive.Range data-slot="media-player-seek-range" className="absolute h-full bg-white will-change-[width]" />
           {seekState.isHovering && seekableEnd > 0 && (
             <div
               data-slot="media-player-seek-hover-range"

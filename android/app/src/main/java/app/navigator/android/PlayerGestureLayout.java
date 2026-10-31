@@ -19,6 +19,8 @@ import android.widget.FrameLayout;
 import androidx.media3.common.util.UnstableApi;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import org.json.JSONObject;
 
 /** Native gestures claim only directional drags, cancelling the WebView's tap. */
 @UnstableApi
@@ -31,7 +33,10 @@ final class PlayerGestureLayout extends FrameLayout {
     private final ScrubGesture scrub = new ScrubGesture();
     private final float density;
     private final SideControlView side;
-    private final ScrubPreviewView preview;
+    private final Consumer<JSONObject> emit;
+    private final Runnable scrubFrame;
+    private boolean scrubFrameQueued;
+    private float scrubX;
     private final Runnable hideHud, resumeBrightness, waitBrightnessFrame;
     private NativePlayer player;
     private float topInset, bottomInset, leftEdge, rightEdge, downX;
@@ -46,8 +51,9 @@ final class PlayerGestureLayout extends FrameLayout {
     private String scrubSession;
     private long scrubTarget;
 
-    PlayerGestureLayout(Activity activity, BooleanSupplier enabled) {
-        super(activity); this.activity = activity; this.enabled = enabled;
+    PlayerGestureLayout(Activity activity, BooleanSupplier enabled, Consumer<JSONObject> emit) {
+        super(activity); this.activity = activity; this.enabled = enabled; this.emit=emit;
+        scrubFrame=() -> { scrubFrameQueued=false; if (scrubbing) sendScrub(true); };
         density = getResources().getDisplayMetrics().density;
         brightness=new PlaybackBrightness(new PlaybackBrightness.Window() {
             @Override public float read() { return activity.getWindow().getAttributes().screenBrightness; }
@@ -72,22 +78,17 @@ final class PlayerGestureLayout extends FrameLayout {
         audio = activity.getSystemService(AudioManager.class);
         accessibility = activity.getSystemService(AccessibilityManager.class);
         gesture = new SideSwipeGesture(density, ViewConfiguration.get(activity).getScaledTouchSlop());
-        hideHud = () -> { sideView().setVisibility(View.GONE); previewView().hide(); };
+        hideHud = () -> sideView().setVisibility(View.GONE);
         side = new SideControlView(activity,value -> applyProgress(shownMode,value),this::toggleMute,
             () -> { removeCallbacks(hideHud); beginSideControl(shownMode); },this::finishSideControl);
-        preview = new ScrubPreviewView(activity);
     }
     private SideControlView sideView() { return side; }
-    private ScrubPreviewView previewView() { return preview; }
     private int dp(float value) { return Math.round(value*density); }
     void setPlayer(NativePlayer value) { player = value; }
     void installHud() {
-        addView(preview,new LayoutParams(-1,-1));
         addView(side,new LayoutParams(dp(56),dp(232)));
     }
     void setGestureInsets(float top,float bottom,float left,float right) { topInset=top; bottomInset=bottom; leftEdge=left; rightEdge=right; }
-    void setSeekTrackBounds(float left,float top,float right,float bottom) { preview.setTrackBounds(left,top,right,bottom); }
-    void clearSeekTrackBounds() { preview.clearTrackBounds(); }
     void setControlsTop(float value) { controlsTop=value; }
     void setControlsVisible(boolean value) {
         controlsVisible=value;
@@ -118,7 +119,7 @@ final class PlayerGestureLayout extends FrameLayout {
                     long duration=player.durationMs(), at=player.positionMs();
                     scrubbing=player.beginScrub(scrubSession);
                     if (!scrubbing) { gesture.cancel(); return false; }
-                    hide(); preview.begin(at,duration,player.bufferedMs(),bottomInset);
+                    hide(); scrubTarget=at; scrubX=e.getX();
                     scrub.begin(at,duration,downX,getWidth(),getHeight());
                 }
                 ownsTouch=mode!=SideSwipeGesture.Mode.NONE;
@@ -152,14 +153,22 @@ final class PlayerGestureLayout extends FrameLayout {
         var mode=gesture.mode();
         if (mode==SideSwipeGesture.Mode.SCRUB && scrubbing) {
             scrubTarget=scrub.move(e.getX(),e.getY());
-            preview.progress(scrubTarget,e.getY()/Math.max(1,getHeight()));
-            player.preview(scrubSession,scrubTarget,bitmap -> { if (scrubbing && player.session().equals(scrubSession)) preview.frame(bitmap); });
+            scrubX=e.getX();
+            if (!scrubFrameQueued) { scrubFrameQueued=true; postOnAnimation(scrubFrame); }
         } else if (mode!=SideSwipeGesture.Mode.NONE) {
             applyProgress(mode,gesture.value(normalized(mode,initial),e.getY(),0));
         }
     }
+    private void sendScrub(boolean active) {
+        emit.accept(NativePlayer.object("type","scrub","session",scrubSession,"active",active,
+            "position",scrubTarget/1000.0,"duration",player.durationMs()/1000.0,"x",scrubX/density));
+    }
     private void finishScrub(boolean commit) {
-        if (scrubbing && player!=null) player.endScrub(scrubSession,commit,scrubTarget);
+        removeCallbacks(scrubFrame); scrubFrameQueued=false;
+        if (scrubbing && player!=null) {
+            sendScrub(false);
+            player.endScrub(scrubSession,commit,scrubTarget);
+        }
         scrubbing=false;
     }
     private void beginSideControl(SideSwipeGesture.Mode mode) {
@@ -242,7 +251,7 @@ final class PlayerGestureLayout extends FrameLayout {
         postOnAnimation(waitBrightnessFrame);
     }
     private void scheduleHide() { removeCallbacks(hideHud); postDelayed(hideHud,900); }
-    private void hide() { endpointHaptics.end(); removeCallbacks(hideHud); side.setVisibility(View.GONE); preview.hide(); }
+    private void hide() { endpointHaptics.end(); removeCallbacks(hideHud); side.setVisibility(View.GONE); }
     void pauseGestures() { finishScrub(false); ownsTouch=false; gesture.cancel(); hide(); }
     void setVideoActive(boolean active) {
         if (!active) {
@@ -262,7 +271,7 @@ final class PlayerGestureLayout extends FrameLayout {
         if (hasWindowFocus) scheduleBrightnessResume();
         else { pauseGestures(); brightness.suspend(); }
     }
-    @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) { super.onSizeChanged(w,h,oldw,oldh); pauseGestures(); preview.clearTrackBounds(); controlsTop=Float.NaN; }
+    @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) { super.onSizeChanged(w,h,oldw,oldh); pauseGestures(); controlsTop=Float.NaN; }
     @Override protected void onDetachedFromWindow() {
         removeCallbacks(waitBrightnessFrame); removeCallbacks(resumeBrightness); brightnessResumeQueued=false;
         activity.getContentResolver().unregisterContentObserver(systemBrightness);

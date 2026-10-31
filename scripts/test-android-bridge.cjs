@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const origin = 'https://navigator.test';
 const script = fs.readFileSync('android/app/src/main/assets/bridge.js', 'utf8')
     .replace('__ORIGIN__', JSON.stringify(origin))
+    .replace('__WEB_SCRUB__', fs.readFileSync('android/app/src/main/assets/web-scrub.js', 'utf8'))
     .replace('__PLAYER_UI__', fs.readFileSync('android/app/src/main/assets/player-ui.js', 'utf8'))
     .replace('__BACK_NAVIGATION__', fs.readFileSync('android/app/src/main/assets/back-navigation.js', 'utf8'))
     .replace('__TOUCH_CONTROLS__', fs.readFileSync('android/app/src/main/assets/touch-controls.js', 'utf8'))

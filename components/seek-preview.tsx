@@ -30,9 +30,21 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
     const ticket = useRef(0);
     const invalidate = useCallback(() => { ticket.current++; }, []);
     const bucket = previewBucket(time, duration);
-    const browserMode = !native || fallback || /\.(m3u8|mpd)(?:[?#]|$)/i.test(source);
+    const androidNative = !!native && typeof window !== "undefined" && window.navigatorDesktop?.platform === "android";
+    const browserMode = !native || fallback || (!androidNative && /\.(m3u8|mpd)(?:[?#]|$)/i.test(source));
     const wanted = useRef<number | null>(null);
     useLayoutEffect(() => { wanted.current = active ? bucket : null; }, [active, bucket]);
+
+    useLayoutEffect(() => {
+        if (!androidNative || !native) return;
+        const receive = (event: Event) => {
+            const { position, src } = (event as CustomEvent<{ position: number; src: string }>).detail;
+            cache.current.set(position, src);
+            if (wanted.current !== null) setFrame({ time: position, src, video: false, unavailable: false });
+        };
+        native.addEventListener("previewframe", receive);
+        return () => native.removeEventListener("previewframe", receive);
+    }, [androidNative, native]);
 
     useLayoutEffect(() => {
         const requests = scheduler.current;
@@ -82,16 +94,17 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
                     setFrame({ time: at, src, video: false, unavailable: false });
                 } else {
                     // HLS or an unsupported container can still use the WebView decoder.
-                    setFallback(true);
+                    if (androidNative) setFrame((previous) => previous.src ? previous : { time: at, src: null, video: false, unavailable: true });
+                    else setFallback(true);
                 }
             });
         });
-    }, [active, bucket, source, native, browserMode, videoAttached, invalidate]);
+    }, [active, bucket, source, native, browserMode, videoAttached, invalidate, androidNative]);
 
-    const ready = frame.time === bucket && !frame.unavailable;
+    const ready = (androidNative && !!frame.src) || (frame.time === bucket && !frame.unavailable);
     const unavailable = frame.time === bucket && frame.unavailable;
     return (
-        <div data-slot="media-player-seek-thumbnail" aria-busy={active && !ready && !unavailable} className="relative h-32 w-56 overflow-hidden rounded-t-md bg-black">
+        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && !ready && !unavailable} className="relative h-32 w-56 overflow-hidden rounded-t-md bg-black">
             {browserMode && source && (
                 <MuxVideo
                     ref={videoRef}
