@@ -7,6 +7,11 @@ on:
       - "lib/desktop/**"
       - "components/desktop/**"
       - "components/global-media-player.tsx"
+      - "components/home-gradient-background.tsx"
+      - "components/navigator/ai-ask.tsx"
+      - "components/navigator/focus.tsx"
+      - "lib/atoms.ts"
+      - "app/globals.css"
       - "components/media-card.tsx"
       - "components/episode-card.tsx"
       - "components/season-episodes.tsx"
@@ -18,6 +23,7 @@ on:
       - "scripts/test-artwork*"
       - "scripts/test-cast.cjs"
       - "scripts/test-image-layout.cjs"
+      - "scripts/test-gradient-lifecycle.cjs"
       - "scripts/webkit-image-layout.m"
       - "scripts/generate-hdr-fixtures.mjs"
       - "app/actions/auth.ts"
@@ -62,6 +68,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run test:desktop
+      - run: bun run test:gradient
       - if: runner.os == 'macOS'
         run: bun run test:image-layout
       - run: bun x tsc --noEmit --incremental false

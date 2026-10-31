@@ -18,6 +18,7 @@ const PROPERTIES: &[(&str, Kind)] = &[
     ("seeking", Kind::Flag),
     ("demuxer-cache-time", Kind::Double),
     ("track-list", Kind::Json),
+    ("sub-text", Kind::String),
     ("video-params/w", Kind::Double),
     ("video-params/h", Kind::Double),
     ("video-params/gamma", Kind::String),
@@ -46,6 +47,8 @@ impl Player {
         emit: impl Fn(Value) + Send + 'static,
         colour: impl Fn(Option<String>, Option<String>) + Send + 'static,
     ) -> Result<Self, String> {
+        // Keep subtitle decoding active; React draws the cues above the video.
+        mpv.set_property("sub-visibility", "no")?;
         for (id, (name, kind)) in PROPERTIES.iter().enumerate() {
             mpv.observe(name, *kind, id as u64)?;
         }
@@ -117,6 +120,7 @@ impl Player {
                         playing_id = playlist_id;
                         session = entries.remove(&playlist_id).unwrap_or_default();
                         state["position"] = json!(0.0); state["duration"] = json!(0.0); state["buffered"] = json!(0.0);
+                        emit(json!({"type":"subtitle","session":session,"text":""}));
                         emit(json!({"type":"loading","session":session}));
                     }
                     Some(Event::FileLoaded) => {
@@ -137,8 +141,13 @@ impl Player {
                         if playlist_id != playing_id { entries.remove(&playlist_id); continue; }
                         last_colour = (None, None);
                         colour(None, None);
+                        emit(json!({"type":"subtitle","session":session,"text":""}));
                         if let Some(message) = error { emit(json!({"type":"error","session":session,"message":message})); }
                         else if reason == "eof" { emit(json!({"type":"ended","session":session})); }
+                    }
+                    Some(Event::Property { name, value, .. }) if name == "sub-text" => {
+                        // An unavailable property also clears the previous cue.
+                        emit(json!({"type":"subtitle","session":session,"text":value.as_str().unwrap_or("")}));
                     }
                     Some(Event::Property { name, value, .. }) if !value.is_null() => {
                         if name == "track-list" { emit(json!({"type":"tracks","session":session,"tracks":value})); continue; }
@@ -375,5 +384,66 @@ mod tests {
         wait_for(&inbox, |v| v["type"] == "colour" && v["gamma"].is_null());
         player.begin_shutdown();
         player.join();
+    }
+
+    #[test]
+    #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_HDR_DIR"]
+    fn headless_text_subtitles_with_native_drawing_hidden() {
+        let library = std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap();
+        let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_HDR_DIR").unwrap());
+        let subtitle =
+            std::env::temp_dir().join(format!("navigator-subtitles-{}.srt", std::process::id()));
+        std::fs::write(
+            &subtitle,
+            "1\n00:00:00,000 --> 00:00:03,900\nOverlay first line\nOverlay second line\n",
+        )
+        .unwrap();
+        let mpv = Arc::new(
+            Mpv::new(
+                std::path::Path::new(&library),
+                &[
+                    ("config", "no"),
+                    ("vo", "null"),
+                    ("ao", "null"),
+                    ("idle", "yes"),
+                    ("terminal", "no"),
+                ],
+            )
+            .unwrap(),
+        );
+        let (send, inbox) = mpsc::channel();
+        let mut player = Player::start(
+            mpv.clone(),
+            move |value| {
+                let _ = send.send(value);
+            },
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(
+            mpv.get_property("sub-visibility", Kind::Flag),
+            Some(json!(false))
+        );
+        player.send(Command::Load {
+            session: "captions".into(),
+            url: directory.join("sdr.mkv").to_string_lossy().into_owned(),
+            headers: BTreeMap::new(),
+        });
+        wait_for(&inbox, |v| {
+            v["type"] == "loaded" && v["session"] == "captions"
+        });
+        mpv.command(&["sub-add", &subtitle.to_string_lossy(), "select"])
+            .unwrap();
+        wait_for(&inbox, |v| {
+            v["type"] == "subtitle"
+                && v["text"].as_str().is_some_and(|text| {
+                    text.contains("Overlay first line") && text.contains("Overlay second line")
+                })
+        });
+        mpv.set_property("sid", "no").unwrap();
+        wait_for(&inbox, |v| v["type"] == "subtitle" && v["text"] == "");
+        player.begin_shutdown();
+        player.join();
+        std::fs::remove_file(subtitle).unwrap();
     }
 }

@@ -148,6 +148,13 @@ custom MediaStore mediator, keeping the video and controls in one native window.
 Picture-in-picture is hidden for native playback. Embedded text subtitle cues
 come from mpv's `sub-text` property and use the same blurred React overlay as
 addon subtitles; mpv's own subtitle display is disabled.
+Native cues stay plain text and clear on track changes, replacement, loading,
+errors, and playback end. Bitmap subtitles do not expose text through `sub-text`
+and are outside this custom text-overlay path.
+
+The Ask Navigator launcher hides as soon as playback starts loading. Starting a
+title from Ask closes its panel, and home/Ask gradient backgrounds unmount for
+the entire visible-player lifetime. They return after playback is closed.
 
 The bridge exposes only load/play/pause/seek/volume/mute/rate/track/stop and
 native fullscreen. It validates message sizes, numbers, header syntax, and URL

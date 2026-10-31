@@ -25,6 +25,7 @@ export class MpvController extends EventTarget {
   private failure: { code: number; message: string } | null = null;
   private finished = false;
   tracks: NativeTrack[] = [];
+  subtitleText = "";
 
   constructor(private bridge: DesktopBridge) {
     super();
@@ -78,6 +79,7 @@ export class MpvController extends EventTarget {
     this.loaded = this.ready = this.finished = false;
     this.failure = null;
     this.tracks = [];
+    this.subtitleText = "";
     const { volume, muted, rate } = this.state;
     this.state = { ...initialState(), volume, muted, rate };
     this.fire("emptied", "loadstart");
@@ -98,6 +100,7 @@ export class MpvController extends EventTarget {
   }
   pause() { if (!this.disposed) this.bridge.send({ type: "pause", session: this.session }); }
   selectTrack(kind: "audio" | "subtitle", id: string) {
+    if (kind === "subtitle" && id === "no") this.clearSubtitle();
     this.bridge.send({ type: "track", session: this.session, kind, id });
   }
   dispose() {
@@ -108,7 +111,13 @@ export class MpvController extends EventTarget {
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
   }
   private fire(...names: string[]) { names.forEach((name) => this.dispatchEvent(new Event(name))); }
+  private clearSubtitle() {
+    if (!this.subtitleText) return;
+    this.subtitleText = "";
+    this.fire("subtitlechange");
+  }
   private fail(message: string) {
+    this.clearSubtitle();
     this.failure = { code: 4, message };
     this.fire("error");
   }
@@ -137,10 +146,16 @@ export class MpvController extends EventTarget {
         this.fire("loadeddata", "canplay", "canplaythrough");
         if (!this.state.paused) this.fire("playing");
         break;
-      case "loading": this.fire("waiting"); break;
-      case "ended": this.finished = true; this.fire("ended"); break;
+      case "loading": this.clearSubtitle(); this.fire("waiting"); break;
+      case "ended": this.clearSubtitle(); this.finished = true; this.fire("ended"); break;
       case "error": this.fail(message.message); break;
       case "tracks": this.tracks = message.tracks; this.fire("trackschange"); break;
+      case "subtitle":
+        if (this.subtitleText !== message.text) {
+          this.subtitleText = message.text;
+          this.fire("subtitlechange");
+        }
+        break;
     }
   }
 }

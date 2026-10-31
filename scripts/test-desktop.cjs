@@ -31,6 +31,15 @@ async function testController() {
     const headers = { Referer: "https://example.test", "X-Test": "a,b" };
     media.load("https://example.test/video.mkv", headers);
     const first = sent.find((m) => m.type === "load").session;
+    let subtitleChanges = 0;
+    media.addEventListener("subtitlechange", () => subtitleChanges++);
+    receive({ type: "subtitle", session: first, text: "First line\nSecond line" });
+    assert.equal(media.subtitleText, "First line\nSecond line");
+    receive({ type: "subtitle", session: first, text: "First line\nSecond line" });
+    assert.equal(subtitleChanges, 1, "Repeated cues must not trigger redundant React renders");
+    media.selectTrack("subtitle", "no");
+    assert.equal(media.subtitleText, "", "Turning subtitles off must clear the overlay immediately");
+    receive({ type: "subtitle", session: first, text: "Current cue" });
     assert.equal(sent[0].headers, headers);
     assert.equal(sent.find((m) => m.type === "volume").volume, 0.6);
     assert.equal(sent.find((m) => m.type === "muted").muted, true);
@@ -65,6 +74,11 @@ async function testController() {
     media.load("https://example.test/second.mkv");
     const second = sent.filter((m) => m.type === "load").at(-1).session;
     assert.notEqual(first, second);
+    assert.equal(media.subtitleText, "", "Replacing a stream must clear its last cue");
+    receive({ type: "subtitle", session: first, text: "Stale cue" });
+    assert.equal(media.subtitleText, "", "Old sessions must not display subtitles on the new stream");
+    receive({ type: "subtitle", session: second, text: "New cue" });
+    assert.equal(media.subtitleText, "New cue");
     receive({ type: "ended", session: first });
     receive({ type: "error", session: first, message: "Previous file failed" });
     receive({ type: "state", session: first, state });
@@ -73,6 +87,7 @@ async function testController() {
     assert.equal(media.currentTime, 0);
     receive({ type: "error", session: second, message: "HTTP 403" });
     assert.equal(media.error.message, "HTTP 403");
+    assert.equal(media.subtitleText, "", "Playback errors must clear the subtitle overlay");
     await assert.rejects(media.play(), /HTTP 403/);
     media.dispose();
     media.dispose();
@@ -118,7 +133,20 @@ function testBridge() {
     assert.equal(iframe.navigatorDesktop, undefined);
 }
 
+function testAskPlayback() {
+    const { createStore } = require("jotai/vanilla");
+    const atoms = load("lib/atoms.ts", { require });
+    const store = createStore();
+    store.set(atoms.isAIAskOpenAtom, true);
+    const item = { id: "tt123", name: "Fixture", type: "movie" };
+    store.set(atoms.playMediaAtom, item);
+    assert.equal(store.get(atoms.isAIAskOpenAtom), false, "Starting playback through Ask Navigator must close its panel");
+    assert.equal(store.get(atoms.isPlayerVisibleAtom), true, "Launcher and gradients must hide before stream loading completes");
+    assert.equal(store.get(atoms.currentMediaAtom), item);
+}
+
 testController().then(() => {
     testBridge();
+    testAskPlayback();
     console.log("Desktop playback adapter and bridge tests passed.");
 }).catch((error) => { console.error(error); process.exitCode = 1; });

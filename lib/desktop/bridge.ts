@@ -23,6 +23,7 @@ export type NativeState = {
 export type NativeMessage =
   | { type: "state"; session: string; state: NativeState }
   | { type: "tracks"; session: string; tracks: NativeTrack[] }
+  | { type: "subtitle"; session: string; text: string }
   | { type: "loading" | "loaded" | "ready" | "ended"; session: string }
   | { type: "error"; session: string; message: string }
   | { type: "fullscreen"; value: boolean };

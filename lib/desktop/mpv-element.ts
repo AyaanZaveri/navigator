@@ -15,7 +15,7 @@ export function registerMpvElement() {
     defaultPlaybackRate = 1;
     disablePictureInPicture = true;
     disableRemotePlayback = true;
-    // Media Chrome watches this list even when subtitles are drawn by React/mpv.
+    // Media Chrome watches this list even when subtitles are drawn by React.
     textTracks = Object.assign([], {
       addEventListener() {}, removeEventListener() {},
     });
@@ -23,7 +23,7 @@ export function registerMpvElement() {
       const bridge = desktopBridge();
       if (!bridge || this.controller) return;
       this.controller = new MpvController(bridge);
-      for (const type of ["emptied", "loadstart", "timeupdate", "durationchange", "play", "pause", "volumechange", "ratechange", "seeking", "seeked", "waiting", "resize", "progress", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "ended", "error", "trackschange"]) {
+      for (const type of ["emptied", "loadstart", "timeupdate", "durationchange", "play", "pause", "volumechange", "ratechange", "seeking", "seeked", "waiting", "resize", "progress", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "ended", "error", "trackschange", "subtitlechange"]) {
         this.controller.addEventListener(type, () => this.dispatchEvent(new Event(type)));
       }
     }

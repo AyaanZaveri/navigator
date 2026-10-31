@@ -63,6 +63,7 @@ export const currentTimestampAtom = atom(0);
 
 // Derived atom for playing media
 export const playMediaAtom = atom(null, (get, set, media: MediaToPlay) => {
+  set(isAIAskOpenAtom, false);
   set(currentMediaAtom, media);
   set(isPlayerVisibleAtom, true);
 });

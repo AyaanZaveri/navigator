@@ -149,6 +149,7 @@ const AIAsk = () => {
 
   const {
     playMedia,
+    isPlayerVisible,
     skipToTimestamp,
     currentMediaWithSource,
     currentTimestamp,
@@ -404,9 +405,12 @@ const AIAsk = () => {
     return durations;
   }, [messages, requestDurationsMs]);
 
+  if (isPlayerVisible && !isAskOpen) return null;
+
   return (
     <NavigatorFocus
       open={isAskOpen}
+      showLauncher={!isPlayerVisible}
       onOpen={handleOpenAsk}
       onOpenChange={setIsAskOpen}
       messages={messages}

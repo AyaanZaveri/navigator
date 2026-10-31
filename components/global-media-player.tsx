@@ -87,6 +87,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [loading, setLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [fetchingSubtitles, setFetchingSubtitles] = useState(false);
+  const [nativeSubtitle, setNativeSubtitle] = useState("");
 
   const [currentSubtitle, setCurrentSubtitle] = useState<{
     text: string;
@@ -109,6 +110,20 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const lastLoadedPlaybackKeyRef = useRef<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  useLayoutEffect(() => {
+    setNativeSubtitle("");
+    if (!nativePlayback || !isPlayerVisible) return;
+    const node = videoRef.current as unknown as MpvElementHandle | null;
+    const update = () => setNativeSubtitle(node?.controller?.subtitleText ?? "");
+    update();
+    node?.addEventListener("subtitlechange", update);
+    node?.addEventListener("emptied", update);
+    return () => {
+      node?.removeEventListener("subtitlechange", update);
+      node?.removeEventListener("emptied", update);
+    };
+  }, [nativePlayback, isPlayerVisible, streamUrl, playerAttempt]);
 
   const playbackKey = currentMedia
     ? [
@@ -760,13 +775,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         )}
 
         {/* Current subtitle */}
-        {currentSubtitle && (
+        {(currentSubtitle || nativeSubtitle) && !loading && videoReady && (
           <div
-            className={`fixed left-1/2 transform -translate-x-1/2 z-[100] text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md ${
-              currentSubtitle.positionTop ? "top-[15%]" : "bottom-[10%]"
+            className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-[100] text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md whitespace-pre-line ${
+              currentSubtitle?.positionTop ? "top-[15%]" : "bottom-[10%]"
             }`}
-            dangerouslySetInnerHTML={{ __html: currentSubtitle.text }}
-          />
+          >
+            {currentSubtitle ? (
+              <span dangerouslySetInnerHTML={{ __html: currentSubtitle.text }} />
+            ) : nativeSubtitle}
+          </div>
         )}
 
         <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-[9999]">

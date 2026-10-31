@@ -104,8 +104,11 @@ const React = require(process.cwd() + '/node_modules/react');
 const { renderToStaticMarkup } = require(process.cwd() + '/node_modules/react-dom/server');
 let resolvedTheme;
 let hydrated = false;
+let playerVisible = false;
 const homeModule = { exports: {}, React, require(name) {
   if (name === 'react') return { useSyncExternalStore: () => hydrated };
+  if (name === 'jotai') return { useAtomValue: () => playerVisible };
+  if (name === '@/lib/atoms') return { isPlayerVisibleAtom: {} };
   if (name.endsWith('.module.css')) return { __esModule: true, default: { background: 'home-gradient-background', animation: 'home-gradient-animation' } };
   if (name === 'next-themes') return { useTheme: () => ({ resolvedTheme }) };
   return { __esModule: true, default: props => React.createElement('canvas', { 'data-gradient': true, 'data-light-mode': String(props.lightMode), 'data-glyph-opacity': props.glyphOpacity, 'data-gradient-opacity': props.gradientOpacity }) };
@@ -134,5 +137,10 @@ for (const hydrationState of [false, true]) {
 }
 console.log('PASS: server and first hydration markup match for unresolved, light and dark themes');
 console.log('PASS: the same GPU layer mounts in both themes after hydration');
+playerVisible = true;
+assert.equal(renderToStaticMarkup(React.createElement(homeModule.exports.HomeGradientBackground)), '', 'Playback must unmount the entire gradient, including the fallback and dots');
+playerVisible = false;
+assert.ok(renderToStaticMarkup(React.createElement(homeModule.exports.HomeGradientBackground)).includes('home-gradient-background'), 'Closing playback must restore the gradient');
+console.log('PASS: playback removes the gradient; closing playback restores it');
 removeListeners();
 assert.equal(listeners.size, 0, 'All context listeners are removed');

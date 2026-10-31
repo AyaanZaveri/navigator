@@ -77,6 +77,7 @@ function ActivityPill({
 
 type Props = {
   open: boolean;
+  showLauncher: boolean;
   onOpen: () => void;
   onOpenChange: (open: boolean) => void;
   messages: UIMessage[];
@@ -92,6 +93,7 @@ type Props = {
 
 export function NavigatorFocus({
   open,
+  showLauncher,
   onOpen,
   onOpenChange,
   messages,
@@ -128,7 +130,9 @@ export function NavigatorFocus({
     setFocusState((state) =>
       open
         ? state === "closed"
-          ? "launcher-exiting"
+          ? showLauncher
+            ? "launcher-exiting"
+            : "open"
           : state === "panel-exiting"
             ? "open"
             : state
@@ -138,7 +142,7 @@ export function NavigatorFocus({
             ? "closed"
             : state,
     );
-  }, [open]);
+  }, [open, showLauncher]);
 
   const latestMessage = messages.at(-1);
   const hasResponseStarted =
@@ -574,7 +578,7 @@ export function NavigatorFocus({
               </motion.div>
             </LayoutGroup>
           </div>
-        ) : (
+        ) : showLauncher ? (
           <motion.div
             className="mb-1"
             animate={
@@ -620,7 +624,7 @@ export function NavigatorFocus({
               </KbdGroup>
             </Button>
           </motion.div>
-        )}
+        ) : null}
       </div>
     </div>
   );
