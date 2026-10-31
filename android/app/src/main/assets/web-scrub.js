@@ -74,8 +74,8 @@
   };
   const pointer = (type, position, duration) => {
     const rect = seek.getBoundingClientRect();
-    // The logical pointer requests the correct time even when vertical precision
-    // changes the seek speed. Tooltip placement independently follows the thumb.
+    // Off-bar previews and the playhead share the precision-adjusted time.
+    // Only a direct timeline drag is anchored to the finger.
     seek.dispatchEvent(new window.PointerEvent(type, { bubbles: true, pointerType: 'touch',
       pointerId: 931, isPrimary: true, clientX: rect.left + Math.max(0, Math.min(1, position / duration)) * rect.width,
       clientY: rect.top + rect.height / 2, relatedTarget: null }));
@@ -94,9 +94,14 @@
     if (!message.active) { if (message.session === owner) reset(); return; }
     if (!Number.isFinite(message.position) || !Number.isFinite(message.duration) || message.duration <= 0 || !Number.isFinite(message.x) || !find() || message.session !== media.controller.previewSession) return;
     if (owner && owner !== message.session) reset();
+    // Updated React consumes the same native event for range, time and preview.
+    // Older deployed clients keep the synthetic-pointer compatibility path.
+    if (root.hasAttribute?.('data-native-seek-ui')) return;
     owner = message.session;
     const entering = !active;
-    active = true; wanted = message.position; pointerX = message.x;
+    active = true; wanted = message.position;
+    const rect = seek.getBoundingClientRect();
+    pointerX = rect.left + Math.max(0, Math.min(1, wanted / message.duration)) * rect.width;
     root.setAttribute('data-native-web-scrub', '');
     root.style.setProperty('--navigator-native-scrub-right', `${100 - Math.max(0, Math.min(1, wanted / message.duration)) * 100}%`);
     if (entering) pointer('pointerover', wanted, message.duration);

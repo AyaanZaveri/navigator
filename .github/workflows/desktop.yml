@@ -18,6 +18,7 @@ on:
       - "app/actions/media.ts"
       - "scripts/test-resume-items.cjs"
       - "scripts/test-touch-scrubbing.cjs"
+      - "scripts/test-seek-time.cjs"
       - "scripts/test-page-layout.cjs"
       - "components/app-header.tsx"
       - "components/layout-content.tsx"

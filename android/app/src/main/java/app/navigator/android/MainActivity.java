@@ -289,6 +289,12 @@ public final class MainActivity extends ComponentActivity {
                                 if (!playerVisible) { player.stop(); setFullscreen(false); }
                                 updateWebPresentation();
                                 break;
+                            case "seek-feedback":
+                                if (foreground && playerVisible && !webOverlayOpen && player.canScrub()
+                                        && player.session().equals(request.optString("session")))
+                                    root.performHapticFeedback(Build.VERSION.SDK_INT>=34
+                                        ? android.view.HapticFeedbackConstants.SEGMENT_TICK : android.view.HapticFeedbackConstants.CLOCK_TICK);
+                                break;
                             case "settings": settings(); break;
                             default:
                                 if (!foreground) return;

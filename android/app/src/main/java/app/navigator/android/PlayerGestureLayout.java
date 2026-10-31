@@ -91,9 +91,10 @@ final class PlayerGestureLayout extends FrameLayout {
     void setGestureInsets(float top,float bottom,float left,float right) { topInset=top; bottomInset=bottom; leftEdge=left; rightEdge=right; }
     void setControlsTop(float value) { controlsTop=value; }
     void setControlsVisible(boolean value) {
+        boolean revealed=value && !controlsVisible;
         controlsVisible=value;
-        if (value && scrubbing) pauseGestures();
-        if (!value && player != null && available()) player.warmPreview();
+        if (revealed && scrubbing) pauseGestures();
+        if (!value && !scrubbing && player != null && available()) player.warmPreview();
     }
     private boolean available() { return hasWindowFocus() && enabled.getAsBoolean() && (accessibility==null || !accessibility.isTouchExplorationEnabled()); }
     private boolean inSide(MotionEvent e) {
@@ -108,7 +109,7 @@ final class PlayerGestureLayout extends FrameLayout {
                 float top=controlsVisible ? Math.max(dp(64),topInset+dp(64*Math.max(1,getResources().getConfiguration().fontScale))) : 0;
                 float bottom=controlsVisible ? (Float.isFinite(controlsTop) ? controlsTop : getHeight()-Math.max(dp(136),bottomInset+dp(112))) : getHeight();
                 gesture.begin(e.getX(),e.getY(),getWidth(),getHeight(),top,bottom,leftEdge,rightEdge,
-                    !controlsVisible && player!=null && player.canScrub());
+                    player!=null && player.canScrub());
                 downX=e.getX();
             }
             case MotionEvent.ACTION_MOVE -> {
@@ -159,14 +160,15 @@ final class PlayerGestureLayout extends FrameLayout {
             applyProgress(mode,gesture.value(normalized(mode,initial),e.getY(),0));
         }
     }
-    private void sendScrub(boolean active) {
+    private void sendScrub(boolean active) { sendScrub(active,false); }
+    private void sendScrub(boolean active,boolean commit) {
         emit.accept(NativePlayer.object("type","scrub","session",scrubSession,"active",active,
-            "position",scrubTarget/1000.0,"duration",player.durationMs()/1000.0,"x",scrubX/density));
+            "position",scrubTarget/1000.0,"duration",player.durationMs()/1000.0,"x",scrubX/density,"speed",scrub.speed(),"commit",commit));
     }
     private void finishScrub(boolean commit) {
         removeCallbacks(scrubFrame); scrubFrameQueued=false;
         if (scrubbing && player!=null) {
-            sendScrub(false);
+            sendScrub(false,commit);
             player.endScrub(scrubSession,commit,scrubTarget);
         }
         scrubbing=false;

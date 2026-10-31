@@ -4,7 +4,8 @@ export interface TouchScrubbingOptions {
   end: number;
   currentTime: () => number;
   enabled: () => boolean;
-  preview: (_time: number, _speed: number) => void;
+  preview: (_time: number, _speed: number, _mode: "bar" | "surface") => void;
+  grab?: () => void;
   commit: (_time: number) => void;
   cancel: () => void;
 }
@@ -17,7 +18,7 @@ export function scrubSpeed(startY: number, y: number) {
 }
 
 export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingOptions) {
-    let gesture: { id: number; x: number; y: number; lastX: number; time: number; active: boolean } | null = null;
+    let gesture: { id: number; x: number; y: number; lastX: number; time: number; active: boolean; onBar: boolean } | null = null;
     let suppressClick = false;
     const clamp = (time: number) => Math.max(options.start, Math.min(options.end, time));
     const down = (event: PointerEvent) => {
@@ -40,35 +41,40 @@ export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingO
         gesture = {
             id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX,
             time: clamp(onBar ? options.start + (event.clientX - rect.left) / rect.width * (options.end - options.start) : options.currentTime()),
-            active: onBar,
+            active: onBar, onBar,
         };
         if (onBar) {
             event.preventDefault();
             event.stopPropagation();
             root.setPointerCapture(event.pointerId);
             suppressClick = true;
-            options.preview(gesture.time, 1);
+            options.grab?.();
+            options.preview(gesture.time, 1, "bar");
         }
     };
     const move = (event: PointerEvent) => {
         if (!gesture || event.pointerId !== gesture.id) return;
         if (!gesture.active) {
             // Leave ordinary taps alone; horizontal movement claims the gesture.
-            if (Math.abs(event.clientX - gesture.x) < 8) return;
+            if (Math.abs(event.clientX - gesture.x) < 16
+                || Math.abs(event.clientX - gesture.x) < Math.abs(event.clientY - gesture.y) * 1.25) return;
             gesture.active = true;
             root.setPointerCapture(event.pointerId);
             suppressClick = true;
         }
         event.preventDefault();
         event.stopPropagation();
-        const speed = scrubSpeed(gesture.y, event.clientY);
-        const width = options.timeline.getBoundingClientRect().width;
-        if (width > 0) gesture.time = clamp(gesture.time + (event.clientX - gesture.lastX) / width * (options.end - options.start) * speed);
+        const speed = gesture.onBar ? 1 : scrubSpeed(gesture.y, event.clientY);
+        const rect = options.timeline.getBoundingClientRect();
+        if (rect.width > 0) gesture.time = clamp(gesture.onBar
+            ? options.start + (event.clientX - rect.left) / rect.width * (options.end - options.start)
+            : gesture.time + (event.clientX - gesture.lastX) / rect.width * (options.end - options.start) * speed);
         gesture.lastX = event.clientX;
-        options.preview(gesture.time, speed);
+        options.preview(gesture.time, speed, gesture.onBar ? "bar" : "surface");
     };
     const finish = (event: PointerEvent) => {
         if (!gesture || gesture.id !== event.pointerId) return;
+        if (event.type === 'pointerup' && gesture.active) move(event);
         const finished = gesture;
         gesture = null;
         if (finished.active) {

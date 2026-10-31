@@ -34,3 +34,21 @@
   [data-player-toolbar] button > svg { width: 1.25rem; height: 1.25rem; }
   [data-slot="media-player-time"] { max-width: 100%; flex-wrap: wrap; font-size: .875rem; font-weight: 400; line-height: 1.4; white-space: nowrap; }
 }
+
+/* Surface seeking reveals only the existing timeline when chrome is hidden. */
+[data-scrub-mode="surface"]:not([data-controls-visible]) [data-slot="media-player-controls"] {
+  opacity: 1 !important; visibility: hidden !important; pointer-events: none !important;
+}
+[data-scrub-mode="surface"]:not([data-controls-visible]) [data-slot="media-player-seek-container"] { visibility: visible !important; }
+/* Also overrides the old APK's finger-anchored tooltip compatibility rule. */
+[data-slot="media-player-seek-tooltip"][data-seek-mode="surface"] {
+  left: var(--seek-tooltip-x) !important;
+  transition: left 100ms var(--ease-out, cubic-bezier(.23, 1, .32, 1)), opacity 150ms ease-out;
+}
+[data-scrub-mode="surface"] [data-slot="media-player-seek-range"] {
+  transition: right 100ms var(--ease-out, cubic-bezier(.23, 1, .32, 1));
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-scrub-mode="surface"] [data-slot="media-player-seek-range"],
+  [data-slot="media-player-seek-tooltip"][data-seek-mode="surface"] { transition: none; }
+}

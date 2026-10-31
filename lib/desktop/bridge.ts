@@ -21,6 +21,7 @@ export type NativeState = {
 };
 
 export type NativeMessage =
+  | { type: "scrub"; session: string; active: boolean; position: number; duration: number; x: number; speed?: number; commit?: boolean }
   | { type: "state"; session: string; state: NativeState }
   | { type: "tracks"; session: string; tracks: NativeTrack[] }
   | { type: "subtitle"; session: string; text: string }
@@ -40,7 +41,8 @@ export type NativeRequest =
   | { type: "rate"; session: string; rate: number }
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
   | { type: "fullscreen"; value: boolean }
-  | { type: "settings" };
+  | { type: "settings" }
+  | { type: "seek-feedback"; session: string };
 
 export interface DesktopBridge {
   readonly protocol: 1;

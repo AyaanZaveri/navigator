@@ -6,7 +6,7 @@ import static org.junit.Assert.*;
 public class SideSwipeGestureTest {
     private SideSwipeGesture begin(float x,float y,boolean hidden) {
         var g=new SideSwipeGesture(1,8);
-        g.begin(x,y,1000,500,hidden ? 0 : 64,hidden ? 500 : 364,24,24,hidden);
+        g.begin(x,y,1000,500,hidden ? 0 : 64,hidden ? 500 : 364,24,24,true);
         return g;
     }
     @Test public void thirdsAndPhysicalEdgesSupportVerticalControls() {
@@ -25,8 +25,8 @@ public class SideSwipeGestureTest {
         assertEquals(SideSwipeGesture.Mode.VOLUME,begin(800,480,true).move(800,430));
         assertEquals(SideSwipeGesture.Mode.NONE,begin(500,200,true).move(500,100));
     }
-    @Test public void horizontalScrubRequiresHiddenControlsAndRespectsAndroidBackEdges() {
-        assertEquals(SideSwipeGesture.Mode.NONE,begin(500,200,false).move(550,200));
+    @Test public void horizontalScrubWorksWithShownControlsAndRespectsAndroidBackEdges() {
+        assertEquals(SideSwipeGesture.Mode.SCRUB,begin(500,200,false).move(550,200));
         assertEquals(SideSwipeGesture.Mode.NONE,begin(10,200,true).move(90,200));
         assertEquals(SideSwipeGesture.Mode.NONE,begin(990,200,true).move(900,200));
         var g=begin(500,200,true);

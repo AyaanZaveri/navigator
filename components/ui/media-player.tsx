@@ -105,6 +105,8 @@ function useLazyRef<T>(fn: () => T) {
 interface StoreState {
   controlsVisible: boolean;
   dragging: boolean;
+  seekPreviewTime: number | null;
+  seekMode: "bar" | "surface" | null;
   menuOpen: boolean;
   volumeIndicatorVisible: boolean;
 }
@@ -112,10 +114,7 @@ interface StoreState {
 interface Store {
   subscribe: (cb: () => void) => () => void;
   getState: () => StoreState;
-  setState: (
-    key: keyof StoreState,
-    value: StoreState[keyof StoreState]
-  ) => void;
+  setState: <K extends keyof StoreState>(key: K, value: StoreState[K]) => void;
   notify: () => void;
 }
 
@@ -248,6 +247,8 @@ function MediaPlayerRoot(props: MediaPlayerRootProps) {
   const stateRef = useLazyRef<StoreState>(() => ({
     controlsVisible: true,
     dragging: false,
+    seekPreviewTime: null,
+    seekMode: null,
     menuOpen: false,
     volumeIndicatorVisible: false,
   }));
@@ -314,6 +315,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
   const controlsVisible = useStoreSelector((state) => state.controlsVisible);
   const dragging = useStoreSelector((state) => state.dragging);
+  const seekMode = useStoreSelector((state) => state.seekMode);
   const menuOpen = useStoreSelector((state) => state.menuOpen);
 
   const hideControlsTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -355,7 +357,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         const root = rootRef.current;
         const focused = document.activeElement;
         // Portalled track/cast menus do not all use the player's menu store.
-        const busy = controlPointerHeldRef.current || document.querySelector(
+        const busy = store.getState().seekPreviewTime !== null || controlPointerHeldRef.current || document.querySelector(
           '[data-state="open"]:is([role="menu"], [role="dialog"], [data-slot="popover-content"])'
         ) || (focused instanceof Element && root?.contains(focused) &&
           focused.closest('[data-slot="media-player-controls"]') && focused.matches(":focus-visible"));
@@ -871,6 +873,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         aria-disabled={disabled}
         data-disabled={disabled ? "" : undefined}
         data-controls-visible={controlsVisible ? "" : undefined}
+        data-scrub-mode={seekMode ?? undefined}
         data-slot="media-player"
         data-touch-controls=""
         data-state={isFullscreen ? "fullscreen" : "windowed"}
@@ -1603,6 +1606,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     (state) => state.mediaPreviewCoords
   );
 
+  const seekMode = useStoreSelector((state) => state.seekMode);
   const seekRef = React.useRef<HTMLDivElement>(null);
   const tooltipRef = React.useRef<HTMLDivElement>(null);
   const justCommittedRef = React.useRef<boolean>(false);
@@ -1828,9 +1832,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       const diff = Math.abs(mediaCurrentTime - seekState.pendingSeekTime);
       if (diff < 0.5) {
         setSeekState((prev) => ({ ...prev, pendingSeekTime: null }));
+        store.setState("seekPreviewTime", null);
       }
     }
-  }, [mediaCurrentTime, seekState.pendingSeekTime]);
+  }, [mediaCurrentTime, seekState.pendingSeekTime, seekMode, store]);
 
   React.useEffect(() => {
     if (!seekState.isHovering || tooltipDisabled) return;
@@ -2056,6 +2061,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const onSeek = React.useCallback(
     (value: number[]) => {
       const time = value[0] ?? 0;
+      store.setState("seekPreviewTime", time);
 
       setSeekState((prev) => ({ ...prev, pendingSeekTime: time }));
 
@@ -2069,6 +2075,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const onSeekCommit = React.useCallback(
     (value: number[]) => {
       const time = value[0] ?? 0;
+      store.setState("seekPreviewTime", time);
+      store.setState("seekMode", null);
 
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
@@ -2146,39 +2154,74 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     const root = context.rootRef.current;
     const timeline = seekRef.current;
     if (!root || !timeline || isDisabled) return;
-    return attachTouchScrubbing(root, {
-      timeline,
-      start: seekableStart,
-      end: seekableEnd,
+    root.setAttribute("data-native-seek-ui", "");
+    const preview = (time: number, speed: number, mode: "bar" | "surface") => {
+      touchScrubbingRef.current = true;
+      hoverTimeRef.current = time;
+      store.setState("seekPreviewTime", time);
+      store.setState("seekMode", mode);
+      // Dragging the bar keeps its controls open. Surface gestures preserve
+      // visibility; an idle timer must not hide controls during an active seek.
+      if (mode === "bar") store.setState("dragging", true);
+      const callbacks = touchCallbacksRef.current;
+      callbacks.onPreviewUpdate(time);
+      callbacks.onHoverProgressUpdate();
+      const rect = timeline.getBoundingClientRect();
+      callbacks.onTooltipPositionUpdate(rect.left + (time - seekableStart) / (seekableEnd - seekableStart) * rect.width);
+      setSeekState(previous => ({ ...previous, pendingSeekTime: time, isHovering: true }));
+      setTouchScrubSpeed(mode === "surface" ? speed : null);
+    };
+    const cancel = () => {
+      touchScrubbingRef.current = false;
+      setTouchScrubSpeed(null);
+      store.setState("seekPreviewTime", null);
+      store.setState("seekMode", null);
+      setSeekState(previous => ({ ...previous, pendingSeekTime: null }));
+      store.setState("dragging", false);
+      touchCallbacksRef.current.onPointerLeave();
+    };
+    const bridge = desktopBridge();
+    const session = () => (context.mediaRef.current as unknown as { controller?: { previewSession: string } } | null)?.controller?.previewSession;
+    const unsubscribe = bridge?.subscribe(message => {
+      if (message.type !== "scrub" || message.session !== session()) return;
+      if (!message.active) {
+        cancel();
+        if (message.commit && Number.isFinite(message.position)) {
+          const target = Math.min(seekableEnd, Math.max(seekableStart, message.position));
+          store.setState("seekPreviewTime", target);
+          setSeekState(previous => ({ ...previous, pendingSeekTime: target }));
+        }
+        return;
+      }
+      if (!Number.isFinite(message.position) || message.position < 0) return;
+      preview(Math.min(seekableEnd, Math.max(seekableStart, message.position)), message.speed ?? 1, "surface");
+    });
+    const dispose = attachTouchScrubbing(root, {
+      timeline, start: seekableStart, end: seekableEnd,
       currentTime: () => touchCallbacksRef.current.mediaCurrentTime,
       enabled: () => !store.getState().menuOpen,
-      preview: (time, speed) => {
-        touchScrubbingRef.current = true;
-        store.setState("controlsVisible", true);
-        hoverTimeRef.current = time;
-        const callbacks = touchCallbacksRef.current;
-        callbacks.onSeek([time]);
-        callbacks.onPreviewUpdate(time);
-        callbacks.onHoverProgressUpdate();
-        const rect = timeline.getBoundingClientRect();
-        callbacks.onTooltipPositionUpdate(rect.left + (time - seekableStart) / (seekableEnd - seekableStart) * rect.width);
-        setSeekState(previous => ({ ...previous, isHovering: true }));
-        setTouchScrubSpeed(speed);
+      preview,
+      grab: () => {
+        const owner = session();
+        if (bridge?.platform === "android" && owner) bridge.send({ type: "seek-feedback", session: owner });
       },
       commit: time => {
         touchScrubbingRef.current = false;
         setTouchScrubSpeed(null);
         touchCallbacksRef.current.onSeekCommit([time]);
       },
-      cancel: () => {
-        touchScrubbingRef.current = false;
-        setTouchScrubSpeed(null);
-        setSeekState(previous => ({ ...previous, pendingSeekTime: null }));
-        store.setState("dragging", false);
-        touchCallbacksRef.current.onPointerLeave();
-      },
+      cancel,
     });
-  }, [context.rootRef, isDisabled, seekableStart, seekableEnd, store]);
+    const media = context.mediaRef.current;
+    media?.addEventListener("emptied", cancel);
+    media?.addEventListener("loadstart", cancel);
+    return () => {
+      dispose(); unsubscribe?.();
+      media?.removeEventListener("emptied", cancel);
+      media?.removeEventListener("loadstart", cancel);
+      root.removeAttribute("data-native-seek-ui"); cancel();
+    };
+  }, [context.rootRef, context.mediaRef, isDisabled, seekableStart, seekableEnd, store]);
 
   // Reposition after controls/preview layout changes, even without another move.
   React.useLayoutEffect(() => {
@@ -2249,6 +2292,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         aria-controls={context.mediaId}
         aria-valuetext={`${currentTime} of ${duration}`}
         data-hovering={seekState.isHovering ? "" : undefined}
+        data-scrub-mode={seekMode ?? undefined}
         data-slider=""
         data-slot="media-player-seek"
         disabled={isDisabled}
@@ -2268,7 +2312,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         onPointerLeave={onPointerLeave}
         onPointerMove={onPointerMove}
       >
-        <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-white/20 transition-all duration-500 delay-50 group-hover:h-2.5">
+        <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-white/20 transition-transform duration-100 ease-[var(--ease-out)] group-data-[scrub-mode=bar]:scale-y-[1.5] motion-reduce:transition-none">
           <div
             data-slot="media-player-seek-buffered"
             className="absolute h-full bg-white/30 will-change-[width]"
@@ -2291,7 +2335,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb
           aria-label="Playback position"
-          className="block size-3 rounded-full bg-white opacity-0 shadow-sm outline-none group-data-[hovering]:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+          className="block size-3 rounded-full bg-white opacity-0 outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
         />
       </SliderPrimitive.Root>
       {!withoutTooltip &&
@@ -2301,6 +2345,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           <MediaPlayerPortal>
             <div
               ref={tooltipRef}
+              data-slot="media-player-seek-tooltip"
+              data-seek-mode={seekMode ?? undefined}
               aria-hidden={!seekState.isHovering || tooltipDisabled}
               className="pointer-events-none z-[var(--layer-tooltip)] [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
               style={{
@@ -2319,7 +2365,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
               >
-                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={touchScrubSpeed !== null ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} />}
+                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} />}
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"
@@ -2342,7 +2388,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 )}
                 {touchScrubSpeed !== null && (
                   <div className="max-w-56 px-2 pt-1 text-center text-xs text-muted-foreground">
-                    {touchScrubSpeed === 1 ? "Fast scrubbing · move up or down for precision" : `Fine scrubbing · ${touchScrubSpeed * 100}% speed`}
+                    {touchScrubSpeed === 1 ? "Fast scrubbing · move up or down for precision" : `Fine scrubbing · ${Math.round(touchScrubSpeed * 100)}% speed`}
                   </div>
                 )}
                 {currentChapterCue && (
@@ -2539,11 +2585,14 @@ function MediaPlayerTime(props: MediaPlayerTimeProps) {
     (state) => state.mediaSeekable ?? [0, 0]
   );
 
+  const previewTime = useStoreSelector((state) => state.seekPreviewTime);
+  const displayTime = previewTime ?? mediaCurrentTime;
+
   const times = React.useMemo(() => {
     if (variant === "remaining") {
       return {
         remaining: timeUtils.formatTime(
-          seekableEnd - mediaCurrentTime,
+          seekableEnd - displayTime,
           seekableEnd
         ),
       };
@@ -2556,10 +2605,10 @@ function MediaPlayerTime(props: MediaPlayerTimeProps) {
     }
 
     return {
-      current: timeUtils.formatTime(mediaCurrentTime, seekableEnd),
+      current: timeUtils.formatTime(displayTime, seekableEnd),
       duration: timeUtils.formatTime(seekableEnd, seekableEnd),
     };
-  }, [variant, mediaCurrentTime, seekableEnd]);
+  }, [variant, displayTime, seekableEnd]);
 
   const TimePrimitive = asChild ? Slot : "div";
 

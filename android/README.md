@@ -226,13 +226,19 @@ swipes beginning in Android's Back region remain with the system; vertical side
 swipes reach the physical edges. Multitouch and TalkBack exploration never claim
 a video gesture. There are no per-move JS bridge messages.
 
-With controls hidden, horizontal swiping reveals the existing React timeline
-and thumbnail tooltip. Native gestures send at most one position update per
-animation frame. The tooltip follows the actual thumb, clamped inside the
-viewport, while its requested time follows the precision-adjusted seek target.
+Away from buttons and the timeline, horizontal swiping works with controls shown
+or hidden. Direct timeline grabs use absolute finger position without a fine-speed
+modifier; a 100 ms vertical scale thickens the track and a native SEGMENT_TICK
+(API 34+) / CLOCK_TICK confirms each grab once. Surface gestures preserve controls
+visibility and reveal the existing timeline/tooltip when chrome is hidden. Native
+gestures send at most one position update per animation frame. The tooltip, range,
+and clock share the precision-adjusted seek target, clamped
+inside the viewport. Direct bar dragging follows the finger; surface dragging
+anchors the preview above the moving playhead. Completed seeks retain their target
+until playback acknowledges it, while cancelled gestures restore actual time.
 The range reuses the normal rounded rectangle and has no dot; only its displayed
 fill glides for 100 ms with `cubic-bezier(.23, 1, .32, 1)` (disabled for reduced
-motion). Other controls remain hidden. No native preview window is created.
+motion). Controls that were hidden remain hidden. No native preview window is created.
 Moving toward the top slows scrubbing;
 moving toward the bottom speeds it up. Incremental movement allows changing
 height during one drag without jumping the target. The decoder pauses during

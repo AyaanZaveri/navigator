@@ -21,11 +21,11 @@ function fixture() {
     const bar = { closest: () => null };
     const button = { closest: () => ({}) };
     const previews = [], commits = [];
-    let cancels = 0;
+    let cancels = 0, grabs = 0;
     const dispose = attachTouchScrubbing(root, {
         timeline: { contains: target => target === bar, getBoundingClientRect: () => ({ left: 20, width: 400 }) },
         start: 100, end: 1100, currentTime: () => 500, enabled: () => true,
-        preview: (time, speed) => previews.push({ time, speed }), commit: time => commits.push(time), cancel: () => cancels++,
+        preview: (time, speed) => previews.push({ time, speed }), commit: time => commits.push(time), cancel: () => cancels++, grab: () => grabs++,
     });
     const send = (type, x, y, target = blank, extra = {}) => {
         const event = { type, clientX: x, clientY: y, target, pointerType: 'touch', pointerId: 1, isPrimary: true,
@@ -33,7 +33,7 @@ function fixture() {
         handlers.get(type)?.(event);
         return event;
     };
-    return { send, previews, commits, bar, button, dispose, handlers, get cancels() { return cancels; } };
+    return { send, previews, commits, bar, button, dispose, handlers, get cancels() { return cancels; }, get grabs() { return grabs; } };
 }
 for (const y of [20, 200, 600]) {
     const f = fixture();
@@ -55,6 +55,10 @@ for (const y of [20, 200, 600]) {
 const bar = fixture();
 bar.send('pointerdown', 220, 600, bar.bar);
 assert.equal(bar.previews.at(-1).time, 600, 'Direct bar touch selects the touched timeline position');
+bar.send('pointermove', 260, 740);
+assert.equal(bar.previews.at(-1).time, 700, 'Bar drags remain absolute and follow the finger even after large vertical movement');
+assert.equal(bar.previews.at(-1).speed, 1, 'Fine scrubbing is reserved for off-bar gestures');
+assert.equal(bar.grabs, 1, 'A bar grab emits one feedback tick, never a tick on every move');
 bar.send('pointermove', 1000, 600);
 assert.equal(bar.previews.at(-1).time, 1100);
 bar.send('pointermove', -1000, 600);
@@ -83,3 +87,8 @@ lostCapture.send('pointerdown', 220, 600, lostCapture.bar);
 lostCapture.send('lostpointercapture', 220, 600);
 assert.equal(lostCapture.cancels, 1, 'Losing capture restores playback progress');
 assert.equal(lostCapture.commits.length, 0);
+
+const release = fixture();
+release.send('pointerdown', 220, 600, release.bar);
+release.send('pointerup', 260, 740, release.bar);
+assert.deepEqual(release.commits, [700], 'The release coordinate is committed even when a final move was coalesced');

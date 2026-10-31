@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function setup({ manifest = false, updated = false } = {}) {
+function setup({ manifest = false, updated = false, reactSeek = false } = {}) {
     let subscriber, mutation, timer = 0;
     const timers = new Map(), handlers = new Map(), events = [], requests = [], attrs = new Map();
     const properties = new Map(), children = [];
@@ -10,6 +10,8 @@ function setup({ manifest = false, updated = false } = {}) {
     const node = () => ({ style, dataset: {}, setAttribute(key, value) { attrs.set(key, value); },
         removeAttribute(key) { attrs.delete(key); }, getAttribute(key) { return attrs.get(key); } });
     const root = node();
+    root.hasAttribute = key => attrs.has(key);
+    if (reactSeek) root.setAttribute("data-native-seek-ui", "");
     const tooltip = { ...node(), getBoundingClientRect: () => ({ width: 224 }) };
     const caption = { parentElement: { parentElement: tooltip } };
     const thumbnail = { ...node(), dataset: updated ? { nativePreviewProvider: 'android' } : {},
@@ -50,7 +52,7 @@ async function test() {
     assert.deepEqual(app.events.map(event => event.type), ['pointerover', 'pointermove'], 'Whole-screen gestures drive the existing web seek component');
     assert.equal(app.events[1].clientX, 262, 'Preview time maps through the actual timeline, independently of thumb position');
     assert.equal(app.events[1].pointerType, 'touch', 'Synthetic movement does not activate mouse auto-show or pause playback');
-    assert.equal(app.properties.get('--navigator-native-scrub-x'), '880px', 'Tooltip follows the thumb and stays within the viewport');
+    assert.equal(app.properties.get('--navigator-native-scrub-x'), '262px', 'Off-bar tooltip follows the seek target, not physical thumb position');
     assert.equal(app.properties.get('--navigator-native-scrub-right'), '75%');
     app.move({ position: 60, x: 500 });
     assert.equal(app.events.at(-1).clientX, 500);
@@ -98,6 +100,11 @@ async function test() {
     modern.document.hidden = true; modern.handlers.get('visibilitychange')();
     assert.ok(!modern.attrs.has('data-native-web-scrub'), 'Backgrounding clears preview and timeline overrides');
     modern.api.dispose();
+    const unified = setup({ updated: true, reactSeek: true });
+    unified.move({ x: 900, position: 30 });
+    assert.equal(unified.events.length, 0, 'Updated React owns the shared time/range/preview without a second synthetic pointer producer');
+    assert.ok(!unified.attrs.has('data-native-web-scrub'), 'Compatibility CSS must not override the unified playhead or hide already visible controls');
+    unified.api.dispose();
     console.log('PASS: native gestures reuse web seek UI, thumb/time synchronization, HLS compatibility, streamed frames, session isolation, and cleanup');
 }
 test().catch(error => { console.error(error); process.exitCode = 1; });
