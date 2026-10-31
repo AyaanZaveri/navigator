@@ -172,10 +172,16 @@ Volume, Volume1 and Volume2 as the level changes; tapping that icon toggles mute
 Brightness uses Lucide Sun at the same size. Official SVG geometry is packaged
 as Android vectors with the pinned source revision and ISC license included.
 There is no icon below either bar. Drag either bar directly.
-Vertical side swipes now need approximately the full video height for a full
-range change, halving the previous sensitivity. Direct bar drags are relative
-to their starting value, with at least 240 dp travel per full range, so pressing
-the track does not jump the value.
+Original side-swipe sensitivity is restored: approximately half the video height
+(minimum 200 dp) spans the full range. Both modes use the same normalized mapping.
+Direct bar drags remain relative to the initial touch but now travel one-to-one
+with the visible track. Incremental clamping removes stored overshoot, so reversing
+at either endpoint responds immediately. During a drag, the fill follows the
+continuous finger target while Android media volume changes in hardware steps;
+OS-restricted volume requests still show the accepted level. On release, the small
+correction to the actual volume step settles in 120 ms with the existing
+`cubic-bezier(0.23, 1, 0.32, 1)` curve. Input and brightness/audio updates are never
+tweened. Native animator settings are respected; accessibility changes snap.
 The parent waits for clear directional intent, then sends `ACTION_CANCEL` to the
 WebView so a swipe cannot become a tap. Visible controls and top buttons keep
 their touch areas. Hidden controls release the full video height. Horizontal
@@ -214,15 +220,25 @@ blend; shorter videos scale to their duration.
 Brightness uses `WindowManager.LayoutParams.screenBrightness` and restores the
 previous window value, including automatic/default policy, when playback closes.
 The 100% endpoint requests `BRIGHTNESS_OVERRIDE_FULL` (1.0) independently of the
-phone's preferred brightness. Every gesture reasserts its override and each update writes the requested
-absolute value, including an unchanged maximum; unchanged LayoutParams values
-can outlive a manual display adjustment. A lifecycle-bound ContentObserver watches
-the public brightness and brightness-mode settings. A subsequent drag rebases
-from the changed phone setting instead of a stale app maximum, then retains the
-full adjustment range. Window-focus gain also reapplies the active override.
-No global brightness settings are written. JVM regressions cover same-value
-reassertion, manual-change/re-drag sequences, absolute requests, exact endpoints,
-focus reapplication and restoration; actual panel behavior needs a device check.
+phone's preferred brightness. Focus loss explicitly releases the window override
+to `BRIGHTNESS_OVERRIDE_NONE` while retaining the user's video target. Focus gain
+submits a fresh override after a frame has committed the release. Two animation
+callbacks ensure that a clear and restore do not collapse into the same window
+traversal. The brightness-setting observer uses the same handoff when Quick
+Settings changes brightness without a full focus transition. Repeated callbacks
+coalesce; pending callbacks are cancelled on focus loss and detachment. Closing
+playback clears the target, so a pending handoff cannot restore an old video's
+brightness. The target stays independent of the changed phone setting, and
+requests made while suspended wait for focus to return.
+
+The reason for this change is visible in Android's source: LayoutParams marks
+`SCREEN_BRIGHTNESS_CHANGED` only when the attribute changes, and
+OverrideBrightnessStrategy discards identical overrides. Repeating
+`setAttributes` with the previous value is insufficient for this handoff. JVM
+regressions model the ignored-identical-value path, then test clear/reacquire,
+repeated Quick Settings edits, suspended updates, restoration and closure during
+a pending handoff. These are framework-state models, not physical Pixel brightness
+measurements. No global settings or private display APIs are used.
 Volume and mute use `AudioManager.STREAM_MUSIC` with the normal
 `MODIFY_AUDIO_SETTINGS` permission. No global brightness settings or
 `WRITE_SETTINGS` permission are required. Devices restricting volume are handled
@@ -289,6 +305,10 @@ the previous APK and the website; a device Perfetto/WebView trace is still neede
 if perceptible jitter remains. No GPU effects or page content were removed.
 
 References used:
+
+- [Android 16 LayoutParams brightness change detection](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/core/java/android/view/WindowManager.java)
+- [Android 16 override strategy discards identical values](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/services/core/java/com/android/server/display/brightness/strategy/OverrideBrightnessStrategy.java)
+- [Quick Settings uses temporary display brightness](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/packages/SystemUI/src/com/android/systemui/settings/brightness/BrightnessController.java)
 
 - [Android view haptic feedback and system preference handling](https://developer.android.com/develop/ui/views/haptics/haptic-feedback)
 - [Slider segment tick semantics](https://developer.android.com/reference/android/view/HapticFeedbackConstants#SEGMENT_TICK)

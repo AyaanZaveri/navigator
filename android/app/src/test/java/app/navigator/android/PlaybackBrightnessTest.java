@@ -4,54 +4,57 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class PlaybackBrightnessTest {
+    // Models LayoutParams.copyFrom / OverrideBrightnessStrategy: identical
+    // attributes may be discarded even if Quick Settings changed the display.
     private static final class Window implements PlaybackBrightness.Window {
-        float value=-1; int writes;
+        float value=-1, system=.01f, display=.01f; int writes;
         @Override public float read() { return value; }
-        @Override public void write(float brightness) { value=brightness; writes++; }
+        @Override public void write(float brightness) {
+            writes++;
+            if (brightness!=value) { value=brightness; display=value<0 ? system : value; }
+        }
+        void quickSettings(float brightness) { system=display=brightness; }
     }
-    @Test public void fullOverrideIsAbsoluteAndClosingRestoresThePhonePolicy() {
-        var window=new Window(); var brightness=new PlaybackBrightness(window);
-        // -1 delegates to the phone's policy, including a user setting of 20%.
-        assertEquals(1,brightness.set(1),0);
-        brightness.restore(); assertEquals(-1,window.value,0);
-        int writes=window.writes; brightness.reapply(); assertEquals(writes,window.writes);
-        window.value=.2f; brightness.set(1); assertEquals(1,window.value,0);
-        brightness.restore(); assertEquals(.2f,window.value,0);
+    @Test public void quickSettingsHandoffRestoresAFullOverrideAndFurtherDragsWork() {
+        var w=new Window(); var b=new PlaybackBrightness(w);
+        b.begin(.01f); b.set(1); assertEquals(1,w.display,0);
+        w.quickSettings(.01f); b.reapply();
+        assertEquals(.01f,w.display,0); // Reproduces the old same-attribute failure.
+        b.suspend(); assertEquals(-1,w.value,0);
+        b.systemChanged(); b.reapply(); assertEquals(1,w.display,0);
+        b.begin(.01f); b.set(.4f); assertEquals(.4f,w.display,0);
+        b.set(1); assertEquals(1,w.display,0);
+        b.restore(); assertEquals(.01f,w.display,0);
     }
-    @Test public void resetWindowDoesNotLeaveTheBarAtAStaleFullValue() {
-        var window=new Window(); var brightness=new PlaybackBrightness(window);
-        brightness.set(1);
-        window.value=.2f; // Focus/presentation code can replace the actual attributes.
-        assertEquals(1,brightness.set(1),0);
+    @Test public void repeatedManualEditsAndFocusCyclesKeepTheVideoValue() {
+        var w=new Window(); var b=new PlaybackBrightness(w); b.set(.8f);
+        for (float setting : new float[]{.01f,.9f,.05f,.3f}) {
+            b.suspend(); w.quickSettings(setting); b.systemChanged(); b.reapply();
+            assertEquals(.8f,w.display,0);
+            assertEquals(.8f,b.begin(setting),0); // Does not rebase/cap the video to the phone setting.
+        }
     }
-    @Test public void maximumIsExactEvenAfterAnAlmostFullValue() {
-        var window=new Window(); var brightness=new PlaybackBrightness(window);
-        brightness.set(.997f); assertEquals(1,brightness.set(1),0);
+    @Test public void requestsWhileSuspendedWaitForFocusAndLatestValueWins() {
+        var w=new Window(); var b=new PlaybackBrightness(w);
+        b.set(.5f); b.suspend(); int writes=w.writes;
+        b.set(.6f); b.set(1); assertEquals(writes,w.writes); assertEquals(-1,w.value,0);
+        b.reapply(); assertEquals(1,w.value,0);
     }
-    @Test public void focusReappliesTheActiveOverrideAndInvalidInputCannotReachTheWindow() {
-        var window=new Window(); var brightness=new PlaybackBrightness(window);
-        brightness.reapply(); assertEquals(0,window.writes);
-        brightness.set(.8f); window.value=.2f;
-        brightness.reapply(); assertEquals(.8f,window.value,0);
-        brightness.set(Float.NaN); brightness.set(Float.POSITIVE_INFINITY);
-        assertEquals(.8f,window.value,0);
-        assertEquals(.02f,brightness.set(-3),0);
-        assertEquals(1,brightness.set(3),0);
+    @Test public void closingDuringAHandoffCannotReapplyTheOldVideoValue() {
+        var w=new Window(); var b=new PlaybackBrightness(w);
+        b.set(1); b.suspend(); w.quickSettings(.2f); b.systemChanged(); b.restore();
+        int writes=w.writes; b.reapply(); assertEquals(writes,w.writes);
+        assertEquals(.2f,w.display,0);
     }
-    @Test public void unchangedAttributesStillReassertAfterAManualDisplayAdjustment() {
-        var window=new Window(); var brightness=new PlaybackBrightness(window);
-        brightness.set(1); int writes=window.writes;
-        brightness.set(1); assertEquals(writes+1,window.writes);
-        brightness.begin(.2f); assertEquals(1,window.value,0);
+    @Test public void fullOverrideAndRestorationAreAbsoluteAndEndpointsAreExact() {
+        var w=new Window(); var b=new PlaybackBrightness(w);
+        b.begin(.01f); b.set(.997f); assertEquals(1,b.set(1),0);
+        b.restore(); assertEquals(-1,w.value,0);
+        w.write(.2f); b.begin(.2f); b.set(1); b.restore(); assertEquals(.2f,w.value,0);
     }
-    @Test public void manualBrightnessChangesRebaseTheNextDragWithoutCappingItsRange() {
-        var window=new Window(); var brightness=new PlaybackBrightness(window);
-        assertEquals(.2f,brightness.begin(.2f),0); brightness.set(1);
-        brightness.systemChanged();
-        assertEquals(.3f,brightness.begin(.3f),0);
-        assertEquals(1,brightness.set(1),0);
-        // No new system change: a subsequent drag preserves the app's value.
-        assertEquals(1,brightness.begin(.3f),0);
-        brightness.restore(); assertEquals(-1,window.value,0);
+    @Test public void invalidInputCannotReachTheWindow() {
+        var w=new Window(); var b=new PlaybackBrightness(w); b.set(.8f);
+        b.set(Float.NaN); b.set(Float.POSITIVE_INFINITY); assertEquals(.8f,w.value,0);
+        assertEquals(.02f,b.set(-3),0); assertEquals(1,b.set(3),0);
     }
 }

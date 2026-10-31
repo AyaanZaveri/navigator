@@ -6,14 +6,15 @@ final class SideSwipeGesture {
     private final float density, slop;
     private Mode candidate = Mode.NONE, mode = Mode.NONE;
     private float startX, startY, span;
-    private boolean eligible, horizontal;
+    private boolean eligible, horizontal, valueStarted;
+    private final SliderDrag slider=new SliderDrag();
 
     SideSwipeGesture(float density, float slop) {
         this.density = density; this.slop = Math.max(slop, 12 * density);
     }
     Mode begin(float x, float y, float width, float height, float top, float bottom,
                float leftEdge, float rightEdge, boolean allowScrub) {
-        cancel(); startX = x; startY = y; span = Math.max(320 * density, height);
+        cancel(); startX = x; startY = y; span = Math.max(200 * density, height*.5f);
         eligible = x >= 0 && x <= width && y >= top && y < bottom;
         if (!eligible) return candidate;
         // Vertical controls reach the physical edges. Horizontal gestures starting
@@ -39,7 +40,8 @@ final class SideSwipeGesture {
     boolean canCapture() { return eligible && (horizontal || candidate != Mode.NONE); }
     Mode mode() { return mode; }
     float value(float initial, float y, float minimum) {
-        return Math.max(minimum, Math.min(1, initial + (startY - y) / span));
+        if (!valueStarted) { slider.begin(initial,startY,span,minimum); valueStarted=true; }
+        return slider.move(y);
     }
-    void cancel() { eligible = horizontal = false; candidate = mode = Mode.NONE; }
+    void cancel() { eligible = horizontal = valueStarted = false; candidate = mode = Mode.NONE; }
 }
