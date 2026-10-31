@@ -47,7 +47,8 @@ async function testController() {
     let ended = 0;
     media.addEventListener("ended", () => ended++);
     let observedDuration;
-    media.addEventListener("loadedmetadata", () => { observedDuration = media.duration; });
+    let metadataEvents = 0;
+    media.addEventListener("loadedmetadata", () => { observedDuration = media.duration; metadataEvents++; });
     const state = { position: 12, duration: 120, paused: false, volume: 0.6, muted: true, rate: 1.5, buffering: false, seeking: false, buffered: 40, width: 1920, height: 1080 };
     receive({ type: "state", session: first, state });
     receive({ type: "loaded", session: first });
@@ -81,6 +82,12 @@ async function testController() {
     media.addEventListener("playing", () => playing++);
     receive({ type: "state", session: first, state });
     assert.equal(playing, 1, "Recovery from buffering must notify Media Chrome that playback resumed");
+    receive({ type: "loading", session: first });
+    receive({ type: "state", session: first, state: { ...state, position: 65, paused: true } });
+    receive({ type: "ready", session: first });
+    assert.equal(metadataEvents, 1, "Android codec recreation must not rerun the initial resume/autoplay handler");
+    assert.equal(media.currentTime, 65, "Foreground recovery preserves the native session's current position");
+    assert.equal(media.paused, true, "Foreground recovery preserves a deliberately paused session");
     media.load("https://example.test/second.mkv");
     const second = sent.filter((m) => m.type === "load").at(-1).session;
     assert.notEqual(first, second);

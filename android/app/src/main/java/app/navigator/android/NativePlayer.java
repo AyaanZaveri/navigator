@@ -59,6 +59,7 @@ final class NativePlayer {
     private boolean play = true;
     private boolean foreground;
     private boolean loaded;
+    private boolean metadataPublishedForSession;
     private boolean ready;
     private boolean seeking;
     private float volume = 1;
@@ -111,6 +112,7 @@ final class NativePlayer {
                 headers = nextHeaders;
                 position = 0;
                 play = true;
+                metadataPublishedForSession = false;
                 audioChoice = null;
                 subtitleChoice = "no";
                 layer.setVisibility(View.VISIBLE);
@@ -190,9 +192,7 @@ final class NativePlayer {
             @Override public void onEvents(Player ignored, Player.Events events) {
                 if (!current()) return;
                 if (!loaded && owner.getPlaybackState() == Player.STATE_READY) {
-                    loaded = true;
-                    state();
-                    send("loaded");
+                    markLoaded();
                 }
                 boolean video = owner.getCurrentTracks().getGroups().stream().anyMatch(g -> g.getType() == C.TRACK_TYPE_VIDEO && g.isSelected());
                 if (loaded && !ready && !video) markReady();
@@ -241,8 +241,17 @@ final class NativePlayer {
     }
 
     private void markReady() {
-        if (!loaded) { loaded = true; state(); send("loaded"); }
+        markLoaded();
         if (!ready) { ready = true; state(); send("ready"); }
+    }
+
+    private void markLoaded() {
+        if (loaded) return;
+        loaded = true;
+        state();
+        // Recreating codecs after backgrounding is still the same media session.
+        // A second loadedmetadata would reapply the original resume seek and autoplay.
+        if (!metadataPublishedForSession) { metadataPublishedForSession = true; send("loaded"); }
     }
 
     private void updateTracks(Tracks tracks) {
