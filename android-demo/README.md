@@ -1,0 +1,102 @@
+# Android playback proof of concept
+
+A small, standalone APK that plays native **Media3 ExoPlayer** video underneath
+real **Next.js/React** components. All controls (play/pause, seek, restart, mute,
+and clip selection) are rendered in the transparent WebView. There is no HTML
+`<video>` element and no native player control overlay.
+
+This is a separate test app, not the complete Navigator client. It needs no
+account, server, network access, or API keys, and does not change the website or
+desktop app. It has a distinct application ID: `app.navigator.playbackdemo`.
+
+## Test on your phone
+
+Install `Navigator-Android-Playback-Demo.apk` and open **Navigator Playback Demo**.
+Android 7.0 or later and a current Android System WebView are required.
+
+1. SDR starts automatically. Check that the moving picture and quiet test tone
+   play while the Next.js controls remain visible and responsive above the video.
+2. Pause, drag the scrubber, restart, and mute/unmute.
+3. Rotate the phone. Background and reopen the app; playback should resume at its
+   saved position, and audio should stop while the app is in the background.
+4. Open **Device & playback details** to see the video decoder, rendered frame
+   count, and reported display HDR support.
+5. Try HDR10 and HLG if enabled. These require both the relevant display
+   capability and an appropriate HEVC decoder. If unsupported, SDR remains
+   available. On a decoder error, select SDR to recover.
+
+The clips are self-generated 12-second, 480×270 motion patterns with low-volume
+AAC test audio. HDR10 uses HEVC Main 10, BT.2020/PQ, mastering metadata, and MaxCLL;
+HLG uses HEVC Main 10, BT.2020/HLG. They are synthetic HDR signal tests, not
+professionally graded content or a calibrated SDR/HDR visual comparison.
+Reported source transfer/display capability does **not** prove physical panel
+HDR output; that requires checking on an actual HDR phone.
+
+## Build
+
+Requirements: Node.js 20.9+, JDK 17 or 21, Android SDK Platform 36 and Build Tools
+36.0.0. Set `ANDROID_HOME`, or create a gitignored `local.properties` with
+`sdk.dir=/path/to/Android/sdk`. Gradle 8.13 is pinned with a distribution checksum.
+
+From the repository root:
+
+```sh
+npm ci --prefix android-demo/web
+node android-demo/scripts/build-web.mjs
+cd android-demo
+./gradlew assembleDebug assembleDebugAndroidTest lintDebug
+```
+
+The installable, debug-signed APK is
+`app/build/outputs/apk/debug/app-debug.apk`. This is a universal APK with no
+bundled mpv/FFmpeg native libraries. Its UI is a static Next.js 16.1.6 export;
+it does not start or embed Node.js, or run the main Next.js development server.
+
+The three small clips are checked in for reproducible, offline builds. To
+regenerate them with FFmpeg (libx264/libx265), or verify their metadata and the
+exported UI asset paths:
+
+```sh
+node android-demo/scripts/generate-clips.mjs
+node android-demo/scripts/check-assets.mjs
+```
+
+An optional instrumentation test exercises actual native frame rendering and
+the Next.js play/pause/seek controls on a **connected physical device**:
+
+```sh
+cd android-demo
+./gradlew connectedDebugAndroidTest
+```
+
+No script or CI job creates or starts an emulator. Building the instrumentation
+APK does not execute it. Device playback and HDR output must be tested separately.
+
+## Architecture
+
+- Java Activity → ExoPlayer → `SurfaceView`, sized to preserve video aspect ratio.
+- Transparent, hardware-accelerated WebView above the native surface.
+- `WebViewAssetLoader` serves the static Next.js export from the app's assets
+  at `https://appassets.androidplatform.net/assets/web/index.html`.
+- An origin-restricted, main-frame-only WebMessage bridge sends small JSON
+  commands/state. It accepts only the three bundled sample names, not arbitrary
+  file paths or URLs. Network/file access and external navigation are disabled.
+- ExoPlayer handles audio focus and headphone disconnects. The Activity releases
+  playback on stop and restores the clip/position on start. Frame counters and
+  source color transfer come from ExoPlayer, not a JavaScript timer.
+
+This demonstrates UI layering and the player bridge. The full Navigator app's
+server actions and API routes still need a hosted backend or a separate mobile
+architecture; this static demo does not attempt to package them.
+
+References:
+
+- [Media3 releases and dependencies](https://developer.android.com/jetpack/androidx/releases/media3)
+- [Media3 player API](https://github.com/androidx/media/blob/1.11.1/api.txt)
+- [Android HDR playback and SurfaceView](https://developer.android.com/media/grow/hdr-playback)
+- [Loading bundled WebView content](https://developer.android.com/develop/ui/views/layout/webapps/load-local-content)
+- [Next.js static exports](https://nextjs.org/docs/app/guides/static-exports)
+
+ExoPlayer and AndroidX WebKit are Apache-2.0 dependencies; Next.js and React are
+MIT dependencies. The test clips are generated by this project. The icon reuses
+the user-supplied Navigator artwork already in this repository.
