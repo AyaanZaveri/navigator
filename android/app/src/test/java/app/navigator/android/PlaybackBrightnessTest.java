@@ -38,4 +38,20 @@ public class PlaybackBrightnessTest {
         assertEquals(.02f,brightness.set(-3),0);
         assertEquals(1,brightness.set(3),0);
     }
+    @Test public void unchangedAttributesStillReassertAfterAManualDisplayAdjustment() {
+        var window=new Window(); var brightness=new PlaybackBrightness(window);
+        brightness.set(1); int writes=window.writes;
+        brightness.set(1); assertEquals(writes+1,window.writes);
+        brightness.begin(.2f); assertEquals(1,window.value,0);
+    }
+    @Test public void manualBrightnessChangesRebaseTheNextDragWithoutCappingItsRange() {
+        var window=new Window(); var brightness=new PlaybackBrightness(window);
+        assertEquals(.2f,brightness.begin(.2f),0); brightness.set(1);
+        brightness.systemChanged();
+        assertEquals(.3f,brightness.begin(.3f),0);
+        assertEquals(1,brightness.set(1),0);
+        // No new system change: a subsequent drag preserves the app's value.
+        assertEquals(1,brightness.begin(.3f),0);
+        brightness.restore(); assertEquals(-1,window.value,0);
+    }
 }

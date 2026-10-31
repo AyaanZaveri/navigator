@@ -8,21 +8,28 @@ final class PlaybackBrightness {
     }
     private final Window window;
     private Float original, requested;
+    private boolean systemChanged;
     PlaybackBrightness(Window window) { this.window=window; }
+    float begin(float preferred) {
+        float actual=window.read();
+        float initial=requested!=null && !systemChanged ? requested : actual>=0 && !systemChanged ? actual : preferred;
+        systemChanged=false;
+        return set(initial);
+    }
+    void systemChanged() { if (requested!=null) systemChanged=true; }
     float set(float value) {
         if (!Float.isFinite(value)) return window.read();
         value=Math.max(.02f,Math.min(1,value));
         if (original==null) original=window.read();
         requested=value;
-        float actual=window.read();
-        // Compare the real attributes, not a cached request. Exact endpoints must
-        // bypass drag coalescing so the HUD cannot say 100% for a lower override.
-        if (Math.abs(value-actual)>=.005f || ((value==1 || value==.02f) && actual!=value)) window.write(value);
+        // The same LayoutParams value can outlive a manual display adjustment.
+        // Reassert every requested value, including an unchanged maximum.
+        window.write(value);
         return window.read();
     }
     void reapply() { if (requested!=null) window.write(requested); }
     void restore() {
         if (original==null) return;
-        window.write(original); original=requested=null;
+        window.write(original); original=requested=null; systemChanged=false;
     }
 }
