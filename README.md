@@ -6,6 +6,10 @@ The optional [desktop shell](desktop/README.md) adds native mpv playback beneath
 the same React controls on macOS, Windows, and Linux. Start it against your
 existing development server with `npm run desktop:dev`.
 
+The [Android app](android/README.md) loads the hosted website and plays video
+through native ExoPlayer beneath the same controls. The **Android APK** GitHub
+workflow builds an installable APK and uploads it directly, without a ZIP.
+
 ## Development
 
 ```bash

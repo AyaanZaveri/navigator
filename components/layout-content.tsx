@@ -66,7 +66,7 @@ export function LayoutContent({ children, email }: LayoutContentProps) {
   };
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden">
+    <div data-app-layout className="relative flex h-dvh flex-col overflow-hidden">
       <div data-desktop-app-content className="contents">
       {isHome && <AppHeader email={email} />}
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-[env(safe-area-inset-bottom)]">

@@ -89,7 +89,7 @@ export class MpvController extends EventTarget {
     this.state = { ...initialState(), volume, muted, rate };
     this.fire("emptied", "loadstart");
     try {
-      if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for desktop playback.");
+      if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for native playback.");
       this.bridge.send({ type: "load", session: this.session, url, headers });
       this.bridge.send({ type: "volume", session: this.session, volume });
       this.bridge.send({ type: "muted", session: this.session, muted });
@@ -153,6 +153,10 @@ export class MpvController extends EventTarget {
   private receive(message: NativeMessage) {
     if (this.disposed || !("session" in message) || message.session !== this.session) return;
     switch (message.type) {
+      case "thumbnail-frame":
+        if (!Number.isFinite(message.position) || message.position < 0 || !message.src?.startsWith("data:image/jpeg;base64,")) break;
+        this.dispatchEvent(new CustomEvent("previewframe", { detail: { position: message.position, src: message.src } }));
+        break;
       case "thumbnail":
         if (this.previewPending?.id === message.request) {
           const pending = this.previewPending;

@@ -5,7 +5,7 @@ const crypto = require("node:crypto");
 const ts = require("typescript");
 
 function load(file, globals = {}) {
-    const context = { exports: {}, Event, EventTarget, DOMException, URL, crypto, setTimeout, clearTimeout, ...globals };
+    const context = { exports: {}, Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...globals };
     const code = ts.transpileModule(fs.readFileSync(file, "utf8"), {
         fileName: file,
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -31,6 +31,15 @@ async function testController() {
     const headers = { Referer: "https://example.test", "X-Test": "a,b" };
     media.load("https://example.test/video.mkv", headers);
     const first = sent.find((m) => m.type === "load").session;
+    const frames = [];
+    media.addEventListener("previewframe", event => frames.push(event.detail));
+    receive({ type: "thumbnail-frame", session: "old-session", position: 2, src: "data:image/jpeg;base64,AA==" });
+    receive({ type: "thumbnail-frame", session: first, position: 2, src: "javascript:bad" });
+    receive({ type: "thumbnail-frame", session: first, position: NaN, src: "data:image/jpeg;base64,AA==" });
+    assert.equal(frames.length, 0, "Stale sessions and invalid streamed thumbnails never enter the web preview");
+    receive({ type: "thumbnail-frame", session: first, position: 2, src: "data:image/jpeg;base64,AA==" });
+    assert.equal(frames.length, 1, "Completed native frames stream independently of latest request cancellation");
+    assert.equal(frames[0].position, 2);
     let subtitleChanges = 0;
     media.addEventListener("subtitlechange", () => subtitleChanges++);
     receive({ type: "subtitle", session: first, text: "First line\nSecond line" });
@@ -47,7 +56,8 @@ async function testController() {
     let ended = 0;
     media.addEventListener("ended", () => ended++);
     let observedDuration;
-    media.addEventListener("loadedmetadata", () => { observedDuration = media.duration; });
+    let metadataEvents = 0;
+    media.addEventListener("loadedmetadata", () => { observedDuration = media.duration; metadataEvents++; });
     const state = { position: 12, duration: 120, paused: false, volume: 0.6, muted: true, rate: 1.5, buffering: false, seeking: false, buffered: 40, width: 1920, height: 1080 };
     receive({ type: "state", session: first, state });
     receive({ type: "loaded", session: first });
@@ -81,6 +91,12 @@ async function testController() {
     media.addEventListener("playing", () => playing++);
     receive({ type: "state", session: first, state });
     assert.equal(playing, 1, "Recovery from buffering must notify Media Chrome that playback resumed");
+    receive({ type: "loading", session: first });
+    receive({ type: "state", session: first, state: { ...state, position: 65, paused: true } });
+    receive({ type: "ready", session: first });
+    assert.equal(metadataEvents, 1, "Android codec recreation must not rerun the initial resume/autoplay handler");
+    assert.equal(media.currentTime, 65, "Foreground recovery preserves the native session's current position");
+    assert.equal(media.paused, true, "Foreground recovery preserves a deliberately paused session");
     media.load("https://example.test/second.mkv");
     const second = sent.filter((m) => m.type === "load").at(-1).session;
     assert.notEqual(first, second);

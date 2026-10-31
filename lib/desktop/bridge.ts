@@ -24,6 +24,7 @@ export type NativeMessage =
   | { type: "state"; session: string; state: NativeState }
   | { type: "tracks"; session: string; tracks: NativeTrack[] }
   | { type: "subtitle"; session: string; text: string }
+  | { type: "thumbnail-frame"; session: string; position: number; src: string }
   | { type: "thumbnail"; session: string; request: number; src: string | null; position: number | null }
   | { type: "loading" | "loaded" | "ready" | "ended"; session: string }
   | { type: "error"; session: string; message: string }
@@ -38,11 +39,13 @@ export type NativeRequest =
   | { type: "muted"; session: string; muted: boolean }
   | { type: "rate"; session: string; rate: number }
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
-  | { type: "fullscreen"; value: boolean };
+  | { type: "fullscreen"; value: boolean }
+  | { type: "settings" };
 
 export interface DesktopBridge {
   readonly protocol: 1;
-  readonly platform: "macos" | "windows" | "linux";
+  readonly platform: "macos" | "windows" | "linux" | "android";
+  readonly engine?: "mpv" | "exoplayer";
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Navigator</string>
+    <string name="app_settings">App settings</string>
+    <string name="webview_update">Update Android System WebView to use Navigator.</string>
+    <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:colorAccent">#6ee7b7</item>
+        <item name="android:windowBackground">#080d0b</item>
+    </style>
+    <style name="AppStartingTheme" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#080d0b</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_navigator</item>
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
+    </style>
+</resources>

@@ -1,0 +1,59 @@
+name: Android APK
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'lib/desktop/**'
+      - 'components/desktop/**'
+      - 'components/global-media-player.tsx'
+      - 'components/ui/media-player.tsx'
+      - 'scripts/test-android-bridge.cjs'
+      - 'scripts/test-android-navigation.cjs'
+      - 'scripts/test-android-player-ui.cjs'
+      - 'scripts/test-android-web-scrub.cjs'
+      - 'components/seek-preview.tsx'
+      - '.github/workflows/android.yml'
+  push:
+    branches: [main]
+    paths: ['android/**', 'scripts/test-android-bridge.cjs', 'scripts/test-android-navigation.cjs', 'scripts/test-android-player-ui.cjs', 'scripts/test-android-web-scrub.cjs', 'components/seek-preview.tsx', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: node scripts/test-android-bridge.cjs
+      - run: node scripts/test-android-navigation.cjs
+      - run: node scripts/test-android-player-ui.cjs
+      - run: node scripts/test-android-web-scrub.cjs
+      - run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+        working-directory: android
+      - name: Verify and name APK
+        run: |
+          python3 android/check-apk.py
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify android/app/build/outputs/apk/debug/app-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/Navigator-Android.apk
+      - uses: actions/upload-artifact@v7.0.2
+        id: apk
+        with:
+          path: android/app/build/outputs/apk/debug/Navigator-Android.apk
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - name: Download link
+        env:
+          APK_URL: ${{ steps.apk.outputs.artifact-url }}
+        run: echo "[Download Navigator-Android.apk]($APK_URL) — direct APK, no ZIP." >> "$GITHUB_STEP_SUMMARY"

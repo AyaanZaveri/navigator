@@ -129,7 +129,7 @@
 
 /* Below 640px the same content rises as a bottom sheet with larger rows. */
 .scrim { position: fixed; inset: 0; z-index: var(--layer-overlay); background: oklch(0% 0 0 / .32); -webkit-tap-highlight-color: transparent; }
-.sheet { --row: 44px; --inset: 8px; position: fixed; top: auto; right: max(8px, env(safe-area-inset-right, 0px)); bottom: 8px; left: max(8px, env(safe-area-inset-left, 0px)); z-index: var(--layer-overlay); width: auto; max-width: none; max-height: min(88dvh, calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)))); overflow-y: auto; overscroll-behavior: contain; padding: 6px var(--inset) var(--inset); border-radius: var(--radius-panel); }
+.sheet { --row: 44px; --inset: 8px; position: fixed; top: auto; right: max(8px, env(safe-area-inset-right, 0px)); bottom: 16px; left: max(8px, env(safe-area-inset-left, 0px)); z-index: var(--layer-overlay); width: auto; max-width: none; max-height: min(88dvh, calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)))); overflow-y: auto; overscroll-behavior: contain; padding: 6px var(--inset) max(var(--inset), var(--navigator-safe-bottom, env(safe-area-inset-bottom, 0px))); border-radius: var(--radius-panel); border-bottom-left-radius: max(20px, calc(var(--navigator-corner-bottom-left, 48px) - 8px)); border-bottom-right-radius: max(20px, calc(var(--navigator-corner-bottom-right, 48px) - 8px)); }
 .handle { display: block; width: 36px; height: 5px; margin: 0 auto 6px; border-radius: var(--radius-pill); background: var(--border-strong); cursor: grab; }
 .sheet .header { padding: 4px 8px 12px; }
 .sheet .item, .sheet .rowLabel { font-size: var(--text-base); }
