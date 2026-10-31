@@ -64,14 +64,14 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
     return (
         <div className={styles.actions}>
             {addon.configurable && (
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline">
                     <a href={`/api/addons/${addon.id}/configure`} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
                         <Settings2 data-icon="inline-start" aria-hidden="true" />Settings
                     </a>
                 </Button>
             )}
             <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-                <DialogTrigger asChild><Button variant="outline" size="sm" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
+                <DialogTrigger asChild><Button variant="outline" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
                 <DialogContent title={`Share ${addon.name}`} description="Copy the manifest link to install this addon in Stremio.">
                     <div className={styles.dialogBody}>
                         {shareUrl ? (
@@ -91,7 +91,7 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
             </Dialog>
             {!addon.protected && (
                 <Dialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>
-                    <DialogTrigger asChild><Button variant="destructive" size="sm" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></DialogTrigger>
+                    <DialogTrigger asChild><Button aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></DialogTrigger>
                     <DialogContent role="alertdialog" title={`Uninstall ${addon.name}?`} description="This removes this addon configuration from your Stremio account and all your synced devices. You can install it again later."
                         onOpenAutoFocus={(event) => { event.preventDefault(); cancel.current?.focus(); }}
                         onPointerDownOutside={(event) => event.preventDefault()}>
@@ -99,7 +99,7 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
                             {removeError && <p role="alert" className={styles.error}>{removeError}</p>}
                             <div className={styles.dialogActions}>
                                 <DialogClose asChild><Button ref={cancel} variant="outline" disabled={removing}>Cancel</Button></DialogClose>
-                                <Button variant="destructive" disabled={removing} onClick={remove}>{removing ? "Uninstalling…" : "Uninstall addon"}</Button>
+                                <Button disabled={removing} onClick={remove}>{removing ? "Uninstalling…" : "Uninstall addon"}</Button>
                             </div>
                         </div>
                     </DialogContent>
