@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "desktop:dev": "node scripts/desktop.mjs dev",
+    "desktop:check": "node scripts/desktop.mjs check",
+    "desktop:fetch-libs": "node scripts/fetch-desktop-libs.mjs",
+    "desktop:package": "node scripts/desktop.mjs package",
+    "test:desktop": "node scripts/test-desktop.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

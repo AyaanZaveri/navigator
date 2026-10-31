@@ -1,0 +1,41 @@
+name: Desktop playback
+
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "lib/desktop/**"
+      - "components/desktop/**"
+      - "components/global-media-player.tsx"
+      - "components/ui/media-player.tsx"
+      - "scripts/*desktop*"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+      - run: cargo fmt --manifest-path desktop/Cargo.toml --all -- --check
+      - run: cargo test --manifest-path desktop/Cargo.toml --locked
+  adapter:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test:desktop
+      - run: bun x tsc --noEmit --incremental false

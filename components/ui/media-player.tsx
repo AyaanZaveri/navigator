@@ -57,6 +57,9 @@ import {
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
+import { desktopBridge } from "@/lib/desktop/bridge";
+import { createDesktopMediaStore } from "@/lib/desktop/media-store";
+
 const ROOT_NAME = "MediaPlayer";
 const SEEK_NAME = "MediaPlayerSeek";
 const SETTINGS_NAME = "MediaPlayerSettings";
@@ -252,8 +255,9 @@ function MediaPlayerRoot(props: MediaPlayerRootProps) {
     [listenersRef, stateRef]
   );
 
+  const [nativeStore] = React.useState(() => desktopBridge() ? createDesktopMediaStore() : undefined);
   return (
-    <MediaProvider>
+    <MediaProvider mediaStore={nativeStore}>
       <StoreContext.Provider value={store}>
         <MediaPlayerRootImpl {...props} />
       </StoreContext.Provider>
@@ -333,7 +337,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const isVideo =
     (typeof HTMLVideoElement !== "undefined" &&
       mediaRef.current instanceof HTMLVideoElement) ||
-    mediaRef.current?.tagName?.toLowerCase() === "mux-player";
+    mediaRef.current?.tagName?.toLowerCase() === "mux-player" ||
+    !!desktopBridge();
 
   const onControlsShow = React.useCallback(() => {
     store.setState("controlsVisible", true);
@@ -481,7 +486,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         case "f":
           event.preventDefault();
           dispatch({
-            type: document.fullscreenElement
+            type: (desktopBridge()?.fullscreen ?? !!document.fullscreenElement)
               ? MediaActionTypes.MEDIA_EXIT_FULLSCREEN_REQUEST
               : MediaActionTypes.MEDIA_ENTER_FULLSCREEN_REQUEST,
           });

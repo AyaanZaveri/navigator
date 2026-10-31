@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,6 +22,10 @@ import {
   MediaPlayerTooltip,
 } from "@/components/ui/media-player";
 import MuxVideo from "@mux/mux-video-react";
+import { desktopBridge } from "@/lib/desktop/bridge";
+import { MpvVideo } from "@/components/desktop/mpv-video";
+import { DesktopTracks } from "@/components/desktop/tracks";
+import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { ArrowLeft, RotateCcw, RotateCw, Users, Ship } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
@@ -57,6 +61,17 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   } = useMediaPlayer();
   const { videoBitrate } = useSettings();
 
+  const [nativePlayback, setNativePlayback] = useState(false);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [playerAttempt, setPlayerAttempt] = useState(0);
+  const [requestHeaders, setRequestHeaders] = useState<Record<string, string>>({});
+  useEffect(() => { setNativePlayback(!!desktopBridge()); }, []);
+  useLayoutEffect(() => {
+    if (!nativePlayback || !isPlayerVisible || !currentMedia) return;
+    document.documentElement.dataset.nativePlaying = "";
+    return () => { delete document.documentElement.dataset.nativePlaying; };
+  }, [nativePlayback, isPlayerVisible, currentMedia]);
+
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [mediaDetails, setMediaDetails] = useState<MediaItem | null>(null);
   const [subtitleTracks, setSubtitleTracks] = useState<
@@ -87,6 +102,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   >([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const loadGenerationRef = useRef(0);
   const lastProgressReportAtRef = useRef(0);
   const playbackStartedReportedRef = useRef(false);
   const playbackStoppedReportedRef = useRef(false);
@@ -270,6 +286,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [currentMedia?.resumePositionTicks, sendPlaybackUpdate, setCurrentTimestamp]);
 
   const handleClose = useCallback((options?: { ended?: boolean }) => {
+    loadGenerationRef.current++;
     sendPlaybackUpdate("stopped", { ended: options?.ended });
     setIsPlayerVisible(false);
     setStreamUrl(null);
@@ -280,6 +297,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setFetchingSubtitles(false);
     setCurrentMediaWithSource(null);
     setVideoReady(false);
+    setPlaybackError(null);
     lastLoadedPlaybackKeyRef.current = null;
   }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible]);
 
@@ -390,7 +408,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   );
 
   const loadMedia = useCallback(async (media: NonNullable<typeof currentMedia>) => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
+    setPlaybackError(null);
+    setStreamUrl(null);
+    setRequestHeaders(media.requestHeaders ?? {});
     try {
       const metadataId = media.seriesId || media.id;
       const streamSourceId = media.mediaSourceId || media.id;
@@ -399,6 +421,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
       // Fetch media details
       const details = await fetchMediaDetails(metadataId, media.type);
+      if (generation !== loadGenerationRef.current) return;
       setMediaDetails(details || null);
 
       // If a direct stream URL was passed (e.g., from MediaActions), use it
@@ -410,14 +433,18 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           streamSourceId,
           media.type
         );
+        if (generation !== loadGenerationRef.current) return;
 
         if (streams.length > 0) {
           const stream = streams[0];
+          setRequestHeaders(stream.behaviorHints?.proxyHeaders?.request ?? {});
           const url = stream.url || stream.externalUrl || null;
           setStreamUrl(url);
           subtitleFilename = subtitleFilename || stream.behaviorHints?.filename;
           subtitleVideoSize =
             subtitleVideoSize || stream.behaviorHints?.videoSize;
+        } else {
+          setPlaybackError("No playable streams were returned for this title.");
         }
       }
 
@@ -451,21 +478,25 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             videoSize: subtitleVideoSize,
           }
         );
+        if (generation !== loadGenerationRef.current) return;
         const tracksWithActiveState = tracks.map((track) => ({
           ...track,
           active: false,
         }));
         setSubtitleTracks(tracksWithActiveState);
       } catch {
+        if (generation !== loadGenerationRef.current) return;
         setSubtitleTracks([]);
       }
 
       setSubtitleData([]);
       setCurrentSubtitle(null);
     } catch (error) {
+      if (generation !== loadGenerationRef.current) return;
       console.error("Failed to load media:", error);
+      setPlaybackError("Could not load this title. Try again.");
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) setLoading(false);
     }
   }, [setCurrentMediaWithSource]);
 
@@ -499,7 +530,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   // Clean up on unmount
   useEffect(() => {
-    return () => {};
+    return () => {
+      loadGenerationRef.current++;
+      lastLoadedPlaybackKeyRef.current = null;
+    };
   }, []);
 
   if (!isPlayerVisible || !currentMedia) return null;
@@ -518,13 +552,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
   const loadingLogo = mediaDetails?.logo;
 
+  const Video = nativePlayback ? MpvVideo : MuxVideo;
   return (
-    <div className="fixed inset-0 z-[999999] flex items-center justify-center w-screen bg-black">
+    <div data-native-player-shell={nativePlayback ? "" : undefined} className="fixed inset-0 z-[999999] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
         autoHide
         onEnded={handleVideoEnded}
         onMediaError={(error) => {
           console.warn("Media player error caught:", error);
+          if (error) setPlaybackError(error.message || "This stream could not be played.");
         }}
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
@@ -532,6 +568,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         chapters={[]}
         onCustomSubtitleChange={(subtitleTrack) => {
           if (!subtitleTrack) {
+            if (nativePlayback) {
+              (videoRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("subtitle", "no");
+            }
             setSubtitleData([]);
             setCurrentSubtitle(null);
             setSubtitleTracks((prev) =>
@@ -540,6 +579,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             return;
           }
 
+          if (nativePlayback) {
+            (videoRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("subtitle", "no");
+          }
           const trackIndex = subtitleTracks.findIndex(
             (track) => track.label === subtitleTrack.label
           );
@@ -569,10 +611,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {/* Video element */}
         {streamUrl && (
           <MediaPlayerVideo asChild>
-            <MuxVideo
+            <Video
+              key={`${streamUrl}:${playerAttempt}`}
               // @ts-ignore
               ref={videoRef}
               src={streamUrl}
+              {...(nativePlayback ? { requestHeaders } : {})}
               crossOrigin=""
               playsInline
               preload="auto"
@@ -587,13 +631,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               onLoadedData={handleVideoCanPlay}
               onError={(event) => {
                 console.warn("Video error caught:", event);
+                setPlaybackError(videoRef.current?.error?.message || "This stream could not be played.");
               }}
             />
           </MediaPlayerVideo>
         )}
 
         {/* Loading overlay */}
-        {(loading || !streamUrl || !videoReady) && (
+        {(loading || !streamUrl || !videoReady || playbackError) && (
           <div className="fixed inset-0 bg-black z-[1000000]">
             <Button
               variant="ghost"
@@ -694,8 +739,20 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.7 }}
                 >
-                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  <span className="text-sm text-white/70">Loading...</span>
+                  {playbackError ? (
+                    <div className="flex flex-col items-start gap-3" role="alert">
+                      <p className="text-sm text-white">{playbackError}</p>
+                      <Button variant="secondary" onClick={() => {
+                        setPlaybackError(null);
+                        setVideoReady(false);
+                        setPlayerAttempt((attempt) => attempt + 1);
+                        if (!streamUrl && currentMedia) void loadMedia(currentMedia);
+                      }}>Try again</Button>
+                    </div>
+                  ) : (
+                    <><div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    <span className="text-sm text-white/70">Loading...</span></>
+                  )}
                 </motion.div>
               </motion.div>
             </motion.div>
@@ -828,8 +885,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 </Popover>
               )}
 
+              {nativePlayback && <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} onNativeSubtitle={() => {
+                setSubtitleData([]);
+                setCurrentSubtitle(null);
+                setSubtitleTracks((tracks) => tracks.map((track) => ({ ...track, active: false })));
+              }} />}
               <MediaPlayerSettings />
-              <MediaPlayerPiP />
+              {!nativePlayback && <MediaPlayerPiP />}
               <MediaPlayerFullscreen />
             </div>
           </div>

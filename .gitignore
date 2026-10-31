@@ -49,4 +49,8 @@ public/_next-video
 
 /dist
 
+# Native desktop outputs and downloaded libraries
+/desktop/target/
+/desktop/vendor/
+
 .git.backup-*/

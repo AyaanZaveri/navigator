@@ -2,6 +2,10 @@
 
 Navigator is a Next.js web app.
 
+The optional [desktop shell](desktop/README.md) adds native mpv playback beneath
+the same React controls on macOS, Windows, and Linux. Start it against your
+existing development server with `npm run desktop:dev`.
+
 ## Development
 
 ```bash
