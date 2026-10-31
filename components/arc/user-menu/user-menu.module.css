@@ -146,12 +146,12 @@
 .trigger { outline: none; }
 .trigger .face {
   border-radius: var(--radius-pill);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 60%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 30%, transparent);
   transition: box-shadow 200ms ease-in-out;
 }
 .trigger:not([data-name]):focus-visible .face,
 .trigger[data-name]:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 80%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 60%, transparent);
 }
 .trigger:focus-visible .portrait { outline-color: var(--ring); }
 @media (prefers-reduced-motion: reduce) {
