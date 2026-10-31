@@ -40,3 +40,24 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] button[class~="t
   top: calc(1rem + var(--navigator-inset-top));
   left: calc(1rem + var(--navigator-inset-left));
 }
+/* Compatibility visibility is owned only while the deployed UI lacks the
+   current React touch controller. Fade opacity without affecting the video. */
+[data-android-controls] :is([data-slot="media-player-controls"], [data-slot="media-player-controls-overlay"]) {
+  transition: opacity 200ms var(--ease-out, cubic-bezier(.23, 1, .32, 1)) !important;
+}
+[data-android-controls="hidden"] :is([data-slot="media-player-controls"], [data-slot="media-player-controls-overlay"]) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+[data-android-controls="visible"] [data-slot="media-player-controls"] {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+[data-android-controls="visible"] [data-slot="media-player-controls-overlay"] {
+  opacity: 1 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-android-controls] :is([data-slot="media-player-controls"], [data-slot="media-player-controls-overlay"]) {
+    transition-duration: 100ms !important;
+  }
+}

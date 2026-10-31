@@ -316,7 +316,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const menuOpen = useStoreSelector((state) => state.menuOpen);
 
   const hideControlsTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const lastMouseMoveRef = React.useRef<number>(Date.now());
+  const pointerTypeRef = React.useRef("mouse");
+  const controlPointerHeldRef = React.useRef(false);
   const volumeIndicatorTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const keyboardActionThrottleRef = React.useRef<NodeJS.Timeout | null>(null);
   const lastKeyPressTimeRef = React.useRef<number>(0);
@@ -343,16 +344,27 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
   const onControlsShow = React.useCallback(() => {
     store.setState("controlsVisible", true);
-    lastMouseMoveRef.current = Date.now();
 
     if (hideControlsTimeoutRef.current) {
       clearTimeout(hideControlsTimeoutRef.current);
     }
 
     if (autoHide && !mediaPaused && !menuOpen && !dragging) {
-      hideControlsTimeoutRef.current = setTimeout(() => {
+      const hideWhenIdle = () => {
+        const root = rootRef.current;
+        const focused = document.activeElement;
+        // Portalled track/cast menus do not all use the player's menu store.
+        const busy = controlPointerHeldRef.current || document.querySelector(
+          '[data-state="open"]:is([role="menu"], [role="dialog"], [data-slot="popover-content"])'
+        ) || (focused instanceof Element && root?.contains(focused) &&
+          focused.closest('[data-slot="media-player-controls"]') && focused.matches(":focus-visible"));
+        if (busy) {
+          hideControlsTimeoutRef.current = setTimeout(hideWhenIdle, 1000);
+          return;
+        }
         store.setState("controlsVisible", false);
-      }, 3000);
+      };
+      hideControlsTimeoutRef.current = setTimeout(hideWhenIdle, 3000);
     }
   }, [store.setState, autoHide, mediaPaused, menuOpen, dragging]);
 
@@ -378,7 +390,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     (event: React.MouseEvent<HTMLDivElement>) => {
       rootImplProps.onMouseLeave?.(event);
 
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || pointerTypeRef.current !== "mouse" || controlPointerHeldRef.current) return;
 
       if (autoHide && !mediaPaused && !menuOpen && !dragging) {
         store.setState("controlsVisible", false);
@@ -398,7 +410,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     (event: React.MouseEvent<HTMLDivElement>) => {
       rootImplProps.onMouseMove?.(event);
 
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || pointerTypeRef.current !== "mouse") return;
 
       if (autoHide) {
         onControlsShow();
@@ -407,8 +419,50 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     [autoHide, rootImplProps.onMouseMove, onControlsShow]
   );
 
+  const onPointerDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    rootImplProps.onPointerDownCapture?.(event);
+    pointerTypeRef.current = event.pointerType;
+    if (event.defaultPrevented || !autoHide) return;
+    if ((event.target as Element).closest('[data-slot="media-player-controls"]')) {
+      controlPointerHeldRef.current = true;
+      onControlsShow();
+    }
+  };
+
+  const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    rootImplProps.onClickCapture?.(event);
+    if (event.defaultPrevented || !autoHide || disabled) return;
+    // Keyboard/assistive activation and mouse clicks retain play/pause.
+    if (event.detail === 0 || pointerTypeRef.current === "mouse") return;
+    if ((event.target as Element).closest(
+      '[data-slot="media-player-controls"], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"]'
+    )) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (controlsVisible) {
+      if (hideControlsTimeoutRef.current) clearTimeout(hideControlsTimeoutRef.current);
+      store.setState("controlsVisible", false);
+    } else {
+      onControlsShow();
+    }
+  };
+
   React.useEffect(() => {
-    if (mediaPaused || menuOpen || dragging) {
+    const release = () => {
+      if (!controlPointerHeldRef.current) return;
+      controlPointerHeldRef.current = false;
+      onControlsShow();
+    };
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+    return () => {
+      document.removeEventListener("pointerup", release, true);
+      document.removeEventListener("pointercancel", release, true);
+    };
+  }, [onControlsShow]);
+
+  React.useEffect(() => {
+    if (!autoHide || mediaPaused || menuOpen || dragging) {
       store.setState("controlsVisible", true);
       if (hideControlsTimeoutRef.current) {
         clearTimeout(hideControlsTimeoutRef.current);
@@ -708,12 +762,12 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     ]
   );
 
-  // Cleanup throttle timeout on unmount
+  // Timer lifetime follows the player, not changing media event callbacks.
   React.useEffect(() => {
     return () => {
-      if (keyboardActionThrottleRef.current) {
-        clearTimeout(keyboardActionThrottleRef.current);
-      }
+      if (keyboardActionThrottleRef.current) clearTimeout(keyboardActionThrottleRef.current);
+      if (volumeIndicatorTimeoutRef.current) clearTimeout(volumeIndicatorTimeoutRef.current);
+      if (hideControlsTimeoutRef.current) clearTimeout(hideControlsTimeoutRef.current);
     };
   }, []);
 
@@ -733,56 +787,30 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     const mediaElement = mediaRef.current;
     if (!mediaElement) return;
 
+    const timeUpdate = () => onTimeUpdate?.(mediaElement.currentTime);
+    const volumeChange = () => {
+      onVolumeChange?.(mediaElement.volume);
+      onMuted?.(mediaElement.muted);
+    };
+    const mediaError = () => onMediaError?.(mediaElement.error);
+    const fullscreenChange = () => onFullscreenChange?.(!!document.fullscreenElement);
+
     if (onPlay) mediaElement.addEventListener("play", onPlay);
     if (onPause) mediaElement.addEventListener("pause", onPause);
     if (onEnded) mediaElement.addEventListener("ended", onEnded);
-    if (onTimeUpdate)
-      mediaElement.addEventListener("timeupdate", () =>
-        onTimeUpdate?.(mediaElement.currentTime)
-      );
-    if (onVolumeChange)
-      mediaElement.addEventListener("volumechange", () => {
-        onVolumeChange?.(mediaElement.volume);
-        onMuted?.(mediaElement.muted);
-      });
-    if (onMediaError)
-      mediaElement.addEventListener("error", () =>
-        onMediaError?.(mediaElement.error)
-      );
-    if (onFullscreenChange) {
-      document.addEventListener("fullscreenchange", () =>
-        onFullscreenChange?.(!!document.fullscreenElement)
-      );
-    }
+    if (onTimeUpdate) mediaElement.addEventListener("timeupdate", timeUpdate);
+    if (onVolumeChange || onMuted) mediaElement.addEventListener("volumechange", volumeChange);
+    if (onMediaError) mediaElement.addEventListener("error", mediaError);
+    if (onFullscreenChange) document.addEventListener("fullscreenchange", fullscreenChange);
 
     return () => {
       if (onPlay) mediaElement.removeEventListener("play", onPlay);
       if (onPause) mediaElement.removeEventListener("pause", onPause);
       if (onEnded) mediaElement.removeEventListener("ended", onEnded);
-      if (onTimeUpdate)
-        mediaElement.removeEventListener("timeupdate", () =>
-          onTimeUpdate?.(mediaElement.currentTime)
-        );
-      if (onVolumeChange)
-        mediaElement.removeEventListener("volumechange", () => {
-          onVolumeChange?.(mediaElement.volume);
-          onMuted?.(mediaElement.muted);
-        });
-      if (onMediaError)
-        mediaElement.removeEventListener("error", () =>
-          onMediaError?.(mediaElement.error)
-        );
-      if (onFullscreenChange) {
-        document.removeEventListener("fullscreenchange", () =>
-          onFullscreenChange?.(!!document.fullscreenElement)
-        );
-      }
-      if (volumeIndicatorTimeoutRef.current) {
-        clearTimeout(volumeIndicatorTimeoutRef.current);
-      }
-      if (hideControlsTimeoutRef.current) {
-        clearTimeout(hideControlsTimeoutRef.current);
-      }
+      mediaElement.removeEventListener("timeupdate", timeUpdate);
+      mediaElement.removeEventListener("volumechange", volumeChange);
+      mediaElement.removeEventListener("error", mediaError);
+      document.removeEventListener("fullscreenchange", fullscreenChange);
     };
   }, [
     onPlay,
@@ -843,11 +871,18 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         data-disabled={disabled ? "" : undefined}
         data-controls-visible={controlsVisible ? "" : undefined}
         data-slot="media-player"
+        data-touch-controls=""
         data-state={isFullscreen ? "fullscreen" : "windowed"}
         dir={dir}
         tabIndex={disabled ? undefined : 0}
         {...rootImplProps}
         ref={composedRef}
+        onPointerDownCapture={onPointerDownCapture}
+        onPointerMoveCapture={(event) => {
+          rootImplProps.onPointerMoveCapture?.(event);
+          pointerTypeRef.current = event.pointerType;
+        }}
+        onClickCapture={onClickCapture}
         onMouseLeave={onMouseLeave}
         onMouseMove={onMouseMove}
         onKeyDown={onKeyDown}
@@ -964,11 +999,13 @@ function MediaPlayerControls(props: MediaPlayerControlsProps) {
     <ControlsPrimitive
       data-disabled={context.disabled ? "" : undefined}
       data-slot="media-player-controls"
+      inert={!controlsVisible}
+      aria-hidden={!controlsVisible}
       data-state={isFullscreen ? "fullscreen" : "windowed"}
       data-visible={controlsVisible ? "" : undefined}
       dir={context.dir}
       className={cn(
-        "dark pointer-events-none absolute right-0 bottom-0 left-0 z-50 flex items-center gap-2 px-4 py-3 opacity-0 transition-opacity duration-200 data-[visible]:pointer-events-auto data-[visible]:opacity-100 [:fullscreen_&]:px-6 [:fullscreen_&]:py-4",
+        "dark pointer-events-none absolute right-0 bottom-0 left-0 z-50 flex items-center gap-2 px-4 py-3 opacity-0 transition-opacity duration-200 ease-[var(--ease-out)] motion-reduce:duration-100 data-[visible]:pointer-events-auto data-[visible]:opacity-100 [:fullscreen_&]:px-6 [:fullscreen_&]:py-4",
         className
       )}
       {...controlsProps}
@@ -1313,7 +1350,7 @@ function MediaPlayerControlsOverlay(props: MediaPlayerControlsOverlayProps) {
       data-visible={controlsVisible ? "" : undefined}
       {...overlayProps}
       className={cn(
-        "-z-10 pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 transition-opacity duration-200 data-[visible]:opacity-100",
+        "-z-10 pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 transition-opacity duration-200 ease-[var(--ease-out)] motion-reduce:duration-100 data-[visible]:opacity-100",
         className
       )}
     />

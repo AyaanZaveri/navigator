@@ -251,7 +251,8 @@ public final class MainActivity extends ComponentActivity {
                 for (int count; (count = input.read(buffer)) != -1;) bytes.write(buffer, 0, count);
                 String code = new String(bytes.toByteArray(), StandardCharsets.UTF_8)
                     .replace("__ORIGIN__", JSONObject.quote(origin.toString()))
-                    .replace("__EDGE_CSS__", JSONObject.quote(readAsset("edge-to-edge.css")));
+                    .replace("__EDGE_CSS__", JSONObject.quote(readAsset("edge-to-edge.css")))
+                    .replace("__TOUCH_CONTROLS__", readAsset("touch-controls.js"));
                 script = WebViewCompat.addDocumentStartJavaScript(web, code, Collections.singleton(origin.toString()));
             } catch (java.io.IOException failure) { failPage("The Android playback bridge is missing. Reinstall Navigator."); }
         }

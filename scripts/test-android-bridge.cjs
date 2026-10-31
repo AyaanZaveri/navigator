@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const origin = 'https://navigator.test';
 const script = fs.readFileSync('android/app/src/main/assets/bridge.js', 'utf8')
     .replace('__ORIGIN__', JSON.stringify(origin))
+    .replace('__TOUCH_CONTROLS__', fs.readFileSync('android/app/src/main/assets/touch-controls.js', 'utf8'))
     .replace('__EDGE_CSS__', JSON.stringify(fs.readFileSync('android/app/src/main/assets/edge-to-edge.css', 'utf8')));
 function setup({ foreign = false, iframe = false, delayedRoot = false } = {}) {
     const sent = [];
@@ -19,7 +20,7 @@ function setup({ foreign = false, iframe = false, delayedRoot = false } = {}) {
     document.head = { appendChild(node) { styles.push(node); } };
     document.documentElement = delayedRoot ? null : root;
     let closed = 0;
-    document.querySelector = () => ({ querySelector: () => ({ click: () => closed++ }) });
+    document.querySelector = selector => selector.includes('data-slot="media-player"') ? null : ({ querySelector: () => ({ click: () => closed++ }) });
     const window = { NavigatorAndroid: { postMessage: value => sent.push(JSON.parse(value)) }, addEventListener: (type, callback) => { callbacks[type] = callback; } };
     window.top = iframe ? {} : window;
     const MutationObserver = class {
@@ -27,7 +28,7 @@ function setup({ foreign = false, iframe = false, delayedRoot = false } = {}) {
         observe() {}
         disconnect() {}
     };
-    vm.runInNewContext(script, { window, document, location: { origin: foreign ? 'https://untrusted.test' : origin }, MutationObserver, Event, console });
+    vm.runInNewContext(script, { window, document, location: { origin: foreign ? 'https://untrusted.test' : origin }, MutationObserver, Event, console, clearTimeout, setTimeout });
     return { window, document, root, properties, styles, sent, callbacks, observers, closed: () => closed,
         visible(value) { visible = value; observers.forEach(observer => observer.callback()); },
         receive(value) { window.NavigatorAndroid.onmessage({ data: JSON.stringify(value) }); } };
@@ -100,3 +101,96 @@ theme.root.dataset.theme = 'dark';
 theme.observers.forEach(observer => observer.callback());
 assert.equal(theme.sent.at(-1).dark, true, 'Dark pages request light system icons');
 console.log('PASS: Android bridge, origin/frame isolation, native events, safe areas, theme appearance, teardown, and deployed-client compatibility');
+
+// Exercise the shipped compatibility controller with an actual event/timer loop.
+// No WebView, browser automation, emulator, network, or React runtime required.
+function testTouchControls() {
+    let now = 0, serial = 0, subscriber, observer, menu = false, updated = false;
+    const timers = new Map();
+    const handlers = new Map();
+    const attrs = new Map();
+    const controls = { inert: false, setAttribute: (key, value) => attrs.set(`controls:${key}`, value), removeAttribute: key => attrs.delete(`controls:${key}`) };
+    const root = {
+        setAttribute: (key, value) => attrs.set(key, value), removeAttribute: key => attrs.delete(key),
+        querySelectorAll: () => [controls], contains: target => target.inside,
+    };
+    const document = {
+        activeElement: null,
+        querySelector: selector => selector.includes(':not(') ? (updated ? null : root) : (menu ? {} : null),
+        addEventListener: (type, handler) => handlers.set(type, handler),
+        removeEventListener: type => handlers.delete(type),
+    };
+    const install = vm.runInNewContext(fs.readFileSync('android/app/src/main/assets/touch-controls.js', 'utf8'), {
+        setTimeout(callback, delay) { const id = ++serial; timers.set(id, { at: now + delay, callback }); return id; },
+        clearTimeout(id) { timers.delete(id); },
+        MutationObserver: class { constructor(callback) { observer = callback; } observe() {} disconnect() {} },
+    });
+    const dispose = install(document, { subscribe(fn) { subscriber = fn; return () => { subscriber = null; }; } });
+    const advance = delay => {
+        const end = now + delay;
+        while (true) {
+            const next = [...timers].filter(([, value]) => value.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+            if (!next) break;
+            now = next[1].at;
+            timers.delete(next[0]);
+            next[1].callback();
+        }
+        now = end;
+    };
+    const state = (paused, session = 'video') => subscriber({ type: 'state', session, state: { paused, position: now / 1000 } });
+    const ready = (session = 'video') => subscriber({ type: 'ready', session });
+    const surface = { inside: true, closest: () => null };
+    const button = { inside: true, closest: () => controls };
+    const event = (type, target = surface, pointerType = 'touch', detail = 1) => {
+        const value = { target, pointerType, detail, defaultPrevented: false, stopped: false,
+            preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
+        handlers.get(type)(value);
+        return value;
+    };
+    const visible = () => attrs.get('data-android-controls') === 'visible';
+    state(false); ready();
+    for (let i = 0; i < 11; i++) { advance(250); state(false); observer(); }
+    assert.ok(visible(), 'Controls stay visible for the full three-second idle interval');
+    advance(250);
+    assert.ok(!visible(), 'Progress-driven React mutations and native state updates cannot cancel auto-hide');
+    assert.ok(controls.inert, 'Hidden controls cannot receive focus or accidental taps');
+    event('pointerdown');
+    let tap = event('click');
+    assert.ok(visible() && tap.defaultPrevented && tap.stopped, 'Touch reveals controls without reaching React play/pause');
+    event('pointerdown'); tap = event('click');
+    assert.ok(!visible() && tap.stopped, 'A second tap hides controls without pausing');
+    event('pointerdown', surface, 'mouse');
+    const mouse = event('click', surface, 'mouse');
+    assert.ok(!mouse.defaultPrevented && !mouse.stopped, 'Mouse clicks keep the existing desktop play/pause action');
+    event('pointerdown', surface, 'touch'); event('click');
+    event('pointerdown', button);
+    advance(6000);
+    assert.ok(visible(), 'A held seek or volume slider keeps controls visible');
+    event('pointerup', button); event('click', button);
+    menu = true;
+    advance(5000);
+    assert.ok(visible(), 'Portalled track, cast, or settings menus keep controls visible');
+    menu = false;
+    advance(1000);
+    assert.ok(!visible(), 'Idle detection resumes after a menu closes');
+    state(true);
+    advance(15000);
+    assert.ok(visible(), 'Paused playback keeps controls visible');
+    event('pointerdown', surface, 'touch', 0);
+    const keyboard = event('click', surface, 'touch', 0);
+    assert.ok(!keyboard.stopped, 'Keyboard and assistive click activation is not intercepted');
+    state(false, 'next-video');
+    advance(5000);
+    assert.ok(visible(), 'A new stream holds controls until it is ready');
+    ready('next-video');
+    advance(3000);
+    assert.ok(!visible(), 'The next stream also auto-hides');
+    updated = true; observer();
+    assert.ok(!attrs.has('data-android-controls') && !controls.inert, 'Updated React players take over without two visibility controllers');
+    dispose();
+    assert.equal(timers.size, 0, 'Unmount cancels every idle timer');
+    assert.equal(handlers.size, 0, 'Page teardown removes all interaction listeners');
+    assert.equal(subscriber, null, 'Page teardown unsubscribes native updates');
+}
+testTouchControls();
+console.log('PASS: touch toggles, mouse/keyboard passthrough, progress-safe auto-hide, sliders, menus, pause, sessions, and cleanup');

@@ -87,7 +87,9 @@
     const observer = new MutationObserver(() => { if (installStyles()) observer.disconnect(); });
     observer.observe(document, { childList: true, subtree: true });
   }
+  const disposeTouchControls = __TOUCH_CONTROLS__(document, window.navigatorDesktop);
   window.addEventListener('pagehide', () => {
+    disposeTouchControls();
     if (session) send({ type: 'stop', session });
     send({ type: 'visible', value: false });
   });

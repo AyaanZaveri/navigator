@@ -115,6 +115,13 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
   The historic mpv/controller filenames and `data-desktop="mpv"` marker remain
   compatible; Android identifies itself as `platform: "android"` and
   `engine: "exoplayer"`. The browser player and desktop mpv backend are unchanged.
+- Touch taps toggle controls without pausing; mouse clicks retain play/pause.
+  Controls fade out after three idle seconds with the existing 200 ms ease-out
+  opacity transition (100 ms with reduced motion). Pausing, active sliders,
+  keyboard focus, and open menus keep them available. The APK includes an
+  origin-scoped compatibility controller for the currently deployed website;
+  it disables itself when the updated React player declares `data-touch-controls`.
+  Native progress messages and React rerenders do not reset idle timers.
 - Text cues go to the existing blurred React subtitle overlay; bitmap cues use
   a native SubtitleView aligned to the video. External subtitles continue through
   Navigator's existing UI/server flow. Media3's text styling/codec support may
@@ -140,6 +147,8 @@ References used:
 
 - [Media3 dependencies and releases](https://developer.android.com/jetpack/androidx/releases/media3)
 - [Media3 1.11.1 API](https://github.com/androidx/media/blob/1.11.1/api.txt)
+- [Media3 control visibility and timeout](https://developer.android.com/reference/androidx/media3/ui/PlayerControlView)
+- [Motion easing and duration](https://m3.material.io/styles/motion/easing-and-duration/applying-easing-and-duration)
 - [Player events](https://developer.android.com/media/media3/exoplayer/listening-to-player-events)
 - [Track selection](https://developer.android.com/media/media3/exoplayer/track-selection)
 - [Android HDR playback](https://developer.android.com/media/grow/hdr-playback)

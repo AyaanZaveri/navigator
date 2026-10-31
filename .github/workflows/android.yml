@@ -6,6 +6,7 @@ on:
       - 'lib/desktop/**'
       - 'components/desktop/**'
       - 'components/global-media-player.tsx'
+      - 'components/ui/media-player.tsx'
       - 'scripts/test-android-bridge.cjs'
       - '.github/workflows/android.yml'
   push:
