@@ -7,7 +7,7 @@ const script = fs.readFileSync('android/app/src/main/assets/bridge.js', 'utf8')
     .replace('__ORIGIN__', JSON.stringify(origin))
     .replace('__TOUCH_CONTROLS__', fs.readFileSync('android/app/src/main/assets/touch-controls.js', 'utf8'))
     .replace('__EDGE_CSS__', JSON.stringify(fs.readFileSync('android/app/src/main/assets/edge-to-edge.css', 'utf8')));
-function setup({ foreign = false, iframe = false, delayedRoot = false } = {}) {
+function setup({ foreign = false, iframe = false, delayedRoot = false, clock = {} } = {}) {
     const sent = [];
     const callbacks = {};
     const observers = [];
@@ -28,7 +28,7 @@ function setup({ foreign = false, iframe = false, delayedRoot = false } = {}) {
         observe() {}
         disconnect() {}
     };
-    vm.runInNewContext(script, { window, document, location: { origin: foreign ? 'https://untrusted.test' : origin }, MutationObserver, Event, console, clearTimeout, setTimeout });
+    vm.runInNewContext(script, { window, document, location: { origin: foreign ? 'https://untrusted.test' : origin }, MutationObserver, Event, console, clearTimeout, setTimeout, ...clock });
     return { window, document, root, properties, styles, sent, callbacks, observers, closed: () => closed,
         visible(value) { visible = value; observers.forEach(observer => observer.callback()); },
         receive(value) { window.NavigatorAndroid.onmessage({ data: JSON.stringify(value) }); } };
@@ -194,3 +194,46 @@ function testTouchControls() {
 }
 testTouchControls();
 console.log('PASS: touch toggles, mouse/keyboard passthrough, progress-safe auto-hide, sliders, menus, pause, sessions, and cleanup');
+
+
+// CSS overflow scrolls never change WebView.scrollY. Capture them in the
+// document and send only activity edges, rather than IPC on every scroll frame.
+function testScrollHints() {
+    let now = 0, serial = 0;
+    const timers = new Map();
+    const clock = {
+        setTimeout(callback, delay) { const id = ++serial; timers.set(id, { at: now + delay, callback }); return id; },
+        clearTimeout(id) { timers.delete(id); },
+    };
+    const app = setup({ clock });
+    const hints = () => app.sent.filter(message => message.type === 'scrolling');
+    const advance = delay => {
+        now += delay;
+        for (const [id, timer] of [...timers]) {
+            if (timer.at <= now) { timers.delete(id); timer.callback(); }
+        }
+    };
+    assert.equal(hints().length, 0, 'Idle browsing never requests a high refresh rate');
+    for (let i = 0; i < 120; i++) {
+        app.document.dispatchEvent(new Event('scroll'));
+        advance(8);
+    }
+    assert.equal(hints().length, 1, 'A 120 Hz scroll sends one start hint, not 120 IPC messages');
+    assert.equal(hints()[0].value, true);
+    advance(240);
+    assert.equal(hints().length, 2, 'A completed fling releases its high-refresh preference');
+    assert.equal(hints()[1].value, false);
+    app.document.dispatchEvent(new Event('scroll'));
+    app.document.hidden = true;
+    app.document.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(hints().at(-1).value, false, 'Backgrounding releases a live hint before JS timers are throttled');
+    app.document.hidden = false;
+    app.document.dispatchEvent(new Event('scroll'));
+    app.callbacks.pagehide();
+    const count = hints().length;
+    advance(5000);
+    app.document.dispatchEvent(new Event('scroll'));
+    assert.equal(hints().length, count, 'Page teardown removes the listener and outstanding idle timer');
+}
+testScrollHints();
+console.log('PASS: nested-scroll refresh hints, 120 Hz message coalescing, idle release, backgrounding, and teardown');

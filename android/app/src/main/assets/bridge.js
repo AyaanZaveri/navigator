@@ -87,9 +87,31 @@
     const observer = new MutationObserver(() => { if (installStyles()) observer.disconnect(); });
     observer.observe(document, { childList: true, subtree: true });
   }
+  // Nested CSS scrollports do not update WebView.scrollY. Vote for smooth UI
+  // rendering through a coalesced pair of hints for each scroll/fling, not IPC
+  // on each display frame. Idle pages and native video retain platform policy.
+  let scrollTimer;
+  let scrolling = false;
+  const endScroll = () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = undefined;
+    if (scrolling) { scrolling = false; send({ type: 'scrolling', value: false }); }
+  };
+  const onScroll = () => {
+    if (document.hidden) return;
+    if (!scrolling) { scrolling = true; send({ type: 'scrolling', value: true }); }
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(endScroll, 240);
+  };
+  const onScrollVisibility = () => { if (document.hidden) endScroll(); };
+  document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', onScrollVisibility);
   const disposeTouchControls = __TOUCH_CONTROLS__(document, window.navigatorDesktop);
   window.addEventListener('pagehide', () => {
     disposeTouchControls();
+    document.removeEventListener('scroll', onScroll, { capture: true });
+    document.removeEventListener('visibilitychange', onScrollVisibility);
+    endScroll();
     if (session) send({ type: 'stop', session });
     send({ type: 'visible', value: false });
   });

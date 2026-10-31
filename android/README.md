@@ -2,6 +2,7 @@
 
 The full Navigator Next.js website in an Android WebView, with native **Media3
 ExoPlayer** video on a **SurfaceView** underneath the existing React player UI.
+The WebView is transparent during playback and opaque while browsing.
 This uses the same layering and HDR path verified on the user's phone with the
 separate SDR/HDR10/HLG demo. The website remains hosted; no Node.js server or API
 keys are bundled in the APK.
@@ -143,6 +144,28 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
   playing decoder to generate previews. Formats unsupported by WebView may have
   no hover thumbnail, even when native playback works.
 
+### Browsing smoothness
+
+Browsing uses an opaque WebView in a default SDR window, avoiding the alpha
+composition and HDR window requested for video. Entering native playback restores
+both before video is presented; closing playback returns to ordinary rendering.
+Theme changes update the opaque background. Transparent system bars and safe
+areas remain in place.
+
+On Android 15+, document-captured CSS scroll events request the platform's HIGH
+frame-rate category for the WebView. This covers the nested overflow scrollers
+used throughout Navigator, including flings. It is a preference, not a forced
+120 Hz display mode. One start/finish pair crosses the bridge per continuous
+scroll, with a 240 ms idle delay; page changes and backgrounding reset the hint.
+Native video uses its existing platform frame-rate policy. Older Android versions
+keep their default refresh-rate behavior.
+
+The bridge regression tests replay a 120 Hz scroll and verify message coalescing,
+idle release, visibility changes, and disposal. These checks do not measure
+physical-device frame times. Compare the same page and scroll on the Pixel with
+the previous APK and the website; a device Perfetto/WebView trace is still needed
+if perceptible jitter remains. No GPU effects or page content were removed.
+
 References used:
 
 - [Media3 dependencies and releases](https://developer.android.com/jetpack/androidx/releases/media3)
@@ -152,6 +175,9 @@ References used:
 - [Player events](https://developer.android.com/media/media3/exoplayer/listening-to-player-events)
 - [Track selection](https://developer.android.com/media/media3/exoplayer/track-selection)
 - [Android HDR playback](https://developer.android.com/media/grow/hdr-playback)
+- [Adaptive refresh-rate categories, touch boost, and custom scroll views](https://developer.android.com/develop/ui/views/animations/adaptive-refresh-rate)
+- [Hardware acceleration and avoiding unnecessary view layers](https://developer.android.com/develop/ui/views/graphics/hardware-accel)
+- [Public high-refresh Chromium/WebView scrolling report (different device/provider; not a Navigator diagnosis)](https://github.com/uazo/cromite/issues/2572)
 - [Edge-to-edge views and transparent system bars](https://developer.android.com/develop/ui/views/layout/edge-to-edge)
 - [WebView insets, compatibility, and avoiding double padding](https://developer.android.com/develop/ui/views/layout/webapps/understand-window-insets)
 - [AndroidX splash screen migration](https://developer.android.com/develop/ui/views/launch/splash-screen/migrate)

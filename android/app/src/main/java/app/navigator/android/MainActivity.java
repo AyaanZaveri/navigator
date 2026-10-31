@@ -68,6 +68,10 @@ public final class MainActivity extends ComponentActivity {
     private boolean launching = true;
     private boolean pageLoading;
     private boolean webDark = true;
+    private boolean scrolling;
+    private boolean highRefreshRequested;
+    private int webBackground = Integer.MIN_VALUE;
+    private int windowColorMode = -1;
     private JSONObject safeInsets = NativePlayer.object("type", "insets", "top", 0, "right", 0, "bottom", 0, "left", 0);
     private long pageGeneration;
     private final Runnable tick = new Runnable() {
@@ -105,7 +109,6 @@ public final class MainActivity extends ComponentActivity {
         });
         setContentView(root);
         player = new NativePlayer(this, root, this::send);
-        if (Build.VERSION.SDK_INT >= 26) getWindow().setColorMode(ActivityInfo.COLOR_MODE_HDR);
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
                 || !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             launching = false;
@@ -113,7 +116,7 @@ public final class MainActivity extends ComponentActivity {
             return;
         }
         web = new WebView(this);
-        web.setBackgroundColor(Color.TRANSPARENT);
+        updateWebPresentation();
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -138,6 +141,8 @@ public final class MainActivity extends ComponentActivity {
                 reply = null;
                 player.stop();
                 playerVisible = false;
+                scrolling = false;
+                updateWebPresentation();
                 setFullscreen(false);
                 pageFailed = false;
                 pageLoading = true;
@@ -191,7 +196,9 @@ public final class MainActivity extends ComponentActivity {
                     send(NativePlayer.object("type", "close"));
                     String closing = player.session();
                     main.postDelayed(() -> {
-                        if (!destroyed && player.session().equals(closing)) { player.stop(); playerVisible = false; }
+                        if (!destroyed && player.session().equals(closing)) {
+                            player.stop(); playerVisible = false; updateWebPresentation();
+                        }
                     }, 750);
                 } else if (web.canGoBack()) web.goBack(); else finish();
             }
@@ -227,17 +234,24 @@ public final class MainActivity extends ComponentActivity {
                                 send(NativePlayer.object("type", "fullscreen", "value", fullscreen));
                                 send(safeInsets);
                                 break;
-                            case "appearance": webDark = request.optBoolean("dark", true); updateSystemBarAppearance(); break;
+                            case "appearance":
+                                webDark = request.optBoolean("dark", true);
+                                updateSystemBarAppearance(); updateWebPresentation(); break;
+                            case "scrolling":
+                                scrolling = foreground && request.optBoolean("value", false);
+                                updateWebPresentation(); break;
                             case "fullscreen": setFullscreen(request.optBoolean("value")); break;
                             case "visible":
                                 playerVisible = request.optBoolean("value");
                                 updateSystemBarAppearance();
                                 if (!playerVisible) { player.stop(); setFullscreen(false); }
+                                updateWebPresentation();
                                 break;
                             case "settings": settings(); break;
                             default:
                                 if (!foreground) return;
                                 player.command(request);
+                                updateWebPresentation();
                                 if (request.optString("type").equals("load") && player.active()) setFullscreen(true);
                                 if (request.optString("type").equals("stop") && !player.active()) setFullscreen(false);
                         }
@@ -271,6 +285,35 @@ public final class MainActivity extends ComponentActivity {
             byte[] buffer = new byte[4096];
             for (int count; (count = input.read(buffer)) != -1;) bytes.write(buffer, 0, count);
             return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void updateWebPresentation() {
+        if (web == null) return;
+        boolean playback = playerVisible || (player != null && player.active());
+        // Ordinary pages can be opaque SDR. Reserve alpha composition and the
+        // HDR window for the native video surface underneath the WebView.
+        int background = playback ? Color.TRANSPARENT : (webDark ? Color.rgb(10, 10, 10) : Color.WHITE);
+        if (background != webBackground) {
+            webBackground = background;
+            web.setBackgroundColor(background);
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            int mode = playback ? ActivityInfo.COLOR_MODE_HDR : ActivityInfo.COLOR_MODE_DEFAULT;
+            if (mode != windowColorMode) {
+                windowColorMode = mode;
+                getWindow().setColorMode(mode);
+            }
+        }
+        // Android 15+ defaults many custom Views to the normal frame-rate
+        // category. CSS overflow flings are invisible to native ScrollView's
+        // velocity reporting, so explicitly vote HIGH only while browsing scrolls.
+        boolean high = foreground && scrolling && !playback;
+        if (Build.VERSION.SDK_INT >= 35 && high != highRefreshRequested) {
+            highRefreshRequested = high;
+            web.setRequestedFrameRate(high
+                ? View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+                : View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT);
         }
     }
 
@@ -323,6 +366,8 @@ public final class MainActivity extends ComponentActivity {
         reply = null;
         if (player != null) player.stop();
         playerVisible = false;
+        scrolling = false;
+        updateWebPresentation();
         setFullscreen(false);
         showConnection(message);
     }
@@ -409,10 +454,13 @@ public final class MainActivity extends ComponentActivity {
         foreground = true;
         if (web != null) web.onResume();
         if (player != null) player.start();
+        updateWebPresentation();
         main.post(tick);
     }
     @Override protected void onStop() {
         foreground = false;
+        scrolling = false;
+        updateWebPresentation();
         main.removeCallbacks(tick);
         if (player != null) player.suspend();
         if (web != null) web.onPause();
