@@ -1,0 +1,148 @@
+.directory {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+}
+
+.toolbar {
+  --control-height-sm: 36px;
+  --control-height-md: 36px;
+  --chip-padding-inline: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+}
+
+.search {
+  width: min(100%, 20rem);
+  min-width: 0;
+  flex: 0 1 20rem;
+}
+
+.resultCount {
+  margin-block: 24px 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--background) 92%, transparent);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) minmax(0, 14rem);
+  align-items: start;
+  gap: 16px 20px;
+  min-width: 0;
+  padding: 24px;
+}
+
+.row + .row {
+  border-block-start: 1px solid var(--border);
+}
+
+.logo[data-slot="avatar"] {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--muted);
+}
+
+.identity,
+.metadata {
+  min-width: 0;
+}
+
+.nameRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.name {
+  min-width: 0;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.version {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  max-width: 65ch;
+  margin-block-start: 6px;
+  color: color-mix(in oklab, var(--foreground) 72%, var(--background));
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.types,
+.catalogCount {
+  margin-block-start: 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.metadata {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.badge {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.empty {
+  min-height: 16rem;
+  padding-block: 48px;
+}
+
+@container (max-width: 46rem) {
+  .row {
+    grid-template-columns: 44px minmax(0, 1fr);
+    padding: 20px;
+  }
+  .metadata {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+  .capabilities { justify-content: flex-start; }
+}
+
+@container (max-width: 26rem) {
+  .search { flex-basis: 100%; width: 100%; }
+  .row { padding: 16px; gap: 12px; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .list { background: var(--background); }
+}
