@@ -23,7 +23,7 @@ async function SimilarShows({ showId }: { showId: string }) {
   if (!items.length) return null;
 
   return (
-    <div className="mt-8 px-6 md:px-10">
+    <div className="mt-8 px-4 md:px-10">
       <MediaSection sectionName="More Like This" mediaItems={items} />
     </div>
   );
@@ -61,7 +61,7 @@ export default async function SeriesLayout({
         />
 
         <div className="relative">
-          <div className={`${backdropStyles.hero} relative h-[46vh] md:h-[62vh] overflow-hidden`}>
+          <div className={`${backdropStyles.hero} relative h-[19rem] md:h-[62vh] overflow-hidden`}>
             <BackdropImage
               movie={show}
               backdropImage={show.background || ""}
@@ -70,12 +70,12 @@ export default async function SeriesLayout({
               height={1080}
             />
             {show.logo && (
-              <div className="pointer-events-none absolute inset-x-0 top-16 bottom-54 z-10 hidden place-items-center md:grid">
+              <div className="pointer-events-none absolute inset-x-0 top-24 bottom-28 z-10 grid place-items-center md:top-16 md:bottom-54">
                 <Link
                   href={buildSeriesPath(id)}
                   prefetch={true}
                   aria-label={`Go to ${show.name} series page`}
-                  className="pointer-events-auto block w-[min(40rem,70%)] transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
+                  className="pointer-events-auto block w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(40rem,70%)] md:[--hero-wordmark-height:7rem] transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
                 >
                   <HeroWordmark
                     src={show.logo}
@@ -90,7 +90,7 @@ export default async function SeriesLayout({
           </div>
         </div>
 
-        <div className={`${backdropStyles.content} relative z-10 px-4 md:px-6 mx-4 pb-6`}>
+        <div className={`${backdropStyles.content} relative z-10 px-4 md:px-6 md:mx-4 pb-6`}>
           <div
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"

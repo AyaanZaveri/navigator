@@ -1,4 +1,4 @@
-import { fetchCatalogItems, fetchResumeItems } from "@/app/actions/media";
+import { fetchCatalogItems, fetchResumeItems, fetchResumeMovieYear } from "@/app/actions/media";
 import { getInstalledAddons } from "@/app/actions/auth";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
@@ -95,6 +95,11 @@ function HomeCatalogsFallback() {
   );
 }
 
+async function ResumeMovieYear({ id }: { id: string }) {
+  const year = await fetchResumeMovieYear(id);
+  return year?.toString() ?? null;
+}
+
 async function ContinueWatchingSection({
   continueWatchingPromise,
 }: {
@@ -107,6 +112,13 @@ async function ContinueWatchingSection({
       sectionName="Continue Watching"
       mediaItems={continueWatchingItems}
       continueWatching
+      cardSubtitles={continueWatchingItems.map((item) =>
+        item.type === "movie" && !item.year && !item.releaseInfo ? (
+          <Suspense key={item.id} fallback={null}>
+            <ResumeMovieYear id={item.id} />
+          </Suspense>
+        ) : undefined
+      )}
     />
   );
 }

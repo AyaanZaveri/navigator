@@ -13,6 +13,7 @@ interface MediaSectionProps {
   mediaItems: MediaItem[];
   isLoading?: boolean;
   continueWatching?: boolean;
+  cardSubtitles?: React.ReactNode[];
 }
 
 export function MediaSection({
@@ -20,6 +21,7 @@ export function MediaSection({
   mediaItems,
   isLoading = false,
   continueWatching = false,
+  cardSubtitles,
 }: MediaSectionProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -85,6 +87,7 @@ export function MediaSection({
                 <MediaCard
                   item={item}
                   continueWatching={continueWatching}
+                  subtitleContent={cardSubtitles?.[index]}
                 />
               </div>
             ))}

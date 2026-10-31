@@ -60,6 +60,7 @@ import * as ReactDOM from "react-dom";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { createDesktopMediaStore } from "@/lib/desktop/media-store";
 import { SeekPreview } from "@/components/seek-preview";
+import { attachTouchScrubbing } from "@/lib/media/touch-scrubbing";
 
 const ROOT_NAME = "MediaPlayer";
 const SEEK_NAME = "MediaPlayerSeek";
@@ -853,7 +854,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
         className={cn(
-          "dark relative isolate flex flex-col overflow-hidden bg-background outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_video]:relative [&_video]:object-contain",
+          "dark relative isolate flex touch-none select-none flex-col overflow-hidden bg-background outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_video]:relative [&_video]:object-contain",
           "data-[state=fullscreen]:[&_video]:size-full [:fullscreen_&]:flex [:fullscreen_&]:h-full [:fullscreen_&]:max-h-screen [:fullscreen_&]:flex-col [:fullscreen_&]:justify-between",
           "[&_[data-slider]::before]:-top-4 [&_[data-slider]::before]:-bottom-2 [&_[data-slider]::before]:absolute [&_[data-slider]::before]:inset-x-0 [&_[data-slider]::before]:z-10 [&_[data-slider]::before]:h-8 [&_[data-slider]::before]:cursor-pointer [&_[data-slider]::before]:content-[''] [&_[data-slider]]:relative [&_[data-slot='media-player-seek']:not([data-hovering])::before]:cursor-default",
           "[&_video::-webkit-media-text-track-display]:top-auto! [&_video::-webkit-media-text-track-display]:bottom-[4%]! [&_video::-webkit-media-text-track-display]:mb-0! data-[state=fullscreen]:data-[controls-visible]:[&_video::-webkit-media-text-track-display]:bottom-[9%]! data-[controls-visible]:[&_video::-webkit-media-text-track-display]:bottom-[13%]! data-[state=fullscreen]:[&_video::-webkit-media-text-track-display]:bottom-[7%]!",
@@ -1568,6 +1569,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const seekRef = React.useRef<HTMLDivElement>(null);
   const tooltipRef = React.useRef<HTMLDivElement>(null);
   const justCommittedRef = React.useRef<boolean>(false);
+  const touchScrubbingRef = React.useRef(false);
+  const [touchScrubSpeed, setTouchScrubSpeed] = React.useState<number | null>(null);
 
   const hoverTimeRef = React.useRef(0);
   const tooltipXRef = React.useRef(0);
@@ -1720,7 +1723,9 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         tooltipRef.current?.offsetWidth ?? SEEK_TOOLTIP_WIDTH_FALLBACK;
 
       let x = clientX;
-      const y = seekRectRef.current?.top ?? 0;
+      // Controls can become visible during a gesture. Always anchor to the
+      // current bar position, rather than the initial touch or a cached rect.
+      const y = seekRef.current.getBoundingClientRect().top;
 
       const collisionData = onCollisionDataUpdate();
       const halfTooltipWidth = tooltipWidth / 2;
@@ -1782,7 +1787,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   }, [seekableEnd]);
 
   React.useEffect(() => {
-    if (seekState.pendingSeekTime !== null) {
+    if (!touchScrubbingRef.current && seekState.pendingSeekTime !== null) {
       const diff = Math.abs(mediaCurrentTime - seekState.pendingSeekTime);
       if (diff < 0.5) {
         setSeekState((prev) => ({ ...prev, pendingSeekTime: null }));
@@ -1828,6 +1833,9 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   }, [mediaBuffered, mediaCurrentTime, seekableEnd, mediaEnded, seekableStart]);
 
   const onPointerEnter = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    // Physical touch uses the gesture handler; Android preview messages use
+    // untrusted synthetic touch events to reuse this tooltip without mouse UI.
+    if (event.pointerType === "touch" && event.isTrusted) return;
     if (seekRef.current) {
       seekRectRef.current = seekRef.current.getBoundingClientRect();
     }
@@ -1866,6 +1874,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   }, [seekableStart, seekableEnd, onTooltipPositionUpdate, onPreviewUpdate, tooltipDisabled]);
 
   const onPointerLeave = React.useCallback(() => {
+    if (touchScrubbingRef.current) return;
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
@@ -1906,7 +1915,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
 
   const onPointerMove = React.useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (seekableEnd <= 0) return;
+      if ((event.pointerType === "touch" && event.isTrusted) || seekableEnd <= 0) return;
 
       if (!seekRectRef.current && seekRef.current) {
         seekRectRef.current = seekRef.current.getBoundingClientRect();
@@ -2024,11 +2033,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     (value: number[]) => {
       const time = value[0] ?? 0;
 
-      dispatch({
-        type: MediaActionTypes.MEDIA_SEEK_REQUEST,
-        detail: time,
-      });
-
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = null;
@@ -2093,6 +2097,58 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       }
     };
   }, []);
+
+  // Keep listeners attached throughout the drag, including React renders caused
+  // by showing controls or receiving a decoded preview frame.
+  const touchCallbacksRef = React.useRef({ mediaCurrentTime, onSeek, onSeekCommit, onPreviewUpdate, onTooltipPositionUpdate, onHoverProgressUpdate, onPointerLeave });
+  React.useLayoutEffect(() => {
+    touchCallbacksRef.current = { mediaCurrentTime, onSeek, onSeekCommit, onPreviewUpdate, onTooltipPositionUpdate, onHoverProgressUpdate, onPointerLeave };
+  });
+
+  React.useEffect(() => {
+    const root = context.rootRef.current;
+    const timeline = seekRef.current;
+    if (!root || !timeline || isDisabled) return;
+    return attachTouchScrubbing(root, {
+      timeline,
+      start: seekableStart,
+      end: seekableEnd,
+      currentTime: () => touchCallbacksRef.current.mediaCurrentTime,
+      enabled: () => !store.getState().menuOpen,
+      preview: (time, speed) => {
+        touchScrubbingRef.current = true;
+        store.setState("controlsVisible", true);
+        hoverTimeRef.current = time;
+        const callbacks = touchCallbacksRef.current;
+        callbacks.onSeek([time]);
+        callbacks.onPreviewUpdate(time);
+        callbacks.onHoverProgressUpdate();
+        const rect = timeline.getBoundingClientRect();
+        callbacks.onTooltipPositionUpdate(rect.left + (time - seekableStart) / (seekableEnd - seekableStart) * rect.width);
+        setSeekState(previous => ({ ...previous, isHovering: true }));
+        setTouchScrubSpeed(speed);
+      },
+      commit: time => {
+        touchScrubbingRef.current = false;
+        setTouchScrubSpeed(null);
+        touchCallbacksRef.current.onSeekCommit([time]);
+      },
+      cancel: () => {
+        touchScrubbingRef.current = false;
+        setTouchScrubSpeed(null);
+        setSeekState(previous => ({ ...previous, pendingSeekTime: null }));
+        store.setState("dragging", false);
+        touchCallbacksRef.current.onPointerLeave();
+      },
+    });
+  }, [context.rootRef, isDisabled, seekableStart, seekableEnd, store]);
+
+  // Reposition after controls/preview layout changes, even without another move.
+  React.useLayoutEffect(() => {
+    if (!touchScrubbingRef.current || !seekRef.current) return;
+    const rect = seekRef.current.getBoundingClientRect();
+    onTooltipPositionUpdate(rect.left + (hoverTimeRef.current - seekableStart) / (seekableEnd - seekableStart) * rect.width);
+  });
 
   const currentChapterCue = getCurrentChapterCue(hoverTimeRef.current);
   const thumbnail = getThumbnail(hoverTimeRef.current);
@@ -2196,6 +2252,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           )}
           {chapterSeparators}
         </SliderPrimitive.Track>
+        <SliderPrimitive.Thumb
+          aria-label="Playback position"
+          className="block size-3 rounded-full bg-white opacity-0 shadow-sm outline-none group-data-[hovering]:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+        />
       </SliderPrimitive.Root>
       {!withoutTooltip &&
         !context.withoutTooltip &&
@@ -2222,7 +2282,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
               >
-                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} />}
+                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={touchScrubSpeed !== null ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} />}
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"
@@ -2241,6 +2301,11 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                         className="size-full object-cover"
                       />
                     )}
+                  </div>
+                )}
+                {touchScrubSpeed !== null && (
+                  <div className="max-w-56 px-2 pt-1 text-center text-xs text-muted-foreground">
+                    {touchScrubSpeed === 1 ? "Fast scrubbing · move up or down for precision" : `Fine scrubbing · ${touchScrubSpeed * 100}% speed`}
                   </div>
                 )}
                 {currentChapterCue && (

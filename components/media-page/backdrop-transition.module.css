@@ -30,7 +30,7 @@
 }
 
 .content {
-    margin-top: -13.5rem;
+    margin-top: -6rem;
 }
 
 /* Keep the original hero overlap. A small light-mode wash lowers the
@@ -74,5 +74,11 @@
     .fade,
     :global(html:not(.dark)) .fade {
         background: linear-gradient(to bottom, transparent, var(--background) 25%);
+    }
+}
+
+@media (min-width: 48rem) {
+    .content {
+        margin-top: -13.5rem;
     }
 }

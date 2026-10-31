@@ -12,10 +12,12 @@ export function MediaCard({
   item,
   continueWatching = false,
   fullWidth = false,
+  subtitleContent,
 }: {
   item: MediaItem;
   continueWatching?: boolean;
   fullWidth?: boolean;
+  subtitleContent?: React.ReactNode;
 }) {
   const { playMedia, setIsPlayerVisible } = useMediaPlayer();
 
@@ -147,8 +149,8 @@ export function MediaCard({
           <div className="mt-2.5 text-sm font-medium text-foreground truncate group-hover:underline">
             {item.name}
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {subtitle}
+          <div className={`text-xs text-muted-foreground mt-0.5 ${continueWatching ? "min-h-4" : ""}`}>
+            {subtitleContent ?? subtitle}
           </div>
         </div>
       </Link>

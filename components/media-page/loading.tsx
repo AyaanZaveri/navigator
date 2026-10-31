@@ -10,11 +10,11 @@ export function MediaDetailsLoading() {
       className="min-h-screen overflow-hidden pb-8"
     >
       <span className="sr-only">Loading media details…</span>
-      <div aria-hidden="true" className="h-[46vh] w-full md:h-[62vh]" />
-      <div className={`${backdropStyles.content} relative mx-4 px-4 pt-6 pb-6 md:px-6 md:pt-8`}>
+      <div aria-hidden="true" className="h-[19rem] w-full md:h-[62vh]" />
+      <div className={`${backdropStyles.content} relative px-4 pt-6 pb-6 md:mx-4 md:px-6 md:pt-8`}>
         <LoadingPlaceholder className="@container">
           <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
-            <div className="aspect-[2/3] w-40 max-w-full rounded-lg bg-muted/30 @3xl:w-full" />
+            <div className="mx-auto aspect-[2/3] w-[clamp(12rem,56vw,15rem)] max-w-full rounded-lg bg-muted/30 @3xl:mx-0 @3xl:w-full" />
             <div className="flex min-w-0 flex-col gap-6 @3xl:pt-3">
               <div className="flex flex-col gap-3">
                 <Skeleton className="h-12 w-3/4" />

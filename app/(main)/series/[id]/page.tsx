@@ -23,7 +23,7 @@ export default async function SeriesOverviewPage({
     return (
       <section aria-labelledby="series-title" className="@container pt-6 md:pt-8">
         <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
-          <div className="relative w-40 max-w-full @3xl:w-full">
+          <div className="relative mx-auto w-[clamp(12rem,56vw,15rem)] max-w-full @3xl:mx-0 @3xl:w-full">
             <PosterImage
               movie={show}
               posterImage={show.poster || ""}
@@ -34,14 +34,14 @@ export default async function SeriesOverviewPage({
           </div>
 
           <div className="flex min-w-0 flex-col gap-6 text-start @3xl:pt-3">
-            <div className="flex min-w-0 flex-col gap-3">
+            <div className="flex min-w-0 flex-col items-center gap-3 text-center @3xl:items-start @3xl:text-start">
               <h1
                 id="series-title"
                 className="min-w-0 break-words text-3xl font-semibold leading-tight text-foreground text-balance @lg:text-4xl @5xl:text-5xl"
               >
                 {show.name || ""}
               </h1>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 @3xl:justify-start">
                 {(show.releaseInfo || show.year) && (
                   <Badge
                     variant="outline"

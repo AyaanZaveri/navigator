@@ -14,11 +14,10 @@ import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { PosterImage } from "@/components/media-page/poster-image";
 import type { MediaItem } from "@/types/stremio";
 import { Suspense } from "react";
-import { PlaybackProgressOverlay } from "@/components/media-page/playback-progress-overlay";
 
 function SimilarMoviesSkeleton() {
   return (
-    <div className="mt-8 px-6 md:px-10">
+    <div className="mt-8 px-4 md:px-10">
       <div className="mb-6 flex items-center justify-between">
         <Skeleton className="h-8 w-40 rounded" />
         <div className="flex gap-2">
@@ -48,7 +47,7 @@ async function SimilarMovies({ movieId }: { movieId: string }) {
   if (!similarItems || similarItems.length === 0) return null;
 
   return (
-    <div className="mt-8 px-6 md:px-10">
+    <div className="mt-8 px-4 md:px-10">
       <MediaSection sectionName="More Like This" mediaItems={similarItems} />
     </div>
   );
@@ -82,7 +81,7 @@ export default async function Movie({
 
         {/* Backdrop section */}
         <div className="relative">
-          <div className={`${backdropStyles.hero} relative h-[46vh] md:h-[62vh] overflow-hidden`}>
+          <div className={`${backdropStyles.hero} relative h-[19rem] md:h-[62vh] overflow-hidden`}>
             <BackdropImage
               movie={movie}
               backdropImage={movie.background || ""}
@@ -91,12 +90,12 @@ export default async function Movie({
               height={1080}
             />
             {movie.logo && (
-              <div className="pointer-events-none absolute inset-x-0 top-16 bottom-54 z-10 hidden place-items-center md:grid">
+              <div className="pointer-events-none absolute inset-x-0 top-24 bottom-28 z-10 grid place-items-center md:top-16 md:bottom-54">
                 <HeroWordmark
                   src={movie.logo}
                   alt={`${movie.name} logo`}
                   movieName={movie.name || ""}
-                  className="w-[min(40rem,70%)]"
+                  className="w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(40rem,70%)] md:[--hero-wordmark-height:7rem]"
                 />
               </div>
             )}
@@ -105,14 +104,14 @@ export default async function Movie({
         </div>
 
         {/* Content section */}
-        <div className={`${backdropStyles.content} relative z-10 px-4 pt-6 md:px-6 md:pt-8 mx-4 pb-6`}>
+        <div className={`${backdropStyles.content} relative z-10 px-4 pt-6 md:px-6 md:pt-8 md:mx-4 pb-6`}>
           <div
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"
           />
           <section aria-labelledby="movie-title" className="@container">
             <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
-              <div className="relative w-40 max-w-full @3xl:w-full">
+              <div className="relative mx-auto w-[clamp(12rem,56vw,15rem)] max-w-full @3xl:mx-0 @3xl:w-full">
                 <PosterImage
                   movie={movie}
                   posterImage={movie.poster || ""}
@@ -120,20 +119,17 @@ export default async function Movie({
                   width={500}
                   height={750}
                 />
-                <Suspense fallback={null}>
-                  <PlaybackProgressOverlay mediaId={id} videoId={id} />
-                </Suspense>
               </div>
 
               <div className="flex min-w-0 flex-col gap-6 text-start @3xl:pt-3">
-                <div className="flex min-w-0 flex-col gap-3">
+                <div className="flex min-w-0 flex-col items-center gap-3 text-center @3xl:items-start @3xl:text-start">
                   <h1
                     id="movie-title"
                     className="min-w-0 break-words text-3xl font-semibold leading-tight text-foreground text-balance @lg:text-4xl @5xl:text-5xl"
                   >
                     {movie.name || ""}
                   </h1>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2 @3xl:justify-start">
                     {movie.year && (
                       <Badge
                         variant="outline"
