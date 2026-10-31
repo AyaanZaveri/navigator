@@ -13,7 +13,7 @@ Requirements:
 
 - **Rust 1.92 or newer**, Cargo, and the platform's native compiler tools.
 - The web project's dependencies installed normally.
-- macOS: Xcode command line tools and `libmpv.2.dylib` (`brew install mpv`), or
+- macOS 13.5+: Xcode command line tools and `libmpv.2.dylib` (`brew install mpv`), or
   the verified libraries downloaded below. The standard OpenGL compatibility
   output works with stock libmpv; special patched output drivers are not required.
 - Windows: MSVC build tools and the WebView2 runtime. Run
@@ -160,3 +160,5 @@ It plays the HTTP(S) stream URLs Navigator already obtains from addons.
   existing Radix menus, radio groups, portal containers, and accessible labels.
 - [Node official release artifacts](https://nodejs.org/dist/v26.7.0/): portable
   platform binaries, LICENSE, and SHA-256 manifests.
+- [Node 26 supported platforms](https://github.com/nodejs/node/blob/v26.7.0/BUILDING.md#platform-list):
+  the packaged runtime requires macOS 13.5+ and Windows 10+.

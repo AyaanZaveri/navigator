@@ -44,9 +44,9 @@ pub fn run(app: App) -> Result<(), String> {
         .network_session(&session)
         .user_content_manager(&manager)
         .build();
-    webview
-        .settings()
-        .map(|s| s.set_enable_developer_extras(app.devtools));
+    if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
+        settings.set_enable_developer_extras(app.devtools);
+    }
     webview.set_background_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
     surface.widget().add_overlay(&webview);
     manager.connect_script_message_received(Some("ipc"), {
