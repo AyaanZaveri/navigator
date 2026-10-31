@@ -13,6 +13,10 @@ on:
       - "lib/atoms.ts"
       - "app/globals.css"
       - "components/media-card.tsx"
+      - "components/media-section.tsx"
+      - "app/(main)/page.tsx"
+      - "app/actions/media.ts"
+      - "scripts/test-resume-items.cjs"
       - "components/episode-card.tsx"
       - "components/season-episodes.tsx"
       - "components/episode-hero-thumbnail.tsx"
@@ -73,6 +77,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run test:desktop
+      - run: bun run test:resume
       - run: bun run test:gradient
       - if: runner.os == 'macOS'
         run: bun run test:image-layout

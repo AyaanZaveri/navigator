@@ -754,6 +754,34 @@ export async function fetchPlaybackProgress(
   }
 }
 
+function normalizeYear(value: unknown): number | undefined {
+  const parsed = Number(value);
+  const currentYear = new Date().getFullYear() + 1;
+  return Number.isInteger(parsed) && parsed >= 1888 && parsed <= currentYear
+    ? parsed : undefined;
+}
+
+/** Optional movie caption only. Never block the resume row on full details,
+ * episode lists, or synopsis repair. The caller streams this behind Suspense. */
+export async function fetchResumeMovieYear(mediaItemId: string): Promise<number | null> {
+  try {
+    const addons = await getInstalledAddons();
+    return await Promise.any(addons
+      .filter((addon) => addonSupportsResource(addon, "meta", "movie"))
+      .map(async (addon) => {
+        const data = await fetchAddonResource<StremioMetaResponse>(
+          addon.transportUrl, `meta/movie/${encodeURIComponent(mediaItemId)}.json`,
+        );
+        const year = normalizeYear(data?.meta?.year)
+          ?? normalizeYear(data?.meta?.releaseInfo?.match(/^\d{4}/)?.[0]);
+        if (year === undefined) throw new Error("No movie year");
+        return year;
+      })).catch(() => null);
+  } catch {
+    return null;
+  }
+}
+
 // ─── Resume Items ────────────────────────────────────────────────
 // Stremio's continue watching is managed client-side or via libraryItems API.
 
@@ -782,13 +810,6 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
     const toNumberOrUndefined = (value: unknown): number | undefined => {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : undefined;
-    };
-    const normalizeYear = (value: unknown): number | undefined => {
-      const parsed = Number(value);
-      const currentYear = new Date().getFullYear() + 1;
-      if (!Number.isInteger(parsed)) return undefined;
-      if (parsed < 1888 || parsed > currentYear) return undefined;
-      return parsed;
     };
     const toResumeSeconds = (
       offsetValue: unknown,
@@ -911,25 +932,10 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         };
       });
 
-    const enriched = await Promise.all(
-      resumeItems.map(async (item: MediaItem) => {
-        try {
-          const details = await fetchMediaDetails(item.id, item.type);
-          return {
-            ...item,
-            background: details?.background || item.background || details?.poster,
-            poster: item.poster || details?.poster,
-            logo: details?.logo || item.logo,
-            year: normalizeYear(details?.year) ?? normalizeYear(item.year),
-            releaseInfo: item.releaseInfo ?? details?.releaseInfo,
-          };
-        } catch {
-          return item;
-        }
-      })
-    );
-
-    return enriched.map((item) => ({ ...item, ...mediaArtwork(item.seriesId || item.id, item.type) }));
+    // Artwork already resolves through our TMDB route. Fetching full metadata
+    // here delayed every card for fields the row never uses (including videos
+    // and complete descriptions), then discarded the returned artwork anyway.
+    return resumeItems.map((item: MediaItem) => ({ ...item, ...mediaArtwork(item.seriesId || item.id, item.type) }));
   } catch (error) {
     console.error("Failed to fetch resume items:", error);
     return [];
