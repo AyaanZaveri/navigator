@@ -86,6 +86,8 @@ final class PlayerGestureLayout extends FrameLayout {
         addView(side,new LayoutParams(dp(56),dp(232)));
     }
     void setGestureInsets(float top,float bottom,float left,float right) { topInset=top; bottomInset=bottom; leftEdge=left; rightEdge=right; }
+    void setSeekTrackBounds(float left,float top,float right,float bottom) { preview.setTrackBounds(left,top,right,bottom); }
+    void clearSeekTrackBounds() { preview.clearTrackBounds(); }
     void setControlsTop(float value) { controlsTop=value; }
     void setControlsVisible(boolean value) {
         controlsVisible=value;
@@ -116,7 +118,7 @@ final class PlayerGestureLayout extends FrameLayout {
                     long duration=player.durationMs(), at=player.positionMs();
                     scrubbing=player.beginScrub(scrubSession);
                     if (!scrubbing) { gesture.cancel(); return false; }
-                    hide(); preview.begin(at,duration,bottomInset);
+                    hide(); preview.begin(at,duration,player.bufferedMs(),bottomInset);
                     scrub.begin(at,duration,downX,getWidth(),getHeight());
                 }
                 ownsTouch=mode!=SideSwipeGesture.Mode.NONE;
@@ -260,7 +262,7 @@ final class PlayerGestureLayout extends FrameLayout {
         if (hasWindowFocus) scheduleBrightnessResume();
         else { pauseGestures(); brightness.suspend(); }
     }
-    @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) { super.onSizeChanged(w,h,oldw,oldh); pauseGestures(); controlsTop=Float.NaN; }
+    @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) { super.onSizeChanged(w,h,oldw,oldh); pauseGestures(); preview.clearTrackBounds(); controlsTop=Float.NaN; }
     @Override protected void onDetachedFromWindow() {
         removeCallbacks(waitBrightnessFrame); removeCallbacks(resumeBrightness); brightnessResumeQueued=false;
         activity.getContentResolver().unregisterContentObserver(systemBrightness);

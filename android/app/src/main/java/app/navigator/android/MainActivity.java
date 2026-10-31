@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.RectF;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
@@ -85,6 +86,7 @@ public final class MainActivity extends ComponentActivity {
     private int webBackground = Integer.MIN_VALUE;
     private int windowColorMode = -1;
     private WindowInsetsCompat playerInsets;
+    private final RectF seekTrackBounds=new RectF();
     private double controlsTop = Double.NaN;
     private double controlsBottom = Double.NaN;
     private double controlsViewportWidth;
@@ -271,6 +273,15 @@ public final class MainActivity extends ComponentActivity {
                                 if (Double.isFinite(top) && Double.isFinite(bottom) && Double.isFinite(width) && Double.isFinite(height)
                                         && top >= 0 && bottom > top && bottom <= height + 2 && width > 0 && height > 0
                                         && Math.abs(width - web.getWidth() / density) < 3 && Math.abs(height - web.getHeight() / density) < 3) {
+                                    seekTrackBounds.setEmpty();
+                                    JSONObject seek=request.optJSONObject("seek");
+                                    if (seek!=null) {
+                                        double sl=seek.optDouble("left",Double.NaN), st=seek.optDouble("top",Double.NaN);
+                                        double sr=seek.optDouble("right",Double.NaN), sb=seek.optDouble("bottom",Double.NaN);
+                                        if (Double.isFinite(sl) && Double.isFinite(st) && Double.isFinite(sr) && Double.isFinite(sb)
+                                                && sl>=0 && sr>sl && sr<=width+2 && st>=top-2 && sb>st && sb<=bottom+2)
+                                            seekTrackBounds.set((float)sl,(float)st,(float)sr,(float)sb);
+                                    }
                                     controlsTop = top; controlsBottom = bottom;
                                     controlsViewportWidth = width; controlsViewportHeight = height;
                                     sendPlayerLayoutInsets();
@@ -334,12 +345,14 @@ public final class MainActivity extends ComponentActivity {
 
     private void sendPlayerLayoutInsets() {
         double left = 24, right = 24;
-        root.setControlsTop(Float.NaN);
+        root.setControlsTop(Float.NaN); root.clearSeekTrackBounds();
         if (web != null && playerInsets != null && Double.isFinite(controlsTop)) {
             float density = getResources().getDisplayMetrics().density;
             double width = web.getWidth() / density, height = web.getHeight() / density;
             if (Math.abs(width - controlsViewportWidth) < 3 && Math.abs(height - controlsViewportHeight) < 3) {
                 root.setControlsTop((float) controlsTop * density);
+                if (!seekTrackBounds.isEmpty()) root.setSeekTrackBounds(seekTrackBounds.left*density,
+                    seekTrackBounds.top*density,seekTrackBounds.right*density,seekTrackBounds.bottom*density);
                 var cutout = playerInsets.getDisplayCutout();
                 if (cutout != null) for (var rect : cutout.getBoundingRects()) {
                     if (rect.top / density < controlsBottom && rect.bottom / density > controlsTop) {

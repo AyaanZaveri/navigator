@@ -13,6 +13,8 @@ with zipfile.ZipFile(apk) as archive:
     assert archive.read("assets/touch-controls.js") == (root / "app/src/main/assets/touch-controls.js").read_bytes(), "Stale or missing touch controls"
     assert archive.read("assets/back-navigation.js") == (root / "app/src/main/assets/back-navigation.js").read_bytes(), "Stale or missing back navigation"
     assert archive.read("assets/player-ui.js") == (root / "app/src/main/assets/player-ui.js").read_bytes(), "Stale or missing player UI hooks"
+    for asset in ["fonts/SunghyunSans-Regular.otf", "fonts/SunghyunSans-SemiBold.otf", "third-party-licenses/sunghyun-sans.txt"]:
+        assert archive.read("assets/" + asset) == (root / "app/src/main/assets" / asset).read_bytes(), "Stale or missing native preview font/license"
     assert not any(any(part.startswith(".env") for part in Path(name).parts) or name.startswith("assets/media/") for name in names), "Unexpected credentials or demo payload"
     assert not any(name.startswith("lib/") for name in names), "Unexpected native codec libraries"
 print("PASS: APK integrity, bridge payload, and direct installable APK structure")

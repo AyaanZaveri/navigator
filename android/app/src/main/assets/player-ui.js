@@ -1,7 +1,7 @@
 // Compatibility with the hosted UI; layout updates are bounded to actual size
 // changes and player mount/unmount, never playback's progress text updates.
 (function installPlayerUI(document, window, send) {
-  let controls, shell, visibility, last = '';
+  let controls, seek, shell, visibility, last = '';
   const reportVisibility = () => {
     const player = shell?.querySelector('[data-slot="media-player"]');
     const visible = !player || (player.hasAttribute('data-touch-controls')
@@ -14,19 +14,24 @@
     const rect = controls.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const values = [rect.top, rect.bottom, window.innerWidth, window.innerHeight].map(value => Math.round(value * 10) / 10);
-    const key = values.join(',');
+    const track = seek?.getBoundingClientRect();
+    const seekBounds = track?.width && track?.height
+      ? Object.fromEntries(['left', 'top', 'right', 'bottom'].map(name => [name, Math.round(track[name] * 10) / 10])) : undefined;
+    const key = values.join(',') + ',' + JSON.stringify(seekBounds);
     if (key === last) return;
     last = key;
-    send({ type: 'player-layout', top: values[0], bottom: values[1], viewportWidth: values[2], viewportHeight: values[3] });
+    send({ type: 'player-layout', top: values[0], bottom: values[1], viewportWidth: values[2], viewportHeight: values[3], seek: seekBounds });
   };
   const resize = new ResizeObserver(report);
   const decorate = () => {
     shell = document.querySelector('[data-native-player-shell]');
     reportVisibility();
     const next = shell?.querySelector('[data-slot="media-player-controls"]');
-    if (next !== controls) {
-      resize.disconnect(); controls = next; last = '';
+    const nextSeek = next?.querySelector('[data-slot="media-player-seek"]');
+    if (next !== controls || nextSeek !== seek) {
+      resize.disconnect(); controls = next; seek = nextSeek; last = '';
       if (controls) resize.observe(controls);
+      if (seek) resize.observe(seek);
     }
     if (!shell) return;
     for (const button of shell.querySelectorAll('button[aria-label="Close player"], button[data-player-close]')) {

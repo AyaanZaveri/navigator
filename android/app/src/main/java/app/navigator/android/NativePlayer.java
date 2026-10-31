@@ -88,6 +88,7 @@ final class NativePlayer {
     }
 
     long durationMs() { return player == null ? 0 : Math.max(0,player.getDuration()); }
+    long bufferedMs() { return player == null ? 0 : Math.max(0,player.getBufferedPosition()); }
     long positionMs() { return player == null ? 0 : Math.max(0,player.getCurrentPosition()); }
     boolean canScrub() { return readyForGestures() && player != null && player.isCurrentMediaItemSeekable() && durationMs()>0; }
     boolean beginScrub(String owner) {

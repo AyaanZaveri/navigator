@@ -2291,7 +2291,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 <div
                   data-slot="media-player-seek-time"
                   className={cn(
-                    "whitespace-nowrap text-center text-xs tabular-nums",
+                    "whitespace-nowrap text-center font-sans text-xs font-semibold tabular-nums",
                     (thumbnail || previewFrames) && "pb-1.5",
                     !(thumbnail || previewFrames || currentChapterCue) && "px-2.5 py-1"
                   )}

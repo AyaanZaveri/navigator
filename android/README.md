@@ -207,12 +207,19 @@ Original side-swipe sensitivity is restored: approximately half the video height
 (minimum 200 dp) spans the full range. Both modes use the same normalized mapping.
 Direct bar drags remain relative to the initial touch but now travel one-to-one
 with the visible track. Incremental clamping removes stored overshoot, so reversing
-at either endpoint responds immediately. During a drag, the fill follows the
-continuous finger target while Android media volume changes in hardware steps;
-OS-restricted volume requests still show the accepted level. On release, the small
-correction to the actual volume step settles in 120 ms with the existing
-`cubic-bezier(0.23, 1, 0.32, 1)` curve. Input and brightness/audio updates are never
-tweened. Native animator settings are respected; accessibility changes snap.
+at either endpoint responds immediately. Brightness, volume and seek commands
+use the raw input immediately. Only each bar's rendered fill glides toward its
+target in 100 ms with the existing `cubic-bezier(0.23, 1, 0.32, 1)` curve. The same
+display-only interpolator is shared by brightness, volume and swipe seeking.
+It samples the previous transition before retargeting, so a 120 Hz drag cannot
+continually restart the bar at its old value. Reversals continue from the rendered
+position; repeated targets do not delay arrival. Logical input never reads the
+eased value. Android volume remains discrete; restricted requests show the accepted
+level. System animator duration/disable settings are respected, and accessibility
+changes snap. Hidden/detached bars cancel their frame callbacks. JVM tests cover
+continuous retargeting, reversal, endpoints, stale frame times and separation from
+hardware input. Firecore documents seeking behavior but a numerical Infuse easing
+curve was not found in the public documentation; this uses Navigator's curve.
 The parent waits for clear directional intent, then sends `ACTION_CANCEL` to the
 WebView so a swipe cannot become a tap. Visible controls and top buttons keep
 their touch areas. Hidden controls release the full video height. Horizontal
@@ -221,7 +228,12 @@ swipes reach the physical edges. Multitouch and TalkBack exploration never claim
 a video gesture. There are no per-move JS bridge messages.
 
 With controls hidden, horizontal swiping seeks with a thumbnail, target time,
-signed offset, and a thin progress bar. Moving toward the top slows scrubbing;
+signed offset, and the same rounded timeline styling used by visible controls.
+The injected UI reports the real seek track bounds only on mount/size/layout
+changes. Native seeking copies that position, thickness, white fill, faint track
+and buffered range, without a thumb/dot. Viewport validation and rotation cleanup
+prevent stale geometry; a 6 dp track with normal gutters is the fallback.
+Moving toward the top slows scrubbing;
 moving toward the bottom speeds it up. Incremental movement allows changing
 height during one drag without jumping the target. The decoder pauses during
 the gesture while preserving the logical play state, commits one seek on release,
@@ -240,6 +252,19 @@ clear the cache and decoder. Failed extraction leaves time and progress usable
 and retries after a cooldown. The initial preview uses a loading placeholder;
 a cached frame stays visible while the next frame loads. HDR inputs produce
 SDR tone-mapped thumbnails; main HDR/HLG playback remains on its native surface.
+
+The native preview caption uses Sunghyun Sans SemiBold (600), with regular text
+for secondary labels. The same project's WOFF2 fonts are repackaged as OpenType
+for Android, with the OFL license bundled; no replacement system face is used.
+The web/desktop timestamp also declares `font-sans font-semibold`. The preview
+background matches the dark web preview: 12 dp background blur with 70% background
+opacity, without a border. Android 12+ uses a small translucent, non-focusable,
+non-touchable window so the compositor can blur the native video behind the
+caption; a blur of the caption's own pixels or a CSS blur inside WebView cannot
+sample that separate video surface. The window never takes input/focus from the
+gesture. If Android disables window blur or an older OS is used, opacity increases
+to 90% for readability. Blur listeners and the preview window are removed on
+hide/detach. Physical blur appearance and frame pacing require the Pixel check.
 
 Firecore documents directional seeking, side brightness/volume gestures, and live
 preview thumbnails. It does not publish a numeric finger-height sensitivity curve;
@@ -336,6 +361,10 @@ the previous APK and the website; a device Perfetto/WebView trace is still neede
 if perceptible jitter remains. No GPU effects or page content were removed.
 
 References used:
+
+- [Android background-window blur, translucent backgrounds and graceful fallback](https://source.android.com/docs/core/display/window-blurs)
+- [System animator duration scale](https://developer.android.com/reference/android/animation/ValueAnimator#getDurationScale())
+- [Sunghyun Sans source and font license](https://github.com/anaclumos/sunghyun-sans)
 
 - [Media3 1.11.1 Brightness effect explicitly rejects HDR](https://github.com/androidx/media/blob/1.11.1/libraries/effect/src/main/java/androidx/media3/effect/Brightness.java)
 
