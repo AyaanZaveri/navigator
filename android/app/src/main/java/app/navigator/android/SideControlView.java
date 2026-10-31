@@ -35,9 +35,8 @@ final class SideControlView extends View {
     }
     @Override protected void onDraw(Canvas canvas) {
         float w = getWidth(), h = getHeight(), x = w / 2, top = 50*d, bottom = h - 54*d;
-        paint.setStyle(Paint.Style.FILL); paint.setColor(Color.argb(210, 15, 15, 15));
-        canvas.drawRoundRect(0, 0, w, h, 28*d, 28*d, paint);
-        paint.setColor(Color.WHITE); paint.setStrokeWidth(1.8f*d); paint.setStrokeCap(Paint.Cap.ROUND);
+        // Transparent surface; match the timeline's white fill and 20% track.
+        paint.setStyle(Paint.Style.FILL); paint.setColor(Color.WHITE); paint.setStrokeWidth(1.8f*d); paint.setStrokeCap(Paint.Cap.ROUND);
         if (volume) speaker(canvas, x, 26*d, false);
         else {
             paint.setStyle(Paint.Style.STROKE); canvas.drawCircle(x, 26*d, 5*d, paint);
@@ -47,11 +46,10 @@ final class SideControlView extends View {
                     x+(float)Math.cos(a)*12*d, 26*d+(float)Math.sin(a)*12*d, paint);
             }
         }
-        paint.setStyle(Paint.Style.FILL); paint.setColor(Color.argb(75,255,255,255));
-        canvas.drawRoundRect(x-2*d, top, x+2*d, bottom, 2*d, 2*d, paint);
+        paint.setStyle(Paint.Style.FILL); paint.setColor(Color.argb(51,255,255,255));
+        canvas.drawRoundRect(x-3*d, top, x+3*d, bottom, 3*d, 3*d, paint);
         float at = bottom - (bottom-top)*value;
-        paint.setColor(Color.WHITE); canvas.drawRoundRect(x-2*d, at, x+2*d, bottom, 2*d, 2*d, paint);
-        canvas.drawCircle(x, at, 4*d, paint);
+        paint.setColor(Color.WHITE); canvas.drawRoundRect(x-3*d, at, x+3*d, bottom, 3*d, 3*d, paint);
         if (volume) { paint.setStrokeWidth(1.8f*d); speaker(canvas, x, h-24*d, muted || value == 0); }
     }
     private void speaker(Canvas c, float x, float y, boolean crossed) {
