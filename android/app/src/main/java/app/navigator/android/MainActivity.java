@@ -276,7 +276,8 @@ public final class MainActivity extends ComponentActivity {
                     .replace("__ORIGIN__", JSONObject.quote(origin.toString()))
                     .replace("__EDGE_CSS__", JSONObject.quote(readAsset("edge-to-edge.css")))
                     .replace("__TOUCH_CONTROLS__", readAsset("touch-controls.js"))
-                    .replace("__BACK_NAVIGATION__", readAsset("back-navigation.js"));
+                    .replace("__BACK_NAVIGATION__", readAsset("back-navigation.js"))
+                    .replace("__PLAYER_UI__", readAsset("player-ui.js"));
                 script = WebViewCompat.addDocumentStartJavaScript(web, code, Collections.singleton(origin.toString()));
             } catch (java.io.IOException failure) { failPage("The Android playback bridge is missing. Reinstall Navigator."); }
         }
@@ -308,7 +309,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private float playerBackLeft(WindowInsetsCompat insets, int top, float density) {
-        float result = 8 * density;
+        float result = 16 * density;
         float y = top + 16 * density;
         var cutout = insets.getDisplayCutout();
         if (cutout != null) for (var rect : cutout.getBoundingRects()) {

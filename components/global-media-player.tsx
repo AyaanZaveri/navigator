@@ -663,13 +663,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {(loading || !streamUrl || !videoReady || playbackError) && (
           <div className="fixed inset-0 bg-black z-40">
             <Button
-              aria-label="Close player"
+              data-player-close=""
+              aria-label="Back to browsing"
               variant="ghost"
               className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
               onClick={() => handleClose()}
             >
               <ArrowLeft className="h-4 w-4" />
-              Go Back
+              Back
             </Button>
 
             {fallbackBackdrop ? (
@@ -797,13 +798,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
         <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
           <Button
-            aria-label="Close player"
+            data-player-close=""
+              aria-label="Back to browsing"
             variant="ghost"
             className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
             onClick={() => handleClose()}
           >
             <ArrowLeft className="h-4 w-4" />
-            Go Back
+            Back
           </Button>
 
           {fetchingSubtitles && (

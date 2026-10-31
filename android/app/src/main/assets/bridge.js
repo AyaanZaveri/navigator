@@ -32,7 +32,7 @@
       // Compatibility with the deployed React player before the Android PR merges.
       if (!handled) {
         const shell = document.querySelector('[data-native-player-shell]');
-        (shell?.querySelector('button[aria-label="Close player"]') || shell?.querySelector('button'))?.click();
+        (shell?.querySelector('button[data-player-close]') || shell?.querySelector('button[aria-label="Close player"]') || shell?.querySelector('button'))?.click();
       }
       return;
     }
@@ -112,10 +112,12 @@
   const onScrollVisibility = () => { if (document.hidden) endScroll(); };
   document.addEventListener('scroll', onScroll, { capture: true, passive: true });
   document.addEventListener('visibilitychange', onScrollVisibility);
+  const disposePlayerUI = __PLAYER_UI__(document, send);
   const navigation = __BACK_NAVIGATION__(document, window, send);
   const disposeTouchControls = __TOUCH_CONTROLS__(document, window.navigatorDesktop);
   window.addEventListener('pagehide', () => {
     disposeTouchControls();
+    disposePlayerUI();
     navigation.dispose();
     document.removeEventListener('scroll', onScroll, { capture: true });
     document.removeEventListener('visibilitychange', onScrollVisibility);

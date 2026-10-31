@@ -12,6 +12,7 @@ with zipfile.ZipFile(apk) as archive:
     assert archive.read("assets/edge-to-edge.css") == (root / "app/src/main/assets/edge-to-edge.css").read_bytes(), "Stale or missing edge-to-edge styles"
     assert archive.read("assets/touch-controls.js") == (root / "app/src/main/assets/touch-controls.js").read_bytes(), "Stale or missing touch controls"
     assert archive.read("assets/back-navigation.js") == (root / "app/src/main/assets/back-navigation.js").read_bytes(), "Stale or missing back navigation"
+    assert archive.read("assets/player-ui.js") == (root / "app/src/main/assets/player-ui.js").read_bytes(), "Stale or missing player UI hooks"
     assert not any(any(part.startswith(".env") for part in Path(name).parts) or name.startswith("assets/media/") for name in names), "Unexpected credentials or demo payload"
     assert not any(name.startswith("lib/") for name in names), "Unexpected native codec libraries"
 print("PASS: APK integrity, bridge payload, and direct installable APK structure")

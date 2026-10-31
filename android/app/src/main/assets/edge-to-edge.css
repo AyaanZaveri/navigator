@@ -36,9 +36,14 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-controls"] {
   padding-left: max(1.5rem, calc(.75rem + var(--navigator-inset-left)));
   padding-right: max(1.5rem, calc(.75rem + var(--navigator-inset-right)));
 }
-html[data-native-engine="exoplayer"] [data-native-player-shell] button[class~="top-4"][class~="left-4"] {
+html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-player-close], button[class~="top-4"][class~="left-4"]) {
   top: calc(1rem + var(--navigator-inset-top));
-  left: var(--navigator-player-back-left, .5rem);
+  left: var(--navigator-player-back-left, 1rem);
+  min-height: 44px;
+  padding-inline: 12px;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.25;
 }
 /* Compatibility visibility is owned only while the deployed UI lacks the
    current React touch controller. Fade opacity without affecting the video. */

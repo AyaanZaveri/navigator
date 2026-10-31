@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const origin = 'https://navigator.test';
 const script = fs.readFileSync('android/app/src/main/assets/bridge.js', 'utf8')
     .replace('__ORIGIN__', JSON.stringify(origin))
+    .replace('__PLAYER_UI__', fs.readFileSync('android/app/src/main/assets/player-ui.js', 'utf8'))
     .replace('__BACK_NAVIGATION__', fs.readFileSync('android/app/src/main/assets/back-navigation.js', 'utf8'))
     .replace('__TOUCH_CONTROLS__', fs.readFileSync('android/app/src/main/assets/touch-controls.js', 'utf8'))
     .replace('__EDGE_CSS__', JSON.stringify(fs.readFileSync('android/app/src/main/assets/edge-to-edge.css', 'utf8')));
@@ -23,7 +24,9 @@ function setup({ foreign = false, iframe = false, delayedRoot = false, clock = {
     document.head = { appendChild(node) { styles.push(node); } };
     document.documentElement = delayedRoot ? null : root;
     let closed = 0;
-    document.querySelector = selector => selector.includes('data-slot="media-player"') ? null : ({ querySelector: () => ({ click: () => closed++ }) });
+    document.querySelector = selector => selector === '[data-native-player-shell]'
+        ? { querySelector: () => ({ click: () => closed++ }), querySelectorAll: () => [] }
+        : selector.includes('data-slot="media-player"') ? null : { querySelector: () => ({ click: () => closed++ }) };
     const window = { NavigatorAndroid: { postMessage: value => sent.push(JSON.parse(value)) }, addEventListener: (type, callback) => { callbacks[type] = callback; }, removeEventListener: type => { delete callbacks[type]; } };
     window.top = iframe ? {} : window;
     const MutationObserver = class {
