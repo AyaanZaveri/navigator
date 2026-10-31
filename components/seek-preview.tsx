@@ -41,14 +41,14 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
 
     useLayoutEffect(() => {
         const video = videoNode.current;
-        if (!browserMode || !video || !source) return;
+        if (!browserMode || !videoAttached || !video || !source) return;
         const provider = new BrowserPreviewFrames(video, (at, src, videoFrame) => {
             if (wanted.current !== null) setFrame({ time: at, src, video: !!videoFrame, unavailable: !src && !videoFrame });
         }, window.matchMedia("(dynamic-range: high)").matches);
         browser.current = provider;
         // Restore the source after Strict Mode's effect cleanup on the same element.
         video.muted = true;
-        video.src = source;
+        if (video.getAttribute("src") !== source) video.src = source;
         return () => { provider.dispose(); if (browser.current === provider) browser.current = null; };
     }, [browserMode, videoAttached, source]);
 
@@ -61,6 +61,7 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
             return;
         }
         if (browserMode) {
+            if (!browser.current) return;
             scheduler.current.want(bucket, (at) => browser.current?.want(at));
             return;
         }
