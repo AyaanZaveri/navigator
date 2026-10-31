@@ -64,14 +64,14 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
     return (
         <div className={styles.actions}>
             {addon.configurable && (
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" size="sm">
                     <a href={`/api/addons/${addon.id}/configure`} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
                         <Settings data-icon="inline-start" aria-hidden="true" />Settings
                     </a>
                 </Button>
             )}
             <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-                <DialogTrigger asChild><Button variant="outline" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
+                <DialogTrigger asChild><Button variant="outline" size="sm" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
                 <DialogContent title={`Share ${addon.name}`} description="Copy the manifest link to install this addon in Stremio.">
                     <div className={styles.dialogBody}>
                         {shareUrl ? (
@@ -91,7 +91,7 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
             </Dialog>
             {!addon.protected && (
                 <AlertDialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>
-                    <AlertDialogTrigger asChild><Button variant="ghost" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></AlertDialogTrigger>
+                    <AlertDialogTrigger asChild><Button variant="ghost" size="sm" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></AlertDialogTrigger>
                     <AlertDialogContent aria-busy={removing}>
                         <AlertDialogHeader>
                             <AlertDialogTitle>Uninstall {addon.name}?</AlertDialogTitle>

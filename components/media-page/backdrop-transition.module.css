@@ -1,0 +1,78 @@
+.transition {
+    position: absolute;
+    z-index: 2;
+    inset-inline: 0;
+    bottom: 0;
+    height: min(100%, 24rem);
+    pointer-events: none;
+}
+
+.blur,
+.fade {
+    position: absolute;
+    inset: 0;
+}
+
+/* Fade to the active theme's background before body text meets the artwork.
+   Blur softens detail; the color fade supplies the text's contrast. */
+.fade {
+    background: linear-gradient(to bottom,
+            transparent 0%,
+            color-mix(in oklab, var(--background) 8%, transparent) 10%,
+            color-mix(in oklab, var(--background) 22%, transparent) 20%,
+            color-mix(in oklab, var(--background) 43%, transparent) 32%,
+            color-mix(in oklab, var(--background) 65%, transparent) 44%,
+            color-mix(in oklab, var(--background) 82%, transparent) 56%,
+            color-mix(in oklab, var(--background) 93%, transparent) 68%,
+            color-mix(in oklab, var(--background) 98%, transparent) 80%,
+            color-mix(in oklab, var(--background) 99.5%, transparent) 90%,
+            var(--background) 100%);
+}
+
+.content {
+    margin-top: -13.5rem;
+}
+
+/* Keep the original hero overlap. A small light-mode wash lowers the
+   artwork's contrast, while this longer curve avoids a visible white band. */
+:global(html:not(.dark)) .hero {
+    background: var(--background);
+}
+
+:global(html:not(.dark)) .artwork {
+    opacity: .88;
+}
+
+:global(html:not(.dark)) .fade {
+    background: linear-gradient(to bottom,
+            transparent 0%,
+            color-mix(in oklab, var(--background) 3%, transparent) 8%,
+            color-mix(in oklab, var(--background) 9%, transparent) 16%,
+            color-mix(in oklab, var(--background) 20%, transparent) 24%,
+            color-mix(in oklab, var(--background) 36%, transparent) 32%,
+            color-mix(in oklab, var(--background) 54%, transparent) 40%,
+            color-mix(in oklab, var(--background) 70%, transparent) 48%,
+            color-mix(in oklab, var(--background) 82%, transparent) 56%,
+            color-mix(in oklab, var(--background) 90%, transparent) 64%,
+            color-mix(in oklab, var(--background) 95%, transparent) 72%,
+            color-mix(in oklab, var(--background) 98%, transparent) 84%,
+            var(--background) 100%);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .blur {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce),
+(prefers-contrast: more) {
+    .blur {
+        display: none;
+    }
+
+    .fade,
+    :global(html:not(.dark)) .fade {
+        background: linear-gradient(to bottom, transparent, var(--background) 25%);
+    }
+}

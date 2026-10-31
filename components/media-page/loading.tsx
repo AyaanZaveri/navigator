@@ -1,3 +1,4 @@
+import backdropStyles from "@/components/media-page/backdrop-transition.module.css";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -10,7 +11,7 @@ export function MediaDetailsLoading() {
     >
       <span className="sr-only">Loading media details…</span>
       <div aria-hidden="true" className="h-[46vh] w-full md:h-[62vh]" />
-      <div className="relative mx-4 -mt-54 rounded-2xl bg-background px-4 pt-6 pb-6 md:px-6 md:pt-8">
+      <div className={`${backdropStyles.content} relative mx-4 px-4 pt-6 pb-6 md:px-6 md:pt-8`}>
         <LoadingPlaceholder className="@container">
           <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
             <div className="aspect-[2/3] w-40 max-w-full rounded-lg bg-muted/30 @3xl:w-full" />

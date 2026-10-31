@@ -1,3 +1,5 @@
+import backdropStyles from "@/components/media-page/backdrop-transition.module.css";
+import { BackdropTransition } from "@/components/media-page/backdrop-transition";
 import { CastSection } from "@/components/media-page/cast-section";
 import { fetchMediaDetails, fetchSimilarItems } from "@/app/actions";
 import { MediaActions } from "@/components/media-actions";
@@ -71,20 +73,20 @@ export default async function Movie({
     };
 
     return (
-      <div className="min-h-screen overflow-hidden pb-8">
+      <div className="relative isolate min-h-screen overflow-hidden pb-8">
         <VibrantAuroraBackground
           backdropUrl={movie.background}
           posterUrl={movie.poster}
-          className="fixed inset-0 z-10 pointer-events-none opacity-50"
+          className="fixed inset-0 z-[3] pointer-events-none opacity-20"
         />
 
         {/* Backdrop section */}
         <div className="relative">
-          <div className="relative h-[46vh] md:h-[62vh] overflow-hidden">
+          <div className={`${backdropStyles.hero} relative h-[46vh] md:h-[62vh] overflow-hidden`}>
             <BackdropImage
               movie={movie}
               backdropImage={movie.background || ""}
-              className="w-full h-full object-cover"
+              className={`${backdropStyles.artwork} w-full h-full object-cover`}
               width={1920}
               height={1080}
             />
@@ -98,13 +100,12 @@ export default async function Movie({
                 />
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90" />
-            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
+            <BackdropTransition />
           </div>
         </div>
 
         {/* Content section */}
-        <div className="relative z-10 -mt-54 px-4 pt-6 md:px-6 md:pt-8 bg-background/95 dark:bg-background/50 backdrop-blur-xl rounded-2xl mx-4 pb-6">
+        <div className={`${backdropStyles.content} relative z-10 px-4 pt-6 md:px-6 md:pt-8 mx-4 pb-6`}>
           <div
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"

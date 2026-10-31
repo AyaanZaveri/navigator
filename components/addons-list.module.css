@@ -1,13 +1,17 @@
 .directory {
+  --addon-control-surface: color-mix(in oklab, var(--background) 90%, transparent);
+  --addon-surface-blur: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   width: 100%;
   min-width: 0;
 }
 
 .toolbar {
-  --addon-control-surface: color-mix(in oklab, var(--background) 90%, transparent);
   --search-field-surface: var(--addon-control-surface);
   --chip-surface: var(--addon-control-surface);
-  --chip-backdrop-blur: 12px;
+  --chip-backdrop-blur: var(--addon-surface-blur);
   --chip-group-isolation: auto;
   --control-height-sm: 36px;
   --control-height-md: 36px;
@@ -18,7 +22,7 @@
   gap: 12px 16px;
 }
 
-:global(.dark) .toolbar {
+:global(.dark) .directory {
   --addon-control-surface: color-mix(in oklab, var(--background) 70%, transparent);
 }
 
@@ -26,13 +30,6 @@
   width: min(100%, 20rem);
   min-width: 0;
   flex: 0 1 20rem;
-}
-
-.resultCount {
-  margin-block: 24px 12px;
-  color: var(--muted-foreground);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
 }
 
 .list {
@@ -54,7 +51,9 @@
   padding: 20px;
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: color-mix(in oklab, var(--background) 92%, transparent);
+  background: var(--addon-control-surface);
+  -webkit-backdrop-filter: blur(var(--addon-surface-blur));
+  backdrop-filter: blur(var(--addon-surface-blur));
 }
 
 .actions {
@@ -64,7 +63,6 @@
   justify-content: flex-end;
   max-width: 100%;
   margin-block-start: auto;
-  padding-block-start: 12px;
   gap: 8px;
 }
 
@@ -130,8 +128,7 @@
   overflow-wrap: anywhere;
 }
 
-.types,
-.catalogCount {
+.details {
   margin-block-start: 8px;
   color: var(--muted-foreground);
   font-size: 12px;
@@ -144,6 +141,7 @@
   flex-direction: column;
   align-items: flex-end;
   align-self: stretch;
+  gap: 12px;
 }
 
 .capabilities {
@@ -169,10 +167,9 @@
   }
   .metadata {
     grid-column: 2;
-    align-items: flex-start;
+    align-items: stretch;
   }
   .capabilities { justify-content: flex-start; }
-  .actions { justify-content: flex-start; margin-block-start: 0; }
 }
 
 @media (max-width: 26rem) {
@@ -184,9 +181,9 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .toolbar {
+  .directory,
+  :global(.dark) .directory {
     --addon-control-surface: var(--background);
-    --chip-backdrop-blur: 0px;
+    --addon-surface-blur: 0px;
   }
-  .row { background: var(--background); }
 }

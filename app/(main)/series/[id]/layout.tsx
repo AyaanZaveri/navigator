@@ -1,3 +1,5 @@
+import backdropStyles from "@/components/media-page/backdrop-transition.module.css";
+import { BackdropTransition } from "@/components/media-page/backdrop-transition";
 import { CastSection } from "@/components/media-page/cast-section";
 import { MediaSection } from "@/components/media-section";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
@@ -51,19 +53,19 @@ export default async function SeriesLayout({
     const { show } = layoutData;
 
     return (
-      <div className="min-h-screen overflow-hidden pb-8">
+      <div className="relative isolate min-h-screen overflow-hidden pb-8">
         <VibrantAuroraBackground
           backdropUrl={show.background}
           posterUrl={show.poster}
-          className="fixed inset-0 z-10 pointer-events-none opacity-50"
+          className="fixed inset-0 z-[3] pointer-events-none opacity-20"
         />
 
         <div className="relative">
-          <div className="relative h-[46vh] md:h-[62vh] overflow-hidden">
+          <div className={`${backdropStyles.hero} relative h-[46vh] md:h-[62vh] overflow-hidden`}>
             <BackdropImage
               movie={show}
               backdropImage={show.background || ""}
-              className="w-full h-full object-cover"
+              className={`${backdropStyles.artwork} w-full h-full object-cover`}
               width={1920}
               height={1080}
             />
@@ -84,12 +86,11 @@ export default async function SeriesLayout({
                 </Link>
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black/90" />
-            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
+            <BackdropTransition />
           </div>
         </div>
 
-        <div className="relative z-10 -mt-54 px-4 md:px-6 bg-background/95 dark:bg-background/50 backdrop-blur-xl rounded-2xl mx-4 pb-6">
+        <div className={`${backdropStyles.content} relative z-10 px-4 md:px-6 mx-4 pb-6`}>
           <div
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"
@@ -98,7 +99,7 @@ export default async function SeriesLayout({
 
           <div className="mt-10 md:mt-8">
             <SeriesEpisodesRouteAware
-              showId={id}
+              showId={show.id}
               prefetchedVideos={show.videos}
             />
           </div>
@@ -110,7 +111,7 @@ export default async function SeriesLayout({
         </div>
 
         <Suspense fallback={null}>
-          <CastSection id={id} type="series" names={show.cast} />
+          <CastSection id={show.id} type="series" names={show.cast} />
         </Suspense>
 
         <Suspense fallback={null}>

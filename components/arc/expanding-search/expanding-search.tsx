@@ -7,6 +7,9 @@ import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, 
 import type { MotionValue } from "motion/react";
 import { Search, X } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
+import { BorderBeam } from "border-beam";
+import { useTheme } from "next-themes";
+import { navigatorBeamColors } from "@/lib/navigator-beam";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./expanding-search.module.css";
 
@@ -93,7 +96,8 @@ function Match({ text, query }: { text: string; query: string }) {
 }
 
 /** The panel shares the field's width value, so on first open it unfolds out of the field; afterwards only its height follows the content. */
-function Panel({ width, reduced, children }: { width: MotionValue<number>; reduced: boolean; children: ReactNode }) {
+function Panel({ width, reduced, loading, children }: { width: MotionValue<number>; reduced: boolean; loading: boolean; children: ReactNode }) {
+  const { resolvedTheme } = useTheme();
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const height = useMotionValue(0);
@@ -101,7 +105,8 @@ function Panel({ width, reduced, children }: { width: MotionValue<number>; reduc
     const panel = panelRef.current, body = bodyRef.current;
     if (!panel || !body || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      const next = body.offsetHeight + panel.offsetHeight - panel.clientHeight;
+      const surface = body.parentElement;
+      const next = body.offsetHeight + (surface ? surface.offsetHeight - surface.clientHeight : 0);
       if (reduced) height.jump(next);
       else animate(height, next, motionTokens.spring.smooth);
     });
@@ -109,11 +114,25 @@ function Panel({ width, reduced, children }: { width: MotionValue<number>; reduc
     return () => observer.disconnect();
   }, [height, reduced]);
   // Reduced motion skips the unfold: the panel is its content's height from the first frame and only fades.
-  return <motion.div ref={panelRef} className={styles.panel} style={{ width, height: reduced ? "auto" : height }}
+  return <motion.div ref={panelRef} className={styles.panel} style={{ width, height: reduced ? "auto" : height }} aria-busy={loading}
     initial={{ opacity: 0 }}
     animate={{ opacity: 1, transition: { duration: reduced ? .15 : motionTokens.duration.fast, ease: enter } }}
     exit={{ opacity: 0, transition: { duration: reduced ? .1 : motionTokens.duration.instant, ease: standard } }}>
-    <div ref={bodyRef} className={styles.body}>{children}</div>
+    <BorderBeam
+      active={loading && !reduced}
+      size="md"
+      css={navigatorBeamColors}
+      theme={resolvedTheme === "dark" ? "dark" : "light"}
+      staticColors
+      duration={4}
+      strength={1}
+      glowSize={1}
+      className={styles.panelBeam}
+    >
+      <div className={styles.panelSurface}>
+        <div ref={bodyRef} className={styles.body}>{children}</div>
+      </div>
+    </BorderBeam>
   </motion.div>;
 }
 
@@ -345,7 +364,7 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
       </AnimatePresence>
     </motion.div>
     <AnimatePresence>
-      {panelOpen && <Panel key="panel" width={width} reduced={reduced}>
+      {panelOpen && <Panel key="panel" width={width} reduced={reduced} loading={loading}>
         <AnimatePresence mode="popLayout" initial={false}>
             <motion.div key={mode} className={styles.view}
               initial={reduced ? { opacity: 0 } : { opacity: 0, filter: `blur(${motionTokens.blur.subtle}px)` }}

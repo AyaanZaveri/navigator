@@ -23,7 +23,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import { buildEpisodePath } from "@/lib/series-route";
-import { artworkUrl } from "@/lib/artwork";
+import { episodeThumbnailUrl } from "@/lib/artwork";
 import type { StremioVideo } from "@/types/stremio";
 
 interface SeasonEpisodesProps {
@@ -78,7 +78,7 @@ function normalizeVideosToEpisodes(
         season,
         episode,
         overview: video.overview,
-        thumbnail: artworkUrl(showId, "series", "still", season, episode),
+        thumbnail: episodeThumbnailUrl(video.thumbnail, showId, season, episode),
         released: video.released,
         resumePositionTicks:
           typeof video.resumePositionTicks === "number"
@@ -524,11 +524,12 @@ const EpisodeCard = React.memo(function EpisodeCard({
   showId: string;
   isActive?: boolean;
 }) {
-  const [thumbnailLoadFailed, setThumbnailLoadFailed] = useState(false);
-
-  useEffect(() => {
-    setThumbnailLoadFailed(false);
-  }, [episode.thumbnail]);
+  const thumbnail = episodeThumbnailUrl(episode.thumbnail, showId, episode.season, episode.episode);
+  const [imageFailure, setImageFailure] = useState<{ source?: string; attempts: number } | null>(null);
+  const failedAttempts = imageFailure && imageFailure.source === thumbnail ? imageFailure.attempts : 0;
+  const imageSrc = thumbnail && failedAttempts === 1
+    ? `${thumbnail}${thumbnail.includes("?") ? "&" : "?"}retry=1`
+    : thumbnail;
 
   const formatDate = useCallback((dateString: string | undefined) => {
     if (!dateString) return null;
@@ -545,7 +546,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
   const hasValidReleaseDate =
     typeof releaseTimestamp === "number" && !Number.isNaN(releaseTimestamp);
   const isUpcoming = hasValidReleaseDate && releaseTimestamp > Date.now();
-  const hasUsableThumbnail = Boolean(episode.thumbnail) && !thumbnailLoadFailed;
+  const hasUsableThumbnail = Boolean(thumbnail) && failedAttempts < 2;
   const formattedReleaseDate = formatDate(episode.released);
 
   return (
@@ -573,9 +574,10 @@ const EpisodeCard = React.memo(function EpisodeCard({
               </div>
             ) : hasUsableThumbnail ? (
               <img
-                src={episode.thumbnail}
+                src={imageSrc}
+                alt={episode.title || "Episode thumbnail"}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                onError={() => setThumbnailLoadFailed(true)}
+                onError={() => setImageFailure({ source: thumbnail, attempts: failedAttempts + 1 })}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">

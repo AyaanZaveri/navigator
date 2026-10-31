@@ -9,8 +9,11 @@ export function artworkUrl(
   episode?: number,
 ): string | undefined {
   if (type !== "movie" && type !== "series") return undefined;
-  const mediaId = /^(tt\d+)(?::|$)/.exec(id)?.[1]
-    ?? /^tmdb:\d+$/.exec(id)?.[0];
+  const normalizedId = (() => {
+    try { return decodeURIComponent(id); } catch { return id; }
+  })();
+  const mediaId = /^(tt\d+)(?::|$)/.exec(normalizedId)?.[1]
+    ?? /^(tmdb:\d+)(?::\d+:\d+)?$/.exec(normalizedId)?.[1];
   if (!mediaId) return undefined;
   const params = new URLSearchParams({ id: mediaId, type, kind });
   // Invalidate cached logo redirects from before SVG support.
@@ -18,6 +21,8 @@ export function artworkUrl(
   if (kind === "still") {
     if (type !== "series" || typeof season !== "number" || !Number.isSafeInteger(season) || season < 0
       || typeof episode !== "number" || !Number.isSafeInteger(episode) || episode < 1) return undefined;
+    // Refresh still URLs that may have cached failures before TMDB was ready.
+    params.set("v", "1");
     params.set("season", String(season));
     params.set("episode", String(episode));
   }
@@ -45,4 +50,17 @@ export function artworkFromPath(path?: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Keep the canonical TMDB artwork supplied by server metadata. Route IDs can
+ * be encoded or include episode suffixes, so rebuilding them loses valid URLs. */
+export function episodeThumbnailUrl(
+  thumbnail: string | undefined,
+  showId: string,
+  season: number,
+  episode: number,
+): string | undefined {
+  if (thumbnail?.startsWith("/api/artwork?")) return thumbnail;
+  if (thumbnail?.startsWith("https://image.tmdb.org/t/p/")) return thumbnail;
+  return artworkUrl(showId, "series", "still", season, episode);
 }

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     return new Response(null, { status: 400 });
   }
   const image = await getTMDBArtwork(id, type, kind, season, episode);
-  if (!image) return new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=60" } });
+  if (!image) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
   return new Response(null, {
     status: 307,
     headers: { Location: image, "Cache-Control": "public, max-age=86400" },

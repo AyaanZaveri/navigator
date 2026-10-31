@@ -21,92 +21,103 @@ export default async function SeriesOverviewPage({
     const { show, regularSeasonCount } = layoutData;
 
     return (
-      <div className="flex flex-col md:flex-row md:gap-2 mx-auto">
-        <div className="w-full md:w-auto flex-shrink-0 justify-center flex md:block z-50 mt-6">
-          <PosterImage
-            movie={show}
-            posterImage={show.poster || ""}
-            className="w-full h-auto rounded-lg shadow-lg max-w-1/2 md:w-[14rem] md:max-w-none"
-            width={500}
-            height={750}
-          />
-        </div>
+      <section aria-labelledby="series-title" className="@container pt-6 md:pt-8">
+        <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
+          <div className="relative w-40 max-w-full @3xl:w-full">
+            <PosterImage
+              movie={show}
+              posterImage={show.poster || ""}
+              className="w-full h-auto rounded-lg shadow-lg"
+              width={500}
+              height={750}
+            />
+          </div>
 
-        <div className="w-full min-w-0 flex-1 pt-2 text-center md:text-start mt-8 md:mt-12">
-          <div className="px-8 md:pl-8 md:pt-4 md:pr-16 flex flex-col justify-center md:items-start items-center">
-            <div className="mb-4 flex justify-center md:justify-start w-full">
-              <h1 className="text-4xl md:text-5xl font-semibold font-poppins text-foreground drop-shadow-xl">
-                {show.name}
+          <div className="flex min-w-0 flex-col gap-6 text-start @3xl:pt-3">
+            <div className="flex min-w-0 flex-col gap-3">
+              <h1
+                id="series-title"
+                className="min-w-0 break-words text-3xl font-semibold leading-tight text-foreground text-balance @lg:text-4xl @5xl:text-5xl"
+              >
+                {show.name || ""}
               </h1>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 mb-6 justify-center md:justify-start w-full">
-              {!show.releaseInfo && show.year && (
-                <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-                  {show.year}
-                </Badge>
-              )}
-              {show.releaseInfo && (
-                <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-                  {show.releaseInfo}
-                </Badge>
-              )}
-              {show.imdbRating && (
-                <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                  {show.imdbRating}
-                </Badge>
-              )}
-              {regularSeasonCount > 0 && (
-                <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-                  {regularSeasonCount} Season{regularSeasonCount !== 1 ? "s" : ""}
-                </Badge>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {(show.releaseInfo || show.year) && (
+                  <Badge
+                    variant="outline"
+                    className="bg-background/90 backdrop-blur-sm"
+                  >
+                    {show.releaseInfo || show.year}
+                  </Badge>
+                )}
+                {show.imdbRating && (
+                  <Badge
+                    variant="outline"
+                    className="bg-background/90 backdrop-blur-sm"
+                  >
+                    <Star className="size-3 fill-yellow-400 text-yellow-400" />
+                    {show.imdbRating}
+                  </Badge>
+                )}
+                {regularSeasonCount > 0 && (
+                  <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
+                    {regularSeasonCount} Season{regularSeasonCount !== 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </div>
             </div>
 
             {show.description && (
-              <p className="text-md leading-relaxed mb-6 max-w-4xl">
+              <p className="max-w-prose whitespace-pre-line break-words text-base leading-relaxed">
                 {show.description}
               </p>
             )}
 
-            <div className="space-y-3 mb-6 max-w-4xl">
+            <dl className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-3 gap-y-3 text-sm">
               {show.genres && show.genres.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground min-w-fit">
-                    Genres:
-                  </span>
-                  <div className="flex flex-wrap gap-1">
+                <>
+                  <dt className="text-muted-foreground">Genres</dt>
+                  <dd className="flex min-w-0 flex-wrap gap-1.5">
                     {show.genres.map((genre) => (
-                      <Badge key={genre} variant="secondary" className="text-xs">
+                      <Badge
+                        key={genre}
+                        variant="secondary"
+                        className="text-xs"
+                      >
                         {genre}
                       </Badge>
                     ))}
-                  </div>
-                </div>
+                  </dd>
+                </>
               )}
-
               {show.director && show.director.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground min-w-fit">
-                    Director:
-                  </span>
-                  <span className="text-sm">{show.director.join(", ")}</span>
-                </div>
+                <>
+                  <dt className="text-muted-foreground">Director</dt>
+                  <dd className="min-w-0 break-words">
+                    {show.director.join(", ")}
+                  </dd>
+                </>
               )}
-
+              {show.writer && show.writer.length > 0 && (
+                <>
+                  <dt className="text-muted-foreground">Writers</dt>
+                  <dd className="min-w-0 break-words">
+                    {show.writer.join(", ")}
+                  </dd>
+                </>
+              )}
               {show.cast && show.cast.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground min-w-fit">
-                    Cast:
-                  </span>
-                  <span className="text-sm">{show.cast.slice(0, 8).join(", ")}</span>
-                </div>
+                <>
+                  <dt className="text-muted-foreground">Cast</dt>
+                  <dd className="min-w-0 break-words">
+                    {show.cast.slice(0, 8).join(", ")}
+                  </dd>
+                </>
               )}
-            </div>
+            </dl>
           </div>
         </div>
-      </div>
+      </section>
     );
   } catch (error: any) {
     if (error.message?.includes("Authentication expired")) {

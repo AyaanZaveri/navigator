@@ -55,8 +55,10 @@
 .clear { position: absolute; z-index: 1; top: calc(50% - 14px); right: 7px; display: grid; width: 28px; height: 28px; place-items: center; margin: 0; padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--icon-color); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard); -webkit-tap-highlight-color: transparent; }
 
 /* A floating layer: its width is the field's, so it unfolds from the field on first open; its content keeps the final width and rides the leading edge. */
-.panel { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--surface-raised); box-shadow: var(--shadow-floating); pointer-events: auto; }
+.panel { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; overflow: visible; border-radius: var(--radius-panel); box-shadow: var(--shadow-floating); pointer-events: auto; }
 .root[data-anchor="start"] .panel { right: auto; left: 0; }
+.panelBeam { width: 100%; height: 100%; border-radius: inherit; }
+.panelSurface { height: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: inherit; background: var(--surface); }
 .body { position: relative; width: calc(var(--es-width, 360px) - 2px); max-height: min(22rem, 60vh); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 6px; scrollbar-width: thin; }
 .view { position: relative; }
 /* A flex gap, not margins: a group popping out while it leaves never lets the next one's margin collapse through the list. */
@@ -83,7 +85,7 @@
 }
 
 .root[data-persistent] .shell { border-radius: var(--radius-control); }
-.shell, .panel { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.shell, .panelSurface { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .input { font-size: 1rem; }
 .input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .panel { font-weight: 500; }

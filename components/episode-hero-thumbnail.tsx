@@ -13,7 +13,7 @@ export function EpisodeHeroThumbnail({
   released,
   title,
 }: EpisodeHeroThumbnailProps) {
-  const [thumbnailLoadFailed, setThumbnailLoadFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | undefined>();
 
   const releaseDate = useMemo(
     () => (released ? new Date(released) : null),
@@ -23,7 +23,7 @@ export function EpisodeHeroThumbnail({
   const hasValidReleaseDate =
     typeof releaseTimestamp === "number" && !Number.isNaN(releaseTimestamp);
   const isUpcoming = hasValidReleaseDate && releaseTimestamp > Date.now();
-  const hasUsableThumbnail = Boolean(thumbnail) && !thumbnailLoadFailed;
+  const hasUsableThumbnail = Boolean(thumbnail) && failedSrc !== thumbnail;
   const shouldShowUnavailable = isUpcoming || !hasUsableThumbnail;
 
   const formattedReleaseDate =
@@ -49,7 +49,7 @@ export function EpisodeHeroThumbnail({
       src={thumbnail}
       alt={title}
       className="h-full w-full object-cover"
-      onError={() => setThumbnailLoadFailed(true)}
+      onError={() => setFailedSrc(thumbnail)}
     />
   );
 }
