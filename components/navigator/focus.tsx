@@ -586,7 +586,7 @@ export function NavigatorFocus({
           </div>
         ) : showLauncher ? (
           <motion.div
-            className="mb-1"
+            className="mb-0 sm:mb-1"
             animate={
               focusState === "launcher-exiting"
                 ? {
@@ -612,6 +612,7 @@ export function NavigatorFocus({
             transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
           >
             <Button
+              data-navigator-launcher=""
               aria-expanded={isOpen}
               aria-keyshortcuts="Meta+K Control+K"
               className="h-9 rounded-full border border-border backdrop-blur-sm bg-popover/85 dark:bg-popover/75 px-3.5 shadow-xl shadow-primary/7 dark:shadow-primary/6 hover:bg-muted/75!"

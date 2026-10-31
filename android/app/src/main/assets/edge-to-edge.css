@@ -61,3 +61,25 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] button[class~="t
     transition-duration: 100ms !important;
   }
 }
+
+/* Also size the launcher in the currently deployed UI, before the web PR
+   merges. The open chat panel keeps its existing safe-area placement. */
+@media (width < 40rem) {
+  html[data-native-engine="exoplayer"] [data-navigator-focus-ui]:has(:is([data-navigator-launcher], button[aria-keyshortcuts="Meta+K Control+K"])) {
+    bottom: calc(.5rem + var(--navigator-inset-bottom));
+  }
+  html[data-native-engine="exoplayer"] [data-navigator-focus-ui] :is([data-navigator-launcher], button[aria-keyshortcuts="Meta+K Control+K"]) {
+    height: 2.75rem;
+    gap: .5rem;
+    padding-inline: 1.25rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+  html[data-native-engine="exoplayer"] [data-navigator-focus-ui] :is([data-navigator-launcher], button[aria-keyshortcuts="Meta+K Control+K"]) > svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  html[data-native-engine="exoplayer"] [data-navigator-focus-ui] .mb-1:has(> button[aria-keyshortcuts="Meta+K Control+K"]) {
+    margin-bottom: 0;
+  }
+}
