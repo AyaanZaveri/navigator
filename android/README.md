@@ -164,8 +164,10 @@ progress text never triggers layout measurements or extra bridge traffic.
 
 During Android playback, swipe vertically in the full left third to adjust
 app-window brightness, or the full right third to adjust **Android media volume**.
-Up increases and down decreases. Thin vertical bars use a 56 dp drag target;
-the volume bar includes a separate mute/unmute target. Drag either bar directly.
+Up increases and down decreases. Transparent vertical bars copy the timeline's
+6 dp rounded track, white fill and 20% white unfilled track, without a thumb or
+background panel. The invisible drag target remains 56 dp wide; the volume bar
+includes a separate mute/unmute target. Drag either bar directly.
 The parent waits for clear directional intent, then sends `ACTION_CANCEL` to the
 WebView so a swipe cannot become a tap. Visible controls and top buttons keep
 their touch areas. Hidden controls release the full video height. Horizontal
@@ -203,6 +205,13 @@ blend; shorter videos scale to their duration.
 
 Brightness uses `WindowManager.LayoutParams.screenBrightness` and restores the
 previous window value, including automatic/default policy, when playback closes.
+The 100% endpoint requests `BRIGHTNESS_OVERRIDE_FULL` (1.0) independently of the
+phone's preferred brightness. Updates compare the actual window attributes and
+reflect the applied value, avoiding stale cached requests and skipped endpoints.
+Regaining window focus reapplies the active override, including after Quick
+Settings. JVM regressions verify absolute requests, attribute resets, exact
+endpoints, focus reapplication and restoration; actual panel brightness still
+needs a physical-device check.
 Volume and mute use `AudioManager.STREAM_MUSIC` with the normal
 `MODIFY_AUDIO_SETTINGS` permission. No global brightness settings or
 `WRITE_SETTINGS` permission are required. Devices restricting volume are handled

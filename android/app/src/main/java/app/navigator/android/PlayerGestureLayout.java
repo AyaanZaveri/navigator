@@ -9,6 +9,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.FrameLayout;
 import androidx.media3.common.util.UnstableApi;
@@ -31,8 +32,7 @@ final class PlayerGestureLayout extends FrameLayout {
     private NativePlayer player;
     private float topInset, bottomInset, leftEdge, rightEdge, downX;
     private float controlsTop = Float.NaN, initial;
-    private Float savedBrightness;
-    private float appliedBrightness = Float.NaN;
+    private final PlaybackBrightness brightness;
     private int minVolume, maxVolume, requestedVolume;
     private SideSwipeGesture.Mode shownMode = SideSwipeGesture.Mode.NONE;
     private boolean ownsTouch, controlsVisible = true, scrubbing;
@@ -42,6 +42,15 @@ final class PlayerGestureLayout extends FrameLayout {
     PlayerGestureLayout(Activity activity, BooleanSupplier enabled) {
         super(activity); this.activity = activity; this.enabled = enabled;
         density = getResources().getDisplayMetrics().density;
+        brightness=new PlaybackBrightness(new PlaybackBrightness.Window() {
+            @Override public float read() { return activity.getWindow().getAttributes().screenBrightness; }
+            @Override public void write(float value) {
+                var attrs=activity.getWindow().getAttributes();
+                // FULL is an absolute display request, independent of the system slider.
+                attrs.screenBrightness=value==1 ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL : value;
+                activity.getWindow().setAttributes(attrs);
+            }
+        });
         audio = activity.getSystemService(AudioManager.class);
         accessibility = activity.getSystemService(AccessibilityManager.class);
         gesture = new SideSwipeGesture(density, ViewConfiguration.get(activity).getScaledTouchSlop());
@@ -154,11 +163,7 @@ final class PlayerGestureLayout extends FrameLayout {
         if (!available() || !Float.isFinite(value)) return;
         value=Math.max(mode==SideSwipeGesture.Mode.BRIGHTNESS ? .02f : 0,Math.min(1,value));
         if (mode==SideSwipeGesture.Mode.BRIGHTNESS) {
-            if (!Float.isFinite(appliedBrightness) || Math.abs(value-appliedBrightness)>=.005f) {
-                var attrs=activity.getWindow().getAttributes();
-                if (savedBrightness==null) savedBrightness=attrs.screenBrightness;
-                attrs.screenBrightness=value; activity.getWindow().setAttributes(attrs); appliedBrightness=value;
-            }
+            value=brightness.set(value);
         } else if (mode==SideSwipeGesture.Mode.VOLUME) {
             if (audio==null || audio.isVolumeFixed() || maxVolume<=minVolume) return;
             int volume=Math.round(minVolume+value*(maxVolume-minVolume));
@@ -196,11 +201,12 @@ final class PlayerGestureLayout extends FrameLayout {
     void setVideoActive(boolean active) {
         if (!active) {
             pauseGestures(); controlsTop=Float.NaN; controlsVisible=true;
-            if (savedBrightness!=null) {
-                var attrs=activity.getWindow().getAttributes(); attrs.screenBrightness=savedBrightness;
-                activity.getWindow().setAttributes(attrs); savedBrightness=null; appliedBrightness=Float.NaN;
-            }
+            brightness.restore();
         }
+    }
+    @Override public void onWindowFocusChanged(boolean hasWindowFocus) {
+        super.onWindowFocusChanged(hasWindowFocus);
+        if (hasWindowFocus) brightness.reapply();
     }
     @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) { super.onSizeChanged(w,h,oldw,oldh); pauseGestures(); controlsTop=Float.NaN; }
     @Override protected void onDetachedFromWindow() { setVideoActive(false); super.onDetachedFromWindow(); }
