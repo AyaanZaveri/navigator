@@ -11,7 +11,7 @@ export default async function AddonsPage() {
     return (
         <div className="relative px-[var(--page-gutter)] py-6">
             <HomeGradientBackground />
-            <div className="relative z-10 flex w-full max-w-6xl flex-col gap-8 pb-10">
+            <div className="relative z-10 flex w-full max-w-6xl flex-col gap-6 pb-10">
                 <header className="flex flex-col gap-2">
                     <h1 className="font-poppins text-3xl font-medium tracking-tight">Addons</h1>
                 </header>

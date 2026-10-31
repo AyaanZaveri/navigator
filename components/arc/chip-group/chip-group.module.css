@@ -56,7 +56,9 @@
   left: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: var(--surface);
+  background: var(--chip-surface, var(--surface));
+  backdrop-filter: blur(var(--chip-backdrop-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--chip-backdrop-blur, 0px));
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     border-color var(--duration-fast) var(--ease-standard);
@@ -93,7 +95,7 @@
 /* Selected reads as a quiet tint of the accent (neutral by default) plus the check, never color alone. */
 .body[data-selected="true"] .surface {
   border-color: color-mix(in oklab, var(--accent) 42%, var(--border));
-  background: color-mix(in oklab, var(--accent) 11%, var(--surface));
+  background: var(--chip-surface, color-mix(in oklab, var(--accent) 11%, var(--surface)));
 }
 .chip[aria-pressed="true"] {
   color: var(--foreground);
@@ -107,7 +109,7 @@
   }
   .chip[aria-pressed="true"]:hover .surface {
     border-color: color-mix(in oklab, var(--accent) 60%, var(--border));
-    background: color-mix(in oklab, var(--accent) 16%, var(--surface));
+    background: var(--chip-surface, color-mix(in oklab, var(--accent) 16%, var(--surface)));
   }
 }
 
