@@ -74,7 +74,7 @@ final class PlayerGestureLayout extends FrameLayout {
                 if (!available() || event.getPointerCount() != 1) return false;
                 float bottom = Float.isFinite(controlsTop) ? controlsTop : getHeight() - Math.max(dp(136), bottomInset + dp(112));
                 var mode = gesture.begin(event.getX(), event.getY(), getWidth(), getHeight(),
-                    Math.max(dp(64), topInset + dp(52)), bottom, leftEdge, rightEdge);
+                    Math.max(dp(64), topInset + dp(64 * Math.max(1, getResources().getConfiguration().fontScale))), bottom, leftEdge, rightEdge);
                 if (mode == SideSwipeGesture.Mode.VOLUME) {
                     if (audio == null || audio.isVolumeFixed()) { gesture.cancel(); return false; }
                     minVolume = Build.VERSION.SDK_INT >= 28 ? audio.getStreamMinVolume(AudioManager.STREAM_MUSIC) : 0;
