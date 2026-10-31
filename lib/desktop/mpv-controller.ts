@@ -89,7 +89,7 @@ export class MpvController extends EventTarget {
     this.state = { ...initialState(), volume, muted, rate };
     this.fire("emptied", "loadstart");
     try {
-      if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for desktop playback.");
+      if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for native playback.");
       this.bridge.send({ type: "load", session: this.session, url, headers });
       this.bridge.send({ type: "volume", session: this.session, volume });
       this.bridge.send({ type: "muted", session: this.session, muted });

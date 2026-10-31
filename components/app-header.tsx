@@ -11,6 +11,7 @@ import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { SearchBar } from "@/components/search-component";
 import { Button } from "@/components/ui/button";
 import { UserMenu, type ThemePreference } from "@/components/arc/user-menu/user-menu";
+import { desktopBridge } from "@/lib/desktop/bridge";
 
 const subscribe = () => () => {};
 
@@ -29,6 +30,9 @@ function ProfileMenu({ email }: { email: string }) {
                 { label: "Home", icon: <Home size={16} aria-hidden="true" />, onSelect: () => router.push("/") },
                 { label: "Settings", icon: <Settings size={16} aria-hidden="true" />, onSelect: () => router.push("/settings") },
                 { label: "Add-ons", icon: <Puzzle size={16} aria-hidden="true" />, onSelect: () => router.push("/addons") },
+                ...(mounted && desktopBridge()?.platform === "android" ? [
+                    { label: "App settings", icon: <Settings size={16} aria-hidden="true" />, onSelect: () => desktopBridge()?.send({ type: "settings" }) },
+                ] : []),
             ]}
             onSignOut={logout}
         />

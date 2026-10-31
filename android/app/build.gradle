@@ -1,0 +1,46 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.navigator.android'
+    compileSdk 36
+    buildFeatures { buildConfig true }
+    defaultConfig {
+        applicationId 'app.navigator.android'
+        minSdk 24
+        targetSdk 36
+        versionCode providers.gradleProperty('versionCode').getOrElse(System.currentTimeMillis().intdiv(60000).toString()).toInteger()
+        versionName '0.1-android'
+        def appUrl = providers.gradleProperty('navigatorUrl').getOrElse('https://navigator-strm.vercel.app')
+        if (!(appUrl ==~ /https:\/\/[A-Za-z0-9.\-]+(:[0-9]+)?\/?/)) throw new GradleException('navigatorUrl must be an HTTPS origin without a path')
+        buildConfigField 'String', 'NAVIGATOR_URL', '"' + appUrl.replaceAll('/$', '') + '"'
+    }
+    signingConfigs {
+        development {
+            // Public development key: keeps test APK updates installable across CI runs.
+            storeFile rootProject.file('development.keystore')
+            storePassword 'android'
+            keyAlias 'navigator-development'
+            keyPassword 'android'
+        }
+    }
+    buildTypes { debug { signingConfig signingConfigs.development } }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    androidResources { ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~' }
+    lint { abortOnError true }
+}
+
+dependencies {
+    implementation 'androidx.activity:activity:1.10.1'
+    implementation 'androidx.media3:media3-exoplayer:1.11.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.11.1'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.11.1'
+    implementation 'androidx.media3:media3-datasource-okhttp:1.11.1'
+    implementation 'androidx.media3:media3-ui:1.11.1'
+    implementation 'androidx.webkit:webkit:1.14.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}

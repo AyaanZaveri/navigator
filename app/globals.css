@@ -4,7 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Native mpv occupies the OS view below this document. Keep alpha from first
+/* Native video occupies the OS view below this document. Keep alpha from first
    paint, and draw the regular page backdrop as an independently hidden layer. */
 html[data-desktop="mpv"],
 html[data-desktop="mpv"] body {

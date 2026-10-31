@@ -38,11 +38,13 @@ export type NativeRequest =
   | { type: "muted"; session: string; muted: boolean }
   | { type: "rate"; session: string; rate: number }
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
-  | { type: "fullscreen"; value: boolean };
+  | { type: "fullscreen"; value: boolean }
+  | { type: "settings" };
 
 export interface DesktopBridge {
   readonly protocol: 1;
-  readonly platform: "macos" | "windows" | "linux";
+  readonly platform: "macos" | "windows" | "linux" | "android";
+  readonly engine?: "mpv" | "exoplayer";
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

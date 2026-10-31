@@ -316,6 +316,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     lastLoadedPlaybackKeyRef.current = null;
   }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible]);
 
+  useEffect(() => {
+    if (!nativePlayback || !isPlayerVisible) return;
+    const close = (event: Event) => { event.preventDefault(); handleClose(); };
+    document.addEventListener("navigatornativeclose", close);
+    return () => document.removeEventListener("navigatornativeclose", close);
+  }, [nativePlayback, isPlayerVisible, handleClose]);
+
   const handleVideoEnded = useCallback(() => {
     handleClose({ ended: true });
   }, [handleClose]);
@@ -656,6 +663,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {(loading || !streamUrl || !videoReady || playbackError) && (
           <div className="fixed inset-0 bg-black z-40">
             <Button
+              aria-label="Close player"
               variant="ghost"
               className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
               onClick={() => handleClose()}
@@ -789,6 +797,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
         <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
           <Button
+            aria-label="Close player"
             variant="ghost"
             className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
             onClick={() => handleClose()}
