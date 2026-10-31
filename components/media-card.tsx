@@ -87,7 +87,8 @@ export function MediaCard({
           continueWatching ? "aspect-video" : "aspect-[2/3]"
         }`}
       >
-        <Link href={linkHref} prefetch={true} draggable={false} className="block w-full h-full">
+        {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
+        <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
           {imageUrl && failedImage !== imageUrl ? (
             <img
               src={imageUrl}

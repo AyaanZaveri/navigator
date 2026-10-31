@@ -7,12 +7,18 @@ on:
       - "lib/desktop/**"
       - "components/desktop/**"
       - "components/global-media-player.tsx"
+      - "components/media-card.tsx"
+      - "components/episode-card.tsx"
+      - "components/season-episodes.tsx"
+      - "components/episode-hero-thumbnail.tsx"
       - "components/ui/media-player.tsx"
       - "scripts/*desktop*"
       - "scripts/generate-macos-icon.sh"
       - "public/logo/desktop/**"
       - "scripts/test-artwork*"
       - "scripts/test-cast.cjs"
+      - "scripts/test-image-layout.cjs"
+      - "scripts/webkit-image-layout.m"
       - "app/actions/auth.ts"
       - "app/actions/artwork-settings.ts"
       - "app/(main)/settings/**"
@@ -46,10 +52,15 @@ jobs:
       - run: cargo fmt --manifest-path desktop/Cargo.toml --all -- --check
       - run: cargo test --manifest-path desktop/Cargo.toml --locked
   adapter:
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run test:desktop
+      - if: runner.os == 'macOS'
+        run: bun run test:image-layout
       - run: bun x tsc --noEmit --incremental false

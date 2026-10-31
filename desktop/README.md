@@ -54,6 +54,7 @@ credentials. Rejected replacements preserve the working token.
 
 ```sh
 npm run test:desktop
+npm run test:image-layout  # macOS: real WKWebView card sizing regression
 npx tsc --noEmit
 npm run desktop:check
 ```
@@ -61,7 +62,11 @@ npm run desktop:check
 The JavaScript tests exercise state/events, volume preferences, metadata before
 resume, invalid URLs, stale sessions, teardown, and bridge origin/frame checks.
 The native checks run formatting plus Rust protocol tests. Neither check starts
-Next or launches a browser.
+Next or launches a browser. The image layout check renders the actual React
+cards and Tailwind utilities in an isolated, nonpersistent WKWebView using local
+fixture images. It verifies poster, continue-watching, and episode image bounds,
+including the nested percentage-height issue that can otherwise crop images in
+WebKit. It starts no server and does not use Navigator's saved profile.
 
 An optional integration test exercises an actual libmpv instance headlessly
 (load, metadata, pause, seek, volume, rapid file replacement, and shutdown):
