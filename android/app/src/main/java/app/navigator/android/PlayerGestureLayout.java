@@ -158,6 +158,7 @@ final class PlayerGestureLayout extends FrameLayout {
         scrubbing=false;
     }
     private void beginSideControl(SideSwipeGesture.Mode mode) {
+        if (!available()) return;
         sideInteraction=true;
         if (mode==SideSwipeGesture.Mode.BRIGHTNESS) initial=brightness.begin(preferredBrightness());
         else if (mode==SideSwipeGesture.Mode.VOLUME) sampleVolume();
