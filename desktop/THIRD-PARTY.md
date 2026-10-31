@@ -34,3 +34,13 @@ Rust dependencies are pinned in `Cargo.lock`; their package metadata declares
 their licenses. The standalone web server contains the existing project's npm
 dependencies. Review and include the complete dependency notices and sources
 required for a public release, together with this file and the bundled notices.
+
+## Seek previews
+
+Native keyframe previews depend on `aiostreams-container` and `aiostreams-thumbs`
+from [AIOStreams/media](https://github.com/AIOStreams/media), pinned to commit
+[`87dee2ccd7c39aa9baf1e739292e14fa9f0d8ec7`](https://github.com/AIOStreams/media/tree/87dee2ccd7c39aa9baf1e739292e14fa9f0d8ec7).
+They read indexed keyframes with HTTP range requests and decode/scale/tone-map
+using the bundled FFmpeg libraries. The crates are AGPL-3.0-only; the license is
+included as `licenses/AIOStreams-media-AGPL-3.0.txt`. Navigator's session-bound
+request adapter and thumbnail UI are newly written.

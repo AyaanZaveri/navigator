@@ -26,6 +26,9 @@ export class MpvController extends EventTarget {
   private finished = false;
   tracks: NativeTrack[] = [];
   subtitleText = "";
+  private previewId = 0;
+  private previewActive = false;
+  private previewPending?: { id: number; resolve: (src: string | null) => void; timer: ReturnType<typeof setTimeout> };
 
   constructor(private bridge: DesktopBridge) {
     super();
@@ -33,6 +36,7 @@ export class MpvController extends EventTarget {
   }
 
   get src() { return this.source; }
+  get previewSession() { return this.session; }
   get currentSrc() { return this.source; }
   get currentTime() { return this.state.position; }
   set currentTime(position: number) {
@@ -72,6 +76,7 @@ export class MpvController extends EventTarget {
   }
 
   load(url: string, headers?: Record<string, string>) {
+    this.cancelPreview();
     if (this.disposed) return;
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
     this.source = url;
@@ -103,7 +108,30 @@ export class MpvController extends EventTarget {
     if (kind === "subtitle" && id === "no") this.clearSubtitle();
     this.bridge.send({ type: "track", session: this.session, kind, id });
   }
+  preview(position: number): Promise<string | null> {
+    this.cancelPreview();
+    if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return Promise.resolve(null);
+    const id = ++this.previewId;
+    this.previewActive = true;
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (this.previewPending?.id === id) { this.previewPending = undefined; resolve(null); }
+      }, 6000);
+      this.previewPending = { id, resolve, timer };
+      this.bridge.send({ type: "thumbnail", session: this.session, request: id, position });
+    });
+  }
+  cancelPreview() {
+    if (this.previewPending) {
+      clearTimeout(this.previewPending.timer);
+      this.previewPending.resolve(null);
+    }
+    this.previewPending = undefined;
+    if (this.previewActive) this.bridge.send({ type: "thumbnail", session: this.session, request: ++this.previewId, position: null });
+    this.previewActive = false;
+  }
   dispose() {
+    this.cancelPreview();
     if (this.disposed) return;
     this.disposed = true;
     this.unsubscribe?.();
@@ -117,6 +145,7 @@ export class MpvController extends EventTarget {
     this.fire("subtitlechange");
   }
   private fail(message: string) {
+    this.cancelPreview();
     this.clearSubtitle();
     this.failure = { code: 4, message };
     this.fire("error");
@@ -124,6 +153,14 @@ export class MpvController extends EventTarget {
   private receive(message: NativeMessage) {
     if (this.disposed || !("session" in message) || message.session !== this.session) return;
     switch (message.type) {
+      case "thumbnail":
+        if (this.previewPending?.id === message.request) {
+          const pending = this.previewPending;
+          clearTimeout(pending.timer);
+          this.previewPending = undefined;
+          pending.resolve(message.src?.startsWith("data:image/jpeg;base64,") ? message.src : null);
+        }
+        break;
       case "state": {
         const previous = this.state;
         this.state = message.state;

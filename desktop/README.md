@@ -161,6 +161,40 @@ native fullscreen. It validates message sizes, numbers, header syntax, and URL
 schemes. The player disables user scripts/config, reference following, and
 unsafe playlists, and constrains FFmpeg's stream protocols.
 
+### Scrubber previews on web and desktop
+
+Hovering the timeline shows the existing Dice UI preview card, timestamp, and a
+Skeleton until the requested frame is ready. Supplied VTT/sprite thumbnails and
+`tooltipThumbnailSrc` still take priority. `MediaPlayerSeek previewFrames`
+enables on-demand extraction when a stream supplies no storyboard.
+
+- Desktop preloads the file index after playback loads, then uses the pinned
+  AIOStreams/media library to read selected keyframes with HTTP ranges. It keeps
+  96 JPEGs, decodes with two background workers, and fetches at most two frames
+  concurrently. It never seeks the playback decoder. Stream request headers are
+  reused; the page can request only its current session's thumbnail, not an
+  arbitrary URL or file. Responses are checked against the latest keyframe and
+  request before publication.
+- Web uses a separate muted Mux/HTML video element, preloads metadata, uses
+  `fastSeek` where supported, and captures small sRGB JPEGs into a 96-frame LRU.
+  Requests use two-second buckets and a leading/trailing 60 ms throttle. Rapid
+  movement skips obsolete work; hover exit cancels publication and source
+  changes reset caches. The last frame stays under the loading skeleton.
+- HLS uses the browser/WebView decoder. Native extraction requires indexed
+  MKV/WebM or MP4/MOV and byte-range support. Unsupported streams show a preview
+  unavailable state while normal playback and seeking remain usable. No server
+  transcoding or extra backend is needed.
+- Native JPEG previews of HDR10/HLG sources are tone-mapped to SDR. Browsers on
+  HDR-capable displays can retain the actual video element for previews, keeping
+  the browser's HDR pipeline rather than flattening into a JPEG. True HDR preview
+  output depends on the browser/codec/display; main HDR playback is unchanged.
+
+`npm run test:desktop` checks caching, cancellation, stale sessions, and both
+preview backends' scheduling. `npm run test:webkit-previews` runs actual video →
+canvas capture/cache checks in an isolated WebKit view with a generated local
+H.264 fixture; it starts no server or user browser. The optional native tests
+also decode real PQ/HLG/SDR keyframes and verify cache reuse.
+
 ### HDR on macOS
 
 HDR10/PQ and HLG video automatically use HDR on an HDR-capable display with a
@@ -208,6 +242,11 @@ It plays the HTTP(S) stream URLs Navigator already obtains from addons.
 - [Media Chrome media elements](https://www.media-chrome.org/docs/en/media-element)
   and [React hooks](https://www.media-chrome.org/docs/en/react/hooks), together
   with the installed 4.12.0 MediaStore implementation/types.
+- [Dice UI Media Player](https://diceui.com/docs/components/base/media-player):
+  seek tooltip, thumbnail source/sprite support, and preview slot layout.
+- Context7: [Media Chrome preview thumbnails](https://www.media-chrome.org/docs/en/components/media-time-range#preview-thumbnails),
+  [HTML fastSeek](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/fastSeek),
+  and [canvas origin restrictions](https://developer.mozilla.org/en-US/docs/Web/HTML/How_to/CORS_enabled_image).
 - [Next standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output):
   server packaging, static/public assets, HOSTNAME, and PORT.
 - [Next cookies](https://nextjs.org/docs/app/api-reference/functions/cookies):

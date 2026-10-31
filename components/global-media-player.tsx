@@ -835,7 +835,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
           </div>
 
-          <MediaPlayerSeek />
+          <MediaPlayerSeek previewFrames />
 
           <div className="flex w-full items-center gap-2">
             <div className="flex flex-1 items-center gap-2">

@@ -44,11 +44,12 @@ pub struct Player {
 impl Player {
     pub fn start(
         mpv: Arc<Mpv>,
-        emit: impl Fn(Value) + Send + 'static,
+        emit: impl Fn(Value) + Send + Sync + 'static,
         colour: impl Fn(Option<String>, Option<String>) + Send + 'static,
     ) -> Result<Self, String> {
         // Keep subtitle decoding active; React draws the cues above the video.
         mpv.set_property("sub-visibility", "no")?;
+        let emit = Arc::new(emit);
         for (id, (name, kind)) in PROPERTIES.iter().enumerate() {
             mpv.observe(name, *kind, id as u64)?;
         }
@@ -62,6 +63,8 @@ impl Player {
             let mut entries = HashMap::<i64, String>::new();
             let mut playing_id = -1;
             let mut last_colour = (None, None);
+            let mut previews: Option<crate::thumbnails::Previews> = None;
+            let mut preview_source = None;
             let mut state = json!({"position":0.0,"duration":0.0,"paused":true,"volume":1.0,"muted":false,"rate":1.0,"buffering":false,"seeking":false,"buffered":0.0,"width":0,"height":0});
             let mut dirty = false;
             let mut last = Instant::now();
@@ -70,7 +73,7 @@ impl Player {
                     let target = match &command {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
-                        | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } => session,
+                        | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } => session,
                         Command::Fullscreen { .. } => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
@@ -78,6 +81,8 @@ impl Player {
                     let result = match command {
                         Command::Load { session: next, url, headers } => {
                             desired = next.clone();
+                            previews = None;
+                            preview_source = Some((next.clone(), url.clone(), headers.clone()));
                             // mpv's %length% syntax quotes commas and arbitrary header values.
                             let fields = headers.iter().map(|(name, value)| {
                                 let field = format!("{name}: {value}");
@@ -100,7 +105,8 @@ impl Player {
                         Command::Muted { muted, .. } => client.set_property("mute", if muted { "yes" } else { "no" }),
                         Command::Rate { rate, .. } => client.set_property("speed", &rate.to_string()),
                         Command::Track { kind, id, .. } => client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id),
-                        Command::Stop { .. } => { desired.clear(); client.command(&["stop"]) },
+                        Command::Stop { .. } => { desired.clear(); previews = None; preview_source = None; client.command(&["stop"]) },
+                        Command::Thumbnail { request, position, .. } => { if let Some(previews) = &previews { previews.want(request, position); } Ok(()) },
                         Command::Fullscreen { .. } => unreachable!(),
                     };
                     if let Err(message) = result { emit(json!({"type":"error","session":target,"message":message})); }
@@ -124,6 +130,9 @@ impl Player {
                         emit(json!({"type":"loading","session":session}));
                     }
                     Some(Event::FileLoaded) => {
+                        if let Some((named, url, headers)) = preview_source.take() {
+                            if named == desired { previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone())); }
+                        }
                         // Metadata must precede loadedmetadata: the React handler resumes here.
                         for (name, key, kind) in [("duration", "duration", Kind::Double), ("time-pos", "position", Kind::Double), ("video-params/w", "width", Kind::Double), ("video-params/h", "height", Kind::Double)] {
                             if let Some(value) = client.get_property(name, kind) { state[key] = value; }
@@ -139,6 +148,7 @@ impl Player {
                     Some(Event::Seek) => { state["seeking"] = json!(true); dirty = true; }
                     Some(Event::EndFile { playlist_id, reason, error }) => {
                         if playlist_id != playing_id { entries.remove(&playlist_id); continue; }
+                        if previews.as_ref().is_some_and(|p| p.session() == session) { previews = None; }
                         last_colour = (None, None);
                         colour(None, None);
                         emit(json!({"type":"subtitle","session":session,"text":""}));

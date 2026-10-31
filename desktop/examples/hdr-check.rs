@@ -20,6 +20,10 @@ mod protocol;
 #[path = "../src/render.rs"]
 mod render;
 
+#[cfg(target_os = "macos")]
+#[path = "../src/thumbnails.rs"]
+mod thumbnails;
+
 #[cfg(not(target_os = "macos"))]
 fn main() {
     println!("The native HDR check requires macOS.");

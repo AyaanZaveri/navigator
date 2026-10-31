@@ -24,6 +24,7 @@ export type NativeMessage =
   | { type: "state"; session: string; state: NativeState }
   | { type: "tracks"; session: string; tracks: NativeTrack[] }
   | { type: "subtitle"; session: string; text: string }
+  | { type: "thumbnail"; session: string; request: number; src: string | null; position: number | null }
   | { type: "loading" | "loaded" | "ready" | "ended"; session: string }
   | { type: "error"; session: string; message: string }
   | { type: "fullscreen"; value: boolean };
@@ -32,6 +33,7 @@ export type NativeRequest =
   | { type: "load"; session: string; url: string; headers?: Record<string, string> }
   | { type: "play" | "pause" | "stop"; session: string }
   | { type: "seek"; session: string; position: number }
+  | { type: "thumbnail"; session: string; request: number; position: number | null }
   | { type: "volume"; session: string; volume: number }
   | { type: "muted"; session: string; muted: boolean }
   | { type: "rate"; session: string; rate: number }

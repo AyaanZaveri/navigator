@@ -5,7 +5,7 @@ const crypto = require("node:crypto");
 const ts = require("typescript");
 
 function load(file, globals = {}) {
-    const context = { exports: {}, Event, EventTarget, DOMException, URL, crypto, ...globals };
+    const context = { exports: {}, Event, EventTarget, DOMException, URL, crypto, setTimeout, clearTimeout, ...globals };
     const code = ts.transpileModule(fs.readFileSync(file, "utf8"), {
         fileName: file,
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -54,6 +54,16 @@ async function testController() {
     receive({ type: "ready", session: first });
     assert.equal(observedDuration, 120, "Resume handlers need real metadata at loadedmetadata");
     assert.equal(media.currentTime, 12);
+    const preview = media.preview(20);
+    const requested = sent.at(-1);
+    assert.equal(requested.type, "thumbnail");
+    assert.equal(media.currentTime, 12, "Hover preview requests must never seek the playback decoder");
+    receive({ type: "thumbnail", session: first, request: requested.request - 1, src: "data:image/jpeg;base64,old", position: 0 });
+    receive({ type: "thumbnail", session: first, request: requested.request, src: "data:image/jpeg;base64,frame", position: 18 });
+    assert.equal(await preview, "data:image/jpeg;base64,frame");
+    const cancelled = media.preview(40);
+    media.cancelPreview();
+    assert.equal(await cancelled, null, "Leaving hover must cancel pending preview publication");
     assert.equal(media.readyState, 4);
     assert.equal(media.buffered.end(0), 40);
     assert.equal(media.seekable.end(0), 120);

@@ -11,6 +11,7 @@ mod render;
 mod server;
 #[cfg(not(target_os = "linux"))]
 mod tao_shell;
+mod thumbnails;
 
 use mpv::Mpv;
 use serde_json::{Value, json};
@@ -160,7 +161,7 @@ impl App {
     fn start_player(
         &self,
         surface: &platform::VideoSurface,
-        emit: impl Fn(Value) + Send + 'static,
+        emit: impl Fn(Value) + Send + Sync + 'static,
     ) -> Result<player::Player, String> {
         let mut options = platform::mpv_options(surface);
         if self.smoke {
@@ -194,6 +195,9 @@ impl App {
         let borrowed: Vec<_> = options.iter().map(|(k, v)| (*k, v.as_str())).collect();
         #[cfg(windows)]
         platform::prepare_library(&self.library);
+        if let Some(directory) = self.library.parent() {
+            aiostreams_thumbs::library_dirs(vec![directory.to_path_buf()]);
+        }
         let mpv = Arc::new(Mpv::new(&self.library, &borrowed)?);
         // Any missing required playback boundary is fatal, rather than a logged option warning.
         for (name, value) in [("access-references", "no"), ("load-unsafe-playlists", "no")] {

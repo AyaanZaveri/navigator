@@ -17,6 +17,11 @@ on:
       - "components/season-episodes.tsx"
       - "components/episode-hero-thumbnail.tsx"
       - "components/ui/media-player.tsx"
+      - "components/seek-preview.tsx"
+      - "lib/media/**"
+      - "scripts/test-previews.cjs"
+      - "scripts/test-webkit-previews.cjs"
+      - "scripts/fixtures/seek-preview.mp4"
       - "scripts/*desktop*"
       - "scripts/generate-macos-icon.sh"
       - "public/logo/desktop/**"
@@ -71,4 +76,6 @@ jobs:
       - run: bun run test:gradient
       - if: runner.os == 'macOS'
         run: bun run test:image-layout
+      - if: runner.os == 'macOS'
+        run: bun run test:webkit-previews
       - run: bun x tsc --noEmit --incremental false

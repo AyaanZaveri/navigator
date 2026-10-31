@@ -48,6 +48,11 @@ pub enum Command {
     Fullscreen {
         value: bool,
     },
+    Thumbnail {
+        session: String,
+        request: u64,
+        position: Option<f64>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,6 +100,12 @@ pub fn parse(text: &str) -> Result<Command, String> {
         Command::Track { id, .. } if id != "no" && id.parse::<u32>().is_err() => {
             return Err("Invalid track id".into());
         }
+        Command::Thumbnail {
+            position: Some(position),
+            ..
+        } if !position.is_finite() || *position < 0.0 => {
+            return Err("Invalid preview position".into());
+        }
         _ => {}
     }
     Ok(command)
@@ -131,6 +142,14 @@ mod tests {
         assert!(parse(r#"{"type":"load","session":"one","url":"https://example.com/video.mkv","headers":{"Referer":"https://example.com"}}"#).is_ok());
         assert!(parse(r#"{"type":"load","session":"one","url":"https://example.com","headers":{"X-Test":"x\r\nInjected: x"}}"#).is_err());
         assert!(parse(r#"{"type":"seek","session":"one","position":-1}"#).is_err());
+        assert!(parse(r#"{"type":"thumbnail","session":"one","request":1,"position":10}"#).is_ok());
+        assert!(
+            parse(r#"{"type":"thumbnail","session":"one","request":2,"position":null}"#).is_ok()
+        );
+        assert!(
+            parse(r#"{"type":"thumbnail","session":"one","request":3,"position":-1}"#).is_err()
+        );
+        assert!(parse(r#"{"type":"thumbnail","session":"one","request":4,"position":0,"url":"file:///private/file"}"#).is_err());
         assert!(parse(r#"{"type":"volume","session":"one","volume":2}"#).is_err());
         assert!(parse(r#"{"type":"command","args":["run","sh"]}"#).is_err());
         assert!(parse(r#"{"type":"play","session":"one","extra":"ignored?"}"#).is_err());
