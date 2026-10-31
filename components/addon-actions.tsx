@@ -89,9 +89,9 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
                     </div>
                 </DialogContent>
             </Dialog>
-            {addon.protected ? <span className={styles.protected}>Protected addon</span> : (
+            {!addon.protected && (
                 <Dialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>
-                    <DialogTrigger asChild><Button variant="outline" size="sm" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></DialogTrigger>
+                    <DialogTrigger asChild><Button variant="destructive" size="sm" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></DialogTrigger>
                     <DialogContent role="alertdialog" title={`Uninstall ${addon.name}?`} description="This removes this addon configuration from your Stremio account and all your synced devices. You can install it again later."
                         onOpenAutoFocus={(event) => { event.preventDefault(); cancel.current?.focus(); }}
                         onPointerDownOutside={(event) => event.preventDefault()}>

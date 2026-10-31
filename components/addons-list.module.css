@@ -47,7 +47,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) minmax(0, 14rem);
+  grid-template-columns: 44px minmax(0, 1fr) minmax(0, 22rem);
   align-items: start;
   gap: 16px 20px;
   min-width: 0;
@@ -58,17 +58,13 @@
 }
 
 .actions {
-  grid-column: 2 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
+  margin-block-start: 16px;
   gap: 8px;
-}
-
-.protected {
-  color: var(--muted-foreground);
-  font-size: 12px;
-  padding-inline: 4px;
 }
 
 .dialogBody {
@@ -165,7 +161,7 @@
   padding-block: 48px;
 }
 
-@container (max-width: 46rem) {
+@container (max-width: 60rem) {
   .row {
     grid-template-columns: 44px minmax(0, 1fr);
     padding: 20px;
@@ -175,6 +171,7 @@
     align-items: flex-start;
   }
   .capabilities { justify-content: flex-start; }
+  .actions { justify-content: flex-start; }
 }
 
 @media (max-width: 26rem) {

@@ -80,10 +80,10 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
                                     {!ADDON_CAPABILITIES.some((item) => addon.capabilities.includes(item.value)) && <Badge variant="secondary" className={styles.badge}>Addon</Badge>}
                                 </div>
                                 {addon.catalogCount > 0 && <p className={styles.catalogCount}>{addon.catalogCount} catalog{addon.catalogCount === 1 ? "" : "s"}</p>}
+                                <AddonActions addon={addon} onUninstalled={() => {
+                                    setRemoved((previous) => new Set(previous).add(addon.id));
+                                }} />
                             </div>
-                            <AddonActions addon={addon} onUninstalled={() => {
-                                setRemoved((previous) => new Set(previous).add(addon.id));
-                            }} />
                         </li>
                     ))}
                 </ul>
