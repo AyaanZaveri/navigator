@@ -144,10 +144,10 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
 - Only the selected origin receives the document-start bridge. Subframes and
   foreign origins cannot issue player commands. Other HTTP(S) navigation opens
   the system browser. File/content navigation and SSL-error bypasses are disabled.
-- Scrubber preview requests return promptly to the existing browser preview
-  fallback. Android does not add a second native frame extractor or seek the
-  playing decoder to generate previews. Formats unsupported by WebView may have
-  no hover thumbnail, even when native playback works.
+- HTML timeline hover previews retain their browser fallback, which depends on
+  WebView format support. Hidden-controls swipe scrubbing uses the separate native
+  keyframe extractor described below; it never seeks the playing decoder to
+  generate previews.
 
 ### Player typography and side gestures
 
@@ -187,7 +187,7 @@ Media3 1.11.1's `media3-inspector-frame` extracts 180 px high keyframes using
 uses the same origin-scoped HTTP header and redirect policy as playback. Requests
 are bucketed to two seconds: one extraction runs at a time and pending movement
 replaces the desired target. An 8 MB bitmap cache and one warm request when
-controls first hide improve responsiveness. Idle decoders release after ten
+controls hide improve responsiveness. Idle decoders release after ten
 seconds, extraction times out after eight seconds, and source changes/backgrounding
 clear the cache and decoder. Failed extraction leaves time and progress usable
 and retries after a cooldown. The initial preview uses a loading placeholder;
