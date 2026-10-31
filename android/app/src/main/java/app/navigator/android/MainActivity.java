@@ -81,12 +81,13 @@ public final class MainActivity extends ComponentActivity {
         SplashScreen splash = SplashScreen.installSplashScreen(this);
         super.onCreate(state);
         splash.setKeepOnScreenCondition(() -> launching && !destroyed);
-        EdgeToEdge.enable(this);
-        if (Build.VERSION.SDK_INT >= 29) {
-            getWindow().setStatusBarContrastEnforced(false);
-            getWindow().setNavigationBarContrastEnforced(false);
-        }
-        updateSystemBarAppearance();
+        splash.setOnExitAnimationListener(provider -> {
+            provider.remove();
+            // Splash theme restoration must not reintroduce opaque system bars.
+            enableEdgeToEdge();
+            ViewCompat.requestApplyInsets(root);
+        });
+        enableEdgeToEdge();
         preferences = getSharedPreferences("navigator", MODE_PRIVATE);
         origin = parseOrigin(preferences.getString("server", BuildConfig.NAVIGATOR_URL));
         root = new FrameLayout(this);
@@ -269,6 +270,15 @@ public final class MainActivity extends ComponentActivity {
             for (int count; (count = input.read(buffer)) != -1;) bytes.write(buffer, 0, count);
             return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
         }
+    }
+
+    private void enableEdgeToEdge() {
+        EdgeToEdge.enable(this);
+        if (Build.VERSION.SDK_INT >= 29) {
+            getWindow().setStatusBarContrastEnforced(false);
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+        updateSystemBarAppearance();
     }
 
     private void updateSystemBarAppearance() {
