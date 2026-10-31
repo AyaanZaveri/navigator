@@ -58,6 +58,10 @@ async function testController() {
     assert.equal(sent.length, count, "Invalid numbers must never reach the native boundary");
     receive({ type: "state", session: first, state: { ...state, buffering: true } });
     assert.ok(media.readyState < 3, "Buffering must drive the existing loading indicator");
+    let playing = 0;
+    media.addEventListener("playing", () => playing++);
+    receive({ type: "state", session: first, state });
+    assert.equal(playing, 1, "Recovery from buffering must notify Media Chrome that playback resumed");
     media.load("https://example.test/second.mkv");
     const second = sent.filter((m) => m.type === "load").at(-1).session;
     assert.notEqual(first, second);

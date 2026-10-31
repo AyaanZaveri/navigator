@@ -127,6 +127,8 @@ export class MpvController extends EventTarget {
         if (previous.buffering !== this.state.buffering) this.fire(this.state.buffering ? "waiting" : "canplay");
         if (previous.width !== this.state.width || previous.height !== this.state.height) this.fire("resize");
         if (previous.buffered !== this.state.buffered) this.fire("progress");
+        if (this.ready && !this.state.paused && !this.state.buffering && !this.state.seeking &&
+            (previous.paused || previous.buffering || previous.seeking)) this.fire("playing");
         break;
       }
       case "loaded": this.loaded = true; this.fire("durationchange", "loadedmetadata"); break;
