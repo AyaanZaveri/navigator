@@ -19,6 +19,7 @@ on:
       - "scripts/test-cast.cjs"
       - "scripts/test-image-layout.cjs"
       - "scripts/webkit-image-layout.m"
+      - "scripts/generate-hdr-fixtures.mjs"
       - "app/actions/auth.ts"
       - "app/actions/artwork-settings.ts"
       - "app/(main)/settings/**"

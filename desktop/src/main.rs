@@ -1,6 +1,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 #[cfg(target_os = "linux")]
 mod gtk_shell;
+#[cfg(any(target_os = "macos", test))]
+mod hdr;
 mod mpv;
 mod platform;
 mod player;
@@ -197,7 +199,12 @@ impl App {
         for (name, value) in [("access-references", "no"), ("load-unsafe-playlists", "no")] {
             mpv.set_property(name, value)?;
         }
-        player::Player::start(mpv, emit)
+        player::Player::start(mpv, emit, |gamma, primaries| {
+            #[cfg(target_os = "macos")]
+            platform::update_hdr(gamma, primaries);
+            #[cfg(not(target_os = "macos"))]
+            let _ = (gamma, primaries);
+        })
     }
 }
 

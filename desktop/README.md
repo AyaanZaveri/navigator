@@ -73,7 +73,7 @@ An optional integration test exercises an actual libmpv instance headlessly
 
 ```sh
 NAVIGATOR_TEST_LIBMPV=/absolute/path/libmpv.2.dylib \
-  cargo test --manifest-path desktop/Cargo.toml --locked -- --include-ignored
+  cargo test --manifest-path desktop/Cargo.toml --locked headless_library_playback -- --include-ignored
 ```
 
 Manual native checks, on each target OS:
@@ -145,16 +145,45 @@ is a separate element hidden during native playback.
 `MpvController` and `<navigator-mpv>` implement the media-element contract used
 by the existing Media Chrome controls. Native fullscreen is supplied through a
 custom MediaStore mediator, keeping the video and controls in one native window.
-Picture-in-picture is hidden for native playback. Embedded subtitles are drawn
-by mpv; addon subtitles keep the existing React renderer.
+Picture-in-picture is hidden for native playback. Embedded text subtitle cues
+come from mpv's `sub-text` property and use the same blurred React overlay as
+addon subtitles; mpv's own subtitle display is disabled.
 
 The bridge exposes only load/play/pause/seek/volume/mute/rate/track/stop and
 native fullscreen. It validates message sizes, numbers, header syntax, and URL
 schemes. The player disables user scripts/config, reference following, and
 unsafe playlists, and constrains FFmpeg's stream protocols.
 
-This version does not include AIOStreams' custom Metal/AVFoundation HDR and
-Dolby Vision outputs, native PiP, automatic updates, or torrent resolution.
+### HDR on macOS
+
+HDR10/PQ and HLG video automatically use HDR on an HDR-capable display with a
+16-bit float OpenGL surface. This follows AIOStreams' compatibility renderer:
+mpv converts the input to PQ with matching BT.2020/P3 primaries, Core Animation
+uses the matching PQ colorspace and EDR, and `target-peak` tracks the display's
+brightness headroom (203 nits reference white). Small changes below 5% avoid
+rebuilding mpv's shaders. Window/display changes coalesce over 250 ms; brief gaps
+between files retain EDR for 1.5 seconds. SDR restores automatic output settings.
+SDR displays, unsupported metadata/colorspaces, and 8-bit surfaces keep mpv's
+normal SDR tone mapping. The React controls stay in their existing WebView.
+
+Native HDR tests use local, tagged `pq.mkv`, `hlg.mkv`, and `sdr.mkv` fixtures:
+
+```sh
+node scripts/generate-hdr-fixtures.mjs /path/fixtures  # ffmpeg + libx265
+NAVIGATOR_TEST_LIBMPV=/path/libmpv.2.dylib NAVIGATOR_TEST_HDR_DIR=/path/fixtures \
+  cargo test --manifest-path desktop/Cargo.toml --locked -- --include-ignored
+cargo run --manifest-path desktop/Cargo.toml --example hdr-check -- \
+  /path/libmpv.2.dylib /path/fixtures
+```
+
+The native check renders PQ → SDR → HLG → SDR → PQ → SDR through the actual OpenGL layer,
+checks the EDR/colorspace state, and exercises fullscreen without a backend or
+saved account. It reports whether the display and surface support HDR; an SDR
+machine verifies fallback rather than HDR brightness. Use known HDR test patterns
+on an HDR display for final visual/color validation.
+
+This version does not include AIOStreams' custom Metal/AVFoundation outputs or
+Dolby Vision output, native PiP, automatic updates, or torrent resolution.
 It plays the HTTP(S) stream URLs Navigator already obtains from addons.
 
 ## Documentation consulted
@@ -166,6 +195,9 @@ It plays the HTTP(S) stream URLs Navigator already obtains from addons.
   ABI, event lifetimes, playlist IDs, GL context/thread rules, and teardown.
 - [mpv manual](https://mpv.io/manual/stable/): embedding options, stream protocols,
   header quoting, playback properties, and commands.
+- Context7: [Apple EDR](https://developer.apple.com/documentation/quartzcore/caopengllayer/wantsextendeddynamicrangecontent),
+  [display headroom](https://developer.apple.com/documentation/appkit/nsscreen/maximumextendeddynamicrangecolorcomponentvalue),
+  and the mpv manual's `target-trc`, `target-prim`, `target-peak`, and tone mapping.
 - [Media Chrome media elements](https://www.media-chrome.org/docs/en/media-element)
   and [React hooks](https://www.media-chrome.org/docs/en/react/hooks), together
   with the installed 4.12.0 MediaStore implementation/types.

@@ -20,7 +20,17 @@ const PROPERTIES: &[(&str, Kind)] = &[
     ("track-list", Kind::Json),
     ("video-params/w", Kind::Double),
     ("video-params/h", Kind::Double),
+    ("video-params/gamma", Kind::String),
+    ("video-params/primaries", Kind::String),
 ];
+
+fn video_colour(mpv: &Mpv) -> (Option<String>, Option<String>) {
+    let text = |name| {
+        mpv.get_property(name, Kind::String)
+            .and_then(|value| value.as_str().map(str::to_owned))
+    };
+    (text("video-params/gamma"), text("video-params/primaries"))
+}
 
 /// All blocking client calls run here, away from the render API's UI thread.
 pub struct Player {
@@ -31,7 +41,11 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn start(mpv: Arc<Mpv>, emit: impl Fn(Value) + Send + 'static) -> Result<Self, String> {
+    pub fn start(
+        mpv: Arc<Mpv>,
+        emit: impl Fn(Value) + Send + 'static,
+        colour: impl Fn(Option<String>, Option<String>) + Send + 'static,
+    ) -> Result<Self, String> {
         for (id, (name, kind)) in PROPERTIES.iter().enumerate() {
             mpv.observe(name, *kind, id as u64)?;
         }
@@ -44,6 +58,7 @@ impl Player {
             let mut desired = String::new();
             let mut entries = HashMap::<i64, String>::new();
             let mut playing_id = -1;
+            let mut last_colour = (None, None);
             let mut state = json!({"position":0.0,"duration":0.0,"paused":true,"volume":1.0,"muted":false,"rate":1.0,"buffering":false,"seeking":false,"buffered":0.0,"width":0,"height":0});
             let mut dirty = false;
             let mut last = Instant::now();
@@ -88,6 +103,15 @@ impl Player {
                     if let Err(message) = result { emit(json!({"type":"error","session":target,"message":message})); }
                 }
                 let event = client.wait_event(0.02, |id| PROPERTIES.get(id as usize).is_some_and(|(_, k)| *k == Kind::Json));
+                if matches!(&event, Some(Event::FileLoaded)) || matches!(&event, Some(Event::Property { name, .. }) if matches!(name.as_str(), "video-params/gamma" | "video-params/primaries")) {
+                    // Read both together, including when a property becomes unavailable.
+                    // Never synchronously query mpv from the main/render thread.
+                    let now = video_colour(&client);
+                    if now != last_colour {
+                        last_colour = now.clone();
+                        colour(now.0, now.1);
+                    }
+                }
                 match event {
                     Some(Event::StartFile { playlist_id }) => {
                         playing_id = playlist_id;
@@ -111,6 +135,8 @@ impl Player {
                     Some(Event::Seek) => { state["seeking"] = json!(true); dirty = true; }
                     Some(Event::EndFile { playlist_id, reason, error }) => {
                         if playlist_id != playing_id { entries.remove(&playlist_id); continue; }
+                        last_colour = (None, None);
+                        colour(None, None);
                         if let Some(message) = error { emit(json!({"type":"error","session":session,"message":message})); }
                         else if reason == "eof" { emit(json!({"type":"ended","session":session})); }
                     }
@@ -136,6 +162,7 @@ impl Player {
             }
             // The UI must keep pumping while mpv finishes a render-dependent stop.
             let _ = client.command(&["stop"]);
+            colour(None, None);
         }).map_err(|e| e.to_string())?;
         Ok(Self {
             mpv,
@@ -220,9 +247,13 @@ mod tests {
             .unwrap(),
         );
         let (send, inbox) = mpsc::channel();
-        let mut player = Player::start(mpv, move |value| {
-            let _ = send.send(value);
-        })
+        let mut player = Player::start(
+            mpv,
+            move |value| {
+                let _ = send.send(value);
+            },
+            |_, _| {},
+        )
         .unwrap();
         let load = |session: &str| Command::Load {
             session: session.into(),
@@ -264,5 +295,85 @@ mod tests {
         player.begin_shutdown();
         player.join();
         std::fs::remove_file(file).unwrap();
+    }
+
+    #[test]
+    #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_HDR_DIR (pq.mkv, hlg.mkv, sdr.mkv)"]
+    fn headless_hdr_metadata_and_sdr_transition() {
+        let library = std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap();
+        let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_HDR_DIR").unwrap());
+        let mpv = Arc::new(
+            Mpv::new(
+                std::path::Path::new(&library),
+                &[
+                    ("config", "no"),
+                    ("vo", "null"),
+                    ("ao", "null"),
+                    ("idle", "yes"),
+                    ("terminal", "no"),
+                ],
+            )
+            .unwrap(),
+        );
+        let (send, inbox) = mpsc::channel();
+        let events = send.clone();
+        let mut player = Player::start(
+            mpv.clone(),
+            move |value| {
+                let _ = events.send(value);
+            },
+            move |gamma, primaries| {
+                let _ = send.send(json!({"type":"colour", "gamma":gamma, "primaries":primaries}));
+            },
+        )
+        .unwrap();
+        for (file, gamma, primaries) in [
+            ("pq", "pq", "bt.2020"),
+            ("hlg", "hlg", "bt.2020"),
+            ("sdr", "bt.1886", "bt.709"),
+        ] {
+            player.send(Command::Load {
+                session: file.into(),
+                url: directory
+                    .join(format!("{file}.mkv"))
+                    .to_string_lossy()
+                    .into_owned(),
+                headers: BTreeMap::new(),
+            });
+            wait_for(&inbox, |v| {
+                v["type"] == "colour" && v["gamma"] == gamma && v["primaries"] == primaries
+            });
+        }
+        // Exercise the same nonblocking writes used by the main/render thread.
+        for (name, value) in [
+            ("target-prim", "bt.2020"),
+            ("target-trc", "pq"),
+            ("target-peak", "812"),
+            ("icc-profile", ""),
+        ] {
+            mpv.set_property_async(name, value).unwrap();
+        }
+        let until = Instant::now() + Duration::from_secs(3);
+        while mpv
+            .get_property("target-trc", Kind::String)
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .as_deref()
+            != Some("pq")
+        {
+            assert!(
+                Instant::now() < until,
+                "Asynchronous HDR output properties were not applied"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        for name in ["target-prim", "target-trc", "target-peak"] {
+            mpv.set_property_async(name, "auto").unwrap();
+        }
+        player.send(Command::Stop {
+            session: "sdr".into(),
+        });
+        wait_for(&inbox, |v| v["type"] == "colour" && v["gamma"].is_null());
+        player.begin_shutdown();
+        player.join();
     }
 }

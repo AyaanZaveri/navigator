@@ -2,9 +2,11 @@
 // Adapted from Viren070/AIOStreams, commit c358754b0ae4758d034badf8618de6fdb7fa9333.
 // See desktop/THIRD-PARTY.md for provenance and modifications.
 #![allow(deprecated)]
+mod hdr;
 use crate::mpv::Mpv;
 use crate::render::RenderContext;
 use dispatch2::DispatchQueue;
+pub use hdr::update as update_hdr;
 use objc2::rc::Retained;
 use objc2::{
     AllocAnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send,
@@ -424,8 +426,14 @@ impl VideoSurface {
         Ok(Self { view, layer })
     }
     pub fn attach(&self, mpv: Arc<Mpv>) {
-        *self.layer.ivars().mpv.borrow_mut() = Some(mpv);
+        *self.layer.ivars().mpv.borrow_mut() = Some(mpv.clone());
         self.layer.start();
+        hdr::attach(
+            self.layer.clone().into_super(),
+            self.view.clone(),
+            mpv,
+            self.layer.ivars().depth == 16,
+        );
     }
     pub fn resize(&self, width: u32, _height: u32) {
         let bounds = self.view.bounds();
@@ -437,9 +445,16 @@ impl VideoSurface {
         self.layer.setNeedsDisplay();
     }
     pub fn shutdown(&self) {
+        hdr::shutdown();
         self.layer.stop();
         LAYER.with(|l| l.borrow_mut().take());
         self.layer.ivars().mpv.borrow_mut().take();
+    }
+    pub fn refresh_hdr(&self) {
+        hdr::refresh();
+    }
+    pub fn hdr_diagnostics(&self) -> (bool, f64, bool, bool) {
+        hdr::diagnostics()
     }
 }
 pub fn mpv_options(_: &VideoSurface) -> Vec<(&'static str, String)> {

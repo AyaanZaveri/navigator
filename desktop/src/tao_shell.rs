@@ -167,6 +167,8 @@ pub fn run(mut app: App) -> Result<(), String> {
                 ..
             } => {
                 surface.resize(size.width, size.height);
+                #[cfg(target_os = "macos")]
+                surface.refresh_hdr();
                 let _ = webview.set_bounds(bounds(size));
             }
             Event::WindowEvent {
@@ -174,7 +176,16 @@ pub fn run(mut app: App) -> Result<(), String> {
                 ..
             } => {
                 surface.resize(new_inner_size.width, new_inner_size.height);
+                #[cfg(target_os = "macos")]
+                surface.refresh_hdr();
                 let _ = webview.set_bounds(bounds(*new_inner_size));
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Moved(_) | WindowEvent::Focused(true),
+                ..
+            } => {
+                #[cfg(target_os = "macos")]
+                surface.refresh_hdr();
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -188,6 +199,8 @@ pub fn run(mut app: App) -> Result<(), String> {
         let actual = window.fullscreen().is_some();
         if fullscreen != actual {
             fullscreen = actual;
+            #[cfg(target_os = "macos")]
+            surface.refresh_hdr();
             let _ = webview.evaluate_script(&receive(&json!({"type":"fullscreen","value":actual})));
         }
     });

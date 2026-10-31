@@ -10,6 +10,7 @@ The original license is included in `licenses/AIOStreams-AGPL-3.0.txt`.
 | `src/mpv.rs` | `core/src/mpv.rs` | Fail startup on rejected options; expose playlist entry IDs to associate events with playback sessions. |
 | `src/render.rs` | `core/src/render.rs` | Module paths and attribution. |
 | `src/platform/macos.rs` | `app/src/platform/macos.rs` | Retain the OpenGL compatibility renderer; remove other outputs and unrelated platform services; add GL resource cleanup and Navigator menu. |
+| `src/platform/macos/hdr.rs`, `src/hdr.rs` | `app/src/platform/macos/video.rs` | Adapt OpenGL HDR/EDR handling, PQ/HLG detection, display headroom, and SDR restoration; retain no output selector or AVFoundation/Metal output; guard 8-bit surfaces and invalid display values. |
 | `src/platform/windows.rs` | `app/src/platform/windows.rs` | Retain the embedded HWND video surface; remove unrelated services. |
 | `src/platform/linux.rs` | `app/src/platform/linux.rs` | Retain the GTK/OpenGL surface and native display integration; remove unrelated services. |
 | `libs.json` | `libs.pin`, `libs-macos.pin` | Preserve pinned release and library archive SHA-256 values. |
