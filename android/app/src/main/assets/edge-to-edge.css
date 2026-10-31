@@ -1,0 +1,41 @@
+/* Backgrounds stay in the full WebView; only interactive content uses safe areas. */
+html[data-native-engine="exoplayer"] {
+  --navigator-inset-top: var(--navigator-safe-top, env(safe-area-inset-top, 0px));
+  --navigator-inset-right: var(--navigator-safe-right, env(safe-area-inset-right, 0px));
+  --navigator-inset-bottom: var(--navigator-safe-bottom, env(safe-area-inset-bottom, 0px));
+  --navigator-inset-left: var(--navigator-safe-left, env(safe-area-inset-left, 0px));
+}
+html[data-native-engine="exoplayer"] :is([data-app-layout], body > .h-dvh) {
+  box-sizing: border-box;
+  padding-left: var(--navigator-inset-left);
+  padding-right: var(--navigator-inset-right);
+  padding-bottom: var(--navigator-inset-bottom);
+}
+html[data-native-engine="exoplayer"] [data-desktop-app-content] header {
+  padding-top: var(--navigator-inset-top);
+  padding-left: var(--page-gutter, 1rem) !important;
+  padding-right: var(--page-gutter, 1rem) !important;
+}
+/* The outer app layout already reserves the navigation inset once. */
+html[data-native-engine="exoplayer"] [data-desktop-app-content] > main {
+  padding-bottom: 0 !important;
+}
+html[data-native-engine="exoplayer"] body > .min-h-screen {
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding: calc(1rem + var(--navigator-inset-top)) calc(1rem + var(--navigator-inset-right)) calc(1rem + var(--navigator-inset-bottom)) calc(1rem + var(--navigator-inset-left));
+}
+html[data-native-engine="exoplayer"] [data-navigator-focus-ui] {
+  bottom: calc(1rem + var(--navigator-inset-bottom));
+  padding-left: calc(1rem + var(--navigator-inset-left));
+  padding-right: calc(1rem + var(--navigator-inset-right));
+}
+html[data-native-engine="exoplayer"] [data-slot="media-player-controls"] {
+  padding-bottom: calc(1rem + var(--navigator-inset-bottom));
+  padding-left: max(1.5rem, calc(.75rem + var(--navigator-inset-left)));
+  padding-right: max(1.5rem, calc(.75rem + var(--navigator-inset-right)));
+}
+html[data-native-engine="exoplayer"] [data-native-player-shell] button[class~="top-4"][class~="left-4"] {
+  top: calc(1rem + var(--navigator-inset-top));
+  left: calc(1rem + var(--navigator-inset-left));
+}

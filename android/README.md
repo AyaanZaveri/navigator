@@ -96,6 +96,14 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
 
 ## Playback and bridge details
 
+- AndroidX edge-to-edge keeps the WebView/background underneath transparent
+  system bars. Insets pass through unconsumed and are also sent as CSS-pixel
+  values to the document for older WebView compatibility. Only the header,
+  app content, and fixed controls receive safe spacing; the background/video
+  stays full-window. System icon appearance follows the web page's theme.
+- Normal startup uses the AndroidX Navigator splash until the first web frame
+  is ready. Retry/App settings appear only for an actual load failure or a
+  30-second no-content timeout, rather than on every page load.
 - ExoPlayer 1.11.1 uses Android's MediaCodec/SurfaceView path. The window opts
   into HDR on API 26+, while ExoPlayer handles source color metadata and device
   decoder selection. Hardware, codec, and format support remain device-dependent.
@@ -131,6 +139,9 @@ References used:
 - [Player events](https://developer.android.com/media/media3/exoplayer/listening-to-player-events)
 - [Track selection](https://developer.android.com/media/media3/exoplayer/track-selection)
 - [Android HDR playback](https://developer.android.com/media/grow/hdr-playback)
+- [Edge-to-edge views and transparent system bars](https://developer.android.com/develop/ui/views/layout/edge-to-edge)
+- [WebView insets, compatibility, and avoiding double padding](https://developer.android.com/develop/ui/views/layout/webapps/understand-window-insets)
+- [AndroidX splash screen migration](https://developer.android.com/develop/ui/views/launch/splash-screen/migrate)
 - [WebView document-start scripts and origin-scoped messaging](https://developer.android.com/reference/androidx/webkit/WebViewCompat)
 - [Raw single-file workflow artifacts](https://github.com/actions/upload-artifact#upload-an-individual-file-unzipped)
 

@@ -6,10 +6,20 @@
   let fullscreen = false;
   let session = '';
   let visible;
+  let insets;
+  let dark;
   const send = message => transport.postMessage(JSON.stringify(message));
+  const applyInsets = () => {
+    if (!insets || !document.documentElement) return;
+    for (const side of ['top', 'right', 'bottom', 'left']) {
+      const value = insets[side];
+      document.documentElement.style.setProperty(`--navigator-safe-${side}`, `${Number.isFinite(value) ? Math.max(0, value) : 0}px`);
+    }
+  };
   transport.onmessage = event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
+    if (message.type === 'insets') { insets = message; applyInsets(); return; }
     if (message.type === 'fullscreen') fullscreen = !!message.value;
     if (message.type === 'close') {
       const handled = !document.dispatchEvent(new Event('navigatornativeclose', { cancelable: true }));
@@ -46,6 +56,14 @@
     root.dataset.nativeEngine = 'exoplayer';
     root.style.setProperty('background', 'transparent', 'important');
     root.style.setProperty('color-scheme', 'normal', 'important');
+    applyInsets();
+    const appearance = () => {
+      const next = root.dataset.theme ? root.dataset.theme === 'dark'
+        : root.classList.contains('dark') || (window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true);
+      if (next !== dark) { dark = next; send({ type: 'appearance', dark }); }
+    };
+    new MutationObserver(appearance).observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    appearance();
     const update = () => {
       const next = root.hasAttribute('data-native-playing');
       if (next !== visible) { visible = next; send({ type: 'visible', value: next }); }
@@ -56,6 +74,17 @@
   };
   if (!mark()) {
     const observer = new MutationObserver(() => { if (mark()) observer.disconnect(); });
+    observer.observe(document, { childList: true, subtree: true });
+  }
+  const installStyles = () => {
+    if (!document.head) return false;
+    const style = document.createElement('style');
+    style.textContent = __EDGE_CSS__;
+    document.head.appendChild(style);
+    return true;
+  };
+  if (!installStyles()) {
+    const observer = new MutationObserver(() => { if (installStyles()) observer.disconnect(); });
     observer.observe(document, { childList: true, subtree: true });
   }
   window.addEventListener('pagehide', () => {

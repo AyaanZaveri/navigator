@@ -30,7 +30,13 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.activity.ComponentActivity;
+import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
+import androidx.core.graphics.Insets;
+import androidx.core.splashscreen.SplashScreen;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.media3.common.util.UnstableApi;
 import androidx.webkit.JavaScriptReplyProxy;
 import androidx.webkit.ScriptHandler;
@@ -58,6 +64,10 @@ public final class MainActivity extends ComponentActivity {
     private boolean playerVisible;
     private boolean destroyed;
     private boolean pageFailed;
+    private boolean launching = true;
+    private boolean pageLoading;
+    private boolean webDark = true;
+    private JSONObject safeInsets = NativePlayer.object("type", "insets", "top", 0, "right", 0, "bottom", 0, "left", 0);
     private long pageGeneration;
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -68,18 +78,27 @@ public final class MainActivity extends ComponentActivity {
 
     @SuppressLint("SetJavaScriptEnabled") // Trusted HTTPS origin only; the bridge rejects subframes and other origins.
     @Override public void onCreate(Bundle state) {
+        SplashScreen splash = SplashScreen.installSplashScreen(this);
         super.onCreate(state);
+        splash.setKeepOnScreenCondition(() -> launching && !destroyed);
+        EdgeToEdge.enable(this);
+        if (Build.VERSION.SDK_INT >= 29) {
+            getWindow().setStatusBarContrastEnforced(false);
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+        updateSystemBarAppearance();
         preferences = getSharedPreferences("navigator", MODE_PRIVATE);
         origin = parseOrigin(preferences.getString("server", BuildConfig.NAVIGATOR_URL));
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
-        root.setOnApplyWindowInsetsListener((view, insets) -> {
-            if (Build.VERSION.SDK_INT >= 30) {
-                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-            } else {
-                view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
-            }
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            float density = getResources().getDisplayMetrics().density;
+            safeInsets = NativePlayer.object("type", "insets", "top", bars.top / density,
+                "right", bars.right / density, "bottom", bars.bottom / density, "left", bars.left / density);
+            send(safeInsets);
+            // Do not pad or consume the window: WebView owns the full background,
+            // and its document applies safe spacing once to interactive content.
             return insets;
         });
         setContentView(root);
@@ -87,6 +106,7 @@ public final class MainActivity extends ComponentActivity {
         if (Build.VERSION.SDK_INT >= 26) getWindow().setColorMode(ActivityInfo.COLOR_MODE_HDR);
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
                 || !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            launching = false;
             showConnection(getString(R.string.webview_update));
             return;
         }
@@ -118,16 +138,27 @@ public final class MainActivity extends ComponentActivity {
                 playerVisible = false;
                 setFullscreen(false);
                 pageFailed = false;
+                pageLoading = true;
                 long generation = ++pageGeneration;
-                showConnection("Connecting to Navigator…");
+                hideConnection();
                 main.postDelayed(() -> {
-                    if (!destroyed && generation == pageGeneration && connection != null && connection.getVisibility() == View.VISIBLE) {
-                        connectionText.setText("Navigator is taking longer than expected. Check your connection, retry, or choose another server.");
+                    if (!destroyed && generation == pageGeneration && pageLoading && !pageFailed) {
+                        failPage("Navigator did not load. Check your connection, retry, or choose another server.");
                     }
-                }, 20000);
+                }, 30000);
+            }
+            @Override public void onPageCommitVisible(WebView view, String url) {
+                if (trusted(Uri.parse(url)) && !pageFailed) revealPage();
             }
             @Override public void onPageFinished(WebView view, String url) {
-                if (trusted(Uri.parse(url)) && !pageFailed) hideConnection();
+                if (trusted(Uri.parse(url)) && !pageFailed) {
+                    long generation = pageGeneration;
+                    view.postVisualStateCallback(generation, new WebView.VisualStateCallback() {
+                        @Override public void onComplete(long requestId) {
+                            if (!destroyed && requestId == pageGeneration && !pageFailed) revealPage();
+                        }
+                    });
+                }
                 CookieManager.getInstance().flush();
             }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
@@ -190,10 +221,15 @@ public final class MainActivity extends ComponentActivity {
                     try {
                         JSONObject request = new JSONObject(message.getData());
                         switch (request.optString("type")) {
-                            case "hello": send(NativePlayer.object("type", "fullscreen", "value", fullscreen)); break;
+                            case "hello":
+                                send(NativePlayer.object("type", "fullscreen", "value", fullscreen));
+                                send(safeInsets);
+                                break;
+                            case "appearance": webDark = request.optBoolean("dark", true); updateSystemBarAppearance(); break;
                             case "fullscreen": setFullscreen(request.optBoolean("value")); break;
                             case "visible":
                                 playerVisible = request.optBoolean("value");
+                                updateSystemBarAppearance();
                                 if (!playerVisible) { player.stop(); setFullscreen(false); }
                                 break;
                             case "settings": settings(); break;
@@ -211,7 +247,9 @@ public final class MainActivity extends ComponentActivity {
                 java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
                 byte[] buffer = new byte[4096];
                 for (int count; (count = input.read(buffer)) != -1;) bytes.write(buffer, 0, count);
-                String code = new String(bytes.toByteArray(), StandardCharsets.UTF_8).replace("__ORIGIN__", JSONObject.quote(origin.toString()));
+                String code = new String(bytes.toByteArray(), StandardCharsets.UTF_8)
+                    .replace("__ORIGIN__", JSONObject.quote(origin.toString()))
+                    .replace("__EDGE_CSS__", JSONObject.quote(readAsset("edge-to-edge.css")));
                 script = WebViewCompat.addDocumentStartJavaScript(web, code, Collections.singleton(origin.toString()));
             } catch (java.io.IOException failure) { failPage("The Android playback bridge is missing. Reinstall Navigator."); }
         }
@@ -222,6 +260,22 @@ public final class MainActivity extends ComponentActivity {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             try { reply.postMessage(message.toString()); } catch (IllegalStateException detached) { reply = null; }
         }
+    }
+
+    private String readAsset(String name) throws java.io.IOException {
+        try (var input = getAssets().open(name)) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            for (int count; (count = input.read(buffer)) != -1;) bytes.write(buffer, 0, count);
+            return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void updateSystemBarAppearance() {
+        var controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        boolean lightBackground = !webDark && !playerVisible;
+        controller.setAppearanceLightStatusBars(lightBackground);
+        controller.setAppearanceLightNavigationBars(lightBackground);
     }
 
     private void setFullscreen(boolean value) {
@@ -239,9 +293,13 @@ public final class MainActivity extends ComponentActivity {
                 : View.SYSTEM_UI_FLAG_VISIBLE);
         }
         send(NativePlayer.object("type", "fullscreen", "value", value));
+        ViewCompat.requestApplyInsets(root);
+        updateSystemBarAppearance();
     }
 
     private void failPage(String message) {
+        launching = false;
+        pageLoading = false;
         pageFailed = true;
         reply = null;
         if (player != null) player.stop();
@@ -277,9 +335,15 @@ public final class MainActivity extends ComponentActivity {
         connection.bringToFront();
     }
     private void hideConnection() { if (connection != null) connection.setVisibility(View.GONE); }
+    private void revealPage() {
+        launching = false;
+        pageLoading = false;
+        hideConnection();
+    }
 
     private void settings() {
         if (destroyed) return;
+        launching = false;
         EditText address = new EditText(this);
         address.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
         address.setSingleLine(true);
@@ -330,7 +394,7 @@ public final class MainActivity extends ComponentActivity {
     }
     @Override protected void onStop() {
         foreground = false;
-        main.removeCallbacksAndMessages(null);
+        main.removeCallbacks(tick);
         if (player != null) player.suspend();
         if (web != null) web.onPause();
         CookieManager.getInstance().flush();
