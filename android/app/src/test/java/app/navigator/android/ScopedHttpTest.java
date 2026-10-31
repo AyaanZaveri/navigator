@@ -6,10 +6,25 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.Test;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.*;
 
 public class ScopedHttpTest {
+    @Test public void stoppingASessionCannotMutateAnInflightRequestsHeaders() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            server.enqueue(new MockResponse().setBody("video"));
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("X-Api-Key", "original");
+            var client = ScopedHttp.forStream(new OkHttpClient(), server.url("/").uri(), headers);
+            headers.clear();
+            try (var response = client.newCall(new Request.Builder().url(server.url("/video.mp4")).build()).execute()) {
+                assertEquals(200, response.code());
+            }
+            assertEquals("original", server.takeRequest(2, TimeUnit.SECONDS).getHeader("X-Api-Key"));
+        }
+    }
     @Test public void redirectsCannotForwardAddonCredentialsToAnotherOrigin() throws Exception {
         try (MockWebServer source = new MockWebServer(); MockWebServer cdn = new MockWebServer()) {
             source.start();

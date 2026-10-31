@@ -3,16 +3,19 @@ package app.navigator.android;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 
 final class ScopedHttp {
     static OkHttpClient forStream(OkHttpClient base, URI origin, Map<String, String> headers) {
+        Map<String, String> requestHeaders = Collections.unmodifiableMap(new LinkedHashMap<>(headers));
         return base.newBuilder().addNetworkInterceptor(chain -> {
             URI target = chain.request().url().uri();
             if (origin.getScheme().equalsIgnoreCase("https") && target.getScheme().equalsIgnoreCase("http")) throw new IOException("Refusing to downgrade an HTTPS stream.");
             Request.Builder request = chain.request().newBuilder();
-            for (Map.Entry<String, String> header : headers.entrySet()) {
+            for (Map.Entry<String, String> header : requestHeaders.entrySet()) {
                 String name = header.getKey();
                 // Addon authentication stays on the stream origin; public request hints can follow CDN segments.
                 boolean publicHint = name.equalsIgnoreCase("User-Agent") || name.equalsIgnoreCase("Referer") || name.equalsIgnoreCase("Origin");

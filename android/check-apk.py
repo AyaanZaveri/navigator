@@ -9,6 +9,6 @@ with zipfile.ZipFile(apk) as archive:
     names = archive.namelist()
     assert "AndroidManifest.xml" in names and "classes.dex" in names, "Expected a direct APK, not an outer artifact ZIP"
     assert archive.read("assets/bridge.js") == (root / "app/src/main/assets/bridge.js").read_bytes(), "Stale or missing bridge"
-    assert not any(".env" in Path(name).parts or name.startswith("assets/media/") for name in names), "Unexpected credentials or demo payload"
+    assert not any(any(part.startswith(".env") for part in Path(name).parts) or name.startswith("assets/media/") for name in names), "Unexpected credentials or demo payload"
     assert not any(name.startswith("lib/") for name in names), "Unexpected native codec libraries"
 print("PASS: APK integrity, bridge payload, and direct installable APK structure")

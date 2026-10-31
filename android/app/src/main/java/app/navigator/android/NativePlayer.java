@@ -91,10 +91,11 @@ final class NativePlayer {
             String nextSession = message.optString("session");
             if (!nextSession.matches("[A-Za-z0-9_-]{1,128}")) return;
             try {
-                String nextUrl = message.getString("url");
+                String nextUrl = message.optString("url", "");
                 StreamPolicy.streamUrl(nextUrl);
                 Map<String, String> nextHeaders = new LinkedHashMap<>();
                 JSONObject rawHeaders = message.optJSONObject("headers");
+                if (message.has("headers") && !message.isNull("headers") && rawHeaders == null) throw new IllegalArgumentException("Invalid stream request headers.");
                 if (rawHeaders != null) {
                     for (var keys = rawHeaders.keys(); keys.hasNext();) {
                         String key = keys.next();
