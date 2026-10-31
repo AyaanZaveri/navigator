@@ -108,7 +108,11 @@ Settings. A pre-provisioned portable library bundle can be supplied with
 `NAVIGATOR_LIBS_DIR`.
 
 Output is `dist/desktop-<platform>-<arch>`; macOS produces `Navigator.app` with
-an ad hoc development signature. Public distribution still needs release
+an ad hoc development signature. Packaging generates the macOS icon from
+`public/logo/desktop/navigator.png`, includes all standard/Retina sizes in
+`Contents/Resources/Navigator.icns`, and registers it in `Info.plist`.
+The web logo remains `public/logo/navigator.png`.
+Public distribution still needs release
 signing/notarization, installers, and a full dependency license review.
 Packaging refuses to overwrite an existing output directory.
 

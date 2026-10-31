@@ -9,6 +9,8 @@ on:
       - "components/global-media-player.tsx"
       - "components/ui/media-player.tsx"
       - "scripts/*desktop*"
+      - "scripts/generate-macos-icon.sh"
+      - "public/logo/desktop/**"
       - "scripts/test-artwork*"
       - "scripts/test-cast.cjs"
       - "app/actions/auth.ts"

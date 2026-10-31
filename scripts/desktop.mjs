@@ -61,12 +61,15 @@ try {
         await cp(join(desktop, "licenses"), join(resources, "licenses"), { recursive: true });
         await cp(join(desktop, "THIRD-PARTY.md"), join(resources, "THIRD-PARTY.md"));
         if (mac) {
+            await run("sh", [join(root, "scripts", "generate-macos-icon.sh")]);
+            await cp(join(root, "build", "icon.icns"), join(resources, "Navigator.icns"));
             await writeFile(join(bundle, "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>app.navigator.desktop</string>
 <key>CFBundleName</key><string>Navigator</string>
 <key>CFBundleExecutable</key><string>navigator-desktop</string>
+<key>CFBundleIconFile</key><string>Navigator.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
 <key>CFBundleVersion</key><string>1</string>
