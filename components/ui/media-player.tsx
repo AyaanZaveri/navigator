@@ -2217,7 +2217,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             >
               <div
                 className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-md border bg-background text-foreground shadow-sm dark:bg-zinc-900",
+                  "flex flex-col items-center gap-1.5 rounded-md bg-background/98 text-foreground shadow-sm backdrop-blur-[12px] dark:bg-background/70",
                   thumbnail && "min-h-10",
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
