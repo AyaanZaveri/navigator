@@ -1,6 +1,7 @@
 package app.navigator.android;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.view.Gravity;
 import android.view.SurfaceView;
@@ -48,6 +49,9 @@ final class NativePlayer {
     private final Consumer<JSONObject> emit;
     private final OkHttpClient http = new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build();
     private ExoPlayer player;
+    private SeekPreviews previews;
+    private boolean scrubbing;
+    private boolean scrubWasPlaying;
     private DefaultTrackSelector selector;
     private String session = "";
     private String url = "";
@@ -82,6 +86,29 @@ final class NativePlayer {
         parent.addView(layer, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
         parent.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fit(parent));
     }
+
+    long durationMs() { return player == null ? 0 : Math.max(0,player.getDuration()); }
+    long positionMs() { return player == null ? 0 : Math.max(0,player.getCurrentPosition()); }
+    boolean canScrub() { return readyForGestures() && player != null && player.isCurrentMediaItemSeekable() && durationMs()>0; }
+    boolean beginScrub(String owner) {
+        if (!session.equals(owner) || !canScrub() || scrubbing) return false;
+        scrubWasPlaying=player.getPlayWhenReady(); scrubbing=true; player.pause(); return true;
+    }
+    void endScrub(String owner,boolean commit,long target) {
+        if (!session.equals(owner) || !scrubbing || player == null) return;
+        if (commit) { seeking=true; player.seekTo(Math.max(0,Math.min(durationMs(),target))); }
+        boolean resume=scrubWasPlaying; scrubbing=false; player.setPlayWhenReady(resume); state();
+    }
+    void preview(String owner,long at,Consumer<Bitmap> callback) {
+        if (!session.equals(owner) || !foreground || !canScrub()) return;
+        if (previews == null) {
+            var data=new DefaultDataSource.Factory(context,
+                new OkHttpDataSource.Factory(ScopedHttp.forStream(http,URI.create(url),headers)).setUserAgent("NavigatorAndroid/0.1"));
+            previews=new SeekPreviews(context,MediaItem.fromUri(Uri.parse(url)),new DefaultMediaSourceFactory(data));
+        }
+        previews.request(at,callback);
+    }
+    void warmPreview() { if (canScrub()) preview(session,positionMs(),ignored -> {}); }
 
     boolean readyForGestures() { return active() && ready; }
     boolean active() { return !session.isEmpty(); }
@@ -125,8 +152,8 @@ final class NativePlayer {
         }
         if (!active() || !session.equals(message.optString("session"))) return;
         switch (type) {
-            case "play": play = true; if (player != null) player.play(); break;
-            case "pause": play = false; if (player != null) player.pause(); break;
+            case "play": play = true; if (scrubbing) scrubWasPlaying=true; else if (player != null) player.play(); break;
+            case "pause": play = false; if (scrubbing) scrubWasPlaying=false; else if (player != null) player.pause(); break;
             case "stop": stop(); break;
             case "seek": {
                 double at = message.optDouble("position", -1);
@@ -301,7 +328,7 @@ final class NativePlayer {
         emit.accept(object("type", "state", "session", session, "state", object(
             "position", Math.max(0, player.getCurrentPosition()) / 1000.0,
             "duration", Math.max(0, player.getDuration()) / 1000.0,
-            "paused", !player.getPlayWhenReady(), "volume", volume, "muted", muted, "rate", rate,
+            "paused", !(scrubbing ? scrubWasPlaying : player.getPlayWhenReady()), "volume", volume, "muted", muted, "rate", rate,
             "buffering", player.getPlaybackState() == Player.STATE_BUFFERING, "seeking", seeking,
             "buffered", Math.max(0, player.getBufferedPosition()) / 1000.0,
             "width", size.width, "height", size.height)));
@@ -310,7 +337,7 @@ final class NativePlayer {
     void start() { foreground = true; create(); }
     void suspend() {
         foreground = false;
-        if (player != null) { position = Math.max(0, player.getCurrentPosition()); play = player.getPlayWhenReady(); }
+        if (player != null) { position = Math.max(0, player.getCurrentPosition()); play = scrubbing ? scrubWasPlaying : player.getPlayWhenReady(); }
         release();
     }
     void stop() {
@@ -322,6 +349,8 @@ final class NativePlayer {
     }
     void destroy() { stop(); http.dispatcher().cancelAll(); http.connectionPool().evictAll(); }
     private void release() {
+        scrubbing=false;
+        if (previews!=null) { previews.close(); previews=null; }
         ExoPlayer previous = player;
         player = null;
         selector = null;

@@ -9,8 +9,9 @@ heading.children = [title, endTime]; heading.nextElementSibling = meta; title.pa
 toolbar.querySelector = () => ({});
 const button = { ...node(), getAttribute: name => attributes.get(name), childNodes: [{ nodeType: 3, textContent: 'Go Back' }] };
 const controls = { getBoundingClientRect() { measured++; return { top, bottom: 380, width: 850, height: 380 - top }; }, querySelector: () => title, lastElementChild: toolbar };
-let mounted = true;
-const shell = { querySelector: () => controls, querySelectorAll: selector => selector === 'h2' ? [title] : [button] };
+let mounted = true, nativeTouch = false, visible = true;
+const player = { hasAttribute: name => name === 'data-touch-controls' ? nativeTouch : visible, getAttribute: () => visible ? 'visible' : 'hidden' };
+const shell = { querySelector: selector => selector.includes('media-player-controls') ? controls : player, querySelectorAll: selector => selector === 'h2' ? [title] : [button] };
 const document = { querySelector: () => mounted ? shell : null };
 const listeners = new Map();
 const window = { innerWidth: 850, innerHeight: 380, addEventListener: (name, callback) => listeners.set(name, callback), removeEventListener: name => listeners.delete(name) };
@@ -18,7 +19,8 @@ const install = vm.runInNewContext(fs.readFileSync('android/app/src/main/assets/
     MutationObserver: class { constructor(callback) { mutations = callback; } observe() {} disconnect() {} },
     ResizeObserver: class { constructor(callback) { resized = callback; } observe() {} disconnect() {} },
 });
-const dispose = install(document, window, message => sent.push(message));
+const visibilityMessages = [];
+const dispose = install(document, window, message => (message.type === 'player-controls' ? visibilityMessages : sent).push(message));
 assert.equal(button.childNodes[0].textContent, 'Back');
 assert.equal(attributes.get('aria-label'), 'Back to browsing');
 assert.equal(sent[0].type, 'player-layout');
@@ -32,6 +34,15 @@ assert.equal(measured, reads, 'Time updates do not force layout measurements');
 top = 200; resized();
 assert.equal(sent.length, 2, 'A wrapped title updates the actual control exclusion band');
 assert.equal(sent.at(-1).top, 200);
+assert.equal(visibilityMessages.at(-1).visible, true);
+visible = false; mutations([{ type: 'attributes' }]);
+assert.equal(visibilityMessages.at(-1).visible, false, 'Legacy hidden controls release native gesture area');
+assert.equal(measured, reads + 1, 'Visibility changes do not remeasure controls');
+nativeTouch = true; visible = true; mutations([{ type: 'attributes' }]);
+assert.equal(visibilityMessages.at(-1).visible, true);
+visible = false; mutations([{ type: 'attributes' }]);
+assert.equal(visibilityMessages.at(-1).visible, false, 'React uses attribute presence, not the string false');
+mutations([{ type: 'attributes' }]); assert.equal(visibilityMessages.length, 4);
 mounted = false; mutations([{ addedNodes: [], removedNodes: [{ nodeType: 1 }] }]);
 resized(); assert.equal(sent.length, 2, 'Unmounted controls cannot publish stale geometry');
 dispose(); assert.equal(listeners.size, 0);

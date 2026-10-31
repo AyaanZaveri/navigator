@@ -136,6 +136,7 @@ public final class MainActivity extends ComponentActivity {
         });
         setContentView(root);
         player = new NativePlayer(this, root, this::send);
+        root.setPlayer(player);
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
                 || !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             launching = false;
@@ -259,6 +260,8 @@ public final class MainActivity extends ComponentActivity {
                             case "appearance":
                                 webDark = request.optBoolean("dark", true);
                                 updateSystemBarAppearance(); updateWebPresentation(); break;
+                            case "player-controls":
+                                root.setControlsVisible(request.optBoolean("visible",true)); break;
                             case "player-layout":
                                 double top = request.optDouble("top", Double.NaN);
                                 double bottom = request.optDouble("bottom", Double.NaN);

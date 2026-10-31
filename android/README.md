@@ -162,26 +162,55 @@ layout. Matching loading typography and injected hosted-UI hooks apply in the
 APK before deployment. Resize observations report geometry only when it changes;
 progress text never triggers layout measurements or extra bridge traffic.
 
-During Android playback, swipe vertically in the left outer 30% of the video
-surface to adjust app-window brightness, or the right outer 30% to adjust
-**Android media volume**. Up increases and down decreases. The parent native
-view waits for a vertical motion threshold before taking ownership; Android then
-sends `ACTION_CANCEL` to the WebView, preventing an accidental tap/play action.
-Taps, central/horizontal gestures, measured controls, top buttons, open overlays,
-system Back edges, multitouch, and TalkBack touch exploration retain their
-existing handling. These gestures run directly in Android without per-move JS
-messages. A small native percentage indicator follows the selected side.
+During Android playback, swipe vertically in the full left third to adjust
+app-window brightness, or the full right third to adjust **Android media volume**.
+Up increases and down decreases. Thin vertical bars use a 56 dp drag target;
+the volume bar includes a separate mute/unmute target. Drag either bar directly.
+The parent waits for clear directional intent, then sends `ACTION_CANCEL` to the
+WebView so a swipe cannot become a tap. Visible controls and top buttons keep
+their touch areas. Hidden controls release the full video height. Horizontal
+swipes beginning in Android's Back region remain with the system; vertical side
+swipes reach the physical edges. Multitouch and TalkBack exploration never claim
+a video gesture. There are no per-move JS bridge messages.
 
-Brightness stays between 2% and 100% and restores the previous window override
-(including automatic/system default) when playback closes. Other applications'
-brightness settings are not written. Media volume uses `AudioManager.STREAM_MUSIC`,
-respects the platform's min/max and fixed-volume policy, and persists as a system
-media-volume adjustment. The manifest declares the normal `MODIFY_AUDIO_SETTINGS`
-permission; no `WRITE_SETTINGS` permission or settings approval is needed. Devices
-that restrict volume changes are handled without a crash. HDR remains on its
-existing native surface. Backgrounding/rotation cancels a live gesture and its
-indicator. Physical swipe feel, hardware brightness, Bluetooth volume, long-title
-wrapping, and HDR appearance still require the user's device check.
+With controls hidden, horizontal swiping seeks with a thumbnail, target time,
+signed offset, and a thin progress bar. Moving toward the top slows scrubbing;
+moving toward the bottom speeds it up. Incremental movement allows changing
+height during one drag without jumping the target. The decoder pauses during
+the gesture while preserving the logical play state, commits one seek on release,
+and restores that state. Cancelling, rotating, backgrounding, or changing the
+source cannot commit an old seek to a new session. Live/unseekable streams do
+not enter scrub mode.
+
+Media3 1.11.1's `media3-inspector-frame` extracts 180 px high keyframes using
+`CLOSEST_SYNC` and the hardware decoder selector. A separate asynchronous decoder
+uses the same origin-scoped HTTP header and redirect policy as playback. Requests
+are bucketed to two seconds: one extraction runs at a time and pending movement
+replaces the desired target. An 8 MB bitmap cache and one warm request when
+controls first hide improve responsiveness. Idle decoders release after ten
+seconds, extraction times out after eight seconds, and source changes/backgrounding
+clear the cache and decoder. Failed extraction leaves time and progress usable
+and retries after a cooldown. The initial preview uses a loading placeholder;
+a cached frame stays visible while the next frame loads. HDR inputs produce
+SDR tone-mapped thumbnails; main HDR/HLG playback remains on its native surface.
+
+Firecore documents directional seeking, side brightness/volume gestures, and live
+preview thumbnails. It does not publish a numeric finger-height sensitivity curve;
+Navigator's top-slow/bottom-fast curve follows the requested behavior rather than
+claiming an identical Infuse algorithm. Long videos span about 30 seconds per
+screen-width at the top and ten minutes at the bottom, with a smooth quadratic
+blend; shorter videos scale to their duration.
+
+Brightness uses `WindowManager.LayoutParams.screenBrightness` and restores the
+previous window value, including automatic/default policy, when playback closes.
+Volume and mute use `AudioManager.STREAM_MUSIC` with the normal
+`MODIFY_AUDIO_SETTINGS` permission. No global brightness settings or
+`WRITE_SETTINGS` permission are required. Devices restricting volume are handled
+without crashing. JVM tests cover gesture intent, thirds/edges, control visibility,
+Back priority, reversal, bounds and changing sensitivity mid-drag. Native lint,
+bridge regressions and signed APK packaging are checked without an emulator.
+Actual swipe feel, preview latency, Bluetooth volume and HDR appearance still
+require the user's device check.
 
 ### Android Back and phone geometry
 
@@ -231,6 +260,10 @@ the previous APK and the website; a device Perfetto/WebView trace is still neede
 if perceptible jitter remains. No GPU effects or page content were removed.
 
 References used:
+
+- [Firecore playback gestures](https://support.firecore.com/hc/en-us/articles/215090987-Playback-Controls)
+- [Infuse preview seeking](https://firecore.com/blog/infuse-58-seek-and-find)
+- [Pinned Media3 frame extractor API, performance guidance and HDR behavior](https://github.com/androidx/media/blob/1.11.1/libraries/inspector_frame/src/main/java/androidx/media3/inspector/frame/FrameExtractor.java)
 
 - [Media3 dependencies and releases](https://developer.android.com/jetpack/androidx/releases/media3)
 - [Media3 1.11.1 API](https://github.com/androidx/media/blob/1.11.1/api.txt)

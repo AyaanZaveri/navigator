@@ -1,7 +1,13 @@
 // Compatibility with the hosted UI; layout updates are bounded to actual size
 // changes and player mount/unmount, never playback's progress text updates.
 (function installPlayerUI(document, window, send) {
-  let controls, last = '';
+  let controls, shell, visibility, last = '';
+  const reportVisibility = () => {
+    const player = shell?.querySelector('[data-slot="media-player"]');
+    const visible = !player || (player.hasAttribute('data-touch-controls')
+      ? player.hasAttribute('data-controls-visible') : player.getAttribute('data-android-controls') !== 'hidden');
+    if (visible !== visibility) { visibility = visible; send({ type: 'player-controls', visible }); }
+  };
   const mark = (node, name) => { if (node && !node.hasAttribute(name)) node.setAttribute(name, ''); };
   const report = () => {
     if (!controls) return;
@@ -15,7 +21,8 @@
   };
   const resize = new ResizeObserver(report);
   const decorate = () => {
-    const shell = document.querySelector('[data-native-player-shell]');
+    shell = document.querySelector('[data-native-player-shell]');
+    reportVisibility();
     const next = shell?.querySelector('[data-slot="media-player-controls"]');
     if (next !== controls) {
       resize.disconnect(); controls = next; last = '';
@@ -49,9 +56,10 @@
     report();
   };
   const observer = new MutationObserver((records = []) => {
-    if (!records.length || records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1))) decorate();
+    if (records.some(record => record.type === 'attributes')) reportVisibility();
+    if (!records.length || records.some(record => record.type !== 'attributes' && [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1))) decorate();
   });
-  observer.observe(document, { childList: true, subtree: true });
+  observer.observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-android-controls', 'data-controls-visible'] });
   window.addEventListener('resize', report, { passive: true });
   decorate();
   return () => { observer.disconnect(); resize.disconnect(); window.removeEventListener('resize', report); };
