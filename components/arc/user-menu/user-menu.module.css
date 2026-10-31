@@ -56,7 +56,7 @@
 .dot[data-status="offline"] { --dot-color: var(--text-muted); }
 
 /* The panel scales out of the avatar it belongs to; the component sets the origin once it is placed. */
-.panel { --presence-surface: var(--surface-raised); --row: 32px; --inset: 4px; --menu-radius: 10px; --menu-line: color-mix(in oklab, var(--foreground) 9%, transparent); position: fixed; top: 0; left: 0; z-index: 60; box-sizing: border-box; width: 15.5rem; max-width: calc(100vw - 24px); padding: var(--inset); border: .5px solid var(--border); border-radius: var(--menu-radius); background: color-mix(in oklab, var(--background) 98%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: var(--shadow-floating); color: var(--foreground); font-family: var(--font-body); font-weight: 500; letter-spacing: -.01em; line-height: 1.3; text-align: left; outline: none; transform-origin: var(--origin-x, 100%) var(--origin-y, 0px); }
+.panel { --presence-surface: var(--surface-raised); --row: 32px; --inset: 4px; --menu-radius: 10px; --menu-line: color-mix(in oklab, var(--foreground) 9%, transparent); position: fixed; top: 0; left: 0; z-index: var(--layer-overlay); box-sizing: border-box; width: 15.5rem; max-width: calc(100vw - 24px); padding: var(--inset); border: .5px solid var(--border); border-radius: var(--menu-radius); background: color-mix(in oklab, var(--background) 98%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: var(--shadow-floating); color: var(--foreground); font-family: var(--font-body); font-weight: 500; letter-spacing: -.01em; line-height: 1.3; text-align: left; outline: none; transform-origin: var(--origin-x, 100%) var(--origin-y, 0px); }
 :global(.dark) .panel {
   background: color-mix(in oklab, var(--background) 70%, transparent);
 }
@@ -128,8 +128,8 @@
 @keyframes user-menu-spin { to { transform: rotate(360deg); } }
 
 /* Below 640px the same content rises as a bottom sheet with larger rows. */
-.scrim { position: fixed; inset: 0; z-index: 70; background: oklch(0% 0 0 / .32); -webkit-tap-highlight-color: transparent; }
-.sheet { --row: 44px; --inset: 8px; position: fixed; top: auto; right: max(8px, env(safe-area-inset-right, 0px)); bottom: 8px; left: max(8px, env(safe-area-inset-left, 0px)); z-index: 71; width: auto; max-width: none; max-height: min(88dvh, calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)))); overflow-y: auto; overscroll-behavior: contain; padding: 6px var(--inset) var(--inset); border-radius: var(--radius-panel); }
+.scrim { position: fixed; inset: 0; z-index: var(--layer-overlay); background: oklch(0% 0 0 / .32); -webkit-tap-highlight-color: transparent; }
+.sheet { --row: 44px; --inset: 8px; position: fixed; top: auto; right: max(8px, env(safe-area-inset-right, 0px)); bottom: 8px; left: max(8px, env(safe-area-inset-left, 0px)); z-index: var(--layer-overlay); width: auto; max-width: none; max-height: min(88dvh, calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)))); overflow-y: auto; overscroll-behavior: contain; padding: 6px var(--inset) var(--inset); border-radius: var(--radius-panel); }
 .handle { display: block; width: 36px; height: 5px; margin: 0 auto 6px; border-radius: var(--radius-pill); background: var(--border-strong); cursor: grab; }
 .sheet .header { padding: 4px 8px 12px; }
 .sheet .item, .sheet .rowLabel { font-size: var(--text-base); }

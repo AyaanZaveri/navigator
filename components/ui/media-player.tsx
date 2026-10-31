@@ -57,6 +57,10 @@ import {
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
+import { desktopBridge } from "@/lib/desktop/bridge";
+import { createDesktopMediaStore } from "@/lib/desktop/media-store";
+import { SeekPreview } from "@/components/seek-preview";
+
 const ROOT_NAME = "MediaPlayer";
 const SEEK_NAME = "MediaPlayerSeek";
 const SETTINGS_NAME = "MediaPlayerSettings";
@@ -252,8 +256,9 @@ function MediaPlayerRoot(props: MediaPlayerRootProps) {
     [listenersRef, stateRef]
   );
 
+  const [nativeStore] = React.useState(() => desktopBridge() ? createDesktopMediaStore() : undefined);
   return (
-    <MediaProvider>
+    <MediaProvider mediaStore={nativeStore}>
       <StoreContext.Provider value={store}>
         <MediaPlayerRootImpl {...props} />
       </StoreContext.Provider>
@@ -333,7 +338,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const isVideo =
     (typeof HTMLVideoElement !== "undefined" &&
       mediaRef.current instanceof HTMLVideoElement) ||
-    mediaRef.current?.tagName?.toLowerCase() === "mux-player";
+    mediaRef.current?.tagName?.toLowerCase() === "mux-player" ||
+    !!desktopBridge();
 
   const onControlsShow = React.useCallback(() => {
     store.setState("controlsVisible", true);
@@ -481,7 +487,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         case "f":
           event.preventDefault();
           dispatch({
-            type: document.fullscreenElement
+            type: (desktopBridge()?.fullscreen ?? !!document.fullscreenElement)
               ? MediaActionTypes.MEDIA_EXIT_FULLSCREEN_REQUEST
               : MediaActionTypes.MEDIA_ENTER_FULLSCREEN_REQUEST,
           });
@@ -1508,6 +1514,7 @@ interface MediaPlayerSeekProps
   withoutChapter?: boolean;
   withoutTooltip?: boolean;
   tooltipThumbnailSrc?: string | ((time: number) => string);
+  previewFrames?: boolean;
   tooltipTimeVariant?: "current" | "progress";
   tooltipSideOffset?: number;
   tooltipCollisionBoundary?: Element | Element[];
@@ -1523,6 +1530,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     withoutTooltip = false,
     tooltipTimeVariant = "current",
     tooltipThumbnailSrc,
+    previewFrames = false,
     tooltipSideOffset,
     tooltipCollisionPadding = SEEK_COLLISION_PADDING,
     tooltipCollisionBoundary,
@@ -1819,7 +1827,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     return Math.min(1, seekableStart / seekableEnd);
   }, [mediaBuffered, mediaCurrentTime, seekableEnd, mediaEnded, seekableStart]);
 
-  const onPointerEnter = React.useCallback(() => {
+  const onPointerEnter = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (seekRef.current) {
       seekRectRef.current = seekRef.current.getBoundingClientRect();
     }
@@ -1828,6 +1836,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     pointerEnterTimeRef.current = Date.now();
     horizontalMovementRef.current = 0;
     verticalMovementRef.current = 0;
+    lastPointerXRef.current = event.clientX;
+    lastPointerYRef.current = event.clientY;
 
     if (seekableEnd > 0) {
       if (hoverTimeoutRef.current) {
@@ -1835,6 +1845,15 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       }
 
       if (!tooltipDisabled) {
+        if (seekRectRef.current && seekRectRef.current.width > 0) {
+          const fraction = Math.max(0, Math.min(1, (event.clientX - seekRectRef.current.left) / seekRectRef.current.width));
+          hoverTimeRef.current = seekableStart + fraction * (seekableEnd - seekableStart);
+          onPreviewUpdate(hoverTimeRef.current);
+          hoverTimeoutRef.current = window.setTimeout(() => {
+            setSeekState((previous) => ({ ...previous, isHovering: true }));
+            onTooltipPositionUpdate(lastPointerXRef.current);
+          }, 60);
+        }
         if (lastPointerXRef.current && seekRectRef.current) {
           const clientX = Math.max(
             seekRectRef.current.left,
@@ -1844,7 +1863,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         }
       }
     }
-  }, [seekableEnd, onTooltipPositionUpdate, tooltipDisabled]);
+  }, [seekableStart, seekableEnd, onTooltipPositionUpdate, onPreviewUpdate, tooltipDisabled]);
 
   const onPointerLeave = React.useCallback(() => {
     if (hoverTimeoutRef.current) {
@@ -1931,7 +1950,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           Math.min(clientX - seekRect.left, seekRect.width)
         );
         const relativeX = offsetXOnSeekBar / seekRect.width;
-        const calculatedHoverTime = relativeX * seekableEnd;
+        const calculatedHoverTime = seekableStart + relativeX * (seekableEnd - seekableStart);
 
         hoverTimeRef.current = calculatedHoverTime;
 
@@ -1982,6 +2001,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       onTooltipPositionUpdate,
       onHoverProgressUpdate,
       seekableEnd,
+      seekableStart,
       seekState.isHovering,
       tooltipDisabled,
     ]
@@ -2179,28 +2199,30 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       </SliderPrimitive.Root>
       {!withoutTooltip &&
         !context.withoutTooltip &&
-        seekState.isHovering &&
+        (seekState.isHovering || previewFrames) &&
         seekableEnd > 0 && (
           <MediaPlayerPortal>
             <div
               ref={tooltipRef}
-              className="pointer-events-none z-[1000001] [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
+              aria-hidden={!seekState.isHovering || tooltipDisabled}
+              className="pointer-events-none z-[var(--layer-tooltip)] [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
               style={{
                 position: "fixed" as const,
                 left: `var(${SEEK_TOOLTIP_X}, 0rem)`,
                 top: `var(${SEEK_TOOLTIP_Y}, 0rem)`,
                 transform: `translateX(-50%) translateY(calc(-100% - ${currentTooltipSideOffset}px))`,
-                visibility: seekState.hasInitialPosition ? "visible" : "hidden",
-                opacity: seekState.hasInitialPosition ? 1 : 0,
+                visibility: !tooltipDisabled && seekState.isHovering && seekState.hasInitialPosition ? "visible" : "hidden",
+                opacity: !tooltipDisabled && seekState.isHovering && seekState.hasInitialPosition ? 1 : 0,
               }}
             >
               <div
                 className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-md border bg-background text-foreground shadow-sm dark:bg-zinc-900",
+                  "flex flex-col items-center gap-1.5 rounded-md bg-background/98 text-foreground shadow-sm backdrop-blur-[12px] dark:bg-background/70",
                   thumbnail && "min-h-10",
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
               >
+                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} />}
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"
@@ -2233,8 +2255,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   data-slot="media-player-seek-time"
                   className={cn(
                     "whitespace-nowrap text-center text-xs tabular-nums",
-                    thumbnail && "pb-1.5",
-                    !(thumbnail || currentChapterCue) && "px-2.5 py-1"
+                    (thumbnail || previewFrames) && "pb-1.5",
+                    !(thumbnail || previewFrames || currentChapterCue) && "px-2.5 py-1"
                   )}
                 >
                   {tooltipTimeVariant === "progress"
@@ -3007,7 +3029,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
         side="top"
         sideOffset={sideOffset}
         container={context.portalContainer}
-        className="w-56 data-[side=top]:mb-3.5 z-[1000000]"
+        className="w-56 data-[side=top]:mb-3.5"
       >
         <DropdownMenuLabel className="sr-only">Settings</DropdownMenuLabel>
         <DropdownMenuSub>
@@ -3223,7 +3245,7 @@ function MediaPlayerTooltip(props: MediaPlayerTooltipProps) {
       <TooltipContent
         container={context.portalContainer}
         sideOffset={tooltipSideOffset}
-        className="flex items-center gap-2 border bg-accent px-2 py-1 font-medium text-foreground data-[side=top]:mb-3.5 dark:bg-zinc-900 [&>span]:hidden z-[1000000]"
+        className="flex items-center gap-2 border bg-accent px-2 py-1 font-medium text-foreground data-[side=top]:mb-3.5 dark:bg-zinc-900 [&>span]:hidden"
       >
         <p>{tooltip}</p>
         {Array.isArray(shortcut) ? (

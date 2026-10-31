@@ -257,6 +257,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       seasonNumber: isEpisode ? activeMedia.seasonNumber : undefined,
       episodeNumber: isEpisode ? activeMedia.episodeNumber : undefined,
       backdropUrl: activeMedia.background || activeMedia.poster,
+      requestHeaders: stream.behaviorHints?.proxyHeaders?.request,
       subtitleFilename: stream.behaviorHints?.filename,
       subtitleVideoSize: stream.behaviorHints?.videoSize,
     });

@@ -39,7 +39,7 @@ export function EpisodeCard({
   return (
     <div className="cursor-pointer group overflow-hidden transition select-none w-64">
       <div className="relative w-full border rounded-md overflow-hidden active:scale-[0.98] transition aspect-video">
-        <Link href={linkHref} prefetch={true} draggable={false} className="block w-full h-full">
+        <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
           {imageUrl ? (
             <img
               src={imageUrl}

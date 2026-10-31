@@ -27,7 +27,9 @@ async function run() {
   const calls = [];
   let fail = false;
   const globals = {
-    require: name => name === '@/lib/cast' ? cast : name === '@/lib/tmdb' ? tmdb : {},
+    require: name => name === '@/lib/cast' ? cast : name === '@/lib/tmdb' ? tmdb
+      : name === '@/lib/tmdb-credentials' ? credentials
+      : name === 'next/headers' ? { cookies: async () => ({ get: () => undefined }) } : {},
     process: { env }, AbortSignal,
     fetch: async (url, options) => {
       calls.push({ url, options });
@@ -38,6 +40,7 @@ async function run() {
     },
   };
   const tmdb = load('lib/tmdb.ts', globals);
+  const credentials = load('lib/tmdb-credentials.ts', globals);
   const { getMediaCast } = load('lib/tmdb-cast.ts', globals);
   let result = await getMediaCast('tt0816692', 'movie', ['Known Actor']);
   assert.equal(result.members[0].name, 'Known Actor');

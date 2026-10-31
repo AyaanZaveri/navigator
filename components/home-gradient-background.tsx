@@ -1,7 +1,9 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useAtomValue } from "jotai";
 import { useTheme } from "next-themes";
+import { isPlayerVisibleAtom } from "@/lib/atoms";
 import GradientASCII from "@/components/gradient-ascii/gradient-ascii";
 import styles from "./home-gradient-background.module.css";
 
@@ -16,6 +18,9 @@ export function HomeGradientBackground({ dotOpacity = 0.85 }: { dotOpacity?: num
     const { resolvedTheme } = useTheme();
     const light = resolvedTheme !== "dark";
     const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
+    const isPlayerVisible = useAtomValue(isPlayerVisibleAtom);
+
+    if (isPlayerVisible) return null;
 
     return (
         <div aria-hidden="true" data-home-gradient="" className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>

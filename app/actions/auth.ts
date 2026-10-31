@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cookieRequiresHttps } from "@/lib/cookie-policy";
 import type {
   StremioAuthData,
   StremioUser,
@@ -35,7 +36,7 @@ async function setAuthCookie(data: StremioAuthData) {
     path: "/",
     maxAge: 60 * 60 * 24 * 30, // 30 days
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieRequiresHttps(),
     httpOnly: false,
   });
 }

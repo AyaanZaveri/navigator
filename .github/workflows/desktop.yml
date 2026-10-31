@@ -1,0 +1,81 @@
+name: Desktop playback
+
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "lib/desktop/**"
+      - "components/desktop/**"
+      - "components/global-media-player.tsx"
+      - "components/home-gradient-background.tsx"
+      - "components/navigator/ai-ask.tsx"
+      - "components/navigator/focus.tsx"
+      - "lib/atoms.ts"
+      - "app/globals.css"
+      - "components/media-card.tsx"
+      - "components/episode-card.tsx"
+      - "components/season-episodes.tsx"
+      - "components/episode-hero-thumbnail.tsx"
+      - "components/ui/media-player.tsx"
+      - "components/seek-preview.tsx"
+      - "lib/media/**"
+      - "scripts/test-previews.cjs"
+      - "scripts/test-webkit-previews.cjs"
+      - "scripts/fixtures/seek-preview.mp4"
+      - "scripts/*desktop*"
+      - "scripts/generate-macos-icon.sh"
+      - "public/logo/desktop/**"
+      - "scripts/test-artwork*"
+      - "scripts/test-cast.cjs"
+      - "scripts/test-image-layout.cjs"
+      - "scripts/test-gradient-lifecycle.cjs"
+      - "scripts/webkit-image-layout.m"
+      - "scripts/generate-hdr-fixtures.mjs"
+      - "app/actions/auth.ts"
+      - "app/actions/artwork-settings.ts"
+      - "app/(main)/settings/**"
+      - "app/api/artwork/**"
+      - "lib/tmdb*.ts"
+      - "lib/cookie-policy.ts"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+      - run: cargo fmt --manifest-path desktop/Cargo.toml --all -- --check
+      - run: cargo test --manifest-path desktop/Cargo.toml --locked
+  adapter:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test:desktop
+      - run: bun run test:gradient
+      - if: runner.os == 'macOS'
+        run: bun run test:image-layout
+      - if: runner.os == 'macOS'
+        run: bun run test:webkit-previews
+      - run: bun x tsc --noEmit --incremental false

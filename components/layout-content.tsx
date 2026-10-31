@@ -12,6 +12,7 @@ import {
 } from "@/lib/atoms";
 import { useSettings } from "@/contexts/settings-context";
 import { useEffect } from "react";
+import { desktopBridge } from "@/lib/desktop/bridge";
 
 interface LayoutContentProps {
   children: React.ReactNode;
@@ -38,7 +39,10 @@ export function LayoutContent({ children, email }: LayoutContentProps) {
     if (isFullscreen && !isAIAskOpen) {
       // Exit fullscreen first when opening AI Ask
       try {
-        if (document.exitFullscreen) {
+        const desktop = desktopBridge();
+        if (desktop) {
+          desktop.send({ type: "fullscreen", value: false });
+        } else if (document.exitFullscreen) {
           await document.exitFullscreen();
         } else if ((document as any).webkitExitFullscreen) {
           await (document as any).webkitExitFullscreen();
@@ -63,6 +67,7 @@ export function LayoutContent({ children, email }: LayoutContentProps) {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden">
+      <div data-desktop-app-content className="contents">
       {isHome && <AppHeader email={email} />}
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-[env(safe-area-inset-bottom)]">
         {isHome ? children : (
@@ -72,6 +77,7 @@ export function LayoutContent({ children, email }: LayoutContentProps) {
           </div>
         )}
       </main>
+      </div>
       {navigatorEnabled && <AIAsk />}
       <GlobalMediaPlayer onToggleAIAsk={navigatorEnabled ? handleToggleAIAsk : undefined} />
     </div>

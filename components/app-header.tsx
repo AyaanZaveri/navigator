@@ -40,7 +40,7 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
     if (isPlayerVisible) return null;
 
     return (
-        <header className={`${overlay ? "absolute inset-x-0 top-0" : "relative"} z-50 shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]`}>
+        <header className={`${overlay ? "absolute inset-x-0 top-0" : "relative"} z-[var(--layer-header)] shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]`}>
             <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-3 py-5">
                 <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 transition-[filter,scale] hover:bg-transparent hover:brightness-90 dark:hover:bg-transparent">
                     <Link href="/" aria-label="Navigator home" draggable={false}>

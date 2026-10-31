@@ -17,6 +17,6 @@ export async function GET(request: Request) {
   if (!image) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
   return new Response(null, {
     status: 307,
-    headers: { Location: image, "Cache-Control": "public, max-age=86400" },
+    headers: { Location: image, "Cache-Control": "private, max-age=86400", Vary: "Cookie" },
   });
 }

@@ -4,7 +4,46 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Native mpv occupies the OS view below this document. Keep alpha from first
+   paint, and draw the regular page backdrop as an independently hidden layer. */
+html[data-desktop="mpv"],
+html[data-desktop="mpv"] body {
+  background: transparent !important;
+  color-scheme: normal !important;
+}
+html[data-desktop="mpv"] body { isolation: isolate; }
+html[data-desktop="mpv"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--background);
+  pointer-events: none;
+}
+html[data-native-playing] body::before { display: none; }
+html[data-native-playing] [data-desktop-app-content] { visibility: hidden; }
+html[data-native-playing] [data-home-gradient] { display: none; }
+html[data-native-playing] [data-native-player-shell],
+html[data-native-playing] [data-slot="media-player"] {
+  background: transparent !important;
+}
+navigator-mpv {
+  display: block;
+  background: transparent !important;
+  width: 100vw;
+  height: 100dvh;
+}
+
 :root {
+  /* Global layers. Portaled overlays share a level so mount order also
+     handles nested dialogs and menus; each backdrop precedes its surface. */
+  --layer-navigator: 30;
+  --layer-header: 35;
+  --layer-player: 40;
+  --layer-player-navigator: 45;
+  --layer-overlay: 50;
+  --layer-tooltip: 60;
+  --layer-toast: 70;
   --page-gutter: 1rem;
   /* Arc surfaces follow the existing app theme rather than replacing it. */
   --surface: var(--card);

@@ -43,6 +43,7 @@ import {
   getNavigatorActivityLabel,
   NAVIGATOR_ACTIVITY_VARIANT_COUNT,
 } from "@/lib/navigator-activity-label";
+import { cn } from "@/lib/utils";
 import "./focus.css";
 import { navigatorBeamColors } from "@/lib/navigator-beam";
 
@@ -77,6 +78,7 @@ function ActivityPill({
 
 type Props = {
   open: boolean;
+  showLauncher: boolean;
   onOpen: () => void;
   onOpenChange: (open: boolean) => void;
   messages: UIMessage[];
@@ -92,6 +94,7 @@ type Props = {
 
 export function NavigatorFocus({
   open,
+  showLauncher,
   onOpen,
   onOpenChange,
   messages,
@@ -128,7 +131,9 @@ export function NavigatorFocus({
     setFocusState((state) =>
       open
         ? state === "closed"
-          ? "launcher-exiting"
+          ? showLauncher
+            ? "launcher-exiting"
+            : "open"
           : state === "panel-exiting"
             ? "open"
             : state
@@ -138,7 +143,7 @@ export function NavigatorFocus({
             ? "closed"
             : state,
     );
-  }, [open]);
+  }, [open, showLauncher]);
 
   const latestMessage = messages.at(-1);
   const hasResponseStarted =
@@ -264,7 +269,12 @@ export function NavigatorFocus({
   return (
     <div
       data-navigator-focus-ui=""
-      className="pointer-events-none fixed inset-x-0 bottom-4 z-[9999999] flex justify-center px-4"
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-4",
+        showLauncher
+          ? "z-[var(--layer-navigator)]"
+          : "z-[var(--layer-player-navigator)]",
+      )}
     >
       <div className="pointer-events-auto flex w-full max-w-xl flex-col items-center">
         {isOpen ? (
@@ -574,7 +584,7 @@ export function NavigatorFocus({
               </motion.div>
             </LayoutGroup>
           </div>
-        ) : (
+        ) : showLauncher ? (
           <motion.div
             className="mb-1"
             animate={
@@ -620,7 +630,7 @@ export function NavigatorFocus({
               </KbdGroup>
             </Button>
           </motion.div>
-        )}
+        ) : null}
       </div>
     </div>
   );

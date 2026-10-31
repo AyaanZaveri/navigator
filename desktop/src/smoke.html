@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html, body { background: transparent; margin: 0; color: white; font: 16px system-ui; }
+.panel { position: fixed; left: 24px; right: 24px; bottom: 24px; padding: 20px; border-radius: 12px; background: rgb(10 10 10 / .8); }
+button { padding: 8px 16px; margin-right: 8px; font: inherit; cursor: pointer; }
+</style></head><body><div class="panel">
+<h2>Navigator native playback check</h2>
+<p>The changing color bars come from mpv. This panel is the transparent web view above them.</p>
+<p id="state">Waiting for libmpv…</p>
+<button id="pause">Pause</button><button id="seek">Seek to start</button><button id="fullscreen">Fullscreen</button>
+</div><script>
+const bridge = window.navigatorDesktop;
+let paused = false;
+bridge.subscribe(message => {
+  if (message.type === 'state') {
+    paused = message.state.paused;
+    document.querySelector('#pause').textContent = paused ? 'Play' : 'Pause';
+    document.querySelector('#state').textContent = `${message.state.width} × ${message.state.height} · ${message.state.position.toFixed(1)}s · ${paused ? 'Paused' : 'Playing'}`;
+  }
+  if (message.type === 'error') document.querySelector('#state').textContent = message.message;
+});
+document.querySelector('#pause').onclick = () => bridge.send({type: paused ? 'play' : 'pause', session: 'native-smoke'});
+document.querySelector('#seek').onclick = () => bridge.send({type: 'seek', session: 'native-smoke', position: 0});
+document.querySelector('#fullscreen').onclick = () => bridge.send({type: 'fullscreen', value: !bridge.fullscreen});
+</script></body></html>
