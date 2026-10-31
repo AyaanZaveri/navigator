@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -55,7 +56,7 @@ import java.util.Collections;
 @UnstableApi
 public final class MainActivity extends ComponentActivity {
     private final Handler main = new Handler(Looper.getMainLooper());
-    private FrameLayout root;
+    private PlayerGestureLayout root;
     private WebView web;
     private NativePlayer player;
     private JavaScriptReplyProxy reply;
@@ -111,12 +112,14 @@ public final class MainActivity extends ComponentActivity {
         enableEdgeToEdge();
         preferences = getSharedPreferences("navigator", MODE_PRIVATE);
         origin = parseOrigin(preferences.getString("server", BuildConfig.NAVIGATOR_URL));
-        root = new FrameLayout(this);
+        root = new PlayerGestureLayout(this, () -> foreground && playerVisible && player != null && player.readyForGestures() && !webOverlayOpen);
         root.setBackgroundColor(Color.BLACK);
         ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
             playerInsets = insets;
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             float density = getResources().getDisplayMetrics().density;
+            Insets gestures = insets.getInsets(WindowInsetsCompat.Type.systemGestures());
+            root.setGestureInsets(bars.top, bars.bottom, gestures.left, gestures.right);
             safeInsets = NativePlayer.object("type", "insets", "top", bars.top / density,
                 "right", bars.right / density, "bottom", bars.bottom / density, "left", bars.left / density,
                 "cornerBottomLeft", bottomCornerRadius(insets, true, density),
@@ -217,6 +220,8 @@ public final class MainActivity extends ComponentActivity {
             }
         });
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+        root.installHud();
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
         configureBridge();
         configureBackNavigation();
         web.loadUrl(origin.toString() + "/");
@@ -326,10 +331,12 @@ public final class MainActivity extends ComponentActivity {
 
     private void sendPlayerLayoutInsets() {
         double left = 24, right = 24;
+        root.setControlsTop(Float.NaN);
         if (web != null && playerInsets != null && Double.isFinite(controlsTop)) {
             float density = getResources().getDisplayMetrics().density;
             double width = web.getWidth() / density, height = web.getHeight() / density;
             if (Math.abs(width - controlsViewportWidth) < 3 && Math.abs(height - controlsViewportHeight) < 3) {
+                root.setControlsTop((float) controlsTop * density);
                 var cutout = playerInsets.getDisplayCutout();
                 if (cutout != null) for (var rect : cutout.getBoundingRects()) {
                     if (rect.top / density < controlsBottom && rect.bottom / density > controlsTop) {
@@ -441,6 +448,7 @@ public final class MainActivity extends ComponentActivity {
         updateBackCallback();
         if (web == null) return;
         boolean playback = playerVisible || (player != null && player.active());
+        root.setVideoActive(playback);
         // Ordinary pages can be opaque SDR. Reserve alpha composition and the
         // HDR window for the native video surface underneath the WebView.
         int background = playback ? Color.TRANSPARENT : (webDark ? Color.rgb(10, 10, 10) : Color.WHITE);
@@ -610,6 +618,7 @@ public final class MainActivity extends ComponentActivity {
     }
     @Override protected void onStop() {
         foreground = false;
+        root.pauseGestures();
         resetBackPreview(false);
         scrolling = false;
         updateWebPresentation();
@@ -621,6 +630,7 @@ public final class MainActivity extends ComponentActivity {
     }
     @Override protected void onDestroy() {
         destroyed = true;
+        root.setVideoActive(false);
         main.removeCallbacksAndMessages(null);
         reply = null;
         if (player != null) player.destroy();

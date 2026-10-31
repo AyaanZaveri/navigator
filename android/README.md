@@ -84,6 +84,7 @@ explicit `-PversionCode=...` can override this.
 # From the repository root:
 node scripts/test-android-bridge.cjs
 node scripts/test-android-navigation.cjs
+node scripts/test-android-player-ui.cjs
 node scripts/test-desktop.cjs
 npx tsc --noEmit
 ```
@@ -148,6 +149,40 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
   playing decoder to generate previews. Formats unsupported by WebView may have
   no hover thumbnail, even when native playback works.
 
+### Player typography and side gestures
+
+The player uses the shorter visible label **Back**, with the accessible name
+**Back to browsing**, a 44 px touch target, and a 16 px base inset plus actual
+camera/corner clearance. Mobile/coarse-pointer titles use a 24 px heading and
+14 px metadata with natural wrapping; timer digits use tabular figures. The
+title, timeline, and toolbar share a 24 px gutter that expands only where the
+camera overlaps the measured control band. Narrow layouts wrap toolbar groups
+and allow vertical scrolling at large text sizes. Desktop keeps the denser
+layout. Matching loading typography and injected hosted-UI hooks apply in the
+APK before deployment. Resize observations report geometry only when it changes;
+progress text never triggers layout measurements or extra bridge traffic.
+
+During Android playback, swipe vertically in the left outer 30% of the video
+surface to adjust app-window brightness, or the right outer 30% to adjust
+**Android media volume**. Up increases and down decreases. The parent native
+view waits for a vertical motion threshold before taking ownership; Android then
+sends `ACTION_CANCEL` to the WebView, preventing an accidental tap/play action.
+Taps, central/horizontal gestures, measured controls, top buttons, open overlays,
+system Back edges, multitouch, and TalkBack touch exploration retain their
+existing handling. These gestures run directly in Android without per-move JS
+messages. A small native percentage indicator follows the selected side.
+
+Brightness stays between 2% and 100% and restores the previous window override
+(including automatic/system default) when playback closes. Other applications'
+brightness settings are not written. Media volume uses `AudioManager.STREAM_MUSIC`,
+respects the platform's min/max and fixed-volume policy, and persists as a system
+media-volume adjustment. The manifest declares the normal `MODIFY_AUDIO_SETTINGS`
+permission; no `WRITE_SETTINGS` permission or settings approval is needed. Devices
+that restrict volume changes are handled without a crash. HDR remains on its
+existing native surface. Backgrounding/rotation cancels a live gesture and its
+indicator. Physical swipe feel, hardware brightness, Bluetooth volume, long-title
+wrapping, and HDR appearance still require the user's device check.
+
 ### Android Back and phone geometry
 
 The app opts into predictive Back and registers its AndroidX callback only when
@@ -207,6 +242,9 @@ References used:
 - [Android predictive Back and ahead-of-time interception](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture)
 - [Official WebView Back codelab](https://codelabs.developers.google.com/handling-gesture-back-navigation)
 - [Predictive Back animation callbacks](https://developer.android.com/guide/navigation/custom-back/support-animations)
+- [Window brightness override and automatic/default policy](https://developer.android.com/reference/android/view/WindowManager.LayoutParams#screenBrightness)
+- [Android media stream volume](https://developer.android.com/reference/android/media/AudioManager#setStreamVolume(int,int,int))
+- [Parent touch interception and child cancellation](https://developer.android.com/develop/ui/views/touch-and-input/gestures/viewgroup)
 - [Physical display rounded corners](https://developer.android.com/develop/ui/views/layout/insets/rounded-corners)
 - [Adaptive refresh-rate categories, touch boost, and custom scroll views](https://developer.android.com/develop/ui/views/animations/adaptive-refresh-rate)
 - [Hardware acceleration and avoiding unnecessary view layers](https://developer.android.com/develop/ui/views/graphics/hardware-accel)

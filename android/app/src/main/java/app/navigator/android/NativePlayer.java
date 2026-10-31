@@ -83,6 +83,7 @@ final class NativePlayer {
         parent.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fit(parent));
     }
 
+    boolean readyForGestures() { return active() && ready; }
     boolean active() { return !session.isEmpty(); }
     String session() { return session; }
 
