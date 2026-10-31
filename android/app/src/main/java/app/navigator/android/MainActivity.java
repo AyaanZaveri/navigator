@@ -452,20 +452,18 @@ public final class MainActivity extends ComponentActivity {
         if (web == null) return;
         boolean playback = playerVisible || (player != null && player.active());
         root.setVideoActive(playback);
-        // Ordinary pages can be opaque SDR. Reserve alpha composition and the
-        // HDR window for the native video surface underneath the WebView.
+        // Keep the controls' window SDR. HDR video belongs to ExoPlayer's
+        // independent SurfaceView; the window color mode configures the UI buffer.
+        // Only playback needs a transparent WebView above that surface.
         int background = playback ? Color.TRANSPARENT : (webDark ? Color.rgb(10, 10, 10) : Color.WHITE);
         if (background != webBackground) {
             webBackground = background;
             web.setBackgroundColor(background);
             root.setBackgroundColor(playback ? Color.BLACK : background);
         }
-        if (Build.VERSION.SDK_INT >= 26) {
-            int mode = playback ? ActivityInfo.COLOR_MODE_HDR : ActivityInfo.COLOR_MODE_DEFAULT;
-            if (mode != windowColorMode) {
-                windowColorMode = mode;
-                getWindow().setColorMode(mode);
-            }
+        if (Build.VERSION.SDK_INT >= 26 && windowColorMode != ActivityInfo.COLOR_MODE_DEFAULT) {
+            windowColorMode = ActivityInfo.COLOR_MODE_DEFAULT;
+            getWindow().setColorMode(ActivityInfo.COLOR_MODE_DEFAULT);
         }
         // Android 15+ defaults many custom Views to the normal frame-rate
         // category. CSS overflow flings are invisible to native ScrollView's

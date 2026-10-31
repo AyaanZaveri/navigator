@@ -114,9 +114,13 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
 - Normal startup uses the AndroidX Navigator splash until the first web frame
   is ready. Retry/App settings appear only for an actual load failure or a
   30-second no-content timeout, rather than on every page load.
-- ExoPlayer 1.11.1 uses Android's MediaCodec/SurfaceView path. The window opts
-  into HDR on API 26+, while ExoPlayer handles source color metadata and device
-  decoder selection. Hardware, codec, and format support remain device-dependent.
+- ExoPlayer 1.11.1 uses Android's MediaCodec/SurfaceView HDR path. The controls'
+  window stays in `COLOR_MODE_DEFAULT`, including during playback. Window HDR
+  mode applies to UI rendering (for example, Ultra HDR bitmaps), not to the
+  independent video SurfaceView. ExoPlayer handles source color metadata and
+  device decoder selection; the surface retains automatic HDR headroom. No
+  `TextureView`, SDR conversion, shader brightness effect or fixed headroom cap
+  is introduced. Hardware, codec and format support remain device-dependent.
 - Native state follows the existing protocol-1 `navigatorDesktop` contract.
   The historic mpv/controller filenames and `data-desktop="mpv"` marker remain
   compatible; Android identifies itself as `platform: "android"` and
@@ -148,6 +152,33 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
   WebView format support. Hidden-controls swipe scrubbing uses the separate native
   keyframe extractor described below; it never seeks the playing decoder to
   generate previews.
+
+### HDR video and control-window brightness
+
+The reported Pixel symptom is specific to HDR: after changing Quick Settings,
+raising the player brightness brightens the controls while the picture remains
+dim; SDR playback responds normally. The user also reports a dim HDR picture at
+maximum Quick Settings brightness, so the window handoff is not the whole issue.
+Earlier brightness changes did not address this separate surface composition path.
+The exact stream metadata and physical display luminance have not been captured.
+
+The app previously requested `COLOR_MODE_HDR` on the controls' activity window
+for every video. Android explicitly documents that this changes UI rendering and
+does not control SurfaceViews, which have their own color mode and HDR parameters.
+The corrected setup keeps the UI window default/SDR and lets ExoPlayer's decoder
+and SurfaceView carry HDR10/HLG metadata with automatic headroom. This also avoids
+requesting an additional HDR UI layer over the video. Android's mixed SDR/HDR
+composition uses per-layer white points/dimming, so the UI and video must not be
+treated as one HDR window. This is a documented configuration correction, not a
+physical-device proof of the Pixel symptom's cause. No exposure lift or HDR-to-SDR
+fallback is applied; Media3's simple Brightness effect explicitly rejects HDR.
+
+Validation covers native build/lint, the existing 29 JVM tests, bridge regression
+checks, signature and installed APK payload. Hardware HDR luminance cannot be
+verified with these tests. On the Pixel, compare SDR, HDR10 and HLG, then set
+player brightness to 100%, lower Quick Settings, return and adjust player brightness
+with the controls hidden as well as visible. Confirm both picture response and
+retained HDR highlights/color.
 
 ### Player typography and side gestures
 
@@ -284,11 +315,11 @@ The injected styles also support the currently deployed UI before this PR merges
 
 ### Browsing smoothness
 
-Browsing uses an opaque WebView in a default SDR window, avoiding the alpha
-composition and HDR window requested for video. Entering native playback restores
-both before video is presented; closing playback returns to ordinary rendering.
-Theme changes update the opaque background. Transparent system bars and safe
-areas remain in place.
+Browsing uses an opaque WebView in a default SDR window. Native playback makes
+the WebView transparent while retaining the default SDR mode for the controls;
+HDR is rendered independently by the video's SurfaceView. Closing playback
+restores the opaque browsing background. Theme changes update that background.
+Transparent system bars and safe areas remain in place.
 
 On Android 15+, document-captured CSS scroll events request the platform's HIGH
 frame-rate category for the WebView. This covers the nested overflow scrollers
@@ -305,6 +336,13 @@ the previous APK and the website; a device Perfetto/WebView trace is still neede
 if perceptible jitter remains. No GPU effects or page content were removed.
 
 References used:
+
+- [Media3 1.11.1 Brightness effect explicitly rejects HDR](https://github.com/androidx/media/blob/1.11.1/libraries/effect/src/main/java/androidx/media3/effect/Brightness.java)
+
+- [Window color mode explicitly does not affect SurfaceViews](https://developer.android.com/reference/android/view/Window#setColorMode(int))
+- [ExoPlayer supports HDR through SurfaceView without special window handling](https://developer.android.com/media/grow/hdr-playback)
+- [SurfaceView HDR headroom is independent of window HDR parameters](https://developer.android.com/reference/android/view/SurfaceView#setDesiredHdrHeadroom(float))
+- [Android mixed SDR/HDR composition and per-layer dimming](https://source.android.com/docs/core/display/mixed-sdr-hdr)
 
 - [Android 16 LayoutParams brightness change detection](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/core/java/android/view/WindowManager.java)
 - [Android 16 override strategy discards identical values](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/services/core/java/com/android/server/display/brightness/strategy/OverrideBrightnessStrategy.java)
