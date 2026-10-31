@@ -17,6 +17,7 @@ on:
       - "app/(main)/page.tsx"
       - "app/actions/media.ts"
       - "scripts/test-resume-items.cjs"
+      - "scripts/test-touch-scrubbing.cjs"
       - "components/episode-card.tsx"
       - "components/season-episodes.tsx"
       - "components/episode-hero-thumbnail.tsx"
@@ -78,6 +79,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:desktop
       - run: bun run test:resume
+      - run: bun run test:touch-scrubbing
       - run: bun run test:gradient
       - if: runner.os == 'macOS'
         run: bun run test:image-layout

@@ -144,6 +144,8 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-
   opacity: 1 !important; visibility: hidden !important; pointer-events: none !important;
 }
 [data-native-web-scrub] [data-slot="media-player-seek-container"] { visibility: visible !important; }
+/* A Radix thumb still reflects committed playback until the native seek ends. */
+[data-native-web-scrub] [data-slot="media-player-seek"] [role="slider"] { opacity: 0 !important; }
 [data-native-web-scrub] [data-slot="media-player-seek-range"],
 [data-native-web-scrub] [data-slot="media-player-seek"] [data-orientation="horizontal"][style*="left:"][style*="right:"] {
   left: 0 !important; right: var(--navigator-native-scrub-right) !important;
