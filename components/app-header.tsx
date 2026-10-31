@@ -3,7 +3,7 @@
 import { Suspense, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import { AdaptiveHeaderLogo } from "@/components/adaptive-header-logo";
 import { useTheme } from "next-themes";
 import { Home, Puzzle, Settings } from "lucide-react";
 import { logout } from "@/app/actions";
@@ -44,8 +44,7 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
             <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-3 py-5">
                 <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 transition-[filter,scale] hover:bg-transparent hover:brightness-90 dark:hover:bg-transparent">
                     <Link href="/" aria-label="Navigator home" draggable={false}>
-                        <Image src="/logo/navigator-header-light.svg?v=3" alt="" width={32} height={32} draggable={false} className="size-8 dark:hidden" />
-                        <Image src="/logo/navigator-header-dark.svg?v=2" alt="" width={32} height={32} draggable={false} className="hidden size-8 dark:block" />
+                        <AdaptiveHeaderLogo adaptive={overlay} />
                     </Link>
                 </Button>
                 <div className="min-w-0 flex-1 sm:max-w-xl">

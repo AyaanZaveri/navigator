@@ -29,6 +29,7 @@ export function BackdropImage({
 
   return (
     <img
+      data-header-backdrop
       className={className}
       src={backdropImage}
       alt={`${mediaName} backdrop`}
