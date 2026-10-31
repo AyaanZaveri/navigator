@@ -53,7 +53,9 @@ async function run() {
         ['episode hero', React.createElement('div', { className: 'relative aspect-video w-full' }, React.createElement(EpisodeHeroThumbnail, { thumbnail: image, title: 'Fixture' }))],
         ['detail poster', React.createElement('div', { className: 'aspect-square w-full' }, React.createElement(PosterImage, { posterImage: image, name: 'Fixture' }))],
     ];
-    const markup = cases.map(([name, element]) => `<section data-case="${name}" style="width:288px">${renderToStaticMarkup(element)}</section>`).join('');
+    // Hidden test windows do not trigger lazy images on older WebKit versions.
+    // Loading behavior is separate from the card geometry being exercised.
+    const markup = cases.map(([name, element]) => `<section data-case="${name}" style="width:288px">${renderToStaticMarkup(element)}</section>`).join('').replaceAll('loading="lazy"', 'loading="eager"');
     const candidates = [...markup.matchAll(/class="([^"]+)"/g)].flatMap(match => match[1].split(/\s+/));
     const compiler = await compile('@import "tailwindcss";', { base: root, onDependency() {} });
     const html = path.join(temporary, 'cards.html');

@@ -6,13 +6,11 @@
 @end
 @implementation LayoutCheck
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSString *script = @"JSON.stringify([...document.querySelectorAll('[data-case]')].map(el=>{const img=el.querySelector('img');let frame=img.parentElement;while(frame!==el&&getComputedStyle(frame).aspectRatio==='auto')frame=frame.parentElement;const i=img.getBoundingClientRect();return {name:el.dataset.case,frame:{width:frame.clientWidth,height:frame.clientHeight},image:{width:i.width,height:i.height},natural:{width:img.naturalWidth,height:img.naturalHeight},fit:getComputedStyle(img).objectFit}}))";
-        [webView evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
+        NSString *script = @"await Promise.all([...document.images].map(img=>img.decode().catch(()=>{}))); return JSON.stringify([...document.querySelectorAll('[data-case]')].map(el=>{const img=el.querySelector('img');let frame=img.parentElement;while(frame!==el&&getComputedStyle(frame).aspectRatio==='auto')frame=frame.parentElement;const i=img.getBoundingClientRect();return {name:el.dataset.case,frame:{width:frame.clientWidth,height:frame.clientHeight},image:{width:i.width,height:i.height},natural:{width:img.naturalWidth,height:img.naturalHeight},fit:getComputedStyle(img).objectFit}}))";
+        [webView callAsyncJavaScript:script arguments:@{} inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:^(id result, NSError *error) {
             if(error) {fprintf(stderr,"%s\n",error.description.UTF8String);exit(1);}
             printf("%s\n",[result UTF8String]); exit(0);
         }];
-    });
 }
 @end
 int main(int argc, char **argv) {
