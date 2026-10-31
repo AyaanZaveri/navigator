@@ -2,10 +2,14 @@ package app.navigator.android;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.os.Looper;
 import android.media.AudioManager;
 import android.os.Build;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -33,6 +37,9 @@ final class PlayerGestureLayout extends FrameLayout {
     private float topInset, bottomInset, leftEdge, rightEdge, downX;
     private float controlsTop = Float.NaN, initial;
     private final PlaybackBrightness brightness;
+    private final EndpointHaptics endpointHaptics=new EndpointHaptics();
+    private final ContentObserver systemBrightness;
+    private boolean sideInteraction;
     private int minVolume, maxVolume, requestedVolume;
     private SideSwipeGesture.Mode shownMode = SideSwipeGesture.Mode.NONE;
     private boolean ownsTouch, controlsVisible = true, scrubbing;
@@ -51,12 +58,20 @@ final class PlayerGestureLayout extends FrameLayout {
                 activity.getWindow().setAttributes(attrs);
             }
         });
+        systemBrightness=new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override public void onChange(boolean selfChange) {
+                brightness.systemChanged();
+                if (hasWindowFocus()) brightness.reapply();
+            }
+        };
         audio = activity.getSystemService(AudioManager.class);
         accessibility = activity.getSystemService(AccessibilityManager.class);
         gesture = new SideSwipeGesture(density, ViewConfiguration.get(activity).getScaledTouchSlop());
         hideHud = () -> { sideView().setVisibility(View.GONE); previewView().hide(); };
-        side = new SideControlView(activity, value -> apply(shownMode,value), this::toggleMute,
-            () -> { removeCallbacks(hideHud); if (shownMode==SideSwipeGesture.Mode.VOLUME) sampleVolume(); }, this::scheduleHide);
+        side = new SideControlView(activity,value -> apply(shownMode,
+            shownMode==SideSwipeGesture.Mode.BRIGHTNESS ? .02f+value*.98f : value),this::toggleMute,
+            () -> { removeCallbacks(hideHud); beginSideControl(shownMode); },
+            () -> { endpointHaptics.end(); scheduleHide(); });
         preview = new ScrubPreviewView(activity);
     }
     private SideControlView sideView() { return side; }
@@ -82,15 +97,13 @@ final class PlayerGestureLayout extends FrameLayout {
     @Override public boolean onInterceptTouchEvent(MotionEvent e) {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN -> {
-                ownsTouch=false; gesture.cancel();
+                ownsTouch=false; sideInteraction=false; endpointHaptics.end(); gesture.cancel();
                 if (!available() || e.getPointerCount()!=1 || inSide(e)) return false;
                 float top=controlsVisible ? Math.max(dp(64),topInset+dp(64*Math.max(1,getResources().getConfiguration().fontScale))) : 0;
                 float bottom=controlsVisible ? (Float.isFinite(controlsTop) ? controlsTop : getHeight()-Math.max(dp(136),bottomInset+dp(112))) : getHeight();
-                var mode=gesture.begin(e.getX(),e.getY(),getWidth(),getHeight(),top,bottom,leftEdge,rightEdge,
+                gesture.begin(e.getX(),e.getY(),getWidth(),getHeight(),top,bottom,leftEdge,rightEdge,
                     !controlsVisible && player!=null && player.canScrub());
                 downX=e.getX();
-                if (mode==SideSwipeGesture.Mode.VOLUME) sampleVolume();
-                else if (mode==SideSwipeGesture.Mode.BRIGHTNESS) initial=currentBrightness();
             }
             case MotionEvent.ACTION_MOVE -> {
                 if (!available() || e.getPointerCount()!=1) { gesture.cancel(); return false; }
@@ -104,7 +117,7 @@ final class PlayerGestureLayout extends FrameLayout {
                     scrub.begin(at,duration,downX,getWidth(),getHeight());
                 }
                 ownsTouch=mode!=SideSwipeGesture.Mode.NONE;
-                if (ownsTouch) adjust(e);
+                if (ownsTouch && mode!=SideSwipeGesture.Mode.SCRUB && !sideInteraction) beginSideControl(mode);
                 return ownsTouch;
             }
             case MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> gesture.cancel();
@@ -126,7 +139,7 @@ final class PlayerGestureLayout extends FrameLayout {
         }
         if (action==MotionEvent.ACTION_MOVE || action==MotionEvent.ACTION_UP) adjust(e);
         if (action==MotionEvent.ACTION_UP) {
-            finishScrub(true); ownsTouch=false; gesture.cancel(); scheduleHide();
+            finishScrub(true); ownsTouch=false; endpointHaptics.end(); gesture.cancel(); scheduleHide();
         }
         return true;
     }
@@ -144,13 +157,19 @@ final class PlayerGestureLayout extends FrameLayout {
         if (scrubbing && player!=null) player.endScrub(scrubSession,commit,scrubTarget);
         scrubbing=false;
     }
-    private float currentBrightness() {
-        float value=activity.getWindow().getAttributes().screenBrightness;
-        if (value<0) {
-            try { value=Settings.System.getInt(activity.getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,128)/255f; }
-            catch (SecurityException restricted) { value=.5f; }
-        }
-        return Math.max(.02f,Math.min(1,value));
+    private void beginSideControl(SideSwipeGesture.Mode mode) {
+        sideInteraction=true;
+        if (mode==SideSwipeGesture.Mode.BRIGHTNESS) initial=brightness.begin(preferredBrightness());
+        else if (mode==SideSwipeGesture.Mode.VOLUME) sampleVolume();
+        endpointHaptics.begin(normalized(mode,initial));
+        show(mode,initial);
+    }
+    private float normalized(SideSwipeGesture.Mode mode,float value) {
+        return Math.max(0,Math.min(1,mode==SideSwipeGesture.Mode.BRIGHTNESS ? (value-.02f)/.98f : value));
+    }
+    private float preferredBrightness() {
+        try { return Math.max(.02f,Math.min(1,Settings.System.getInt(activity.getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,128)/255f)); }
+        catch (SecurityException restricted) { return .5f; }
     }
     private void sampleVolume() {
         if (audio==null || audio.isVolumeFixed()) return;
@@ -184,7 +203,10 @@ final class PlayerGestureLayout extends FrameLayout {
     }
     private void show(SideSwipeGesture.Mode mode,float value) {
         removeCallbacks(hideHud); shownMode=mode;
-        side.update(mode==SideSwipeGesture.Mode.VOLUME,value,audio!=null && audio.isStreamMute(AudioManager.STREAM_MUSIC));
+        float progress=normalized(mode,value);
+        side.update(mode==SideSwipeGesture.Mode.VOLUME,progress,audio!=null && audio.isStreamMute(AudioManager.STREAM_MUSIC));
+        if (endpointHaptics.update(progress)) performHapticFeedback(Build.VERSION.SDK_INT>=34
+            ? HapticFeedbackConstants.SEGMENT_TICK : HapticFeedbackConstants.CLOCK_TICK);
         var params=(LayoutParams)side.getLayoutParams();
         int height=Math.min(dp(232),Math.max(dp(160),getHeight()-dp(40)-Math.round(topInset+bottomInset)));
         int gravity=Gravity.CENTER_VERTICAL | (mode==SideSwipeGesture.Mode.BRIGHTNESS ? Gravity.LEFT : Gravity.RIGHT);
@@ -196,7 +218,7 @@ final class PlayerGestureLayout extends FrameLayout {
         side.setVisibility(View.VISIBLE);
     }
     private void scheduleHide() { removeCallbacks(hideHud); postDelayed(hideHud,900); }
-    private void hide() { removeCallbacks(hideHud); side.setVisibility(View.GONE); preview.hide(); }
+    private void hide() { endpointHaptics.end(); removeCallbacks(hideHud); side.setVisibility(View.GONE); preview.hide(); }
     void pauseGestures() { finishScrub(false); ownsTouch=false; gesture.cancel(); hide(); }
     void setVideoActive(boolean active) {
         if (!active) {
@@ -204,10 +226,19 @@ final class PlayerGestureLayout extends FrameLayout {
             brightness.restore();
         }
     }
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        var resolver=activity.getContentResolver();
+        resolver.registerContentObserver(Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),false,systemBrightness);
+        resolver.registerContentObserver(Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS_MODE),false,systemBrightness);
+    }
     @Override public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
         if (hasWindowFocus) brightness.reapply();
     }
     @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) { super.onSizeChanged(w,h,oldw,oldh); pauseGestures(); controlsTop=Float.NaN; }
-    @Override protected void onDetachedFromWindow() { setVideoActive(false); super.onDetachedFromWindow(); }
+    @Override protected void onDetachedFromWindow() {
+        activity.getContentResolver().unregisterContentObserver(systemBrightness);
+        setVideoActive(false); super.onDetachedFromWindow();
+    }
 }

@@ -167,7 +167,15 @@ app-window brightness, or the full right third to adjust **Android media volume*
 Up increases and down decreases. Transparent vertical bars copy the timeline's
 6 dp rounded track, white fill and 20% white unfilled track, without a thumb or
 background panel. The invisible drag target remains 56 dp wide; the volume bar
-includes a separate mute/unmute target. Drag either bar directly.
+uses a single 18 dp Lucide icon above the bar. It changes between VolumeX,
+Volume, Volume1 and Volume2 as the level changes; tapping that icon toggles mute.
+Brightness uses Lucide Sun at the same size. Official SVG geometry is packaged
+as Android vectors with the pinned source revision and ISC license included.
+There is no icon below either bar. Drag either bar directly.
+Vertical side swipes now need approximately the full video height for a full
+range change, halving the previous sensitivity. Direct bar drags are relative
+to their starting value, with at least 240 dp travel per full range, so pressing
+the track does not jump the value.
 The parent waits for clear directional intent, then sends `ACTION_CANCEL` to the
 WebView so a swipe cannot become a tap. Visible controls and top buttons keep
 their touch areas. Hidden controls release the full video height. Horizontal
@@ -206,12 +214,15 @@ blend; shorter videos scale to their duration.
 Brightness uses `WindowManager.LayoutParams.screenBrightness` and restores the
 previous window value, including automatic/default policy, when playback closes.
 The 100% endpoint requests `BRIGHTNESS_OVERRIDE_FULL` (1.0) independently of the
-phone's preferred brightness. Updates compare the actual window attributes and
-reflect the applied value, avoiding stale cached requests and skipped endpoints.
-Regaining window focus reapplies the active override, including after Quick
-Settings. JVM regressions verify absolute requests, attribute resets, exact
-endpoints, focus reapplication and restoration; actual panel brightness still
-needs a physical-device check.
+phone's preferred brightness. Every gesture reasserts its override and each update writes the requested
+absolute value, including an unchanged maximum; unchanged LayoutParams values
+can outlive a manual display adjustment. A lifecycle-bound ContentObserver watches
+the public brightness and brightness-mode settings. A subsequent drag rebases
+from the changed phone setting instead of a stale app maximum, then retains the
+full adjustment range. Window-focus gain also reapplies the active override.
+No global brightness settings are written. JVM regressions cover same-value
+reassertion, manual-change/re-drag sequences, absolute requests, exact endpoints,
+focus reapplication and restoration; actual panel behavior needs a device check.
 Volume and mute use `AudioManager.STREAM_MUSIC` with the normal
 `MODIFY_AUDIO_SETTINGS` permission. No global brightness settings or
 `WRITE_SETTINGS` permission are required. Devices restricting volume are handled
@@ -220,6 +231,15 @@ Back priority, reversal, bounds and changing sensitivity mid-drag. Native lint,
 bridge regressions and signed APK packaging are checked without an emulator.
 Actual swipe feel, preview latency, Bluetooth volume and HDR appearance still
 require the user's device check.
+
+Reaching either bar's endpoint gives one native `SEGMENT_TICK` haptic on Android
+14+ (a short predefined tick), with `CLOCK_TICK` on older supported versions.
+`View.performHapticFeedback` lets the device choose its tuned effect and respects
+system/view haptic settings; no custom vibration waveform, forced setting or new
+vibration permission is used. Holding at a limit does not repeat it. A 3% retreat
+rearms the endpoint to prevent chatter from small finger movements. Starting at
+a limit or cancelling the gesture does not buzz. Pure-state tests cover these
+sequences; physical haptic feel requires the user's Pixel.
 
 ### Android Back and phone geometry
 
@@ -269,6 +289,11 @@ the previous APK and the website; a device Perfetto/WebView trace is still neede
 if perceptible jitter remains. No GPU effects or page content were removed.
 
 References used:
+
+- [Android view haptic feedback and system preference handling](https://developer.android.com/develop/ui/views/haptics/haptic-feedback)
+- [Slider segment tick semantics](https://developer.android.com/reference/android/view/HapticFeedbackConstants#SEGMENT_TICK)
+- [AOSP semantic haptic to predefined tick mapping](https://github.com/aosp-mirror/platform_frameworks_base/blob/main/services/core/java/com/android/server/vibrator/HapticFeedbackVibrationProvider.java)
+- [Official Lucide icon geometry and license, pinned revision](https://github.com/lucide-icons/lucide/tree/a630cec77eac6568b989e87e4947a8bfe45caacd/icons)
 
 - [Firecore playback gestures](https://support.firecore.com/hc/en-us/articles/215090987-Playback-Controls)
 - [Infuse preview seeking](https://firecore.com/blog/infuse-58-seek-and-find)

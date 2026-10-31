@@ -14,7 +14,7 @@ public class SideSwipeGestureTest {
             var g=begin(x,200,true);
             assertEquals(SideSwipeGesture.Mode.NONE,g.move(x,192));
             assertEquals(SideSwipeGesture.Mode.BRIGHTNESS,g.move(x,150));
-            assertEquals(.7f,g.value(.5f,150,.02f),.001f);
+            assertEquals(.6f,g.value(.5f,150,.02f),.001f);
         }
         for (float x : new float[]{680,990,1000}) assertEquals(SideSwipeGesture.Mode.VOLUME,begin(x,200,true).move(x,150));
     }
@@ -47,5 +47,14 @@ public class SideSwipeGestureTest {
         scaled.begin(400,400,2000,1000,0,1000,48,48,true);
         assertEquals(SideSwipeGesture.Mode.NONE,scaled.move(420,400));
         assertEquals(SideSwipeGesture.Mode.SCRUB,scaled.move(440,400));
+    }
+    @Test public void aFullRangeRequiresTheFullVideoHeightInsteadOfHalf() {
+        var g=begin(200,450,true); g.move(200,350);
+        assertEquals(.3f,g.value(.1f,350,0),.001f);
+        assertEquals(.9f,g.value(.1f,50,0),.001f);
+        var scaled=new SideSwipeGesture(2,16);
+        scaled.begin(400,900,2000,1000,0,1000,48,48,true);
+        scaled.move(400,700);
+        assertEquals(.3f,scaled.value(.1f,700,0),.001f);
     }
 }

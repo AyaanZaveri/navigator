@@ -13,7 +13,7 @@ final class SideSwipeGesture {
     }
     Mode begin(float x, float y, float width, float height, float top, float bottom,
                float leftEdge, float rightEdge, boolean allowScrub) {
-        cancel(); startX = x; startY = y; span = Math.max(200 * density, height * .5f);
+        cancel(); startX = x; startY = y; span = Math.max(320 * density, height);
         eligible = x >= 0 && x <= width && y >= top && y < bottom;
         if (!eligible) return candidate;
         // Vertical controls reach the physical edges. Horizontal gestures starting
