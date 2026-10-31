@@ -83,6 +83,11 @@ public final class MainActivity extends ComponentActivity {
     private boolean highRefreshRequested;
     private int webBackground = Integer.MIN_VALUE;
     private int windowColorMode = -1;
+    private WindowInsetsCompat playerInsets;
+    private double controlsTop = Double.NaN;
+    private double controlsBottom = Double.NaN;
+    private double controlsViewportWidth;
+    private double controlsViewportHeight;
     private JSONObject safeInsets = NativePlayer.object("type", "insets", "top", 0, "right", 0, "bottom", 0, "left", 0);
     private long pageGeneration;
     private final Runnable tick = new Runnable() {
@@ -109,6 +114,7 @@ public final class MainActivity extends ComponentActivity {
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            playerInsets = insets;
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             float density = getResources().getDisplayMetrics().density;
             safeInsets = NativePlayer.object("type", "insets", "top", bars.top / density,
@@ -117,9 +123,13 @@ public final class MainActivity extends ComponentActivity {
                 "cornerBottomRight", bottomCornerRadius(insets, false, density),
                 "playerBackLeft", playerBackLeft(insets, bars.top, density));
             send(safeInsets);
+            sendPlayerLayoutInsets();
             // Do not pad or consume the window: WebView owns the full background,
             // and its document applies safe spacing once to interactive content.
             return insets;
+        });
+        root.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> {
+            if (r - l != or - ol || b - t != ob - ot) ViewCompat.requestApplyInsets(root);
         });
         setContentView(root);
         player = new NativePlayer(this, root, this::send);
@@ -155,6 +165,7 @@ public final class MainActivity extends ComponentActivity {
                 reply = null;
                 player.stop();
                 playerVisible = false;
+                controlsTop = controlsBottom = Double.NaN;
                 scrolling = false;
                 webOverlayOpen = false;
                 updateWebPresentation();
@@ -243,6 +254,20 @@ public final class MainActivity extends ComponentActivity {
                             case "appearance":
                                 webDark = request.optBoolean("dark", true);
                                 updateSystemBarAppearance(); updateWebPresentation(); break;
+                            case "player-layout":
+                                double top = request.optDouble("top", Double.NaN);
+                                double bottom = request.optDouble("bottom", Double.NaN);
+                                double width = request.optDouble("viewportWidth", Double.NaN);
+                                double height = request.optDouble("viewportHeight", Double.NaN);
+                                float density = getResources().getDisplayMetrics().density;
+                                if (Double.isFinite(top) && Double.isFinite(bottom) && Double.isFinite(width) && Double.isFinite(height)
+                                        && top >= 0 && bottom > top && bottom <= height + 2 && width > 0 && height > 0
+                                        && Math.abs(width - web.getWidth() / density) < 3 && Math.abs(height - web.getHeight() / density) < 3) {
+                                    controlsTop = top; controlsBottom = bottom;
+                                    controlsViewportWidth = width; controlsViewportHeight = height;
+                                    sendPlayerLayoutInsets();
+                                }
+                                break;
                             case "navigation":
                                 webOverlayOpen = request.optBoolean("overlayOpen", false);
                                 web.post(() -> updateBackCallback()); break;
@@ -297,6 +322,24 @@ public final class MainActivity extends ComponentActivity {
             for (int count; (count = input.read(buffer)) != -1;) bytes.write(buffer, 0, count);
             return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
         }
+    }
+
+    private void sendPlayerLayoutInsets() {
+        double left = 24, right = 24;
+        if (web != null && playerInsets != null && Double.isFinite(controlsTop)) {
+            float density = getResources().getDisplayMetrics().density;
+            double width = web.getWidth() / density, height = web.getHeight() / density;
+            if (Math.abs(width - controlsViewportWidth) < 3 && Math.abs(height - controlsViewportHeight) < 3) {
+                var cutout = playerInsets.getDisplayCutout();
+                if (cutout != null) for (var rect : cutout.getBoundingRects()) {
+                    if (rect.top / density < controlsBottom && rect.bottom / density > controlsTop) {
+                        if (rect.left / density < 24) left = Math.max(left, rect.right / density + 12);
+                        if (rect.right / density > width - 24) right = Math.max(right, width - rect.left / density + 12);
+                    }
+                }
+            }
+        }
+        send(NativePlayer.object("type", "player-layout", "left", left, "right", right));
     }
 
     private float bottomCornerRadius(WindowInsetsCompat insets, boolean left, float density) {

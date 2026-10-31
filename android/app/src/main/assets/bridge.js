@@ -24,6 +24,10 @@
   transport.onmessage = event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
+    if (message.type === 'player-layout') {
+      for (const side of ['left', 'right']) if (Number.isFinite(message[side])) document.documentElement?.style.setProperty(`--navigator-player-controls-${side}`, `${Math.max(0, message[side])}px`);
+      return;
+    }
     if (message.type === 'insets') { insets = message; applyInsets(); return; }
     if (message.type === 'dismiss-overlay') { navigation.dismiss(); return; }
     if (message.type === 'fullscreen') fullscreen = !!message.value;
@@ -112,7 +116,7 @@
   const onScrollVisibility = () => { if (document.hidden) endScroll(); };
   document.addEventListener('scroll', onScroll, { capture: true, passive: true });
   document.addEventListener('visibilitychange', onScrollVisibility);
-  const disposePlayerUI = __PLAYER_UI__(document, send);
+  const disposePlayerUI = __PLAYER_UI__(document, window, send);
   const navigation = __BACK_NAVIGATION__(document, window, send);
   const disposeTouchControls = __TOUCH_CONTROLS__(document, window.navigatorDesktop);
   window.addEventListener('pagehide', () => {

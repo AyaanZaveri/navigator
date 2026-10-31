@@ -1,5 +1,7 @@
 "use client";
 
+import "@/components/player-mobile.css";
+
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
@@ -712,6 +714,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
+              data-player-loading-copy=""
               className="absolute bottom-8 left-8 right-8"
             >
               <motion.div
@@ -722,6 +725,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               >
                 <div className="flex items-center justify-between w-full">
                   <motion.h2
+                    data-player-title=""
+                    title={primaryTitle}
                     className="text-3xl font-semibold text-white truncate font-poppins"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -733,6 +738,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
                 {isEpisodePlayback && showTitle && (
                   <motion.p
+                    data-player-loading-series=""
                     className="text-sm text-white/75 truncate"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -775,7 +781,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     </div>
                   ) : (
                     <><div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                    <span className="text-sm text-white/70">Loading...</span></>
+                    <span className="text-sm text-white/70">Loading…</span></>
                   )}
                 </motion.div>
               </motion.div>
@@ -818,24 +824,24 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           <MediaPlayerControlsOverlay />
 
           <div className="flex flex-col w-full gap-1.5 pb-2">
-            <div className="flex items-center justify-between w-full">
-              <h2 className="text-3xl font-semibold text-white truncate font-poppins">
+            <div data-player-heading-row="" className="flex min-w-0 items-center justify-between w-full">
+              <h2 data-player-title="" title={primaryTitle} className="min-w-0 text-3xl font-semibold text-white truncate font-poppins">
                 {primaryTitle}
               </h2>
 
               {duration > 0 && currentTime >= 0 && (
-                <div className="text-sm text-white/70 ml-4 whitespace-nowrap">
+                <div data-player-end-time="" className="text-sm text-white/70 ml-4 whitespace-nowrap">
                   Ends at {formatEndTime(currentTime, duration)}
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-3 text-sm text-white/60">
+            <div data-player-meta="" className="flex min-w-0 items-center gap-3 text-sm text-white/60">
               {isEpisodePlayback && (
-                <span className="truncate">
+                <span className="min-w-0 truncate" title={showTitle || "TV Show"}>
                   {showTitle || "TV Show"}
                   {currentMedia.seasonNumber && currentMedia.episodeNumber
-                    ? ` • S${currentMedia.seasonNumber}E${currentMedia.episodeNumber}`
+                    ? ` · S${currentMedia.seasonNumber} · E${currentMedia.episodeNumber}`
                     : ""}
                 </span>
               )}
@@ -848,8 +854,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
           <MediaPlayerSeek previewFrames />
 
-          <div className="flex w-full items-center gap-2">
-            <div className="flex flex-1 items-center gap-2">
+          <div data-player-toolbar="" className="flex w-full items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <MediaPlayerPlay />
               <MediaPlayerSeekBackward>
                 <RotateCcw />

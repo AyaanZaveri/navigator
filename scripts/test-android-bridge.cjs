@@ -25,7 +25,7 @@ function setup({ foreign = false, iframe = false, delayedRoot = false, clock = {
     document.documentElement = delayedRoot ? null : root;
     let closed = 0;
     document.querySelector = selector => selector === '[data-native-player-shell]'
-        ? { querySelector: () => ({ click: () => closed++ }), querySelectorAll: () => [] }
+        ? { querySelector: name => name.startsWith('button') ? { click: () => closed++ } : null, querySelectorAll: () => [] }
         : selector.includes('data-slot="media-player"') ? null : { querySelector: () => ({ click: () => closed++ }) };
     const window = { NavigatorAndroid: { postMessage: value => sent.push(JSON.parse(value)) }, addEventListener: (type, callback) => { callbacks[type] = callback; }, removeEventListener: type => { delete callbacks[type]; } };
     window.top = iframe ? {} : window;
@@ -34,7 +34,7 @@ function setup({ foreign = false, iframe = false, delayedRoot = false, clock = {
         observe() {}
         disconnect() {}
     };
-    vm.runInNewContext(script, { window, document, location: { origin: foreign ? 'https://untrusted.test' : origin }, MutationObserver, Event, console, clearTimeout, setTimeout, ...clock });
+    vm.runInNewContext(script, { window, document, location: { origin: foreign ? 'https://untrusted.test' : origin }, MutationObserver, ResizeObserver: class { observe() {} disconnect() {} }, Event, console, clearTimeout, setTimeout, ...clock });
     return { window, document, root, properties, styles, sent, callbacks, observers, closed: () => closed,
         visible(value) { visible = value; observers.forEach(observer => observer.callback()); },
         receive(value) { window.NavigatorAndroid.onmessage({ data: JSON.stringify(value) }); } };
