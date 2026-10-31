@@ -15,11 +15,17 @@
       const value = insets[side];
       document.documentElement.style.setProperty(`--navigator-safe-${side}`, `${Number.isFinite(value) ? Math.max(0, value) : 0}px`);
     }
+    for (const side of ['left', 'right']) {
+      const value = insets[`cornerBottom${side === 'left' ? 'Left' : 'Right'}`];
+      if (Number.isFinite(value)) document.documentElement.style.setProperty(`--navigator-corner-bottom-${side}`, `${Math.max(0, value)}px`);
+    }
+    if (Number.isFinite(insets.playerBackLeft)) document.documentElement.style.setProperty('--navigator-player-back-left', `${Math.max(0, insets.playerBackLeft)}px`);
   };
   transport.onmessage = event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
     if (message.type === 'insets') { insets = message; applyInsets(); return; }
+    if (message.type === 'dismiss-overlay') { navigation.dismiss(); return; }
     if (message.type === 'fullscreen') fullscreen = !!message.value;
     if (message.type === 'close') {
       const handled = !document.dispatchEvent(new Event('navigatornativeclose', { cancelable: true }));
@@ -106,9 +112,11 @@
   const onScrollVisibility = () => { if (document.hidden) endScroll(); };
   document.addEventListener('scroll', onScroll, { capture: true, passive: true });
   document.addEventListener('visibilitychange', onScrollVisibility);
+  const navigation = __BACK_NAVIGATION__(document, window, send);
   const disposeTouchControls = __TOUCH_CONTROLS__(document, window.navigatorDesktop);
   window.addEventListener('pagehide', () => {
     disposeTouchControls();
+    navigation.dispose();
     document.removeEventListener('scroll', onScroll, { capture: true });
     document.removeEventListener('visibilitychange', onScrollVisibility);
     endScroll();

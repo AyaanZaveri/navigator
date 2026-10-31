@@ -172,6 +172,13 @@ export function NavigatorFocus({
     ...(reduceMotion ? {} : { transform: "translateY(6px)" }),
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const dismiss = (event: Event) => { event.preventDefault(); onOpenChange(false); };
+    document.addEventListener("navigatornativeback", dismiss);
+    return () => document.removeEventListener("navigatornativeback", dismiss);
+  }, [isOpen, onOpenChange]);
+
   const scrollToLatest = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
       const list = messageListRef.current;

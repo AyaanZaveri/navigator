@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const origin = 'https://navigator.test';
 const script = fs.readFileSync('android/app/src/main/assets/bridge.js', 'utf8')
     .replace('__ORIGIN__', JSON.stringify(origin))
+    .replace('__BACK_NAVIGATION__', fs.readFileSync('android/app/src/main/assets/back-navigation.js', 'utf8'))
     .replace('__TOUCH_CONTROLS__', fs.readFileSync('android/app/src/main/assets/touch-controls.js', 'utf8'))
     .replace('__EDGE_CSS__', JSON.stringify(fs.readFileSync('android/app/src/main/assets/edge-to-edge.css', 'utf8')));
 function setup({ foreign = false, iframe = false, delayedRoot = false, clock = {} } = {}) {
@@ -16,12 +17,14 @@ function setup({ foreign = false, iframe = false, delayedRoot = false, clock = {
     const properties = new Map();
     const styles = [];
     const root = { dataset: { theme: 'dark' }, classList: { contains: () => false }, style: { setProperty(key, value) { properties.set(key, value); } }, hasAttribute: () => visible };
+    document.querySelectorAll = () => [];
+    document.getElementById = () => null;
     document.createElement = () => ({ textContent: '' });
     document.head = { appendChild(node) { styles.push(node); } };
     document.documentElement = delayedRoot ? null : root;
     let closed = 0;
     document.querySelector = selector => selector.includes('data-slot="media-player"') ? null : ({ querySelector: () => ({ click: () => closed++ }) });
-    const window = { NavigatorAndroid: { postMessage: value => sent.push(JSON.parse(value)) }, addEventListener: (type, callback) => { callbacks[type] = callback; } };
+    const window = { NavigatorAndroid: { postMessage: value => sent.push(JSON.parse(value)) }, addEventListener: (type, callback) => { callbacks[type] = callback; }, removeEventListener: type => { delete callbacks[type]; } };
     window.top = iframe ? {} : window;
     const MutationObserver = class {
         constructor(callback) { this.callback = callback; observers.push(this); }
@@ -237,3 +240,10 @@ function testScrollHints() {
 }
 testScrollHints();
 console.log('PASS: nested-scroll refresh hints, 120 Hz message coalescing, idle release, backgrounding, and teardown');
+
+app.receive({ type: 'insets', top: 0, right: 0, bottom: 24, left: 52,
+    cornerBottomLeft: 48, cornerBottomRight: 50, playerBackLeft: 10 });
+assert.equal(app.properties.get('--navigator-corner-bottom-left'), '48px');
+assert.equal(app.properties.get('--navigator-corner-bottom-right'), '50px');
+assert.equal(app.properties.get('--navigator-player-back-left'), '10px', 'Top Back position is independent of a mid-screen landscape cutout');
+console.log('PASS: physical display corners and button-specific camera clearance reach CSS');

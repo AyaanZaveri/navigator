@@ -1,6 +1,7 @@
 package app.navigator.android;
 
 import android.annotation.SuppressLint;
+import android.animation.ValueAnimator;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -12,6 +13,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.RoundedCorner;
+import android.view.animation.PathInterpolator;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -30,6 +33,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.activity.ComponentActivity;
+import androidx.activity.BackEventCompat;
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.SystemBarStyle;
@@ -69,6 +73,13 @@ public final class MainActivity extends ComponentActivity {
     private boolean pageLoading;
     private boolean webDark = true;
     private boolean scrolling;
+    private boolean webOverlayOpen;
+    private OnBackPressedCallback backCallback;
+    private boolean backGesture;
+    private boolean previewBack;
+    private float backStartScale = 1;
+    private float backStartX;
+    private float backDirection;
     private boolean highRefreshRequested;
     private int webBackground = Integer.MIN_VALUE;
     private int windowColorMode = -1;
@@ -101,7 +112,10 @@ public final class MainActivity extends ComponentActivity {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             float density = getResources().getDisplayMetrics().density;
             safeInsets = NativePlayer.object("type", "insets", "top", bars.top / density,
-                "right", bars.right / density, "bottom", bars.bottom / density, "left", bars.left / density);
+                "right", bars.right / density, "bottom", bars.bottom / density, "left", bars.left / density,
+                "cornerBottomLeft", bottomCornerRadius(insets, true, density),
+                "cornerBottomRight", bottomCornerRadius(insets, false, density),
+                "playerBackLeft", playerBackLeft(insets, bars.top, density));
             send(safeInsets);
             // Do not pad or consume the window: WebView owns the full background,
             // and its document applies safe spacing once to interactive content.
@@ -142,6 +156,7 @@ public final class MainActivity extends ComponentActivity {
                 player.stop();
                 playerVisible = false;
                 scrolling = false;
+                webOverlayOpen = false;
                 updateWebPresentation();
                 setFullscreen(false);
                 pageFailed = false;
@@ -157,7 +172,12 @@ public final class MainActivity extends ComponentActivity {
             @Override public void onPageCommitVisible(WebView view, String url) {
                 if (trusted(Uri.parse(url)) && !pageFailed) revealPage();
             }
+            @Override public void doUpdateVisitedHistory(WebView view, String url, boolean reload) {
+                // Includes pushState/popstate navigations in the Next.js app.
+                view.post(() -> updateBackCallback());
+            }
             @Override public void onPageFinished(WebView view, String url) {
+                updateBackCallback();
                 if (trusted(Uri.parse(url)) && !pageFailed) {
                     long generation = pageGeneration;
                     view.postVisualStateCallback(generation, new WebView.VisualStateCallback() {
@@ -187,22 +207,8 @@ public final class MainActivity extends ComponentActivity {
         });
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
         configureBridge();
+        configureBackNavigation();
         web.loadUrl(origin.toString() + "/");
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override public void handleOnBackPressed() {
-                if (connection != null && connection.getVisibility() == View.VISIBLE) { finish(); return; }
-                if (fullscreen) { setFullscreen(false); return; }
-                if (playerVisible || player.active()) {
-                    send(NativePlayer.object("type", "close"));
-                    String closing = player.session();
-                    main.postDelayed(() -> {
-                        if (!destroyed && player.session().equals(closing)) {
-                            player.stop(); playerVisible = false; updateWebPresentation();
-                        }
-                    }, 750);
-                } else if (web.canGoBack()) web.goBack(); else finish();
-            }
-        });
         if ("app.navigator.android.SETTINGS".equals(getIntent().getAction())) main.post(this::settings);
     }
 
@@ -237,6 +243,9 @@ public final class MainActivity extends ComponentActivity {
                             case "appearance":
                                 webDark = request.optBoolean("dark", true);
                                 updateSystemBarAppearance(); updateWebPresentation(); break;
+                            case "navigation":
+                                webOverlayOpen = request.optBoolean("overlayOpen", false);
+                                web.post(() -> updateBackCallback()); break;
                             case "scrolling":
                                 scrolling = foreground && request.optBoolean("value", false);
                                 updateWebPresentation(); break;
@@ -266,7 +275,8 @@ public final class MainActivity extends ComponentActivity {
                 String code = new String(bytes.toByteArray(), StandardCharsets.UTF_8)
                     .replace("__ORIGIN__", JSONObject.quote(origin.toString()))
                     .replace("__EDGE_CSS__", JSONObject.quote(readAsset("edge-to-edge.css")))
-                    .replace("__TOUCH_CONTROLS__", readAsset("touch-controls.js"));
+                    .replace("__TOUCH_CONTROLS__", readAsset("touch-controls.js"))
+                    .replace("__BACK_NAVIGATION__", readAsset("back-navigation.js"));
                 script = WebViewCompat.addDocumentStartJavaScript(web, code, Collections.singleton(origin.toString()));
             } catch (java.io.IOException failure) { failPage("The Android playback bridge is missing. Reinstall Navigator."); }
         }
@@ -288,7 +298,103 @@ public final class MainActivity extends ComponentActivity {
         }
     }
 
+    private float bottomCornerRadius(WindowInsetsCompat insets, boolean left, float density) {
+        if (Build.VERSION.SDK_INT >= 31 && insets.toWindowInsets() != null) {
+            var corner = insets.toWindowInsets().getRoundedCorner(left
+                ? RoundedCorner.POSITION_BOTTOM_LEFT : RoundedCorner.POSITION_BOTTOM_RIGHT);
+            if (corner != null) return corner.getRadius() / density;
+        }
+        return 48; // A conservative phone-shaped fallback when no radius is reported.
+    }
+
+    private float playerBackLeft(WindowInsetsCompat insets, int top, float density) {
+        float result = 8 * density;
+        float y = top + 16 * density;
+        var cutout = insets.getDisplayCutout();
+        if (cutout != null) for (var rect : cutout.getBoundingRects()) {
+            // A landscape camera at mid-height does not obstruct the top button.
+            if (rect.top < y + 44 * density && rect.bottom > y && rect.left <= result) {
+                result = Math.max(result, rect.right + 8 * density);
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 31 && insets.toWindowInsets() != null) {
+            var corner = insets.toWindowInsets().getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT);
+            if (corner != null && y < corner.getCenter().y) {
+                float radius = corner.getRadius();
+                float delta = Math.min(radius, corner.getCenter().y - y);
+                result = Math.max(result, corner.getCenter().x - (float) Math.sqrt(radius * radius - delta * delta));
+            }
+        }
+        return result / density;
+    }
+
+    private BackPolicy.Action backAction() {
+        return BackPolicy.action(connection != null && connection.getVisibility() == View.VISIBLE,
+            webOverlayOpen, playerVisible || (player != null && player.active()), web != null && web.canGoBack());
+    }
+
+    private void updateBackCallback() {
+        if (backCallback != null && !backGesture) backCallback.setEnabled(backAction() != BackPolicy.Action.SYSTEM);
+    }
+
+    private boolean animationsEnabled() {
+        return Build.VERSION.SDK_INT < 26 || ValueAnimator.areAnimatorsEnabled();
+    }
+
+    private void resetBackPreview(boolean animate) {
+        backGesture = false;
+        previewBack = false;
+        if (web != null) {
+            web.animate().cancel();
+            if (animate && animationsEnabled()) web.animate().scaleX(1).scaleY(1).translationX(0)
+                .setDuration(180).setInterpolator(new PathInterpolator(.23f, 1, .32f, 1)).start();
+            else { web.setScaleX(1); web.setScaleY(1); web.setTranslationX(0); }
+        }
+        updateBackCallback();
+    }
+
+    private void configureBackNavigation() {
+        backCallback = new OnBackPressedCallback(false) {
+            @Override public void handleOnBackStarted(BackEventCompat event) {
+                backGesture = true;
+                previewBack = backAction() == BackPolicy.Action.GO_BACK && animationsEnabled();
+                if (!previewBack) return;
+                web.animate().cancel();
+                backStartScale = web.getScaleX();
+                backStartX = web.getTranslationX();
+                backDirection = event.getSwipeEdge() == BackEventCompat.EDGE_LEFT ? 1 : -1;
+            }
+            @Override public void handleOnBackProgressed(BackEventCompat event) {
+                if (!previewBack) return;
+                float progress = Math.max(0, Math.min(1, event.getProgress()));
+                float scale = backStartScale + (.92f - backStartScale) * progress;
+                web.setScaleX(scale); web.setScaleY(scale);
+                web.setTranslationX(backStartX + (backDirection * web.getWidth() * .04f - backStartX) * progress);
+            }
+            @Override public void handleOnBackCancelled() { resetBackPreview(true); }
+            @Override public void handleOnBackPressed() {
+                BackPolicy.Action action = backAction();
+                boolean settle = previewBack;
+                switch (action) {
+                    case DISMISS_OVERLAY -> send(NativePlayer.object("type", "dismiss-overlay"));
+                    case CLOSE_PLAYER -> {
+                        // A single Back closes playback, including immersive fullscreen.
+                        send(NativePlayer.object("type", "close"));
+                        player.stop(); playerVisible = false;
+                        setFullscreen(false); updateWebPresentation();
+                    }
+                    case GO_BACK -> web.goBack();
+                    case SYSTEM, LEAVE_ERROR -> finish();
+                }
+                resetBackPreview(settle);
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, backCallback);
+        updateBackCallback();
+    }
+
     private void updateWebPresentation() {
+        updateBackCallback();
         if (web == null) return;
         boolean playback = playerVisible || (player != null && player.active());
         // Ordinary pages can be opaque SDR. Reserve alpha composition and the
@@ -297,6 +403,7 @@ public final class MainActivity extends ComponentActivity {
         if (background != webBackground) {
             webBackground = background;
             web.setBackgroundColor(background);
+            root.setBackgroundColor(playback ? Color.BLACK : background);
         }
         if (Build.VERSION.SDK_INT >= 26) {
             int mode = playback ? ActivityInfo.COLOR_MODE_HDR : ActivityInfo.COLOR_MODE_DEFAULT;
@@ -459,6 +566,7 @@ public final class MainActivity extends ComponentActivity {
     }
     @Override protected void onStop() {
         foreground = false;
+        resetBackPreview(false);
         scrolling = false;
         updateWebPresentation();
         main.removeCallbacks(tick);

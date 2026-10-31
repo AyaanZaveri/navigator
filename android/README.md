@@ -34,8 +34,11 @@ Test on a physical device:
 4. Switch embedded audio/subtitle tracks; try external subtitles from Navigator.
 5. Play HDR10/PQ and HLG content on an HDR-capable device. Video remains on the
    native surface throughout; no frames are copied through canvas/WebView.
-6. Rotate, enter/exit fullscreen, and press Android Back. Back exits immersive
-   fullscreen first, then closes playback and returns to the underlying page.
+6. Rotate, enter/exit fullscreen, and use Android Back from either edge. One
+   committed Back closes playback, including immersive fullscreen. On a detail
+   page, drag Back partway and cancel (the page must remain), then commit to
+   return through the actual page history. Open the account sheet and verify
+   Back dismisses it before navigating. At the root, Android owns back-to-home.
 7. Background and reopen the app. It releases playback in the background and
    restores the active source, position, playback preferences, and selected
    tracks when returning. Unplug headphones, change titles quickly, close during
@@ -80,6 +83,7 @@ explicit `-PversionCode=...` can override this.
 ```sh
 # From the repository root:
 node scripts/test-android-bridge.cjs
+node scripts/test-android-navigation.cjs
 node scripts/test-desktop.cjs
 npx tsc --noEmit
 ```
@@ -144,6 +148,30 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
   playing decoder to generate previews. Formats unsupported by WebView may have
   no hover thumbnail, even when native playback works.
 
+### Android Back and phone geometry
+
+The app opts into predictive Back and registers its AndroidX callback only when
+an overlay, native player, error surface, or WebView history needs handling.
+The action order is overlay dismissal, player closure, then page history; a
+fullscreen video closes in one gesture. At the root the callback is disabled,
+allowing Android's system back-to-home animation.
+
+Next.js `pushState`, `replaceState`, and `popstate` refresh the callback without
+adding synthetic entries or altering framework history state. Native visited
+history callbacks also cover regular document loads. Android 14+ gesture progress
+scales and translates the browsing WebView directly, settling in 180 ms; cancelling
+restores it without traversing history. System-disabled animations skip this
+motion. Native video stays on its existing surface, and progress never crosses
+the JS bridge. The hosted account menu handles dismissal through Escape; the
+Ask panel supports a native event with an outside-press compatibility fallback.
+
+On Android 12+, reported screen corner radii reach CSS. The inset account sheet's
+bottom radii use the corresponding physical radius minus its 8 px outer gap,
+with a rounded fallback when the display does not report geometry. Content clears
+the gesture inset. The player's top Back button uses actual top-corner and camera
+intersection clearance instead of adding a full-height landscape cutout inset.
+The injected styles also support the currently deployed UI before this PR merges.
+
 ### Browsing smoothness
 
 Browsing uses an opaque WebView in a default SDR window, avoiding the alpha
@@ -175,6 +203,10 @@ References used:
 - [Player events](https://developer.android.com/media/media3/exoplayer/listening-to-player-events)
 - [Track selection](https://developer.android.com/media/media3/exoplayer/track-selection)
 - [Android HDR playback](https://developer.android.com/media/grow/hdr-playback)
+- [Android predictive Back and ahead-of-time interception](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture)
+- [Official WebView Back codelab](https://codelabs.developers.google.com/handling-gesture-back-navigation)
+- [Predictive Back animation callbacks](https://developer.android.com/guide/navigation/custom-back/support-animations)
+- [Physical display rounded corners](https://developer.android.com/develop/ui/views/layout/insets/rounded-corners)
 - [Adaptive refresh-rate categories, touch boost, and custom scroll views](https://developer.android.com/develop/ui/views/animations/adaptive-refresh-rate)
 - [Hardware acceleration and avoiding unnecessary view layers](https://developer.android.com/develop/ui/views/graphics/hardware-accel)
 - [Public high-refresh Chromium/WebView scrolling report (different device/provider; not a Navigator diagnosis)](https://github.com/uazo/cromite/issues/2572)

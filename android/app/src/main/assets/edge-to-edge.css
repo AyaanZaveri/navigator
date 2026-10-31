@@ -38,7 +38,7 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-controls"] {
 }
 html[data-native-engine="exoplayer"] [data-native-player-shell] button[class~="top-4"][class~="left-4"] {
   top: calc(1rem + var(--navigator-inset-top));
-  left: calc(1rem + var(--navigator-inset-left));
+  left: var(--navigator-player-back-left, .5rem);
 }
 /* Compatibility visibility is owned only while the deployed UI lacks the
    current React touch controller. Fade opacity without affecting the video. */
@@ -81,5 +81,14 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] button[class~="t
   }
   html[data-native-engine="exoplayer"] [data-navigator-focus-ui] .mb-1:has(> button[aria-keyshortcuts="Meta+K Control+K"]) {
     margin-bottom: 0;
+  }
+}
+
+/* Concentric lower corners follow Android's reported display radius. */
+@media (width < 40rem) {
+  html[data-native-engine="exoplayer"] [role="menu"][aria-modal="true"] {
+    border-bottom-left-radius: max(20px, calc(var(--navigator-corner-bottom-left, 48px) - 8px));
+    border-bottom-right-radius: max(20px, calc(var(--navigator-corner-bottom-right, 48px) - 8px));
+    padding-bottom: max(8px, var(--navigator-inset-bottom));
   }
 }

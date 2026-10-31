@@ -409,7 +409,7 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
   const bottomSheet = <AnimatePresence>
     {open && sheet && <motion.div key="scrim" className={styles.scrim} aria-hidden="true" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       transition={{ duration: reduced ? .1 : .2, ease: standard }} onClick={() => close(true)} />}
-    {open && sheet && <motion.div key="sheet" ref={surfaceRef} {...menuProps} className={`${styles.panel} ${styles.sheet}`} aria-modal="true"
+    {open && sheet && <motion.div key="sheet" data-slot="user-menu-sheet" ref={surfaceRef} {...menuProps} className={`${styles.panel} ${styles.sheet}`} aria-modal="true"
       variants={reduced ? stillMotion : sheetMotion} initial="closed" animate="open" exit="exit"
       drag={reduced ? false : "y"} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: .04, bottom: .9 }} dragMomentum={false} onDragEnd={onDragEnd}>
       <span className={styles.handle} aria-hidden="true" />
