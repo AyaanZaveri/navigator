@@ -43,9 +43,9 @@ try {
 
     const cases = [
         ['/series/show-1', 'Navigation Test Show', false],
-        ['/series/show-1/1/2', '2. Fixture Episode 2', true],
+        ['/series/show-1/1/2', '2. Fixture Episode 2', false],
         ['/series/show-1/1/1', '1. Fixture Episode 1', false],
-        ['/movie/movie-1', 'Navigation Test Movie', true],
+        ['/movie/movie-1', 'Navigation Test Movie', false],
     ];
     for (const [path, title, hasProgress] of cases) {
         const start = performance.now();
@@ -66,7 +66,7 @@ try {
         assert.ok(titleMs !== undefined, `${path}: title did not render`);
         assert.ok(titleMs < 700, `${path}: title blocked for ${Math.round(titleMs)}ms`);
         assert.ok(performance.now() - start >= 1100, `${path}: slow services were not exercised`);
-        assert.equal(html.includes('width:50%'), hasProgress, `${path}: incorrect episode progress`);
+        assert.equal(html.includes('width:50%'), hasProgress, `${path}: detail artwork should not show a progress overlay`);
         assert.ok(html.includes('More Like This'), `${path}: recommendations did not stream`);
         console.log(`${path}: title ${Math.round(titleMs)}ms; slow extras streamed separately`);
     }

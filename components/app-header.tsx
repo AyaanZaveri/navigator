@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useSyncExternalStore } from "react";
+import { Suspense, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AdaptiveHeaderLogo } from "@/components/adaptive-header-logo";
@@ -41,10 +41,22 @@ function ProfileMenu({ email }: { email: string }) {
 
 export function AppHeader({ email, overlay = false }: { email: string; overlay?: boolean }) {
     const { isPlayerVisible } = useMediaPlayer();
+    const headerRef = useRef<HTMLElement>(null);
+    useLayoutEffect(() => {
+        const header = headerRef.current;
+        const layout = header?.closest<HTMLElement>("[data-app-layout]");
+        if (!header || !layout) return;
+        // Includes the actual Android/iOS safe area and any font-size changes.
+        const measure = () => layout.style.setProperty("--app-header-height", `${header.getBoundingClientRect().height}px`);
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(header);
+        return () => observer.disconnect();
+    }, [isPlayerVisible]);
     if (isPlayerVisible) return null;
 
     return (
-        <header className={`${overlay ? "absolute inset-x-0 top-0" : "relative"} z-[var(--layer-header)] shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]`}>
+        <header ref={headerRef} className="relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pt-[env(safe-area-inset-top)] pl-[max(var(--page-gutter),env(safe-area-inset-left))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]">
             <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-3 py-5">
                 <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 transition-[filter,scale] hover:bg-transparent hover:brightness-90 dark:hover:bg-transparent">
                     <Link href="/" aria-label="Navigator home" draggable={false}>

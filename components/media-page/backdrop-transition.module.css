@@ -1,3 +1,26 @@
+.page {
+    --media-content-overlap: 6rem;
+    --media-content-top-padding: 1.5rem;
+}
+
+.hero {
+    height: 19rem;
+}
+
+/* The top is the search field's bottom (header minus its bottom padding).
+   The bottom is where the poster/episode artwork begins after the overlap.
+   Centering in this region includes the device's status-bar inset. */
+.wordmarkRegion {
+    position: absolute;
+    inset-inline: 0;
+    top: calc(var(--app-header-height, calc(5.25rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)))) - 1.25rem);
+    bottom: calc(var(--media-content-overlap) - var(--media-content-top-padding));
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+}
+
 .transition {
     position: absolute;
     z-index: 2;
@@ -30,7 +53,8 @@
 }
 
 .content {
-    margin-top: -6rem;
+    margin-top: calc(-1 * var(--media-content-overlap));
+    padding-top: var(--media-content-top-padding);
 }
 
 /* Keep the original hero overlap. A small light-mode wash lowers the
@@ -78,7 +102,17 @@
 }
 
 @media (min-width: 48rem) {
-    .content {
-        margin-top: -13.5rem;
+    .page {
+        --media-content-overlap: 13.5rem;
+        --media-content-top-padding: 2rem;
+    }
+
+    .hero {
+        height: 62vh;
+    }
+
+    .wordmarkRegion {
+        top: 4rem;
+        bottom: 13.5rem;
     }
 }

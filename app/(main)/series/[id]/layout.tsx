@@ -53,7 +53,7 @@ export default async function SeriesLayout({
     const { show } = layoutData;
 
     return (
-      <div className="relative isolate min-h-screen overflow-hidden pb-8">
+      <div className={`${backdropStyles.page} relative isolate min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
           backdropUrl={show.background}
           posterUrl={show.poster}
@@ -61,7 +61,7 @@ export default async function SeriesLayout({
         />
 
         <div className="relative">
-          <div className={`${backdropStyles.hero} relative h-[19rem] md:h-[62vh] overflow-hidden`}>
+          <div className={`${backdropStyles.hero} relative overflow-hidden`}>
             <BackdropImage
               movie={show}
               backdropImage={show.background || ""}
@@ -70,7 +70,7 @@ export default async function SeriesLayout({
               height={1080}
             />
             {show.logo && (
-              <div className="pointer-events-none absolute inset-x-0 top-24 bottom-28 z-10 grid place-items-center md:top-16 md:bottom-54">
+              <div className={backdropStyles.wordmarkRegion}>
                 <Link
                   href={buildSeriesPath(id)}
                   prefetch={true}

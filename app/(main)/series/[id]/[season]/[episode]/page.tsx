@@ -4,8 +4,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildSeriesPath } from "@/lib/series-route";
 import { getSeriesEpisodeSelectionData } from "../../_shared/series-data";
-import { Suspense } from "react";
-import { PlaybackProgressOverlay } from "@/components/media-page/playback-progress-overlay";
 import { EpisodeHeroThumbnail } from "@/components/episode-hero-thumbnail";
 
 export default async function EpisodeOnSeriesPage({
@@ -38,28 +36,22 @@ export default async function EpisodeOnSeriesPage({
     return (
       <section
         aria-labelledby="episode-title"
-        className="@container pt-6 md:pt-8"
+        className="@container"
       >
         <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-start @4xl:gap-8">
-          <div className="relative aspect-video w-full max-w-xl overflow-hidden rounded-lg bg-muted shadow-lg @4xl:max-w-none">
+          <div className="relative mx-auto aspect-video w-full max-w-xl overflow-hidden rounded-lg bg-muted shadow-lg @4xl:mx-0 @4xl:max-w-none">
             <EpisodeHeroThumbnail
               thumbnail={selectedEpisode.thumbnail}
               released={selectedEpisode.released}
               title={selectedEpisodeTitle}
             />
-            <Suspense fallback={null}>
-              <PlaybackProgressOverlay
-                mediaId={show.id}
-                videoId={selectedEpisode.id}
-              />
-            </Suspense>
           </div>
 
           <div className="flex min-w-0 flex-col gap-6 text-start @4xl:pt-3">
-            <div className="flex min-w-0 flex-col gap-3">
+            <div className="flex min-w-0 flex-col items-center gap-3 text-center @4xl:items-start @4xl:text-start">
               <nav
                 aria-label="Episode context"
-                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-muted-foreground"
+                className="flex min-w-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-medium text-muted-foreground @4xl:justify-start"
               >
                 <Link
                   href={buildSeriesPath(id)}
@@ -80,7 +72,7 @@ export default async function EpisodeOnSeriesPage({
                 {`${episodeNumber}. ${selectedEpisodeTitle}`}
               </h1>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 @4xl:justify-start">
                 <Badge
                   variant="outline"
                   className="bg-background/90 backdrop-blur-sm"

@@ -7,16 +7,16 @@ export function MediaDetailsLoading() {
     <div
       role="status"
       aria-label="Loading media details"
-      className="min-h-screen overflow-hidden pb-8"
+      className={`${backdropStyles.page} min-h-screen overflow-hidden pb-8`}
     >
       <span className="sr-only">Loading media details…</span>
-      <div aria-hidden="true" className="h-[19rem] w-full md:h-[62vh]" />
-      <div className={`${backdropStyles.content} relative px-4 pt-6 pb-6 md:mx-4 md:px-6 md:pt-8`}>
+      <div aria-hidden="true" className={`${backdropStyles.hero} w-full`} />
+      <div className={`${backdropStyles.content} relative px-4 pb-6 md:mx-4 md:px-6`}>
         <LoadingPlaceholder className="@container">
           <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
             <div className="mx-auto aspect-[2/3] w-[clamp(12rem,56vw,15rem)] max-w-full rounded-lg bg-muted/30 @3xl:mx-0 @3xl:w-full" />
             <div className="flex min-w-0 flex-col gap-6 @3xl:pt-3">
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col items-center gap-3 @3xl:items-start">
                 <Skeleton className="h-12 w-3/4" />
                 <Skeleton className="h-6 w-40 max-w-full" />
               </div>
@@ -37,13 +37,13 @@ export function EpisodeDetailsLoading() {
     <div
       role="status"
       aria-label="Loading episode"
-      className="@container pt-6 md:pt-8"
+      className="@container"
     >
       <span className="sr-only">Loading episode…</span>
       <LoadingPlaceholder className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-start @4xl:gap-8">
-        <div className="aspect-video w-full max-w-xl rounded-lg bg-muted/30 @4xl:max-w-none" />
+        <div className="mx-auto aspect-video w-full max-w-xl rounded-lg bg-muted/30 @4xl:mx-0 @4xl:max-w-none" />
         <div className="flex min-w-0 flex-col gap-6 @4xl:pt-3">
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col items-center gap-3 @4xl:items-start">
             <Skeleton className="h-5 w-40 max-w-full" />
             <Skeleton className="h-12 w-3/4" />
             <Skeleton className="h-6 w-32 max-w-full" />

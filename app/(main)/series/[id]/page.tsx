@@ -21,7 +21,7 @@ export default async function SeriesOverviewPage({
     const { show, regularSeasonCount } = layoutData;
 
     return (
-      <section aria-labelledby="series-title" className="@container pt-6 md:pt-8">
+      <section aria-labelledby="series-title" className="@container">
         <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
           <div className="relative mx-auto w-[clamp(12rem,56vw,15rem)] max-w-full @3xl:mx-0 @3xl:w-full">
             <PosterImage

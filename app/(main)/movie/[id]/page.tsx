@@ -72,7 +72,7 @@ export default async function Movie({
     };
 
     return (
-      <div className="relative isolate min-h-screen overflow-hidden pb-8">
+      <div className={`${backdropStyles.page} relative isolate min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
           backdropUrl={movie.background}
           posterUrl={movie.poster}
@@ -81,7 +81,7 @@ export default async function Movie({
 
         {/* Backdrop section */}
         <div className="relative">
-          <div className={`${backdropStyles.hero} relative h-[19rem] md:h-[62vh] overflow-hidden`}>
+          <div className={`${backdropStyles.hero} relative overflow-hidden`}>
             <BackdropImage
               movie={movie}
               backdropImage={movie.background || ""}
@@ -90,7 +90,7 @@ export default async function Movie({
               height={1080}
             />
             {movie.logo && (
-              <div className="pointer-events-none absolute inset-x-0 top-24 bottom-28 z-10 grid place-items-center md:top-16 md:bottom-54">
+              <div className={backdropStyles.wordmarkRegion}>
                 <HeroWordmark
                   src={movie.logo}
                   alt={`${movie.name} logo`}
@@ -104,7 +104,7 @@ export default async function Movie({
         </div>
 
         {/* Content section */}
-        <div className={`${backdropStyles.content} relative z-10 px-4 pt-6 md:px-6 md:pt-8 md:mx-4 pb-6`}>
+        <div className={`${backdropStyles.content} relative z-10 px-4 md:px-6 md:mx-4 pb-6`}>
           <div
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"

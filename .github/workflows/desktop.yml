@@ -18,6 +18,12 @@ on:
       - "app/actions/media.ts"
       - "scripts/test-resume-items.cjs"
       - "scripts/test-touch-scrubbing.cjs"
+      - "scripts/test-page-layout.cjs"
+      - "components/app-header.tsx"
+      - "components/layout-content.tsx"
+      - "components/media-page/**"
+      - "app/(main)/movie/**"
+      - "app/(main)/series/**"
       - "components/episode-card.tsx"
       - "components/season-episodes.tsx"
       - "components/episode-hero-thumbnail.tsx"
@@ -80,6 +86,7 @@ jobs:
       - run: bun run test:desktop
       - run: bun run test:resume
       - run: bun run test:touch-scrubbing
+      - run: bun run test:page-layout
       - run: bun run test:gradient
       - if: runner.os == 'macOS'
         run: bun run test:image-layout
