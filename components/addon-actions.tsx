@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Copy, Settings2, Share2, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Copy, Loader2, Settings, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getInstalledAddonLinks, uninstallAddon } from "@/app/actions/addons";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/arc/dialog/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { AddonListItem } from "@/lib/addons";
 import styles from "./addons-list.module.css";
 
@@ -18,7 +19,6 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
     const [removeError, setRemoveError] = useState<string | null>(null);
     const [removing, setRemoving] = useState(false);
     const [copying, setCopying] = useState(false);
-    const cancel = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         if (!shareOpen) return;
@@ -66,7 +66,7 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
             {addon.configurable && (
                 <Button asChild variant="outline">
                     <a href={`/api/addons/${addon.id}/configure`} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
-                        <Settings2 data-icon="inline-start" aria-hidden="true" />Settings
+                        <Settings data-icon="inline-start" aria-hidden="true" />Settings
                     </a>
                 </Button>
             )}
@@ -90,20 +90,27 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
                 </DialogContent>
             </Dialog>
             {!addon.protected && (
-                <Dialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>
-                    <DialogTrigger asChild><Button aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></DialogTrigger>
-                    <DialogContent role="alertdialog" title={`Uninstall ${addon.name}?`} description="This removes this addon configuration from your Stremio account and all your synced devices. You can install it again later."
-                        onOpenAutoFocus={(event) => { event.preventDefault(); cancel.current?.focus(); }}
-                        onPointerDownOutside={(event) => event.preventDefault()}>
-                        <div className={styles.dialogBody} aria-busy={removing}>
-                            {removeError && <p role="alert" className={styles.error}>{removeError}</p>}
-                            <div className={styles.dialogActions}>
-                                <DialogClose asChild><Button ref={cancel} variant="outline" disabled={removing}>Cancel</Button></DialogClose>
-                                <Button disabled={removing} onClick={remove}>{removing ? "Uninstalling…" : "Uninstall addon"}</Button>
-                            </div>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                <AlertDialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>
+                    <AlertDialogTrigger asChild><Button variant="ghost" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></AlertDialogTrigger>
+                    <AlertDialogContent aria-busy={removing}>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Uninstall {addon.name}?</AlertDialogTitle>
+                            <AlertDialogDescription>This removes this addon configuration from your Stremio account and all your synced devices. You can install it again later.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        {removeError && <p role="alert" className={styles.error}>{removeError}</p>}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction variant="destructive" disabled={removing} onClick={(event) => { event.preventDefault(); void remove(); }}>
+                                {removing ? (
+                                    <>
+                                        <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                                            Uninstalling
+                                    </>
+                                ) : "Uninstall addon"}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         </div>
     );
