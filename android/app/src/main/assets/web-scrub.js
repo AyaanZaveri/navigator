@@ -53,7 +53,9 @@
     requestTimer = undefined;
     // Deployed clients force manifest streams into a browser decoder. This
     // compatibility path goes away automatically when the updated React ships.
-    if (wanted == null || !media?.controller || !/\.(m3u8|mpd)(?:[?#]|$)/i.test(media.src || '') || box()?.dataset.nativePreviewProvider === 'android') return;
+    const container = box();
+    const browserFallback = container?.querySelector?.('mux-video,video');
+    if (wanted == null || !media?.controller || (!browserFallback && !/\.(m3u8|mpd)(?:[?#]|$)/i.test(media.src || '')) || container?.dataset.nativePreviewProvider === 'android') return;
     const time = document.querySelector(slot('seek-time'));
     if (!time || time.parentElement.parentElement.getAttribute('aria-hidden') === 'true') {
       requestTimer = setTimeout(requestLegacy, 60); return;
@@ -87,7 +89,7 @@
   };
   const receive = message => {
     if (message.type === 'ready' && owner && message.session !== owner) reset();
-    if (message.type === 'thumbnail-frame' && message.session === media?.controller?.previewSession && wanted != null && legacyContainer && message.src?.startsWith('data:image/jpeg;base64,')) renderLegacy(message.src);
+    if (message.type === 'thumbnail-frame' && message.session === media?.controller?.previewSession && wanted != null && message.src?.startsWith('data:image/jpeg;base64,')) renderLegacy(message.src);
     if (message.type !== 'scrub') return;
     if (!message.active) { if (message.session === owner) reset(); return; }
     if (!Number.isFinite(message.position) || !Number.isFinite(message.duration) || message.duration <= 0 || !Number.isFinite(message.x) || !find() || message.session !== media.controller.previewSession) return;

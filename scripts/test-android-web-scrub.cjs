@@ -57,6 +57,8 @@ async function test() {
     assert.equal(app.properties.get('--navigator-native-scrub-x'), '500px');
     app.flush();
     assert.equal(app.requests.length, 0, 'Ordinary streams keep their existing React preview provider');
+    app.receive({ type: 'thumbnail-frame', session: 'current', position: 58, src: 'data:image/jpeg;base64,PARTIAL' });
+    assert.equal(app.children[0].src, 'data:image/jpeg;base64,PARTIAL', 'Deployed file previews also show completed frames while moving');
     app.receive({ type: 'scrub', active: false, session: 'stale' });
     assert.ok(app.attrs.has('data-native-web-scrub'), 'A stale session cannot dismiss the current gesture');
     app.receive({ type: 'scrub', active: false, session: 'current' });
