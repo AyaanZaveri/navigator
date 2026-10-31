@@ -1,17 +1,14 @@
 package app.navigator.android;
 
 import android.annotation.SuppressLint;
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.os.Build;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.PathInterpolator;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.SeekBar;
 import java.util.function.Consumer;
@@ -24,9 +21,9 @@ final class SideControlView extends View {
     private final Consumer<Float> change;
     private final Runnable mute, hold, release;
     private boolean volume, muted, dragging, iconPress;
-    private float value, displayValue;
+    private float value;
     private final SliderDrag slider=new SliderDrag();
-    private ValueAnimator settling;
+    private final PlayerBarGlide glide=new PlayerBarGlide(this);
     SideControlView(Context context,Consumer<Float> change,Runnable mute,Runnable hold,Runnable release) {
         super(context); d=getResources().getDisplayMetrics().density;
         this.change=change; this.mute=mute; this.hold=hold; this.release=release;
@@ -40,9 +37,8 @@ final class SideControlView extends View {
     void update(boolean volume,float value,float displayValue,boolean muted,boolean tracking) {
         boolean reset=this.volume!=volume || getVisibility()!=VISIBLE;
         this.volume=volume; this.value=value; this.muted=muted;
-        if (reset || tracking) {
-            cancelSettle(); this.displayValue=displayValue;
-        } else settle();
+        if (reset) glide.snap(displayValue);
+        else glide.to(tracking ? displayValue : value);
         setContentDescription((volume ? (muted ? "Media volume muted, " : "Media volume, ") : "Brightness, ")
             +Math.round(value*100)+" percent"+(volume ? ". Top icon toggles mute." : ""));
         invalidate();
@@ -54,7 +50,7 @@ final class SideControlView extends View {
         icon.setBounds(centerX-radius,centerY-radius,centerX+radius,centerY+radius); icon.draw(canvas);
         paint.setColor(Color.argb(51,255,255,255));
         canvas.drawRoundRect(x-3*d,top,x+3*d,bottom,3*d,3*d,paint);
-        float at=bottom-(bottom-top)*displayValue;
+        float at=bottom-(bottom-top)*glide.value();
         paint.setColor(Color.WHITE); canvas.drawRoundRect(x-3*d,at,x+3*d,bottom,3*d,3*d,paint);
     }
     private void drag(float y) {
@@ -63,7 +59,7 @@ final class SideControlView extends View {
     @SuppressLint("ClickableViewAccessibility") // Range actions and mute click are implemented below.
     @Override public boolean onTouchEvent(MotionEvent e) {
         if (e.getActionMasked()==MotionEvent.ACTION_DOWN) {
-            hold.run(); slider.begin(displayValue,e.getY(),getHeight()-60*d,0);
+            hold.run(); slider.begin(value,e.getY(),getHeight()-60*d,0);
             iconPress=volume && e.getY()<44*d; dragging=!iconPress;
             return true;
         }
@@ -78,24 +74,12 @@ final class SideControlView extends View {
         }
         return true;
     }
-    private void cancelSettle() { if (settling!=null) { settling.cancel(); settling=null; } }
-    void settle() {
-        cancelSettle();
-        if (getVisibility()!=VISIBLE || Math.abs(displayValue-value)<.0001f || (Build.VERSION.SDK_INT>=26 && !ValueAnimator.areAnimatorsEnabled())) {
-            displayValue=value; invalidate(); return;
-        }
-        // Input remains linear and immediate. Only the small final correction
-        // to Android's discrete media-volume step is eased after release.
-        settling=ValueAnimator.ofFloat(displayValue,value);
-        settling.setDuration(120); settling.setInterpolator(new PathInterpolator(.23f,1,.32f,1));
-        settling.addUpdateListener(animation -> { displayValue=(float)animation.getAnimatedValue(); invalidate(); });
-        settling.start();
-    }
+    void settle() { glide.to(value); }
     @Override protected void onVisibilityChanged(View changedView,int visibility) {
         super.onVisibilityChanged(changedView,visibility);
-        if (visibility!=VISIBLE) cancelSettle();
+        if (visibility!=VISIBLE) glide.cancel();
     }
-    @Override protected void onDetachedFromWindow() { cancelSettle(); super.onDetachedFromWindow(); }
+    @Override protected void onDetachedFromWindow() { glide.cancel(); super.onDetachedFromWindow(); }
     @Override public boolean performClick() { super.performClick(); if (volume) mute.run(); return true; }
     @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         super.onInitializeAccessibilityNodeInfo(info); info.setClassName(SeekBar.class.getName());
@@ -105,7 +89,7 @@ final class SideControlView extends View {
         info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD);
     }
     private void finishAccessibleChange() {
-        cancelSettle(); displayValue=value; invalidate(); release.run();
+        glide.snap(value); release.run();
     }
     @Override public boolean performAccessibilityAction(int action,Bundle args) {
         if (action==AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId() && args!=null) {
