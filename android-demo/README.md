@@ -45,6 +45,7 @@ npm ci --prefix android-demo/web
 node android-demo/scripts/build-web.mjs
 cd android-demo
 ./gradlew assembleDebug assembleDebugAndroidTest lintDebug
+python3 scripts/check-apk.py
 ```
 
 The installable, debug-signed APK is
@@ -78,6 +79,8 @@ APK does not execute it. Device playback and HDR output must be tested separatel
 - Transparent, hardware-accelerated WebView above the native surface.
 - `WebViewAssetLoader` serves the static Next.js export from the app's assets
   at `https://appassets.androidplatform.net/assets/web/index.html`.
+- AAPT's underscore-name filter is disabled so `_next/` chunks and `__next.*`
+  route data survive APK packaging. The APK check compares every bundled asset.
 - An origin-restricted, main-frame-only WebMessage bridge sends small JSON
   commands/state. It accepts only the three bundled sample names, not arbitrary
   file paths or URLs. Network/file access and external navigation are disabled.

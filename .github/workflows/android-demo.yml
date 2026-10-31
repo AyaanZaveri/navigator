@@ -29,6 +29,7 @@ jobs:
       - run: node android-demo/scripts/check-assets.mjs
       - run: ./gradlew assembleDebug assembleDebugAndroidTest lintDebug --no-daemon
         working-directory: android-demo
+      - run: python3 android-demo/scripts/check-apk.py
       - uses: actions/upload-artifact@v4
         with:
           name: Navigator-Android-Playback-Demo

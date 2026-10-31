@@ -16,7 +16,11 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    androidResources { noCompress += ['mp4'] }
+    androidResources {
+        noCompress += ['mp4']
+        // AAPT's default pattern excludes _next/ and __next.* static export files.
+        ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
     lint { abortOnError true }
 }
 
