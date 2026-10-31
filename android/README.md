@@ -166,7 +166,8 @@ the JS bridge. The hosted account menu handles dismissal through Escape; the
 Ask panel supports a native event with an outside-press compatibility fallback.
 
 On Android 12+, reported screen corner radii reach CSS. The inset account sheet's
-bottom radii use the corresponding physical radius minus its 8 px outer gap,
+bottom radii use the corresponding physical radius minus its 8 px horizontal gap,
+and the sheet sits 16 px above the viewport bottom to keep its curve clear,
 with a rounded fallback when the display does not report geometry. Content clears
 the gesture inset. The player's top Back button uses actual top-corner and camera
 intersection clearance instead of adding a full-height landscape cutout inset.
