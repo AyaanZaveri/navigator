@@ -1,5 +1,4 @@
 .directory {
-  container-type: inline-size;
   width: 100%;
   min-width: 0;
 }
@@ -9,6 +8,7 @@
   --search-field-surface: var(--addon-control-surface);
   --chip-surface: var(--addon-control-surface);
   --chip-backdrop-blur: 12px;
+  --chip-group-isolation: auto;
   --control-height-sm: 36px;
   --control-height-md: 36px;
   --chip-padding-inline: 12px;
@@ -36,6 +36,7 @@
 }
 
 .list {
+  container-type: inline-size;
   display: grid;
   gap: 16px;
   min-width: 0;
@@ -176,11 +177,18 @@
   .capabilities { justify-content: flex-start; }
 }
 
-@container (max-width: 26rem) {
+@media (max-width: 26rem) {
   .search { flex-basis: 100%; width: 100%; }
+}
+
+@container (max-width: 26rem) {
   .row { padding: 16px; gap: 12px; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  .toolbar {
+    --addon-control-surface: var(--background);
+    --chip-backdrop-blur: 0px;
+  }
   .row { background: var(--background); }
 }
