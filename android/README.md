@@ -476,3 +476,29 @@ The Android player enters sensor landscape when the player shell becomes visible
 including the stream-fetching stage. Closing restores normal orientation; an
 internal source retry does not temporarily unlock orientation. Back is a 40px
 borderless glass circle with a 20px arrow, matching the toolbar icon size.
+
+### Branded launch surface
+
+The system splash uses a dedicated 288dp vector drawable (`ic_splash_ship`) with
+144dp artwork, inside the 192dp safe circle. This avoids enlarging the launcher's
+108dp intrinsic drawable and provides a crisp native icon at device density.
+Source/export files live in `assets/icons/android/splash/`; regeneration is
+`python3 scripts/generate-android-splash.py` and geometry validation is
+`python3 scripts/test-app-icons.py`.
+
+Android requires a single opaque system splash background. It now matches a deep
+teal base. At the first activity frame, that platform window crossfades for 120ms
+into a native `LaunchBackdrop` in the same activity, showing the macOS Figma
+master's teal light fields while WebView loads. The background uses static
+linear/radial shaders, with no animated blur or per-frame bitmap generation.
+Once WebView's visual-state callback confirms real content, the mark scales
+1 → 1.08 while the launch surface fades out in 220ms using
+`cubic-bezier(.23,1,.32,1)`. There is no artificial minimum splash duration.
+System-disabled animations remove it immediately. Error/settings paths dismiss
+it without animation, and destruction cancels animations and detaches the view.
+
+The mobile animation skill's purpose here is preventing a jarring handoff at an
+infrequent app opening. Native Android animators implement transform/opacity;
+this app does not use an Expo runtime. Device feel remains unverified.
+
+Reference: https://developer.android.com/develop/ui/views/launch/splash-screen

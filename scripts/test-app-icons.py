@@ -86,3 +86,21 @@ for points in [16, 32, 128, 256, 512]:
         suffix = '@2x' if scale == 2 else ''
         check_png(ICONS / f'macos/Navigator.iconset/icon_{points}x{points}{suffix}.png', points * scale)
 print('PASS: Apple dimensions/opacity, Android safe area/layers/densities/manifest, sRGB, ICO sizes and ICNS integrity')
+
+# Android's dedicated launch vector is rendered at splash size, independent of
+# the smaller launcher layer. Validate the real exported alpha against its mask.
+splash = ET.parse(RES / 'drawable/ic_splash_ship.xml').getroot()
+assert splash.attrib[ANDROID+'width'] == '288dp'
+assert splash.attrib[ANDROID+'viewportWidth'] == '288'
+assert len(splash.findall('.//path')) == len(json.loads((ICONS/'source/figma-geometry.json').read_text())['paths'])
+starting = ET.parse(RES/'values/strings.xml').getroot().find("style[@name='AppStartingTheme']")
+assert starting.find("item[@name='windowSplashScreenAnimatedIcon']").text == '@drawable/ic_splash_ship'
+with Image.open(ICONS/'android/splash/mark-1152.png') as image:
+    assert image.size == (1152,1152)
+    alpha = image.getchannel('A')
+    assert alpha.getbbox()[2]-alpha.getbbox()[0] >= 570, 'Splash ship must be rendered from the larger dedicated artwork'
+    for y in range(image.height):
+        for x in range(image.width):
+            if alpha.getpixel((x,y)) > 16:
+                assert (x-576)**2+(y-576)**2 <= 384**2, 'Splash artwork would be cropped by Android safe 192dp mask'
+print('PASS: dedicated splash vector, high-resolution export and safe-circle geometry')

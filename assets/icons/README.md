@@ -14,7 +14,7 @@ The ship in the original Figma master was enlarged **28%**, retaining the macOS 
 | Android | `android/foreground.svg`, `android/background.svg`, vector XML and `android/play-store-512.png` | Production resources are under `android/app/src/main/res/`; the common manifest applies to every APK variant. |
 | Windows | `windows/Navigator.ico`, `windows/navigator.svg`, `windows/png/` | Multi-resolution Win32 handoff; not embedded into the Windows executable by this icon-design change. |
 
-Android uses a **108dp** adaptive canvas, with a **48dp** rendered foreground mark horizontally centered and shifted **1.5dp upward** for optical balance within the safe area. API 26+ receives foreground/background adaptive layers; API 33+ also gets a monochrome layer. API 24–25 receive density-specific legacy normal/round PNGs. No white plate, outer shadow or pre-rounded tile is baked into the adaptive layers. The splash screen uses the foreground vector directly.
+Android uses a **108dp** adaptive canvas, with a **48dp** rendered foreground mark horizontally centered and shifted **1.5dp upward** for optical balance within the safe area. API 26+ receives foreground/background adaptive layers; API 33+ also gets a monochrome layer. API 24–25 receive density-specific legacy normal/round PNGs. No white plate, outer shadow or pre-rounded tile is baked into the adaptive layers. The splash screen uses a separate 288dp vector canvas with a 144dp ship, retaining the upward optical balance. `android/splash/` includes the 1152px mark export and portrait/landscape design previews.
 
 Windows uses an unplated ship with a dark teal edge for contrast on light backgrounds. The ICO contains independently rendered **16, 20, 24, 32, 40, 48, 64, 96, 128 and 256px** PNG entries.
 
@@ -39,3 +39,12 @@ python3 scripts/test-app-icons.py
 ```
 
 The vector geometry and compatibility SVG were exported from the updated Figma file through MCP. The generator also updates the Android resources and the existing macOS/iOS image entry points. It does not build an app, APK, or executable. Installed apps and previously built APKs retain their old resources until rebuilt and reinstalled.
+
+## Android launch treatment
+
+The splash vector is generated separately with `python3 scripts/generate-android-splash.py`.
+It references the same Figma ship geometry and is tested against Android's 192dp
+safe circle. The native launch surface uses the macOS master's dark teal base and
+soft teal light fields, rendered as static shaders rather than a stretched bitmap.
+The preview PNGs are design renders, not Android screenshots. The installed APK
+uses the vector XML and native drawing code, not these raster previews.

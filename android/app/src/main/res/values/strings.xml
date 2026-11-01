@@ -9,8 +9,8 @@
         <item name="android:windowBackground">#080d0b</item>
     </style>
     <style name="AppStartingTheme" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#080d0b</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenBackground">#071a18</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_ship</item>
         <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
 </resources>

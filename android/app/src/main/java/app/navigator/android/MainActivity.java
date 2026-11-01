@@ -71,6 +71,7 @@ public final class MainActivity extends ComponentActivity {
     private boolean destroyed;
     private boolean pageFailed;
     private boolean launching = true;
+    private LaunchBackdrop launchBackdrop;
     private boolean pageLoading;
     private boolean webDark = true;
     private boolean scrolling;
@@ -102,12 +103,21 @@ public final class MainActivity extends ComponentActivity {
     @Override public void onCreate(Bundle state) {
         SplashScreen splash = SplashScreen.installSplashScreen(this);
         super.onCreate(state);
-        splash.setKeepOnScreenCondition(() -> launching && !destroyed);
+        // Release the platform's flat launch window at the first activity frame;
+        // the branded native surface covers WebView startup until real pixels exist.
+        splash.setKeepOnScreenCondition(() -> launching && !destroyed && (root == null || root.getWidth() == 0));
         splash.setOnExitAnimationListener(provider -> {
-            provider.remove();
-            // Splash theme restoration must not reintroduce opaque system bars.
-            enableEdgeToEdge();
-            ViewCompat.requestApplyInsets(root);
+            Runnable finish = () -> {
+                provider.remove();
+                if (!destroyed) {
+                    // Theme restoration must not reintroduce opaque system bars.
+                    enableEdgeToEdge();
+                    ViewCompat.requestApplyInsets(root);
+                }
+            };
+            if (LaunchBackdrop.animationsEnabled(this))
+                provider.getView().animate().alpha(0).setDuration(120).withEndAction(finish).start();
+            else finish.run();
         });
         enableEdgeToEdge();
         preferences = getSharedPreferences("navigator", MODE_PRIVATE);
@@ -225,6 +235,8 @@ public final class MainActivity extends ComponentActivity {
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
         configureBridge();
         configureBackNavigation();
+        launchBackdrop = new LaunchBackdrop(this);
+        root.addView(launchBackdrop, new FrameLayout.LayoutParams(-1, -1));
         web.loadUrl(origin.toString() + "/");
         if ("app.navigator.android.SETTINGS".equals(getIntent().getAction())) main.post(this::settings);
     }
@@ -541,6 +553,7 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void showConnection(String message) {
+        if (launchBackdrop != null) launchBackdrop.dismiss(false);
         if (connection == null) {
             connection = new LinearLayout(this);
             connection.setOrientation(LinearLayout.VERTICAL);
@@ -569,12 +582,14 @@ public final class MainActivity extends ComponentActivity {
     private void hideConnection() { if (connection != null) connection.setVisibility(View.GONE); }
     private void revealPage() {
         launching = false;
+        if (launchBackdrop != null) launchBackdrop.dismiss(true);
         pageLoading = false;
         hideConnection();
     }
 
     private void settings() {
         if (destroyed) return;
+        if (launchBackdrop != null) launchBackdrop.dismiss(false);
         launching = false;
         EditText address = new EditText(this);
         address.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
@@ -639,6 +654,7 @@ public final class MainActivity extends ComponentActivity {
     }
     @Override protected void onDestroy() {
         destroyed = true;
+        if (launchBackdrop != null) launchBackdrop.close();
         root.setVideoActive(false);
         main.removeCallbacksAndMessages(null);
         reply = null;
