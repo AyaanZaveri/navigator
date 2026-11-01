@@ -46,3 +46,7 @@ for (const button of backButtons) {
   assert.equal(children, '', 'Back must not render a visible text label');
 }
 console.log('PASS: shared transparent 12px glass, prefixed blur, token sheen, dark portal theme and blur on the fading element itself');
+
+const mobileBack = rules.find(rule => rule.selector === '[data-player-close]' && rule.parent.type === 'atrule' && rule.parent.name === 'media');
+const dimension = prop => mobileBack.nodes.find(node => node.prop === prop)?.value;
+assert.equal(dimension('width'), dimension('height'), 'Mobile minimum touch target must remain square so rounded-full is actually circular');
