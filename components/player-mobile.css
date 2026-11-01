@@ -1,11 +1,25 @@
 /* Shared reading/alignment rules for web and native player controls. */
-/* The player root supplies dark-theme tokens in either browsing theme. */
-[data-player-close] {
+/* Blur lives on the fading surface itself, as on the media-card Play button.
+   Fading an ancestor would cut it off from the page's backdrop pixels. */
+[data-player-glass] {
   color: var(--foreground);
-  background: color-mix(in oklab, var(--background) 60%, transparent);
-  border: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background-color: color-mix(in oklab, var(--background) var(--player-glass-tint, 38%), transparent);
+  background-image: linear-gradient(
+    color-mix(in oklab, var(--foreground) 12%, transparent),
+    color-mix(in oklab, var(--foreground) 4%, transparent)
+  );
+  border: 1px solid color-mix(in oklab, var(--foreground) 14%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+/* Native video is outside the WebView's backdrop. Keep the glass legible
+   without copying video frames back into the scrolling/scrubbing UI. */
+html[data-native-playing] [data-player-glass] { --player-glass-tint: 55%; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  [data-player-glass],
+  html[data-native-playing] [data-player-glass] { --player-glass-tint: 80%; }
+}
+[data-player-close] {
   transition: background-color var(--duration-instant, 120ms) var(--ease-out, ease-out);
 }
 /* Hide playback Back with the chrome, without an opacity-fading ancestor. */
@@ -20,7 +34,7 @@
 @media (hover: hover) and (pointer: fine) {
   [data-player-close]:hover {
     color: var(--foreground);
-    background: color-mix(in oklab, var(--background) 72%, transparent);
+    background-color: color-mix(in oklab, var(--background) 65%, transparent);
   }
 }
 [data-player-title] { min-width: 0; line-height: 1.3; letter-spacing: -.01em; }

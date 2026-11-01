@@ -2348,21 +2348,21 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             <div
               ref={tooltipRef}
               data-slot="media-player-seek-tooltip"
+              data-player-glass=""
               data-seek-mode={seekMode ?? undefined}
               aria-hidden={!seekState.isHovering || tooltipDisabled}
-              className="pointer-events-none z-[var(--layer-tooltip)] [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
+              className="dark pointer-events-none z-[var(--layer-tooltip)] rounded-xl shadow-sm [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
               style={{
                 position: "fixed" as const,
                 left: `var(${SEEK_TOOLTIP_X}, 0rem)`,
                 top: `var(${SEEK_TOOLTIP_Y}, 0rem)`,
                 transform: `translateX(-50%) translateY(calc(-100% - ${currentTooltipSideOffset}px))`,
-                visibility: !tooltipDisabled && seekState.isHovering && seekState.hasInitialPosition ? "visible" : "hidden",
                 opacity: !tooltipDisabled && seekState.isHovering && seekState.hasInitialPosition ? 1 : 0,
               }}
             >
               <div
                 className={cn(
-                  "flex flex-col items-center rounded-xl bg-background/98 p-1 pb-0 text-foreground shadow-sm ring-1 ring-inset ring-black/10 backdrop-blur-[12px] dark:bg-background/70 dark:ring-white/10",
+                  "flex flex-col items-center rounded-[inherit] p-1 pb-0 text-foreground",
                   thumbnail && "min-h-10",
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}

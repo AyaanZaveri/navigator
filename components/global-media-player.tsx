@@ -681,9 +681,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
             <Button
               data-player-close=""
+              data-player-glass=""
               aria-label="Back to browsing"
               variant="ghost"
-              className="fixed left-4 top-4 z-10 backdrop-blur-xl"
+              className="fixed left-4 top-4 z-10"
               onClick={() => handleClose()}
             >
               <ArrowLeft className="h-4 w-4" />
@@ -802,10 +803,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {!loading && streamUrl && videoReady && !playbackError && (
           <Button
             data-player-close=""
+            data-player-glass=""
             data-player-back-control=""
             aria-label="Back to browsing"
             variant="ghost"
-            className="fixed left-4 top-4 z-50 backdrop-blur-xl"
+            className="fixed left-4 top-4 z-50"
             onClick={() => handleClose()}
           >
             <ArrowLeft className="h-4 w-4" />

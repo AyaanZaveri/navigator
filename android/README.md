@@ -267,9 +267,14 @@ Surface gestures anchor a preview within a ±2 second tolerance window and wait
 the timer nor cancel decoding. The progress indicator and timestamp still follow
 the exact seek target; direct bar previews remain immediate.
 
-The normal web preview supplies its existing skeleton, borderless panel, Sunghyun
-Sans semibold timestamp, and `backdrop-blur-[12px]` styling. CSS backdrop blur
-samples the WebView layer, rather than the independent native video surface.
+The web preview supplies its existing skeleton and timestamp. It shares a
+translucent, token-based 12px glass treatment with the Back button. The fade and
+backdrop filter belong to the same element, avoiding an opacity ancestor that
+blocks backdrop sampling. The portalled preview retains the player dark tokens.
+CSS backdrop blur samples the WebView layer, rather than the independent native
+video surface: loading artwork and browser video can blur, while native playback
+uses a stronger translucent tint for legibility. No live video frame copies or
+extra thumbnail decodes are introduced for this material.
 The APK injects a small adapter so whole-screen scrubs drive the same React seek
 component even before this PR is merged. Deployed HLS/DASH clients additionally
 receive JPEGs in their existing HTML thumbnail instead of attempting browser
