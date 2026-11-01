@@ -32,7 +32,7 @@ function ProfileMenu({ email }: { email: string }) {
                 { label: "Home", icon: <Home size={16} aria-hidden="true" />, onSelect: () => router.push("/") },
                 { label: "Settings", icon: <Settings size={16} aria-hidden="true" />, onSelect: () => router.push("/settings") },
                 { label: "Add-ons", icon: <Puzzle size={16} aria-hidden="true" />, onSelect: () => router.push("/addons") },
-                ...(mounted && desktopBridge()?.platform === "android" ? [
+                ...(mounted && ["android", "ios"].includes(desktopBridge()?.platform ?? "") ? [
                     { label: "App settings", icon: <Settings size={16} aria-hidden="true" />, onSelect: () => desktopBridge()?.send({ type: "settings" }) },
                 ] : []),
             ]}

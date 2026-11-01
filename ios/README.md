@@ -22,7 +22,7 @@ sign them as well as the app. VideoLAN license text is bundled with the app.
 
 ## Local development
 
-Install full Xcode and select its Developer directory. The Command Line Tools
+Use Ruby 3.3, install full Xcode and select its Developer directory. The Command Line Tools
 alone do not contain UIKit, the iOS SDK, simulators or Swift Testing.
 
 ```sh
@@ -96,8 +96,9 @@ settings UI remain available if the hosted website fails.
 
 ## Validation and honest limits
 
-CI uses a local HTTPS fixture trusted only in its simulator, including a required
-Authorization header and byte-range playback. This is not a production TLS bypass.
+CI uses a local HTTPS fixture trusted only in its iPhone and iPad simulators,
+including a required Authorization header, byte-range playback, saved-position
+startup and native JPEG preview generation. This is not a production TLS bypass.
 Pure native tests cover URL/header validation, origin scoping, cache limits,
 request parsing, HLS/DASH rewriting, real loopback range delivery and CDN scoping.
 
