@@ -2164,7 +2164,13 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       // visibility; an idle timer must not hide controls during an active seek.
       if (mode === "bar") store.setState("dragging", true);
       const callbacks = touchCallbacksRef.current;
-      callbacks.onPreviewUpdate(time);
+      // Surface gestures use SeekPreview's idle-only decoder. Sending the
+      // media-controls preview request too would keep another producer busy.
+      if (mode === "bar") callbacks.onPreviewUpdate(time);
+      else if (previewDebounceRef.current !== null) {
+        cancelAnimationFrame(previewDebounceRef.current);
+        previewDebounceRef.current = null;
+      }
       callbacks.onHoverProgressUpdate();
       const rect = timeline.getBoundingClientRect();
       callbacks.onTooltipPositionUpdate(rect.left + (time - seekableStart) / (seekableEnd - seekableStart) * rect.width);
@@ -2361,7 +2367,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
               >
-                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} />}
+                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} deferWhileMoving={seekMode === "surface"} />}
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"
@@ -2380,7 +2386,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 )}
                 {touchScrubSpeed !== null && (
                   <div className="max-w-56 px-2 pt-1 text-center text-xs text-muted-foreground">
-                    {touchScrubSpeed === 1 ? "Fast scrubbing · move up or down for precision" : `Fine scrubbing · ${Math.round(touchScrubSpeed * 100)}% speed`}
+                    {touchScrubSpeed === 1 ? "Fast scrubbing" : "Fine scrubbing"}
                   </div>
                 )}
                 {currentChapterCue && (

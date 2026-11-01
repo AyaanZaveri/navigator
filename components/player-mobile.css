@@ -67,10 +67,10 @@
 /* Also overrides the old APK's finger-anchored tooltip compatibility rule. */
 [data-slot="media-player-seek-tooltip"][data-seek-mode="surface"] {
   left: var(--seek-tooltip-x) !important;
-  transition: left 100ms var(--ease-out, cubic-bezier(.23, 1, .32, 1)), opacity 150ms ease-out;
+  transition: opacity 150ms ease-out;
 }
 [data-scrub-mode="surface"] [data-slot="media-player-seek-range"] {
-  transition: right 100ms var(--ease-out, cubic-bezier(.23, 1, .32, 1));
+  transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-scrub-mode="surface"] [data-slot="media-player-seek-range"],

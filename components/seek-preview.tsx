@@ -7,15 +7,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { BrowserPreviewFrames, PreviewCache, PreviewScheduler, previewBucket, type PreviewMedia } from "@/lib/media/preview-frames";
 
-type Props = { media: HTMLVideoElement | HTMLAudioElement | null; time: number; duration: number; active: boolean };
+type Props = { media: HTMLVideoElement | HTMLAudioElement | null; time: number; duration: number; active: boolean; deferWhileMoving?: boolean };
 type Frame = { time: number | null; src: string | null; video: boolean; unavailable: boolean };
 const empty: Frame = { time: null, src: null, video: false, unavailable: false };
 
 /** Kept mounted across hover exits so decoder buffers and recent frames stay warm. */
-export function SeekPreview({ media, time, duration, active }: Props) {
+export function SeekPreview({ media, time, duration, active, deferWhileMoving = false }: Props) {
     const source = media?.getAttribute("src") || media?.src || "";
     const session = (media as unknown as MpvElementHandle | null)?.controller?.previewSession;
-    return <PreviewSource key={session || source} media={media} source={source} time={time} duration={duration} active={active} />;
+    const key = session || source;
+    const [settled, setSettled] = useState<{ key: string; time: number } | null>(null);
+    useLayoutEffect(() => {
+        setSettled(null);
+        if (!active || !deferWhileMoving) return;
+        // Use exact gesture time, not the two-second decoder bucket: even fine
+        // movement within one bucket must postpone extraction until it stops.
+        const timer = setTimeout(() => setSettled({ key, time }), 180);
+        return () => clearTimeout(timer);
+    }, [key, time, active, deferWhileMoving]);
+    const requestActive = active && (!deferWhileMoving || (settled?.key === key && settled.time === time));
+    return <PreviewSource key={key} media={media} source={source} time={time} duration={duration} active={requestActive} />;
 }
 
 function PreviewSource({ media, source, time, duration, active }: Props & { source: string }) {

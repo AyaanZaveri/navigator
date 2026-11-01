@@ -155,7 +155,7 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-
 [data-native-web-scrub] [data-slot="media-player-seek-range"],
 [data-native-web-scrub] [data-slot="media-player-seek"] [data-orientation="horizontal"][style*="left:"][style*="right:"] {
   left: 0 !important; right: var(--navigator-native-scrub-right) !important;
-  transition: right 100ms cubic-bezier(.23, 1, .32, 1) !important;
+  transition: none !important;
 }
 [data-native-scrub-tooltip] {
   left: var(--navigator-native-scrub-x) !important;
