@@ -11,7 +11,7 @@
         _surface=[[UIView alloc] init];_surface.backgroundColor=UIColor.blackColor;
         _player=[[VLCMediaPlayer alloc] init];_player.delegate=self;_player.drawable=_surface;
 #if DEBUG
-        VLCConsoleLogger *logger=[VLCConsoleLogger new];logger.level=VLCLogLevelDebug;
+        VLCConsoleLogger *logger=[VLCConsoleLogger new];logger.level=kVLCLogLevelDebug;
         _player.libraryInstance.loggers=@[logger];
 #endif
     }
