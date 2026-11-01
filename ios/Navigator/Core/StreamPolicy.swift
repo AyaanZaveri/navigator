@@ -10,7 +10,7 @@ public struct TrustedOrigin: Equatable, Sendable {
               url.path.isEmpty || url.path=="/" else { throw PolicyError.invalidOrigin }
         guard url.port.map({(1...65535).contains($0)}) ?? true,
               var parts=URLComponents(url:url,resolvingAgainstBaseURL:false) else { throw PolicyError.invalidOrigin }
-        parts.host=parts.host?.lowercased();parts.path=""
+        parts.scheme="https";parts.host=parts.host?.lowercased();parts.path=""
         if parts.port==443 { parts.port=nil }
         guard let canonical=parts.url else { throw PolicyError.invalidOrigin };self.url=canonical
     }

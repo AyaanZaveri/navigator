@@ -4,6 +4,7 @@ import Foundation
 
 @Test func originsAndCredentialScope() throws {
     let origin=try TrustedOrigin("https://navigator.test")
+    #expect(try TrustedOrigin("HTTPS://NAVIGATOR.TEST:443/")==origin)
     #expect(origin.matches(URL(string:"https://navigator.test/movie/1")!))
     #expect(!origin.matches(URL(string:"https://navigator.test.attacker.test")!))
     #expect(throws:PolicyError.self) { try TrustedOrigin("http://navigator.test") }

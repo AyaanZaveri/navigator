@@ -4,9 +4,9 @@ final class LaunchPlaybackTests:XCTestCase {
         let app=XCUIApplication();app.launchArguments=["-server","https://localhost:9443"]
         app.launch()
         let play=app.webViews.buttons["Play fixture"]
-        XCTAssertTrue(play.waitForExistence(timeout:25));play.tap()
+        XCTAssertTrue(play.waitForExistence(timeout:25));XCTAssertTrue(play.isHittable);play.tap()
         let ready=app.webViews.staticTexts["Native playback ready"]
-        XCTAssertTrue(ready.waitForExistence(timeout:20))
+        guard ready.waitForExistence(timeout:20) else { XCTFail(app.debugDescription);return }
         let resumed=app.webViews.staticTexts["Resume position verified"]
         XCTAssertTrue(resumed.waitForExistence(timeout:5))
         app.webViews.buttons["Preview fixture"].tap()
