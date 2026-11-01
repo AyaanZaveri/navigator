@@ -21,6 +21,7 @@ export type NativeState = {
 };
 
 export type NativeMessage =
+  | { type: "glass-frame"; session: string; src: string }
   | { type: "scrub"; session: string; active: boolean; position: number; duration: number; x: number; speed?: number; commit?: boolean }
   | { type: "state"; session: string; state: NativeState }
   | { type: "tracks"; session: string; tracks: NativeTrack[] }
@@ -32,6 +33,8 @@ export type NativeMessage =
   | { type: "fullscreen"; value: boolean };
 
 export type NativeRequest =
+  | { type: "video-fit"; session: string; mode: "fit" | "crop" | "stretch" }
+  | { type: "glass"; session: string; active: boolean }
   | { type: "load"; session: string; url: string; headers?: Record<string, string> }
   | { type: "play" | "pause" | "stop"; session: string }
   | { type: "seek"; session: string; position: number }
@@ -49,6 +52,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android";
   readonly engine?: "mpv" | "exoplayer";
+  readonly capabilities?: { videoFit?: boolean; glass?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

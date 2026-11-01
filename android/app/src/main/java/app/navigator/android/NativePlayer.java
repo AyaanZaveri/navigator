@@ -4,6 +4,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.view.Gravity;
 import android.view.SurfaceView;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import android.view.View;
 import android.widget.FrameLayout;
 import androidx.media3.common.AudioAttributes;
@@ -44,6 +45,9 @@ final class NativePlayer {
     private final Context context;
     private final FrameLayout layer;
     private final SurfaceView surface;
+    private final AspectRatioFrameLayout videoFrame;
+    private final GlassBackdrop glass;
+    private int resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
     private final SubtitleView bitmapSubtitles;
     private final Consumer<JSONObject> emit;
     private final OkHttpClient http = new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build();
@@ -80,10 +84,15 @@ final class NativePlayer {
         layer = new FrameLayout(context);
         layer.setVisibility(View.GONE);
         surface = new SurfaceView(context);
+        videoFrame = new AspectRatioFrameLayout(context);
         bitmapSubtitles = new SubtitleView(context);
-        layer.addView(surface, new FrameLayout.LayoutParams(-1, -1));
-        layer.addView(bitmapSubtitles, new FrameLayout.LayoutParams(-1, -1));
+        videoFrame.addView(surface, new FrameLayout.LayoutParams(-1, -1));
+        layer.addView(videoFrame, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        videoFrame.addView(bitmapSubtitles, new FrameLayout.LayoutParams(-1, -1));
         parent.addView(layer, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        glass = new GlassBackdrop(surface, parent, this::positionMs, src -> {
+            if (foreground && active()) emit.accept(object("type", "glass-frame", "session", session, "src", src));
+        });
         parent.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fit(parent));
     }
 
@@ -157,6 +166,7 @@ final class NativePlayer {
                 url = nextUrl;
                 headers = nextHeaders;
                 position = 0;
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
                 play = true;
                 metadataPublishedForSession = false;
                 audioChoice = null;
@@ -170,6 +180,17 @@ final class NativePlayer {
         }
         if (!active() || !session.equals(message.optString("session"))) return;
         switch (type) {
+            case "glass": glass.setActive(message.optBoolean("active")); break;
+            case "video-fit": {
+                resizeMode = switch (message.optString("mode")) {
+                    case "fit" -> AspectRatioFrameLayout.RESIZE_MODE_FIT;
+                    case "crop" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
+                    case "stretch" -> AspectRatioFrameLayout.RESIZE_MODE_FILL;
+                    default -> resizeMode;
+                };
+                fit((FrameLayout) layer.getParent());
+                break;
+            }
             case "play": play = true; if (scrubbing) scrubWasPlaying=true; else if (player != null) player.play(); break;
             case "pause": play = false; if (scrubbing) scrubWasPlaying=false; else if (player != null) player.pause(); break;
             case "stop": stop(); break;
@@ -361,8 +382,9 @@ final class NativePlayer {
         position = 0;
         layer.setVisibility(View.GONE);
     }
-    void destroy() { stop(); http.dispatcher().cancelAll(); http.connectionPool().evictAll(); }
+    void destroy() { stop(); glass.close(); http.dispatcher().cancelAll(); http.connectionPool().evictAll(); }
     private void release() {
+        glass.setActive(false);
         scrubbing=false; thumbnailRequest=thumbnailPosition=null;
         if (previews!=null) { previews.close(); previews=null; }
         ExoPlayer previous = player;
@@ -385,9 +407,10 @@ final class NativePlayer {
         int width = parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight();
         int height = parent.getHeight() - parent.getPaddingTop() - parent.getPaddingBottom();
         if (width <= 0 || height <= 0) return;
-        int w = Math.min(width, (int) Math.round(height * aspect));
-        int h = Math.min(height, (int) Math.round(width / aspect));
-        if (layer.getLayoutParams().width != w || layer.getLayoutParams().height != h) layer.setLayoutParams(new FrameLayout.LayoutParams(w, h, Gravity.CENTER));
+        if (layer.getLayoutParams().width != width || layer.getLayoutParams().height != height)
+            layer.setLayoutParams(new FrameLayout.LayoutParams(width, height, Gravity.CENTER));
+        videoFrame.setAspectRatio((float) aspect);
+        videoFrame.setResizeMode(resizeMode);
     }
     static JSONObject object(Object... values) {
         JSONObject result = new JSONObject();

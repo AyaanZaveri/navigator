@@ -527,6 +527,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
   isActive?: boolean;
 }) {
   const { playMedia } = useMediaPlayer();
+  const [pressed, setPressed] = useState(false);
   const handlePlay = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -573,6 +574,10 @@ const EpisodeCard = React.memo(function EpisodeCard({
       className={cardStyles.card + " relative shrink-0 w-72 group"}
       data-episode-id={episode.id}
       data-episode-key={`${episode.season}:${episode.episode}`}
+      onPointerDown={(event) => { if (event.button === 0) setPressed(true); }}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
     >
       <Link
         href={buildEpisodePath(showId, episode.season, episode.episode)}
@@ -584,10 +589,12 @@ const EpisodeCard = React.memo(function EpisodeCard({
         <div className="space-y-3 py-2">
           {/* Episode Thumbnail */}
           <div
-            className={`relative aspect-video rounded-lg overflow-hidden transition-all duration-300 ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70 border border-border/70 shadow-xs" : "bg-muted shadow-lg group-hover:shadow-xl"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-xl shadow-primary/25" : ""}`}
+            data-episode-artwork=""
+            data-pressed={pressed || undefined}
+            className={`${cardStyles.frame} relative aspect-video overflow-hidden ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70 border border-border/70 shadow-xs" : "bg-muted shadow-lg group-hover:shadow-xl"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-xl shadow-primary/25" : ""}`}
           >
             {isUpcoming ? (
-              <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm font-medium text-foreground/85">
+              <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-foreground/85">
                 This episode is still in the oven. Serving starts{" "}
                 {formattedReleaseDate ? `on ${formattedReleaseDate}` : "soon"}.
               </div>
@@ -595,11 +602,11 @@ const EpisodeCard = React.memo(function EpisodeCard({
               <img
                 src={imageSrc}
                 alt={episode.title || "Episode thumbnail"}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className={cardStyles.artwork + " absolute inset-0 block w-full h-full object-contain"}
                 onError={() => setImageFailure({ source: thumbnail, attempts: failedAttempts + 1 })}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                 <Play className="h-12 w-12" />
               </div>
             )}

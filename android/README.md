@@ -33,7 +33,8 @@ Test on a physical device:
 3. Try direct MP4/MKV, HLS, and DASH sources, including addon request headers.
 4. Switch embedded audio/subtitle tracks; try external subtitles from Navigator.
 5. Play HDR10/PQ and HLG content on an HDR-capable device. Video remains on the
-   native surface throughout; no frames are copied through canvas/WebView.
+   native surface throughout. Small snapshots for glass controls are UI-only;
+   the playing video never moves into canvas or the WebView.
 6. Rotate, enter/exit fullscreen, and use Android Back from either edge. One
    committed Back closes playback, including immersive fullscreen. On a detail
    page, drag Back partway and cancel (the page must remain), then commit to
@@ -272,9 +273,21 @@ translucent, token-based 12px glass treatment with the Back button. The fade and
 backdrop filter belong to the same element, avoiding an opacity ancestor that
 blocks backdrop sampling. The portalled preview retains the player dark tokens.
 CSS backdrop blur samples the WebView layer, rather than the independent native
-video surface: loading artwork and browser video can blur, while native playback
-uses a stronger translucent tint for legibility. No live video frame copies or
-extra thumbnail decodes are introduced for this material.
+video surface. During native playback, PixelCopy provides actual video pixels
+for the glass backgrounds: snapshots are bounded to a 320px viewport edge,
+one copy/encode in flight, and at most four requests per second. An unchanged
+paused frame is reused. Sampling stops when the glass is hidden or the app is
+backgrounded, and sessions cannot share snapshots. JPEG encoding stays off the
+UI thread. This never seeks the stream, starts another decoder or replaces HDR
+playback; unsupported/protected buffers retain the translucent fallback.
+
+The framing button cycles Fit, Fill / crop and Stretch. Android uses Media3
+AspectRatioFrameLayout RESIZE_MODE_FIT, RESIZE_MODE_ZOOM and RESIZE_MODE_FILL.
+The bottom volume control is hidden only in Android; the native side control
+continues to change system media volume. Native track selectors remain white.
+
+References: [PixelCopy](https://developer.android.com/reference/android/view/PixelCopy),
+[Media3 resize modes](https://developer.android.com/reference/androidx/media3/ui/AspectRatioFrameLayout).
 The APK injects a small adapter so whole-screen scrubs drive the same React seek
 component even before this PR is merged. Deployed HLS/DASH clients additionally
 receive JPEGs in their existing HTML thumbnail instead of attempting browser

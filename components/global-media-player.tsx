@@ -32,6 +32,8 @@ import type { MediaToPlay } from "@/lib/atoms";
 import { getNextEpisodeForSeries, fetchEpisodeDetails } from "@/app/actions/tv-shows";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
+import { PlayerVideoFit } from "@/components/player-video-fit";
+import { NativePlayerGlass } from "@/components/native-player-glass";
 import { DesktopTracks } from "@/components/desktop/tracks";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { ArrowLeft, RotateCcw, RotateCw, Users, Ship } from "lucide-react";
@@ -629,6 +631,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           }
         }}
       >
+        <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         {/* Video element */}
         {streamUrl && (
           <MediaPlayerVideo asChild>
@@ -929,6 +932,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 setCurrentSubtitle(null);
                 setSubtitleTracks((tracks) => tracks.map((track) => ({ ...track, active: false })));
               }} />}
+              <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
               <MediaPlayerSettings />
               {!nativePlayback && <MediaPlayerPiP />}
               <MediaPlayerFullscreen />

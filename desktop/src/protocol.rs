@@ -9,6 +9,10 @@ pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Command {
+    VideoFit {
+        session: String,
+        mode: VideoFitMode,
+    },
     Load {
         session: String,
         url: String,
@@ -54,6 +58,14 @@ pub enum Command {
         request: u64,
         position: Option<f64>,
     },
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum VideoFitMode {
+    Fit,
+    Crop,
+    Stretch,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,6 +143,15 @@ mod tests {
     use super::*;
     #[test]
     fn playback_boundary() {
+        for mode in ["fit", "crop", "stretch"] {
+            assert!(
+                parse(&format!(
+                    r#"{{"type":"video-fit","session":"one","mode":"{mode}"}}"#
+                ))
+                .is_ok()
+            );
+        }
+        assert!(parse(r#"{"type":"video-fit","session":"one","mode":"arbitrary"}"#).is_err());
         for url in [
             "file:///etc/passwd",
             "edl://x",

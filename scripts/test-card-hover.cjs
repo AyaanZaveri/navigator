@@ -20,7 +20,9 @@ console.log('PASS: continuous Play-surface fade, stable blur layer, hover/focus/
 
 const resume = '.card[data-continue-watching] .artwork';
 assert.equal(declaration(resume, 'filter'), 'brightness(0.65)', 'Continue Watching dimming must belong to the artwork itself');
-assert.equal(declaration(resume, 'transform'), 'none', 'Resume artwork must not change compositor layers on hover');
-assert.equal(declaration('.card[data-continue-watching] .playOverlay::before', 'display'), 'none', 'Resume cards must not stack a second hover dimmer');
+assert.equal(declaration(resume, 'transform'), undefined, 'Continue Watching keeps the shared hover zoom');
+assert.equal(declaration('.card:hover .artwork', 'transform'), 'scale(1.02)');
+assert.equal(declaration('.card:hover .playOverlay::before', 'opacity'), '1');
+assert.notEqual(declaration('.card[data-continue-watching] .playOverlay::before', 'display'), 'none', 'Continue Watching retains hover dimming');
 assert.equal(declaration('.artwork', 'filter'), undefined, 'Ordinary posters keep their existing brightness');
-console.log('PASS: Continue Watching brightness stays constant while ordinary card hover stays intact');
+console.log('PASS: stable base brightness with restored Continue Watching hover dimming and zoom');

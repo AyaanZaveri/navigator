@@ -1,16 +1,17 @@
 .card {
   min-width: 0;
+  --media-card-radius: calc(var(--radius, 0.625rem) - 2px);
 }
 
 /* The frame owns the fixed corner mask; the zooming image stays square. */
 .frame {
-  --media-card-radius: calc(var(--radius, 0.625rem) - 2px);
   isolation: isolate;
   border-radius: var(--media-card-radius);
 }
 
 .playOverlay {
   pointer-events: none;
+  border-radius: var(--media-card-radius);
 }
 
 /* Fade a sibling scrim, not the blur button's ancestor. An ancestor below
@@ -109,14 +110,8 @@
   .playButton { transition: none; }
 }
 
-/* Resume artwork is already shaded for its logo. Keep that shade in the same
-   image layer, without hover zoom or a second animated dimmer. WebKit can flash
-   the unshaded image when these separate layers are recomposited on hover. */
+/* Keep the base logo shade stable on the artwork. Hover uses the same zoom and
+   sibling scrim as other cards, without changing the image's filter. */
 .card[data-continue-watching] .artwork {
   filter: brightness(0.65);
-  transform: none;
-}
-
-.card[data-continue-watching] .playOverlay::before {
-  display: none;
 }

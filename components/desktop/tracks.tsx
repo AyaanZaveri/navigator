@@ -30,7 +30,7 @@ export function DesktopTracks({ mediaRef, sourceKey, onNativeSubtitle }: {
     return (
       <DropdownMenu key={kind}>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={label}><Icon /></Button>
+          <Button variant="ghost" size="icon" aria-label={label} className="text-white hover:text-white hover:bg-white/20"><Icon /></Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="end" container={container}>
           <DropdownMenuGroup>

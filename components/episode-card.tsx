@@ -6,6 +6,7 @@ import { Play } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import type { Episode } from "@/app/actions/tv-shows";
 import { buildEpisodePath } from "@/lib/series-route";
+import styles from "./media-card.module.css";
 
 export function EpisodeCard({
   episode,
@@ -15,6 +16,7 @@ export function EpisodeCard({
   seriesId: string;
 }) {
   const { playMedia, setIsPlayerVisible } = useMediaPlayer();
+  const [pressed, setPressed] = React.useState(false);
 
   const linkHref = buildEpisodePath(seriesId, episode.season, episode.episode);
   const imageUrl = episode.thumbnail;
@@ -39,13 +41,16 @@ export function EpisodeCard({
   };
 
   return (
-    <div className="cursor-pointer group overflow-hidden transition select-none w-64">
-      <div className="relative w-full border rounded-md overflow-hidden active:scale-[0.98] transition aspect-video">
+    <div className={styles.card + " cursor-pointer select-none w-64"}>
+      <div className={styles.frame + " relative w-full border overflow-hidden aspect-video"}
+        data-pressed={pressed || undefined}
+        onPointerDown={event => { if (event.button === 0) setPressed(true); }}
+        onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)} onPointerCancel={() => setPressed(false)}>
         <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
           {imageUrl ? (
             <img
               src={imageUrl}
-              className="w-full h-full object-cover transition duration-200 shadow-lg hover:brightness-85 shadow-sm group-hover:shadow-md rounded-md"
+              className={styles.artwork + " absolute inset-0 block w-full h-full object-contain"}
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}
@@ -60,22 +65,20 @@ export function EpisodeCard({
         </Link>
 
         {/* Play button overlay */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center pointer-events-none rounded-md">
-          <div className="invisible group-hover:visible transition-opacity duration-300 pointer-events-auto">
+        <div className={styles.playOverlay + " absolute inset-0 z-30 flex items-center justify-center"}>
             <button
               type="button"
               aria-label={"Play " + (episode.title || "Episode " + episode.episode)}
               onClick={handlePlayClick}
-              className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition active:scale-[0.97] hover:cursor-pointer"
+              className={styles.playButton + " rounded-full p-3"}
             >
               <Play className="h-6 w-6 text-white fill-white" />
             </button>
-          </div>
         </div>
       </div>
       <Link href={linkHref} prefetch={true} draggable={false}>
         <div className="px-1">
-          <div className="mt-2.5 text-sm font-medium text-foreground line-clamp-2 group-hover:underline">
+          <div className="mt-2.5 text-sm font-medium text-foreground line-clamp-2">
             {episode.title}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">

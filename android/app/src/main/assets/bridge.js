@@ -49,6 +49,7 @@
       protocol: 1,
       platform: 'android',
       engine: 'exoplayer',
+      capabilities: Object.freeze({ videoFit: true, glass: true }),
       get fullscreen() { return fullscreen; },
       send(message) {
         if (message.type === 'load') { webScrub.reset(); session = message.session; }

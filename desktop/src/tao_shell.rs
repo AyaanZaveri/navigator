@@ -45,7 +45,8 @@ pub fn run(mut app: App) -> Result<(), String> {
         .with_titlebar_transparent(true)
         .with_title_hidden(true)
         .with_fullsize_content_view(true)
-        .with_traffic_light_inset(LogicalPosition::new(16.0, 38.0));
+        // Eight points higher, matching the player Back button's center.
+        .with_traffic_light_inset(LogicalPosition::new(16.0, 30.0));
     let window = builder.build(&event_loop).map_err(|e| e.to_string())?;
     let surface = platform::VideoSurface::new(&window)?;
     let mut player = app.start_player(&surface, {

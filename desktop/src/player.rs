@@ -73,7 +73,7 @@ impl Player {
                     let target = match &command {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
-                        | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } => session,
+                        | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } => session,
                         Command::Fullscreen { .. } | Command::WindowDrag {} => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
@@ -104,6 +104,11 @@ impl Player {
                         Command::Volume { volume, .. } => client.set_property("volume", &(volume * 100.0).to_string()),
                         Command::Muted { muted, .. } => client.set_property("mute", if muted { "yes" } else { "no" }),
                         Command::Rate { rate, .. } => client.set_property("speed", &rate.to_string()),
+                        Command::VideoFit { mode, .. } => {
+                            use crate::protocol::VideoFitMode;
+                            client.set_property("keepaspect", if matches!(mode, VideoFitMode::Stretch) { "no" } else { "yes" })
+                                .and_then(|_| client.set_property("panscan", if matches!(mode, VideoFitMode::Crop) { "1" } else { "0" }))
+                        }
                         Command::Track { kind, id, .. } => client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id),
                         Command::Stop { .. } => { desired.clear(); previews = None; preview_source = None; client.command(&["stop"]) },
                         Command::Thumbnail { request, position, .. } => { if let Some(previews) = &previews { previews.want(request, position); } Ok(()) },
