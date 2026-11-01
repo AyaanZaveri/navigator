@@ -10,6 +10,10 @@
     if ((self=[super init])) {
         _surface=[[UIView alloc] init];_surface.backgroundColor=UIColor.blackColor;
         _player=[[VLCMediaPlayer alloc] init];_player.delegate=self;_player.drawable=_surface;
+#if DEBUG
+        VLCConsoleLogger *logger=[VLCConsoleLogger new];logger.level=VLCLogLevelDebug;
+        _player.libraryInstance.loggers=@[logger];
+#endif
     }
     return self;
 }
@@ -68,7 +72,12 @@
     self.snapshotPath=[NSTemporaryDirectory() stringByAppendingPathComponent:[NSUUID.UUID.UUIDString stringByAppendingString:@".png"]];
     [self.player saveVideoSnapshotAt:self.snapshotPath withWidth:448 andHeight:0];
 }
-- (void)mediaPlayerStateChanged:(NSNotification *)note { if (self.changed) self.changed(); }
+- (void)mediaPlayerStateChanged:(NSNotification *)note {
+#if DEBUG
+    NSLog(@"[DEBUG-IOS] VLC state=%@ time=%.3f",VLCMediaPlayerStateToString(self.player.state),self.position);
+#endif
+    if (self.changed) self.changed();
+}
 - (void)mediaPlayerTimeChanged:(NSNotification *)note { if (self.changed) self.changed(); }
 - (void)mediaPlayerSnapshot:(NSNotification *)note {
     NSString *path=self.snapshotPath;self.snapshotPath=nil;
