@@ -75,7 +75,7 @@ export class MpvController extends EventTarget {
     this.fire("ratechange");
   }
 
-  load(url: string, headers?: Record<string, string>) {
+  load(url: string, headers?: Record<string, string>, startPosition = 0) {
     this.cancelPreview();
     if (this.disposed) return;
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
@@ -90,7 +90,8 @@ export class MpvController extends EventTarget {
     this.fire("emptied", "loadstart");
     try {
       if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for native playback.");
-      this.bridge.send({ type: "load", session: this.session, url, headers });
+      this.bridge.send({ type: "load", session: this.session, url, headers,
+        ...(this.bridge.platform === "android" ? { startPosition: Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0 } : {}) });
       this.bridge.send({ type: "volume", session: this.session, volume });
       this.bridge.send({ type: "muted", session: this.session, muted });
       this.bridge.send({ type: "rate", session: this.session, rate });

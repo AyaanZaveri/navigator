@@ -5,18 +5,23 @@ import { previewContentBounds } from "@/lib/media/preview-content";
 
 type Crop = { source: string; ratio: number; left: number; top: number; width: number; height: number };
 
+// Revisited thumbnails should not run canvas readback/content analysis again.
+const crops = new Map<string, Crop>();
+
 /** Preserve the content's aspect ratio, including letterbox bands encoded in the frame. */
 export function PreviewImage({ src, alt = "" }: { src: string; alt?: string }) {
     const [crop, setCrop] = useState<Crop | null>(null);
     // Retain the last ratio while the next frame loads to avoid a 16:9 flash.
-    const current = crop?.source === src ? crop : null;
+    const current = crop?.source === src ? crop : crops.get(src) ?? null;
     return (
-        <div className="relative w-56 overflow-hidden rounded-lg" style={{ aspectRatio: crop?.ratio ?? 16 / 9 }}>
+        <div className="relative w-56 overflow-hidden rounded-lg" style={{ aspectRatio: current?.ratio ?? crop?.ratio ?? 16 / 9 }}>
             <img
                 src={src} alt={alt} draggable={false}
                 className="absolute max-w-none"
                 style={{ left: `${current?.left ?? 0}%`, top: `${current?.top ?? 0}%`, width: `${current?.width ?? 100}%`, height: `${current?.height ?? 100}%`, visibility: current ? "visible" : "hidden" }}
                 onLoad={event => {
+                    const cached = crops.get(src);
+                    if (cached) { setCrop(cached); return; }
                     const image = event.currentTarget;
                     const width = image.naturalWidth, height = image.naturalHeight;
                     if (!width || !height) return;
@@ -35,6 +40,8 @@ export function PreviewImage({ src, alt = "" }: { src: string; alt?: string }) {
                                 width: canvas.width / bounds.width * 100, height: canvas.height / bounds.height * 100 };
                         }
                     } catch { /* Cross-origin frames still retain their intrinsic aspect ratio. */ }
+                    crops.set(src, next);
+                    while (crops.size > 96) crops.delete(crops.keys().next().value!);
                     setCrop(next);
                 }}
             />

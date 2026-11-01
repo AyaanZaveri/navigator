@@ -18,7 +18,7 @@ export class PreviewCache {
 
 export function previewBucket(time: number, duration: number) {
     if (!Number.isFinite(time) || time < 0 || !Number.isFinite(duration) || duration <= 0) return null;
-    return Math.min(Math.floor(time / 2) * 2, Math.max(0, duration - 0.1));
+    return Math.min(Math.round(time * 10) / 10, Math.max(0, Math.floor((duration - 0.1) * 10) / 10));
 }
 
 export type PreviewMedia = HTMLVideoElement;
@@ -70,10 +70,9 @@ export class BrowserPreviewFrames {
         if (Math.abs(this.video.currentTime - target) < 0.05 && this.video.readyState >= 2) this.captured();
         else {
             try {
-                // Nearest keyframe is enough for a hover preview and is cheaper than frame-accurate seeking.
-                const native = (this.video as unknown as { nativeEl?: HTMLVideoElement }).nativeEl ?? this.video;
-                if (typeof native.fastSeek === 'function') native.fastSeek(target);
-                else this.video.currentTime = target;
+                // fastSeek may snap across a scene cut. Decode the same position
+                // playback will use when the gesture commits.
+                this.video.currentTime = target;
             } catch { this.failed(); }
         }
     };

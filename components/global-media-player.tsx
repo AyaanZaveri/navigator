@@ -299,7 +299,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             ? mediaDuration - 1
             : requestedResume;
         const resumeTime = Math.max(0, Math.min(requestedResume, maxSeekTime));
-        mediaElement.currentTime = resumeTime;
+        // Android receives this in its initial load, before preparing/decoding.
+        // Browser and older desktop engines still apply it at metadata time.
+        if (Math.abs(mediaElement.currentTime - resumeTime) > 0.1) mediaElement.currentTime = resumeTime;
         setCurrentTime(resumeTime);
         setCurrentTimestamp(resumeTime);
         effectiveStartTime = resumeTime;
@@ -640,11 +642,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               // @ts-ignore
               ref={videoRef}
               src={streamUrl}
-              {...(nativePlayback ? { requestHeaders } : {})}
+              {...(nativePlayback ? { requestHeaders, startPosition: currentMedia?.resumePositionTicks ?? 0 } : {})}
               crossOrigin=""
               playsInline
               preload="auto"
-              autoPlay
+              autoPlay={false}
               className="h-screen bg-black w-screen"
               onPause={handleVideoPause}
               onEnded={handleVideoEnded}
@@ -687,11 +689,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               data-player-glass=""
               aria-label="Back to browsing"
               variant="ghost"
-              className="fixed left-4 top-4 z-10"
+              size="icon-lg"
+              className="fixed left-4 top-4 z-10 rounded-full"
               onClick={() => handleClose()}
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
             </Button>
 
             {loadingLogo && (
@@ -810,11 +812,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             data-player-back-control=""
             aria-label="Back to browsing"
             variant="ghost"
-            className="fixed left-4 top-4 z-50"
+            size="icon-lg"
+            className="fixed left-4 top-4 z-50 rounded-full"
             onClick={() => handleClose()}
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
           </Button>
         )}
 

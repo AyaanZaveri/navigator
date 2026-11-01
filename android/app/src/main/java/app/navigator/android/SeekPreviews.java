@@ -49,7 +49,7 @@ final class SeekPreviews implements AutoCloseable {
     SeekPreviews(Context context,MediaItem item,DefaultMediaSourceFactory source,BiConsumer<Long,String> ready) {
         this.context=context; this.item=item; this.source=source; this.ready=ready;
     }
-    static long bucket(long position) { return Math.max(0,position/2000*2000); }
+    static long bucket(long position) { return Math.max(0,Math.round(position/100.0)*100); }
     void request(long position) {
         if (closed) return;
         wanted=bucket(position);
@@ -67,7 +67,7 @@ final class SeekPreviews implements AutoCloseable {
         long key=wanted,owner=generation;
         try {
             if (extractor==null) extractor=new FrameExtractor.Builder(context,item)
-                .setMediaSourceFactory(source).setSeekParameters(SeekParameters.CLOSEST_SYNC)
+                .setMediaSourceFactory(source).setSeekParameters(SeekParameters.EXACT)
                 .setMediaCodecSelector(MediaCodecSelector.DEFAULT)
                 // Default extractHdrFrames=false tone-maps HDR into SDR BT.709.
                 // The panel is 224 CSS pixels wide: 256px high covers a 16:9

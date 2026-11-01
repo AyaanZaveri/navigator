@@ -248,15 +248,22 @@ and restores that state. Cancelling, rotating, backgrounding, or changing the
 source cannot commit an old seek to a new session. Live/unseekable streams do
 not enter scrub mode.
 
-Media3 1.11.1's `media3-inspector-frame` extracts 256 px high keyframes using
-`CLOSEST_SYNC` and the hardware decoder selector. The extractor uses the same
+Playback and preview extraction share a 96 MB LRU byte-range cache in the app's
+private cache directory. Session-scoped keys prevent reuse across changed source
+credentials. 512 KB fragments expose completed ranges promptly, and a locked
+write never blocks playback. Cached bytes avoid repeated network reads but still
+need decoding; decoded JPEG cache hits bypass the gesture settle timer entirely.
+Thumbnail content bounds are also cached to avoid repeating canvas analysis.
+
+Media3 1.11.1's `media3-inspector-frame` extracts 256 px high frames using
+`EXACT` and the hardware decoder selector. The extractor uses the same
 origin-scoped HTTP header and redirect policy as playback. Requests are bucketed
-to two seconds: one extraction runs at a time and pending movement replaces the
+to 100ms: one extraction runs at a time and pending movement replaces the
 desired target. A bounded worker encodes JPEGs off the UI thread and sends data
 URLs through the existing thumbnail bridge. Each requested JPEG crosses the
 bridge once; only intermediate frames use the separate streamed event. Frames stream with
-their own bucket, so React can retain the last available frame while the newest
-request decodes. The encoded cache is capped at 8 MB and controls hiding warms
+their own timestamp; React caches stale results but displays only a frame matching
+the current displayed time, rather than a different scene under a newer timestamp. The encoded cache is capped at 8 MB and controls hiding warms
 one request. Idle decoders release after ten seconds, extraction times out after
 eight seconds, and source changes/backgrounding clear the cache and decoder.
 Failed extraction leaves time and progress usable and retries after a cooldown.
@@ -266,7 +273,8 @@ main HDR/HLG playback remains on its native surface.
 Surface gestures anchor a preview within a ±2 second tolerance window and wait
 100ms when moving outside it. Small fine-scrubbing adjustments neither restart
 the timer nor cancel decoding. The progress indicator and timestamp still follow
-the exact seek target; direct bar previews remain immediate.
+the exact seek target; after 120ms without movement the preview refines to that
+exact target without another settle delay. Direct bar previews remain immediate.
 
 The web preview supplies its existing skeleton and timestamp. It shares a
 translucent, token-based 12px glass treatment with the Back button. The fade and
@@ -443,3 +451,7 @@ References used:
 
 AndroidX/Media3 and OkHttp are Apache-2.0 dependencies. The app icon reuses the
 user-provided Navigator artwork already in the repository.
+
+Android receives `startPosition` with the initial load and passes it to
+`setMediaItem` before `prepare`, so a resumed session's first frame is decoded at
+the saved position. Browser autoplay waits for metadata and the initial seek.

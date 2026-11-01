@@ -7,6 +7,8 @@ let now = 1000, id = 0, cursor = 0, dirty = false;
 const hooks = [], timers = new Map(), effects = [];
 const same = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
 const react = {
+  useRef(initial) { const index = cursor++; hooks[index] ??= { current: initial }; return hooks[index]; },
+  useCallback(fn) { cursor++; return fn; },
   useState(initial) {
     const index = cursor++;
     hooks[index] ??= { value: typeof initial === 'function' ? initial() : initial };
@@ -20,7 +22,12 @@ const react = {
     if (!same(previous?.deps, deps)) effects.push(() => { previous?.cleanup?.(); hooks[index] = { deps, cleanup: effect() }; });
   },
 };
-const context = { exports: {}, setTimeout(fn, delay) { timers.set(++id, { fn, at: now + delay }); return id; }, clearTimeout(id) { timers.delete(id); }, require(name) {
+const previewModule = { exports: {}, setTimeout, clearTimeout };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/preview-frames.ts','utf8'), {
+  compilerOptions: {target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS},
+}).outputText, previewModule);
+const context = { window: { navigatorDesktop: { platform: 'android' } }, exports: {}, setTimeout(fn, delay) { timers.set(++id, { fn, at: now + delay }); return id; }, clearTimeout(id) { timers.delete(id); }, require(name) {
+  if (name.includes('preview-frames')) return { ...previewModule.exports, PreviewScheduler: class { want() {} cancel() {} } };
   if (name === 'react') return react;
   if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
   return {};
@@ -28,6 +35,7 @@ const context = { exports: {}, setTimeout(fn, delay) { timers.set(++id, { fn, at
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/seek-preview.tsx', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText, context);
+let sourceComponent;
 let time = 10, active = true, deferWhileMoving = true, source = 'https://video.test/a.mkv';
 const media = { getAttribute: () => source };
 function render() {
@@ -36,6 +44,7 @@ function render() {
     assert.ok(++rounds < 20, 'Layout effects must settle without a render loop');
     dirty = false; cursor = 0;
     node = context.exports.SeekPreview({ media, time, duration: 1200, active, deferWhileMoving });
+    sourceComponent = node.type;
     while (effects.length) effects.shift()();
   } while (dirty);
   return node.props;
@@ -63,6 +72,9 @@ assert.equal(render().time, anchor, 'Moving one second ahead does not request a 
 time = anchor + 1.99;
 assert.equal(render().active, true, 'Crossing a fixed two-second bucket boundary must not cancel the request');
 assert.equal(render().time, anchor);
+advance(120);
+assert.equal(render().time, time, 'A stationary finger refines the tolerance anchor to the exact displayed time');
+advance(100); render();
 for (let step = 0; step < 16; step++) {
   time += 4;
   assert.equal(render().active, false, 'Fast travel must not flood the decoder');
@@ -93,3 +105,33 @@ const player = fs.readFileSync('components/ui/media-player.tsx', 'utf8');
 assert.ok(!player.includes('% speed'), 'Scrubbing must not display speed percentages');
 assert.match(player, /<SeekPreview[^>]*deferWhileMoving=/, 'The actual timeline must enable the idle policy for surface gestures');
 console.log('PASS: fine-scrub tolerance prevents timer starvation and decoder cancellation, fast travel coalesces, release cancels work, and bar previews remain immediate');
+
+// Exercise the actual preview component, including late native events and cache
+// lookup while the gesture's request policy is inactive.
+hooks.length = 0; timers.clear(); effects.length = 0;
+const listeners = new Map();
+const controller = { addEventListener: (type, fn) => listeners.set(type,fn), removeEventListener() {}, cancelPreview() {} };
+const nativeMedia = { controller };
+let at = 10, requesting = true;
+function renderSource() {
+  let node, rounds = 0;
+  do {
+    assert.ok(++rounds < 20);
+    dirty = false; cursor = 0;
+    node = sourceComponent({ media: nativeMedia, source:'https://video.test/a.mkv', time:at, displayTime:at, duration:1200, active:requesting });
+    while (effects.length) effects.shift()();
+  } while (dirty);
+  return node;
+}
+const image = node => node.props.children.find(child => child?.props?.src?.startsWith('data:image/jpeg'));
+const deliver = (position, src) => listeners.get('previewframe')({detail:{position, src}});
+renderSource(); deliver(10, 'data:image/jpeg;base64,TEN');
+assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TEN');
+deliver(2, 'data:image/jpeg;base64,OLD');
+assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TEN', 'A late frame cannot replace the current correct thumbnail');
+at = 20;
+assert.equal(image(renderSource()), undefined, 'Never label an old scene with the new target time');
+deliver(20, 'data:image/jpeg;base64,TWENTY'); renderSource();
+at = 10; requesting = false;
+assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TEN', 'Returning to a decoded point displays immediately without waiting for settle or a bridge request');
+console.log('PASS: precise displayed timestamps, late-frame rejection, and synchronous cached preview reuse');

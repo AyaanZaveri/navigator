@@ -38,5 +38,11 @@ assert.ok(!fs.readFileSync('components/ui/media-player.tsx', 'utf8').includes('b
 const player = openings('components/global-media-player.tsx');
 const backButtons = player.nodes.filter(node => attr(node, 'data-player-close'));
 assert.equal(backButtons.length, 2, 'Cover loading and playback Back');
-for (const button of backButtons) assert.ok(attr(button, 'data-player-glass'), 'Every Back state uses the shared glass');
+for (const button of backButtons) {
+  assert.ok(attr(button, 'data-player-glass'), 'Every Back state uses the shared glass');
+  assert.equal(attr(button, 'size').initializer.text, 'icon-lg', 'Back is an icon-sized control in both player states');
+  assert.match(attr(button, 'className').initializer.text, /rounded-full/, 'Back remains circular');
+  const children = button.parent.children.filter(child => ts.isJsxText(child)).map(child => child.text.trim()).join('');
+  assert.equal(children, '', 'Back must not render a visible text label');
+}
 console.log('PASS: shared transparent 12px glass, prefixed blur, token sheen, dark portal theme and blur on the fading element itself');

@@ -26,6 +26,18 @@ export function SeekPreview({ media, time, duration, active, deferWhileMoving = 
         setTarget(previous => previous?.key === key && Math.abs(time - previous.time) <= SURFACE_TOLERANCE_SECONDS
             ? previous : { key, time });
     }, [key, time, active, deferWhileMoving]);
+    const [refined, setRefined] = useState<SurfaceTarget | null>(null);
+    // Keep the tolerant leading request alive during motion, then refine once
+    // the finger rests. Tolerance is a scheduling policy, not timestamp accuracy.
+    useLayoutEffect(() => {
+        if (!active || !deferWhileMoving) return;
+        const timer = setTimeout(() => {
+            const exact = { key, time };
+            setTarget(exact);
+            setRefined(exact);
+        }, 120);
+        return () => clearTimeout(timer);
+    }, [key, time, active, deferWhileMoving]);
     const inWindow = target?.key === key && Math.abs(time - target.time) <= SURFACE_TOLERANCE_SECONDS;
     const [settled, setSettled] = useState<SurfaceTarget | null>(null);
     useLayoutEffect(() => {
@@ -34,12 +46,12 @@ export function SeekPreview({ media, time, duration, active, deferWhileMoving = 
         const timer = setTimeout(() => setSettled(target), 100);
         return () => clearTimeout(timer);
     }, [target, inWindow, active, deferWhileMoving]);
-    const requestActive = active && (!deferWhileMoving || (inWindow && settled === target));
+    const requestActive = active && (!deferWhileMoving || (inWindow && (settled === target || refined === target)));
     const previewTime = deferWhileMoving && inWindow ? target.time : time;
-    return <PreviewSource key={key} media={media} source={source} time={previewTime} duration={duration} active={requestActive} />;
+    return <PreviewSource key={key} media={media} source={source} time={previewTime} displayTime={time} duration={duration} active={requestActive} />;
 }
 
-function PreviewSource({ media, source, time, duration, active }: Props & { source: string }) {
+function PreviewSource({ media, source, time, displayTime, duration, active }: Props & { source: string; displayTime: number }) {
     const native = (media as unknown as MpvElementHandle | null)?.controller;
     const [fallback, setFallback] = useState(false);
     const [videoRatio, setVideoRatio] = useState(16 / 9);
@@ -69,7 +81,7 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
         const receive = (event: Event) => {
             const { position, src } = (event as CustomEvent<{ position: number; src: string }>).detail;
             cache.current.set(position, src);
-            if (wanted.current !== null) setFrame({ time: position, src, video: false, unavailable: false });
+            if (wanted.current === position) setFrame({ time: position, src, video: false, unavailable: false });
         };
         native.addEventListener("previewframe", receive);
         return () => native.removeEventListener("previewframe", receive);
@@ -133,17 +145,22 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
         });
     }, [active, bucket, source, native, browserMode, videoAttached, invalidate, androidNative]);
 
-    const ready = !!frame.src || (frame.video && frame.time === bucket);
-    const unavailable = frame.time === bucket && frame.unavailable;
+    const displayBucket = previewBucket(displayTime, duration);
+    // A decoded cache hit is available in this render, even while the surface
+    // gesture's settle timer is pending. Never debounce an existing thumbnail.
+    const displaySrc = displayBucket === null ? undefined : cache.current.get(displayBucket);
+    const image = displaySrc || (frame.time === displayBucket ? frame.src : null);
+    const ready = !!image || (frame.time === displayBucket && frame.video);
+    const unavailable = frame.time === displayBucket && frame.unavailable;
     return (
-        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && (!ready || frame.time !== bucket) && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={frame.src ? undefined : { aspectRatio: videoRatio }}>
+        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={image ? undefined : { aspectRatio: videoRatio }}>
             {browserMode && source && (muxPreview ? (
                 <MuxVideo
                     ref={videoRef}
                     onLoadedMetadata={updateVideoRatio}
                     src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback disableTracking
                     aria-hidden="true" tabIndex={-1}
-                    className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
+                    className={`pointer-events-none absolute inset-0 size-full object-contain ${ready && frame.video ? "opacity-100" : "opacity-0"}`}
                 />
             ) : (
                 <video
@@ -151,10 +168,10 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
                     onLoadedMetadata={updateVideoRatio}
                     src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback
                     aria-hidden="true" tabIndex={-1}
-                    className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
+                    className={`pointer-events-none absolute inset-0 size-full object-contain ${ready && frame.video ? "opacity-100" : "opacity-0"}`}
                 />
             ))}
-            {frame.src && <PreviewImage src={frame.src} />}
+            {image && <PreviewImage src={image} />}
             {!ready && !unavailable && <Skeleton className="absolute inset-0 size-full rounded-none bg-white/10" />}
             {unavailable && <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60">Preview unavailable</div>}
         </div>

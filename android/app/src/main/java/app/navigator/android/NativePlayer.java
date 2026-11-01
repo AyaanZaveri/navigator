@@ -109,10 +109,14 @@ final class NativePlayer {
         if (commit) { seeking=true; player.seekTo(Math.max(0,Math.min(durationMs(),target))); }
         boolean resume=scrubWasPlaying; scrubbing=false; player.setPlayWhenReady(resume); state();
     }
+    private DefaultDataSource.Factory dataSourceFactory() {
+        var upstream = new OkHttpDataSource.Factory(ScopedHttp.forStream(http, URI.create(url), headers))
+            .setUserAgent("NavigatorAndroid/0.1");
+        return new DefaultDataSource.Factory(context, StreamByteCache.factory(context, upstream, session));
+    }
     private void preparePreviews() {
         if (previews!=null || !canScrub()) return;
-        var data=new DefaultDataSource.Factory(context,
-            new OkHttpDataSource.Factory(ScopedHttp.forStream(http,URI.create(url),headers)).setUserAgent("NavigatorAndroid/0.1"));
+        var data=dataSourceFactory();
         String owner=session;
         previews=new SeekPreviews(context,MediaItem.fromUri(Uri.parse(url)),new DefaultMediaSourceFactory(data),(at,src) -> {
             if (!owner.equals(session) || !foreground || thumbnailRequest==null) return;
@@ -165,7 +169,8 @@ final class NativePlayer {
                 session = nextSession;
                 url = nextUrl;
                 headers = nextHeaders;
-                position = 0;
+                double start = message.optDouble("startPosition", 0);
+                position = Double.isFinite(start) ? (long)Math.max(0, Math.min(start*1000, Long.MAX_VALUE)) : 0;
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
                 play = true;
                 metadataPublishedForSession = false;
@@ -240,8 +245,7 @@ final class NativePlayer {
         clearCues();
         selector = new DefaultTrackSelector(context);
         selector.setParameters(selector.buildUponParameters().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true));
-        var data = new DefaultDataSource.Factory(context,
-            new OkHttpDataSource.Factory(ScopedHttp.forStream(http, URI.create(url), headers)).setUserAgent("NavigatorAndroid/0.1"));
+        var data = dataSourceFactory();
         final ExoPlayer owner = new ExoPlayer.Builder(context).setTrackSelector(selector)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(data)).build();
         player = owner;

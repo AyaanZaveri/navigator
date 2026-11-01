@@ -35,7 +35,7 @@ export type NativeMessage =
 export type NativeRequest =
   | { type: "video-fit"; session: string; mode: "fit" | "crop" | "stretch" }
   | { type: "glass"; session: string; active: boolean }
-  | { type: "load"; session: string; url: string; headers?: Record<string, string> }
+  | { type: "load"; session: string; url: string; headers?: Record<string, string>; startPosition?: number }
   | { type: "play" | "pause" | "stop"; session: string }
   | { type: "seek"; session: string; position: number }
   | { type: "thumbnail"; session: string; request: number; position: number | null }

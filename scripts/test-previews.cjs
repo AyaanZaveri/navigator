@@ -12,13 +12,19 @@ const { PreviewCache, previewBucket, BrowserPreviewFrames } = context.exports;
 const cache = new PreviewCache(2);
 cache.set(0, 'zero'); cache.set(2, 'two'); assert.equal(cache.get(0), 'zero'); cache.set(4, 'four');
 assert.equal(cache.get(2), undefined, 'Cache must evict the least recently used frame');
-assert.equal(previewBucket(3.9, 120), 2);
+assert.equal(previewBucket(3.9, 120), 3.9);
 assert.equal(previewBucket(120, 120), 119.9);
+for (let ms=0; ms<120000; ms+=37) assert.ok(Math.abs(previewBucket(ms/1000,120)-ms/1000)<.101, 'Thumbnail precision must stay within 100ms of the eventual seek');
+const nativeSource = fs.readFileSync('android/app/src/main/java/app/navigator/android/SeekPreviews.java', 'utf8');
+assert.match(nativeSource, /setSeekParameters\(SeekParameters.EXACT\)/, 'Android must decode the requested frame, not a nearby keyframe');
 assert.equal(previewBucket(NaN, 120), null);
 assert.equal(previewBucket(10, Infinity), null);
 class Video extends EventTarget {
-    readyState = 2; currentTime = 0; videoWidth = 1920; videoHeight = 1080; seeking = false;
-    seeks = []; fastSeek(time) { this.currentTime = time; this.seeking = true; this.seeks.push(time); }
+    readyState = 2; videoWidth = 1920; videoHeight = 1080; seeking = false;
+    seeks = []; _time = 0;
+    get currentTime() { return this._time; }
+    set currentTime(time) { this._time = time; this.seeking = true; this.seeks?.push(time); }
+    fastSeek(time) { throw new Error('Keyframe seek can return a different scene'); }
     finish() { this.seeking = false; this.dispatchEvent(new Event('seeked')); }
     pause() {} load() {} removeAttribute() {}
 }
