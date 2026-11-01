@@ -3,14 +3,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-let now = 1000, id = 0, cursor = 0;
+let now = 1000, id = 0, cursor = 0, dirty = false;
 const hooks = [], timers = new Map(), effects = [];
 const same = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
 const react = {
   useState(initial) {
     const index = cursor++;
     hooks[index] ??= { value: typeof initial === 'function' ? initial() : initial };
-    return [hooks[index].value, value => { hooks[index].value = typeof value === 'function' ? value(hooks[index].value) : value; }];
+    return [hooks[index].value, value => {
+      const next = typeof value === 'function' ? value(hooks[index].value) : value;
+      if (!Object.is(next, hooks[index].value)) { hooks[index].value = next; dirty = true; }
+    }];
   },
   useLayoutEffect(effect, deps) {
     const index = cursor++, previous = hooks[index];
@@ -25,36 +28,68 @@ const context = { exports: {}, setTimeout(fn, delay) { timers.set(++id, { fn, at
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/seek-preview.tsx', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText, context);
-let time = 10, active = true, deferWhileMoving = true;
+let time = 10, active = true, deferWhileMoving = true, source = 'https://video.test/a.mkv';
+const media = { getAttribute: () => source };
 function render() {
-  cursor = 0;
-  const node = context.exports.SeekPreview({ media: null, time, duration: 120, active, deferWhileMoving });
-  while (effects.length) effects.shift()();
+  let node, rounds = 0;
+  do {
+    assert.ok(++rounds < 20, 'Layout effects must settle without a render loop');
+    dirty = false; cursor = 0;
+    node = context.exports.SeekPreview({ media, time, duration: 1200, active, deferWhileMoving });
+    while (effects.length) effects.shift()();
+  } while (dirty);
   return node.props;
 }
 function advance(ms) {
   now += ms;
   for (const [key, task] of [...timers]) if (task.at <= now) { timers.delete(key); task.fn(); }
 }
-for (let step = 0; step < 24; step++) {
-  time += .05; // Fine movement stays within one two-second thumbnail bucket.
-  assert.equal(render().active, false, 'Surface movement must not start thumbnail decoding, including the first request');
+const anchor = time;
+assert.equal(render().active, false, 'Initial extraction briefly waits for a stable neighborhood');
+for (let step = 0; step < 6; step++) {
+  time += .05; advance(16);
+  assert.equal(render().active, false);
+}
+advance(4);
+assert.equal(render().active, true, 'Finger tremor cannot starve extraction: start after 100ms despite fine movement');
+for (let step = 0; step < 20; step++) {
+  time += .05; advance(16);
+  const preview = render();
+  assert.equal(preview.active, true, 'Small movements must not cancel a pending decoder request');
+  assert.equal(preview.time, anchor, 'Fine scrubbing reuses the same preview target');
+}
+time = anchor + 1;
+assert.equal(render().time, anchor, 'Moving one second ahead does not request a different thumbnail');
+time = anchor + 1.99;
+assert.equal(render().active, true, 'Crossing a fixed two-second bucket boundary must not cancel the request');
+assert.equal(render().time, anchor);
+for (let step = 0; step < 16; step++) {
+  time += 4;
+  assert.equal(render().active, false, 'Fast travel must not flood the decoder');
   advance(16);
 }
-advance(163); // The final move was followed by one 16ms display frame.
-assert.equal(render().active, false, 'Wait for 180ms of finger inactivity');
+advance(83);
+assert.equal(render().active, false);
 advance(1);
-assert.equal(render().active, true, 'A stationary held finger requests the current thumbnail');
-time += .05;
-assert.equal(render().active, false, 'Resuming movement immediately suspends extraction again');
+assert.equal(render().active, true, 'A larger move settles onto its latest target after 100ms');
+assert.equal(render().time, time);
+time += 4; render();
 active = false; render(); advance(500);
-assert.equal(render().active, false, 'Release cannot start a delayed thumbnail');
+assert.equal(render().active, false, 'Release cannot start delayed extraction');
 active = true; deferWhileMoving = false;
 assert.equal(render().active, true, 'Direct timeline dragging retains immediate previews');
+assert.equal(render().time, time, 'Direct bar preview follows exact finger position');
+deferWhileMoving = true; render(); advance(50);
+source = 'https://video.test/b.mkv';
+assert.equal(render().active, false, 'A source change invalidates the old target');
+advance(50);
+assert.equal(render().active, false, 'An old source timer cannot activate a different video');
+advance(50);
+assert.equal(render().active, true);
 const css = fs.readFileSync('components/player-mobile.css', 'utf8');
 const range = css.match(/\[data-scrub-mode="surface"\] \[data-slot="media-player-seek-range"\]\s*\{([^}]+)\}/)[1];
 assert.ok(!/transition:\s*(right|all)/.test(range), 'Surface playhead must track the finger without a trailing position transition');
 const player = fs.readFileSync('components/ui/media-player.tsx', 'utf8');
 assert.ok(!player.includes('% speed'), 'Scrubbing must not display speed percentages');
 assert.match(player, /<SeekPreview[^>]*deferWhileMoving=/, 'The actual timeline must enable the idle policy for surface gestures');
-console.log('PASS: surface thumbnails wait for inactivity, fine movements reset the timer, release cancels work, bar previews stay immediate, and the playhead has no easing delay');
+console.log('PASS: fine-scrub tolerance prevents timer starvation and decoder cancellation, fast travel coalesces, release cancels work, and bar previews remain immediate');

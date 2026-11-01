@@ -149,7 +149,7 @@ SDR, HDR10, and HLG tests were confirmed working by the user.
   foreign origins cannot issue player commands. Other HTTP(S) navigation opens
   the system browser. File/content navigation and SSL-error bypasses are disabled.
 - HTML timeline hover previews and whole-screen horizontal scrubs share the same
-  native 480p SDR frame provider. ExoPlayer's main HDR/HLG surface stays separate;
+  native 256px-high SDR frame provider. ExoPlayer's main HDR/HLG surface stays separate;
   thumbnail decoding and JPEG encoding run asynchronously without a remote service.
 
 ### HDR video and control-window brightness
@@ -247,12 +247,13 @@ and restores that state. Cancelling, rotating, backgrounding, or changing the
 source cannot commit an old seek to a new session. Live/unseekable streams do
 not enter scrub mode.
 
-Media3 1.11.1's `media3-inspector-frame` extracts 480 px high keyframes using
+Media3 1.11.1's `media3-inspector-frame` extracts 256 px high keyframes using
 `CLOSEST_SYNC` and the hardware decoder selector. The extractor uses the same
 origin-scoped HTTP header and redirect policy as playback. Requests are bucketed
 to two seconds: one extraction runs at a time and pending movement replaces the
 desired target. A bounded worker encodes JPEGs off the UI thread and sends data
-URLs through the existing thumbnail bridge. Completed frames also stream with
+URLs through the existing thumbnail bridge. Each requested JPEG crosses the
+bridge once; only intermediate frames use the separate streamed event. Frames stream with
 their own bucket, so React can retain the last available frame while the newest
 request decodes. The encoded cache is capped at 8 MB and controls hiding warms
 one request. Idle decoders release after ten seconds, extraction times out after
@@ -260,6 +261,11 @@ eight seconds, and source changes/backgrounding clear the cache and decoder.
 Failed extraction leaves time and progress usable and retries after a cooldown.
 Media3's default `extractHdrFrames=false` tone-maps HDR thumbnails to SDR BT.709;
 main HDR/HLG playback remains on its native surface.
+
+Surface gestures anchor a preview within a ±2 second tolerance window and wait
+100ms when moving outside it. Small fine-scrubbing adjustments neither restart
+the timer nor cancel decoding. The progress indicator and timestamp still follow
+the exact seek target; direct bar previews remain immediate.
 
 The normal web preview supplies its existing skeleton, borderless panel, Sunghyun
 Sans semibold timestamp, and `backdrop-blur-[12px]` styling. CSS backdrop blur

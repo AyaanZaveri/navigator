@@ -22,7 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
-/** Local 480p SDR frames for the web UI. One decode and one bounded encoding
+/** Local 256px-high SDR frames for the web UI. One decode and one bounded encoding
  * worker; completed frames stream even while the latest requested time changes. */
 @UnstableApi
 final class SeekPreviews implements AutoCloseable {
@@ -70,7 +70,9 @@ final class SeekPreviews implements AutoCloseable {
                 .setMediaSourceFactory(source).setSeekParameters(SeekParameters.CLOSEST_SYNC)
                 .setMediaCodecSelector(MediaCodecSelector.DEFAULT)
                 // Default extractHdrFrames=false tone-maps HDR into SDR BT.709.
-                .setEffects(List.of(Presentation.createForHeight(480))).build();
+                // The panel is 224 CSS pixels wide: 256px high covers a 16:9
+                // thumbnail at 2x while reducing bitmap/JPEG/bridge work.
+                .setEffects(List.of(Presentation.createForHeight(256))).build();
             var task=extractor.getFrame(key); inFlight=task;
             main.removeCallbacks(timeout); main.postDelayed(timeout,8000);
             task.addListener(() -> {

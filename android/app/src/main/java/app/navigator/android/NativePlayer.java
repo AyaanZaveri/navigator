@@ -107,9 +107,11 @@ final class NativePlayer {
         String owner=session;
         previews=new SeekPreviews(context,MediaItem.fromUri(Uri.parse(url)),new DefaultMediaSourceFactory(data),(at,src) -> {
             if (!owner.equals(session) || !foreground || thumbnailRequest==null) return;
-            if (src!=null) emit.accept(object("type","thumbnail-frame","session",session,"position",at/1000.0,"src",src));
+            // A requested frame resolves the promise; only intermediate frames
+            // need a streamed event. Sending both duplicates the full JPEG.
             if (thumbnailPosition!=null && thumbnailPosition.equals(at)) emit.accept(object("type","thumbnail","session",session,
                 "request",thumbnailRequest,"src",src==null ? JSONObject.NULL : src,"position",at/1000.0));
+            else if (src!=null) emit.accept(object("type","thumbnail-frame","session",session,"position",at/1000.0,"src",src));
         });
     }
     void warmPreview() { preparePreviews(); if (previews!=null) previews.request(positionMs()); }
