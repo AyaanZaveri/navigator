@@ -1,0 +1,82 @@
+name: iOS IPA
+on:
+  pull_request:
+    paths: ['ios/**', 'lib/desktop/**', 'components/desktop/**', 'components/global-media-player.tsx', 'components/ui/media-player.tsx', 'components/seek-preview.tsx', 'scripts/*ios*', '.github/workflows/ios.yml']
+  push:
+    branches: [main, codex/ios-ipados]
+    paths: ['ios/**', 'lib/desktop/**', 'components/desktop/**', 'components/global-media-player.tsx', 'components/ui/media-player.tsx', 'components/seek-preview.tsx', 'scripts/*ios*', '.github/workflows/ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      COCOAPODS_DISABLE_STATS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          uname -m
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: ios
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ios/Pods
+          key: ios-vlc-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+      - name: Install locked media dependency
+        working-directory: ios
+        run: bundle exec pod install --deployment
+      - name: Native core tests
+        run: swift test --package-path ios
+      - name: Bridge and packaging checks
+        run: node scripts/test-ios-bridge.cjs
+      - name: Simulator native playback smoke test
+        run: |
+          set -o pipefail
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout /tmp/fixture.key -out /tmp/fixture.crt -config ios/fixture.cnf
+          FIXTURE_KEY=/tmp/fixture.key FIXTURE_CERT=/tmp/fixture.crt node scripts/ios-fixture-server.mjs > /tmp/fixture.log 2>&1 &
+          for FAMILY in iPhone iPad; do
+            DEVICE=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(v['udid'] for items in d['devices'].values() for v in items if v['name'].startswith('$FAMILY')))")
+            xcrun simctl boot "$DEVICE" || true
+            xcrun simctl bootstatus "$DEVICE" -b
+            xcrun simctl keychain "$DEVICE" add-root-cert /tmp/fixture.crt
+            xcodebuild -workspace ios/Navigator.xcworkspace -scheme Navigator -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath "ios/build/$FAMILY.xcresult" test CODE_SIGNING_ALLOWED=NO | tee -a /tmp/navigator-ios-simulator.log
+            xcrun simctl shutdown "$DEVICE"
+          done
+      - name: Build unsigned device archive
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/Navigator.xcworkspace -scheme Navigator -configuration Release -destination 'generic/platform=iOS' -archivePath ios/build/Navigator.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' CURRENT_PROJECT_VERSION=${{ github.run_number }} | tee /tmp/navigator-ios-build.log
+      - name: Package and verify IPA
+        run: python3 scripts/package-ios.py ios/build/Navigator.xcarchive ios/build/Navigator-iOS.ipa
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          path: ios/build/Navigator-iOS.ipa
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iOS-build-diagnostics
+          path: |
+            /tmp/navigator-ios-build.log
+            /tmp/navigator-ios-simulator.log
+            /tmp/fixture.log
+            ios/build/*.xcresult
+            ios/build/build-info.json
+          if-no-files-found: ignore
+          retention-days: 7

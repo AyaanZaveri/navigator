@@ -666,6 +666,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         }
 
         case "p": {
+          if (desktopBridge()?.capabilities?.pip === false) break;
           event.preventDefault();
           if (isVideo && "requestPictureInPicture" in mediaElement) {
             const isPip = document.pictureInPictureElement === mediaElement;
@@ -2908,6 +2909,8 @@ function MediaPlayerPiP(props: MediaPlayerPiPProps) {
     },
     [dispatch, props.onClick, isPictureInPicture, onPipError, context.mediaRef]
   );
+
+  if (desktopBridge()?.capabilities?.pip === false) return null;
 
   return (
     <MediaPlayerTooltip tooltip="Picture in picture" shortcut="P">

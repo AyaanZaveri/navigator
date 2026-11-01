@@ -1,0 +1,15 @@
+html[data-native-platform="ios"] { --native-safe-top: env(safe-area-inset-top,0px); --native-safe-right: env(safe-area-inset-right,0px); --native-safe-bottom: env(safe-area-inset-bottom,0px); --native-safe-left: env(safe-area-inset-left,0px); }
+html[data-native-platform="ios"] body { min-height:100dvh; }
+html[data-native-platform="ios"] [data-desktop-app-content] header { padding-top:var(--native-safe-top); padding-inline:max(1rem,var(--native-safe-left)) max(1rem,var(--native-safe-right)); }
+html[data-native-platform="ios"] [data-desktop-app-content] > main { padding-bottom:var(--native-safe-bottom); }
+html[data-native-playing][data-native-platform="ios"],html[data-native-playing][data-native-platform="ios"] body,
+html[data-native-playing][data-native-platform="ios"] [data-native-player-shell],
+html[data-native-playing][data-native-platform="ios"] [data-slot="media-player"],
+html[data-native-playing][data-native-platform="ios"] navigator-mpv { background:transparent!important; }
+html[data-native-platform="ios"] [data-native-player-shell],html[data-native-platform="ios"] [data-slot="media-player"] { width:100%!important; height:100dvh!important; max-width:100%; }
+html[data-native-platform="ios"] [data-slot="media-player-controls"] { padding-left:max(1.5rem,var(--native-safe-left));padding-right:max(1.5rem,var(--native-safe-right));padding-bottom:max(1rem,var(--native-safe-bottom));max-height:calc(100dvh - 4rem);overflow-y:auto; }
+html[data-native-platform="ios"] [data-player-close] { top:calc(1rem + var(--native-safe-top));left:calc(1rem + var(--native-safe-left)); }
+html[data-native-platform="ios"] [data-slot="media-player-pip"],html[data-native-platform="ios"] [data-slot="media-player-volume-container"] { display:none!important; }
+html[data-native-platform="ios"] [data-player-loading-copy] {left:max(1.5rem,var(--native-safe-left));right:max(1.5rem,var(--native-safe-right));bottom:calc(1.5rem + var(--native-safe-bottom));}
+html[data-native-platform="ios"] [data-navigator-focus-ui] {bottom:calc(1rem + var(--native-safe-bottom));}
+html[data-native-platform="ios"] input,html[data-native-platform="ios"] textarea {font-size:max(16px,1em);}

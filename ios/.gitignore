@@ -1,0 +1,7 @@
+Pods/
+.build/
+build/
+*.xcuserstate
+xcuserdata/
+
+.bundle/

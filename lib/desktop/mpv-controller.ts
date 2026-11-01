@@ -108,7 +108,7 @@ export class MpvController extends EventTarget {
     try {
       if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for native playback.");
       this.bridge.send({ type: "load", session: this.session, url, headers,
-        ...(this.bridge.platform === "android" ? { startPosition: Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0 } : {}) });
+        ...(["android", "ios"].includes(this.bridge.platform) ? { startPosition: Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0 } : {}) });
       this.bridge.send({ type: "volume", session: this.session, volume });
       this.bridge.send({ type: "muted", session: this.session, muted });
       this.bridge.send({ type: "rate", session: this.session, rate });

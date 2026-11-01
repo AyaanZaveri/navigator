@@ -18,7 +18,7 @@ export function SeekPreview({ media, time, duration, active, deferWhileMoving = 
     const source = media?.getAttribute("src") || media?.src || "";
     const session = (media as unknown as MpvElementHandle | null)?.controller?.previewSession;
     const key = session || source;
-    const android = !!session && typeof window !== "undefined" && window.navigatorDesktop?.platform === "android";
+    const nativePreviews = !!session && typeof window !== "undefined" && (window.navigatorDesktop?.capabilities?.nativePreviews || window.navigatorDesktop?.platform === "android");
     const [target, setTarget] = useState<SurfaceTarget | null>(null);
     useLayoutEffect(() => {
         if (!active || !deferWhileMoving) { setTarget(null); return; }
@@ -47,8 +47,8 @@ export function SeekPreview({ media, time, duration, active, deferWhileMoving = 
         const timer = setTimeout(() => setSettled(target), 100);
         return () => clearTimeout(timer);
     }, [target, inWindow, active, deferWhileMoving]);
-    const requestActive = active && (android || !deferWhileMoving || (inWindow && (settled === target || refined === target)));
-    const previewTime = !android && deferWhileMoving && inWindow ? target.time : time;
+    const requestActive = active && (nativePreviews || !deferWhileMoving || (inWindow && (settled === target || refined === target)));
+    const previewTime = !nativePreviews && deferWhileMoving && inWindow ? target.time : time;
     return <PreviewSource key={key} media={media} source={source} time={previewTime} displayTime={time} duration={duration} active={requestActive} />;
 }
 
@@ -70,15 +70,15 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const ticket = useRef(0);
     const invalidate = useCallback(() => { ticket.current++; }, []);
     const bucket = previewBucket(time, duration);
-    const androidNative = !!native && typeof window !== "undefined" && window.navigatorDesktop?.platform === "android";
-    const browserMode = !native || fallback || (!androidNative && /\.(m3u8|mpd)(?:[?#]|$)/i.test(source));
+    const nativeFrames = !!native && typeof window !== "undefined" && (window.navigatorDesktop?.capabilities?.nativePreviews || window.navigatorDesktop?.platform === "android");
+    const browserMode = !native || fallback || (!nativeFrames && /\.(m3u8|mpd)(?:[?#]|$)/i.test(source));
     const muxPreview = /\.(m3u8|mpd)(?:[?#]|$)/i.test(source)
         || !!(media as unknown as { nativeEl?: HTMLVideoElement } | null)?.nativeEl?.currentSrc?.startsWith("blob:");
     const wanted = useRef<number | null>(null);
     useLayoutEffect(() => { wanted.current = active ? bucket : null; }, [active, bucket]);
 
     useLayoutEffect(() => {
-        if (!androidNative || !native) return;
+        if (!nativeFrames || !native) return;
         const receive = (event: Event) => {
             const { position, src } = (event as CustomEvent<{ position: number; src: string }>).detail;
             cache.current.set(position, src);
@@ -86,7 +86,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
         };
         native.addEventListener("previewframe", receive);
         return () => native.removeEventListener("previewframe", receive);
-    }, [androidNative, native]);
+    }, [nativeFrames, native]);
 
     useLayoutEffect(() => {
         const requests = scheduler.current;
@@ -139,12 +139,12 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
                     setFrame({ time: at, src, video: false, unavailable: false });
                 } else {
                     // HLS or an unsupported container can still use the WebView decoder.
-                    if (androidNative) setFrame((previous) => previous.src ? previous : { time: at, src: null, video: false, unavailable: true });
+                    if (nativeFrames) setFrame((previous) => previous.src ? previous : { time: at, src: null, video: false, unavailable: true });
                     else setFallback(true);
                 }
             });
         });
-    }, [active, bucket, source, native, browserMode, videoAttached, invalidate, androidNative]);
+    }, [active, bucket, source, native, browserMode, videoAttached, invalidate, nativeFrames]);
 
     const displayBucket = previewBucket(displayTime, duration);
     // A decoded cache hit is available in this render, even while the surface
@@ -155,7 +155,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const ready = !!image || (frame.time === displayBucket && frame.video);
     const unavailable = frame.time === displayBucket && frame.unavailable;
     return (
-        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={image ? undefined : { aspectRatio: videoRatio }}>
+        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={image ? undefined : { aspectRatio: videoRatio }}>
             {browserMode && source && (muxPreview ? (
                 <MuxVideo
                     ref={videoRef}
