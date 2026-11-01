@@ -2386,7 +2386,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   </div>
                 )}
                 {touchScrubSpeed !== null && (
-                  <div className="max-w-56 px-2 pt-1 text-center text-xs text-muted-foreground">
+                  <div className="max-w-56 px-2 pt-1 text-center text-xs font-normal text-muted-foreground">
                     {touchScrubSpeed === 1 ? "Fast scrubbing" : "Fine scrubbing"}
                   </div>
                 )}
@@ -2402,7 +2402,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   data-slot="media-player-seek-time"
                   className={cn(
                     "whitespace-nowrap text-center font-sans text-xs font-semibold tabular-nums",
-                    (thumbnail || previewFrames) && "py-2",
+                    (thumbnail || previewFrames) && (touchScrubSpeed !== null ? "pt-0.5 pb-2" : "py-2"),
                     !(thumbnail || previewFrames || currentChapterCue) && "px-2.5 py-1"
                   )}
                 >

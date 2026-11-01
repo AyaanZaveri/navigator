@@ -6,6 +6,9 @@ let rule;
 css.walkRules(node => { if (node.selector === '[data-native-glass][data-slot="media-player-seek-tooltip"]::before') rule = node; });
 assert.ok(rule, 'Moving scrub glass must use the gesture CSS coordinates instead of a sampled DOM rectangle');
 const value = name => rule.nodes.find(node => node.prop === name)?.value;
+let border;
+css.walkRules(node => { if (node.selector === '[data-slot="media-player-seek-tooltip"]') border=Number.parseFloat(node.nodes.find(prop => prop.prop==='border')?.value); });
+assert.equal(border,0,'The floating seek preview has no outer border');
 function evaluate(expression, variables, area, image) {
   const math = expression.replace(/var\((--[\w-]+)(?:,\s*[^)]+)?\)/g, (_, name) => {
     assert.ok(name in variables, name); return String(variables[name]);
@@ -22,9 +25,9 @@ for (const [vw, vh] of [[1000,500], [412,915]]) for (const [width,height] of [[2
     const x = width/2 + (vw-width)*step/119, y = vh-36, offset = 8;
     const variables = { '--native-glass-half-width': vw/2, '--native-glass-height': vh,
       '--seek-tooltip-x': x, '--seek-tooltip-y': y, '--seek-tooltip-side-offset': offset };
-    const pseudoLeft = x-width/2+1-12, pseudoTop = y-height-offset+1-12;
-    const backgroundX = evaluate(value('background-position-x'), variables, width-2+24, vw);
-    const backgroundY = evaluate(value('background-position-y'), variables, height-2+24, vh);
+    const pseudoLeft = x-width/2+border-12, pseudoTop = y-height-offset+border-12;
+    const backgroundX = evaluate(value('background-position-x'), variables, width-2*border+24, vw);
+    const backgroundY = evaluate(value('background-position-y'), variables, height-2*border+24, vh);
     assert.ok(Math.abs(pseudoLeft + backgroundX) < .00001, 'Video pixels remain horizontally aligned on every gesture frame');
     assert.ok(Math.abs(pseudoTop + backgroundY) < .00001, 'Video pixels remain vertically aligned after preview resize');
     frames++;

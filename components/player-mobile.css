@@ -14,6 +14,8 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+/* This floating preview uses glass and shadow for separation, without an outline. */
+[data-slot="media-player-seek-tooltip"] { border: 0; }
 /* Native video is outside the WebView's backdrop. Keep the glass legible
    without copying video frames back into the scrolling/scrubbing UI. */
 html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
@@ -39,10 +41,10 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 }
 /* Follow the same CSS coordinates as the moving tooltip, without waiting for
    another video sample or DOM measurement. Percentages account for the panel's
-   own size; 11px is the 12px blur outset minus its 1px border. */
+   own size; the borderless panel has a 12px blur outset. */
 [data-native-glass][data-slot="media-player-seek-tooltip"]::before {
   background-position-x: calc(50% + var(--native-glass-half-width) - var(--seek-tooltip-x));
-  background-position-y: calc(100% + var(--native-glass-height) - var(--seek-tooltip-y) + var(--seek-tooltip-side-offset, 0px) - 11px);
+  background-position-y: calc(100% + var(--native-glass-height) - var(--seek-tooltip-y) + var(--seek-tooltip-side-offset, 0px) - 12px);
 }
 [data-native-glass]::after {
   inset: 0;
