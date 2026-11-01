@@ -46,7 +46,7 @@ import WebKit
     web.uiDelegate = self
     web.allowsBackForwardNavigationGestures = true
     web.scrollView.contentInsetAdjustmentBehavior = .never
-    for child in [playback.engine.surface, web!] {
+    for child in [playback.engine.surface, playback.startupCover, web!] {
       child.translatesAutoresizingMaskIntoConstraints = false
       view.addSubview(child)
       NSLayoutConstraint.activate([

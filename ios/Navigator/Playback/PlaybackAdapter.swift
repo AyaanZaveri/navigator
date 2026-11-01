@@ -5,6 +5,13 @@ import UIKit
 @MainActor final class PlaybackAdapter {
   private static weak var active: PlaybackAdapter?
   let engine = NativeVLC()
+  // Keep VLC's drawable renderable while covering undecoded/resume frames.
+  let startupCover: UIView = {
+    let view = UIView()
+    view.backgroundColor = .black
+    view.isUserInteractionEnabled = false
+    return view
+  }()
   let previews = PreviewWorker()
   var emit: ([String: Any]) -> Void = { _ in }
   private(set) var session = ""
@@ -32,7 +39,7 @@ import UIKit
       let owner = generation
       wantsPlay = true
       initialPosition = command.number("startPosition", range: 0...2_000_000) ?? 0
-      engine.surface.isHidden = true
+      startupCover.isHidden = false
       emitEvent("loading")
       loadTask = Task { [weak self] in
         guard let self else { return }
@@ -144,9 +151,9 @@ import UIKit
         try? await Task.sleep(for: .seconds(3))
         guard let self else { return }
         NSLog(
-          "[DEBUG-IOS] engine time=%.3f duration=%.3f playing=%d buffering=%d failed=%d foreground=%d",
+          "[DEBUG-IOS] engine time=%.3f duration=%.3f playing=%d buffering=%d failed=%d ended=%d foreground=%d wantsPlay=%d",
           engine.position, engine.duration, engine.playing, engine.buffering, engine.failed,
-          foreground)
+          engine.ended, foreground, wantsPlay)
       }
     #endif
     if !wantsPlay { engine.pause() }
@@ -178,7 +185,7 @@ import UIKit
     loadTask = nil
     previews.reset(source: nil, ready: nil)
     engine.stop()
-    engine.surface.isHidden = true
+    startupCover.isHidden = false
     gateway?.stop()
     gateway = nil
     effectiveURL = nil
@@ -227,7 +234,7 @@ import UIKit
       engine.setVolume(volume, muted: muted)
       engine.setRate(rate)
       layout()
-      engine.surface.isHidden = false
+      startupCover.isHidden = true
       emitEvent("ready")
     }
     if seeking, !engine.buffering { seeking = false }
