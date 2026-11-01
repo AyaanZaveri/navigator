@@ -2353,12 +2353,13 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
               aria-hidden={!seekState.isHovering || tooltipDisabled}
               className="dark pointer-events-none z-[var(--layer-tooltip)] rounded-xl shadow-sm [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
               style={{
+                "--seek-tooltip-side-offset": `${currentTooltipSideOffset}px`,
                 position: "fixed" as const,
                 left: `var(${SEEK_TOOLTIP_X}, 0rem)`,
                 top: `var(${SEEK_TOOLTIP_Y}, 0rem)`,
                 transform: `translateX(-50%) translateY(calc(-100% - ${currentTooltipSideOffset}px))`,
                 opacity: !tooltipDisabled && seekState.isHovering && seekState.hasInitialPosition ? 1 : 0,
-              }}
+              } as React.CSSProperties}
             >
               <div
                 className={cn(

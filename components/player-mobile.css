@@ -37,6 +37,13 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   background-repeat: no-repeat;
   filter: blur(12px);
 }
+/* Follow the same CSS coordinates as the moving tooltip, without waiting for
+   another video sample or DOM measurement. Percentages account for the panel's
+   own size; 11px is the 12px blur outset minus its 1px border. */
+[data-native-glass][data-slot="media-player-seek-tooltip"]::before {
+  background-position-x: calc(50% + var(--native-glass-half-width) - var(--seek-tooltip-x));
+  background-position-y: calc(100% + var(--native-glass-height) - var(--seek-tooltip-y) + var(--seek-tooltip-side-offset, 0px) - 11px);
+}
 [data-native-glass]::after {
   inset: 0;
   z-index: -1;

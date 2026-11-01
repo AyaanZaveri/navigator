@@ -7,7 +7,7 @@
     "desktop:check": "node scripts/desktop.mjs check",
     "desktop:fetch-libs": "node scripts/fetch-desktop-libs.mjs",
     "desktop:package": "node scripts/desktop.mjs package",
-    "test:desktop": "node scripts/test-desktop.cjs && node scripts/test-previews.cjs && node scripts/test-browser-preview-recovery.cjs && node scripts/test-desktop-auth.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-artwork.cjs && node scripts/test-cast.cjs && node scripts/test-card-hover.cjs && node scripts/test-player-glass.cjs && node scripts/test-native-player-glass.cjs && node scripts/test-player-framing.cjs",
+    "test:desktop": "node scripts/test-desktop.cjs && node scripts/test-previews.cjs && node scripts/test-browser-preview-recovery.cjs && node scripts/test-desktop-auth.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-artwork.cjs && node scripts/test-cast.cjs && node scripts/test-card-hover.cjs && node scripts/test-player-glass.cjs && node scripts/test-native-player-glass.cjs && node scripts/test-native-glass-alignment.cjs && node scripts/test-player-framing.cjs",
     "test:page-layout": "node scripts/test-page-layout.cjs",
     "test:touch-scrubbing": "node scripts/test-touch-scrubbing.cjs && node scripts/test-seek-time.cjs && node scripts/test-surface-scrub.cjs",
     "test:resume": "node scripts/test-resume-items.cjs",

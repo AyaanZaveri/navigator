@@ -274,9 +274,14 @@ backdrop filter belong to the same element, avoiding an opacity ancestor that
 blocks backdrop sampling. The portalled preview retains the player dark tokens.
 CSS backdrop blur samples the WebView layer, rather than the independent native
 video surface. During native playback, PixelCopy provides actual video pixels
-for the glass backgrounds: snapshots are bounded to a 320px viewport edge,
-one copy/encode in flight, and at most four requests per second. An unchanged
-paused frame is reused. Sampling stops when the glass is hidden or the app is
+for the glass backgrounds: snapshots are bounded to a 256px viewport edge, with
+one copy/encode in flight. Visible moving video updates at up to 12 samples per
+second; timing backs off to keep capture/encoding below 25% duty on slower
+devices. Bitmap and JPEG buffers are reused. An unchanged paused frame is reused.
+The scrub popup aligns that image using its existing CSS gesture coordinates on
+every display frame, independent of capture rate and without layout reads. New
+pixels update only the glass surfaces, without document-wide inherited style
+changes or periodic JavaScript geometry polling. Sampling stops when the glass is hidden or the app is
 backgrounded, and sessions cannot share snapshots. JPEG encoding stays off the
 UI thread. This never seeks the stream, starts another decoder or replaces HDR
 playback; unsupported/protected buffers retain the translucent fallback.
