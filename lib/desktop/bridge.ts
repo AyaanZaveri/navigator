@@ -41,6 +41,7 @@ export type NativeRequest =
   | { type: "rate"; session: string; rate: number }
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
   | { type: "fullscreen"; value: boolean }
+  | { type: "window-drag" }
   | { type: "settings" }
   | { type: "seek-feedback"; session: string };
 

@@ -56,7 +56,7 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
     if (isPlayerVisible) return null;
 
     return (
-        <header ref={headerRef} className="relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pt-[env(safe-area-inset-top)] pl-[max(var(--page-gutter),env(safe-area-inset-left))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]">
+        <header ref={headerRef} data-window-drag-region="" className="relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pt-[env(safe-area-inset-top)] pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]">
             <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-3 py-5">
                 <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 transition-[filter,scale] hover:bg-transparent hover:brightness-90 dark:hover:bg-transparent">
                     <Link href="/" aria-label="Navigator home" draggable={false}>

@@ -34,6 +34,39 @@ navigator-mpv {
   height: 100dvh;
 }
 
+/* The native macOS buttons occupy the leading side of the app's header.
+   AppKit hides them in fullscreen, where the usual page gutter is restored. */
+html[data-native-platform="macos"] { --window-controls-inset: 104px; }
+html[data-native-platform="macos"][data-desktop-fullscreen="true"] { --window-controls-inset: 0px; }
+html[data-native-platform="macos"] [data-player-close] {
+  left: max(1rem, var(--window-controls-inset));
+}
+
+/* Non-auto standard scrollbar properties override the WebKit pseudo-elements.
+   Reset those only in WKWebView so it actually uses our shared 6px scrollbar,
+   rather than macOS's wide, opaque native track. */
+html[data-native-platform="macos"],
+html[data-native-platform="macos"] * {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+html[data-native-platform="macos"] ::-webkit-scrollbar,
+html[data-native-platform="macos"]::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html[data-native-platform="macos"] ::-webkit-scrollbar-track,
+html[data-native-platform="macos"]::-webkit-scrollbar-track,
+html[data-native-platform="macos"] ::-webkit-scrollbar-corner,
+html[data-native-platform="macos"]::-webkit-scrollbar-corner {
+  background: transparent;
+}
+html[data-native-platform="macos"] ::-webkit-scrollbar-thumb,
+html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 3px;
+}
+
 :root {
   /* Global layers. Portaled overlays share a level so mount order also
      handles nested dialogs and menus; each backdrop precedes its surface. */

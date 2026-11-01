@@ -5,11 +5,14 @@ use tao::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::{Fullscreen, WindowBuilder};
+#[cfg(target_os = "macos")]
+use tao::{dpi::LogicalPosition, platform::macos::WindowBuilderExtMacOS};
 use wry::{NewWindowResponse, Rect, WebContext, WebViewBuilder};
 
 enum UserEvent {
     Emit(Value),
     Fullscreen(bool),
+    DragWindow,
     Close,
     SyncFullscreen,
 }
@@ -35,6 +38,14 @@ pub fn run(mut app: App) -> Result<(), String> {
         .with_title("Navigator")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(LogicalSize::new(720.0, 480.0));
+    // Keep AppKit's real window buttons/fullscreen behavior, with the WebView
+    // extending behind the transparent titlebar instead of a separate strip.
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .with_titlebar_transparent(true)
+        .with_title_hidden(true)
+        .with_fullsize_content_view(true)
+        .with_traffic_light_inset(LogicalPosition::new(16.0, 38.0));
     let window = builder.build(&event_loop).map_err(|e| e.to_string())?;
     let surface = platform::VideoSurface::new(&window)?;
     let mut player = app.start_player(&surface, {
@@ -70,6 +81,9 @@ pub fn run(mut app: App) -> Result<(), String> {
             match protocol::parse(request.body()) {
                 Ok(protocol::Command::Fullscreen { value }) => {
                     let _ = ipc_proxy.send_event(UserEvent::Fullscreen(value));
+                }
+                Ok(protocol::Command::WindowDrag {}) => {
+                    let _ = ipc_proxy.send_event(UserEvent::DragWindow);
                 }
                 Ok(command) => {
                     let _ = requests.send(command);
@@ -152,6 +166,11 @@ pub fn run(mut app: App) -> Result<(), String> {
             }
             Event::UserEvent(UserEvent::Fullscreen(value)) => {
                 window.set_fullscreen(value.then_some(Fullscreen::Borderless(None)));
+            }
+            Event::UserEvent(UserEvent::DragWindow) => {
+                if window.fullscreen().is_none() {
+                    let _ = window.drag_window();
+                }
             }
             Event::UserEvent(UserEvent::SyncFullscreen) => {
                 let _ = webview.evaluate_script(&receive(

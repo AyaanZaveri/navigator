@@ -132,20 +132,43 @@ async function testController() {
 function testBridge() {
     let listener;
     const sent = [];
-    const document = { documentElement: { dataset: {}, style: { setProperty() {} } }, addEventListener() {} };
+    const events = new Map();
+    const document = { documentElement: { dataset: {}, style: { setProperty() {} } }, addEventListener(type, callback) { events.set(type, callback); } };
     const window = { ipc: { postMessage: (value) => sent.push(JSON.parse(value)) }, addEventListener(type, callback) { if (type === "pagehide") listener = callback; } };
     window.top = window;
     const script = fs.readFileSync("desktop/src/bridge.js", "utf8").replace("__PROTOCOL__", "1").replace("__ORIGIN__", JSON.stringify("http://localhost:3000")).replace("__PLATFORM__", JSON.stringify("macos"));
     vm.runInNewContext(script, { window, document, location: { origin: "http://localhost:3000" }, console });
     assert.equal(window.navigatorDesktop.protocol, 1);
     assert.ok(Object.isFrozen(window.navigatorDesktop));
+    assert.equal(document.documentElement.dataset.nativePlatform, "macos");
+    assert.equal(document.documentElement.dataset.desktopFullscreen, "false");
+    const mouse = events.get("mousedown");
+    let prevented = 0;
+    const press = (options = {}) => mouse({
+        isTrusted: true, button: 0, clientY: 40,
+        target: { closest: selector => selector === "[data-window-drag-region]" ? {} : null },
+        preventDefault() { prevented++; }, ...options,
+    });
+    press();
+    assert.equal(sent.at(-1).type, "window-drag", "Blank header space starts a native window drag");
+    const count = sent.length;
+    press({ isTrusted: false });
+    press({ button: 2 });
+    press({ target: { closest: () => ({}) } });
+    press({ target: { closest: () => null }, clientY: 200 });
+    assert.equal(sent.length, count, "Synthetic/right clicks, interactive controls and page content never drag");
+    assert.equal(prevented, 1, "Only dragging consumes the mousedown event");
     let received = 0;
     const remove = window.navigatorDesktop.subscribe(() => received++);
     window.__navigatorDesktopReceive({ type: "fullscreen", value: true });
     assert.equal(window.navigatorDesktop.fullscreen, true);
+    assert.equal(document.documentElement.dataset.desktopFullscreen, "true", "Native fullscreen updates the header's traffic light clearance");
+    press();
+    assert.equal(sent.length, count, "Fullscreen must leave all content gestures alone");
     assert.equal(received, 1);
     remove();
     window.__navigatorDesktopReceive({ type: "fullscreen", value: false });
+    assert.equal(document.documentElement.dataset.desktopFullscreen, "false");
     assert.equal(received, 1);
     window.navigatorDesktop.send({ type: "load", session: "example", url: "https://example.test/video" });
     listener();
@@ -157,6 +180,17 @@ function testBridge() {
     const iframe = { top: {} };
     vm.runInNewContext(script, { window: iframe, location: { origin: "http://localhost:3000" } });
     assert.equal(iframe.navigatorDesktop, undefined);
+    for (const platform of ["windows", "linux"]) {
+        const handlers = new Map();
+        const otherDocument = { documentElement: { dataset: {}, style: { setProperty() {} } }, addEventListener(type, callback) { handlers.set(type, callback); } };
+        const otherWindow = { ipc: window.ipc, addEventListener() {} };
+        otherWindow.top = otherWindow;
+        vm.runInNewContext(script.replace('const platform = "macos"', `const platform = "${platform}"`), {
+            window: otherWindow, document: otherDocument, location: { origin: "http://localhost:3000" }, console,
+        });
+        assert.equal(handlers.has("mousedown"), false, "Custom header dragging only applies to macOS");
+        assert.equal(otherDocument.documentElement.dataset.nativePlatform, platform);
+    }
 }
 
 function testAskPlayback() {

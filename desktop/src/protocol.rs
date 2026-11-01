@@ -48,6 +48,7 @@ pub enum Command {
     Fullscreen {
         value: bool,
     },
+    WindowDrag {},
     Thumbnail {
         session: String,
         request: u64,
@@ -152,6 +153,8 @@ mod tests {
         assert!(parse(r#"{"type":"thumbnail","session":"one","request":4,"position":0,"url":"file:///private/file"}"#).is_err());
         assert!(parse(r#"{"type":"volume","session":"one","volume":2}"#).is_err());
         assert!(parse(r#"{"type":"command","args":["run","sh"]}"#).is_err());
+        assert!(parse(r#"{"type":"window-drag"}"#).is_ok());
+        assert!(parse(r#"{"type":"window-drag","script":"arbitrary"}"#).is_err());
         assert!(parse(r#"{"type":"play","session":"one","extra":"ignored?"}"#).is_err());
         assert_ne!(
             origin("http://localhost:3000"),

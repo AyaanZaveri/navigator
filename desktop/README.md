@@ -234,6 +234,19 @@ It plays the HTTP(S) stream URLs Navigator already obtains from addons.
 
 ## Documentation consulted
 
+The macOS window uses Tao's transparent titlebar, hidden title and full-size
+content view, keeping the native traffic lights in the app header. Blank header
+space starts a native window drag through the origin-checked bridge; links,
+inputs and menus keep their normal mouse behavior. The header and player back
+button reserve space for the traffic lights, and restore the normal inset in
+fullscreen. macOS resets the standard scrollbar properties to `auto` so WebKit
+can apply the same 6px scrollbar and transparent track used by the site.
+
+- [Tao macOS window extensions](https://docs.rs/tao/0.37.2/tao/platform/macos/trait.WindowBuilderExtMacOS.html):
+  transparent titlebar, full-size content and traffic light inset (also consulted
+  through Context7); [native window dragging](https://docs.rs/tao/0.37.2/tao/window/struct.Window.html#method.drag_window).
+- [WebKit scrollbar precedence](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::-webkit-scrollbar):
+  non-auto standard scrollbar properties override the WebKit pseudo-elements.
 - [wry 0.57 WebViewBuilder](https://docs.rs/wry/0.57.0/wry/struct.WebViewBuilder.html):
   transparency, initialization, IPC, origin checks, and child views.
 - [mpv client API](https://github.com/mpv-player/mpv/blob/master/include/mpv/client.h)
