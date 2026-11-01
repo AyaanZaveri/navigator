@@ -102,7 +102,9 @@ final class NativePlayer {
     boolean canScrub() { return readyForGestures() && player != null && player.isCurrentMediaItemSeekable() && durationMs()>0; }
     boolean beginScrub(String owner) {
         if (!session.equals(owner) || !canScrub() || scrubbing) return false;
-        scrubWasPlaying=player.getPlayWhenReady(); scrubbing=true; player.pause(); return true;
+        scrubWasPlaying=player.getPlayWhenReady(); scrubbing=true; player.pause();
+        if (previews!=null) previews.warm(0,0,0,false);
+        return true;
     }
     void endScrub(String owner,boolean commit,long target) {
         if (!session.equals(owner) || !scrubbing || player == null) return;
@@ -119,15 +121,20 @@ final class NativePlayer {
         var data=dataSourceFactory();
         String owner=session;
         previews=new SeekPreviews(context,MediaItem.fromUri(Uri.parse(url)),new DefaultMediaSourceFactory(data),(at,src) -> {
-            if (!owner.equals(session) || !foreground || thumbnailRequest==null) return;
+            if (!owner.equals(session) || !foreground) return;
             // A requested frame resolves the promise; only intermediate frames
             // need a streamed event. Sending both duplicates the full JPEG.
-            if (thumbnailPosition!=null && thumbnailPosition.equals(at)) emit.accept(object("type","thumbnail","session",session,
+            if (thumbnailRequest!=null && thumbnailPosition!=null && thumbnailPosition.equals(at)) emit.accept(object("type","thumbnail","session",session,
                 "request",thumbnailRequest,"src",src==null ? JSONObject.NULL : src,"position",at/1000.0));
             else if (src!=null) emit.accept(object("type","thumbnail-frame","session",session,"position",at/1000.0,"src",src));
         });
     }
     void warmPreview() { preparePreviews(); if (previews!=null) previews.request(positionMs()); }
+    void warmPreviews() {
+        if (!foreground || !canScrub()) return;
+        preparePreviews();
+        previews.warm(positionMs(), bufferedMs(), durationMs(), !scrubbing && player.getPlaybackState()==Player.STATE_READY);
+    }
     private void thumbnail(JSONObject message) {
         thumbnailRequest=thumbnailPosition=null;
         if (message.isNull("position")) { if (previews!=null) previews.cancel(); return; }

@@ -36,7 +36,7 @@ import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
 import { DesktopTracks } from "@/components/desktop/tracks";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
-import { ArrowLeft, RotateCcw, RotateCw, Users, Ship } from "lucide-react";
+import { ArrowLeft, RotateCcw, RotateCw, Users, Ship, Loader2 } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   fetchMediaDetails,
@@ -689,11 +689,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               data-player-glass=""
               aria-label="Back to browsing"
               variant="ghost"
-              size="icon-lg"
+              size="icon"
               className="fixed left-4 top-4 z-10 rounded-full"
               onClick={() => handleClose()}
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="size-5" />
             </Button>
 
             {loadingLogo && (
@@ -720,13 +720,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
               data-player-loading-copy=""
-              className="absolute bottom-8 left-8 right-8"
+              className="absolute bottom-7 left-8 right-8"
             >
               <motion.div
                 initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2, duration: 0.5 }}
-                className="flex flex-col w-full gap-1.5 pb-2"
+                className="flex flex-col w-full gap-1.5 pb-1"
               >
                 <div className="flex items-center justify-between w-full">
                   <motion.h2
@@ -783,7 +783,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                       }}>Try again</Button>
                     </div>
                   ) : (
-                    <><div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    <><Loader2 aria-hidden="true" className="size-4 animate-spin text-white/70" />
                     <span className="text-sm text-white/70" role="status">{playbackPhaseLabels[playbackPhase]}</span></>
                   )}
                 </motion.div>
@@ -812,11 +812,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             data-player-back-control=""
             aria-label="Back to browsing"
             variant="ghost"
-            size="icon-lg"
+            size="icon"
             className="fixed left-4 top-4 z-50 rounded-full"
             onClick={() => handleClose()}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="size-5" />
           </Button>
         )}
 

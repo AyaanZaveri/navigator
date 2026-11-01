@@ -55,6 +55,7 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   html[data-native-playing] [data-player-glass] { --player-glass-tint: 80%; }
 }
 [data-player-close] {
+  border: 0;
   transition: background-color var(--duration-instant, 120ms) var(--ease-out, ease-out);
 }
 /* Hide playback Back with the chrome, without an opacity-fading ancestor. */
@@ -78,7 +79,7 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"] { display: none; }
 [data-slot="media-player-time"], [data-player-end-time] { font-variant-numeric: tabular-nums; }
 @media (pointer: coarse), (width < 40rem) {
-  [data-player-close] { width: 2.75rem; height: 2.75rem; min-height: 2.75rem; font-size: 1rem; font-weight: 500; line-height: 1.25; }
+  [data-player-close] { width: 2.5rem; height: 2.5rem; min-height: 2.5rem; font-size: 1rem; font-weight: 500; line-height: 1.25; }
   [data-slot="media-player-controls"] {
     max-height: calc(100dvh - 5rem - var(--navigator-safe-top, env(safe-area-inset-top, 0px)));
     overflow-y: auto;

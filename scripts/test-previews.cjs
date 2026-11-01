@@ -12,11 +12,12 @@ const { PreviewCache, previewBucket, BrowserPreviewFrames } = context.exports;
 const cache = new PreviewCache(2);
 cache.set(0, 'zero'); cache.set(2, 'two'); assert.equal(cache.get(0), 'zero'); cache.set(4, 'four');
 assert.equal(cache.get(2), undefined, 'Cache must evict the least recently used frame');
-assert.equal(previewBucket(3.9, 120), 3.9);
-assert.equal(previewBucket(120, 120), 119.9);
-for (let ms=0; ms<120000; ms+=37) assert.ok(Math.abs(previewBucket(ms/1000,120)-ms/1000)<.101, 'Thumbnail precision must stay within 100ms of the eventual seek');
+assert.equal(previewBucket(3.9, 120), 4);
+assert.equal(previewBucket(120, 120), 119);
+for (let ms=0; ms<120000; ms+=37) assert.ok(Math.abs(previewBucket(ms/1000,120)-ms/1000)<=1, 'Thumbnail sampling is bounded to the one-second grid, including the media end');
 const nativeSource = fs.readFileSync('android/app/src/main/java/app/navigator/android/SeekPreviews.java', 'utf8');
 assert.match(nativeSource, /setSeekParameters\(SeekParameters.EXACT\)/, 'Android must decode the requested frame, not a nearby keyframe');
+assert.equal(previewBucket(30.01,120),previewBucket(30.4,120), 'Fine finger movement reuses the same one-second thumbnail');
 assert.equal(previewBucket(NaN, 120), null);
 assert.equal(previewBucket(10, Infinity), null);
 class Video extends EventTarget {

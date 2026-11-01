@@ -2,7 +2,7 @@
 export class PreviewCache {
     private frames = new Map<number, string>();
     private capacity: number;
-    constructor(capacity = 96) { this.capacity = capacity; }
+    constructor(capacity = 256) { this.capacity = capacity; }
     get(time: number) {
         const value = this.frames.get(time);
         if (value) { this.frames.delete(time); this.frames.set(time, value); }
@@ -18,7 +18,7 @@ export class PreviewCache {
 
 export function previewBucket(time: number, duration: number) {
     if (!Number.isFinite(time) || time < 0 || !Number.isFinite(duration) || duration <= 0) return null;
-    return Math.min(Math.round(time * 10) / 10, Math.max(0, Math.floor((duration - 0.1) * 10) / 10));
+    return Math.min(Math.round(time), Math.max(0, Math.floor(duration - 0.1)));
 }
 
 export type PreviewMedia = HTMLVideoElement;

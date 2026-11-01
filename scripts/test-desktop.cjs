@@ -71,8 +71,14 @@ async function testController() {
     assert.equal(requested.type, "thumbnail");
     assert.equal(media.currentTime, 12, "Hover preview requests must never seek the playback decoder");
     receive({ type: "thumbnail", session: first, request: requested.request - 1, src: "data:image/jpeg;base64,old", position: 0 });
-    receive({ type: "thumbnail", session: first, request: requested.request, src: "data:image/jpeg;base64,frame", position: 18 });
+    receive({ type: "thumbnail", session: first, request: requested.request, src: "data:image/jpeg;base64,frame", position: 20 });
     assert.equal(await preview, "data:image/jpeg;base64,frame");
+    const cachedCount = sent.length;
+    assert.equal(media.cachedPreview(20), "data:image/jpeg;base64,frame", "A cached thumbnail must be readable synchronously before gesture settle");
+    assert.equal(await media.preview(20), "data:image/jpeg;base64,frame");
+    assert.equal(sent.length, cachedCount, "Returning to an existing thumbnail cannot cross the native bridge again");
+    receive({type:"thumbnail-frame", session:first, position:22, src:"data:image/jpeg;base64,WARM"});
+    assert.equal(media.cachedPreview(22), "data:image/jpeg;base64,WARM", "Proactively generated frames are cached before hover mounts");
     const cancelled = media.preview(40);
     media.cancelPreview();
     assert.equal(await cancelled, null, "Leaving hover must cancel pending preview publication");
@@ -99,7 +105,11 @@ async function testController() {
     assert.equal(metadataEvents, 1, "Android codec recreation must not rerun the initial resume/autoplay handler");
     assert.equal(media.currentTime, 65, "Foreground recovery preserves the native session's current position");
     assert.equal(media.paused, true, "Foreground recovery preserves a deliberately paused session");
+    for (let at=1000; at<1300; at++) receive({type:"thumbnail-frame",session:first,position:at,src:"data:image/jpeg;base64,"+at});
+    assert.equal(media.cachedPreview(1000),undefined,"Thumbnail cache must be bounded while watching long videos");
+    assert.ok(media.cachedPreview(1299));
     media.load("https://example.test/second.mkv");
+    assert.equal(media.cachedPreview(1299),undefined,"A new media session cannot show thumbnails from the previous file");
     const second = sent.filter((m) => m.type === "load").at(-1).session;
     assert.notEqual(first, second);
     assert.equal(media.subtitleText, "", "Replacing a stream must clear its last cue");

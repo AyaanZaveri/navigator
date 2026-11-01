@@ -40,7 +40,7 @@ const backButtons = player.nodes.filter(node => attr(node, 'data-player-close'))
 assert.equal(backButtons.length, 2, 'Cover loading and playback Back');
 for (const button of backButtons) {
   assert.ok(attr(button, 'data-player-glass'), 'Every Back state uses the shared glass');
-  assert.equal(attr(button, 'size').initializer.text, 'icon-lg', 'Back is an icon-sized control in both player states');
+  assert.equal(attr(button, 'size').initializer.text, 'icon', 'Back is an icon-sized control in both player states');
   assert.match(attr(button, 'className').initializer.text, /rounded-full/, 'Back remains circular');
   const children = button.parent.children.filter(child => ts.isJsxText(child)).map(child => child.text.trim()).join('');
   assert.equal(children, '', 'Back must not render a visible text label');
@@ -50,3 +50,11 @@ console.log('PASS: shared transparent 12px glass, prefixed blur, token sheen, da
 const mobileBack = rules.find(rule => rule.selector === '[data-player-close]' && rule.parent.type === 'atrule' && rule.parent.name === 'media');
 const dimension = prop => mobileBack.nodes.find(node => node.prop === prop)?.value;
 assert.equal(dimension('width'), dimension('height'), 'Mobile minimum touch target must remain square so rounded-full is actually circular');
+
+assert.equal(value('[data-player-close]', 'border'), '0', 'Back keeps glass without its border');
+
+const nativeCss = postcss.parse(fs.readFileSync('android/app/src/main/assets/edge-to-edge.css','utf8'));
+const nativeBack = nativeCss.nodes.find(node => node.type==='rule' && node.selector.includes(':is(button[data-player-close]'));
+const nativeValue = prop => nativeBack.nodes.find(node=>node.prop===prop)?.value;
+assert.equal(nativeValue('width'),'40px'); assert.equal(nativeValue('height'),'40px');
+assert.equal(nativeValue('padding'),'0'); assert.equal(nativeValue('border'),'0');

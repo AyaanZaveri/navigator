@@ -16,7 +16,7 @@ export function PreviewImage({ src, alt = "" }: { src: string; alt?: string }) {
     return (
         <div className="relative w-56 overflow-hidden rounded-lg" style={{ aspectRatio: current?.ratio ?? crop?.ratio ?? 16 / 9 }}>
             <img
-                src={src} alt={alt} draggable={false}
+                src={src} alt={alt} draggable={false} decoding="sync"
                 className="absolute max-w-none"
                 style={{ left: `${current?.left ?? 0}%`, top: `${current?.top ?? 0}%`, width: `${current?.width ?? 100}%`, height: `${current?.height ?? 100}%`, visibility: current ? "visible" : "hidden" }}
                 onLoad={event => {
@@ -41,7 +41,7 @@ export function PreviewImage({ src, alt = "" }: { src: string; alt?: string }) {
                         }
                     } catch { /* Cross-origin frames still retain their intrinsic aspect ratio. */ }
                     crops.set(src, next);
-                    while (crops.size > 96) crops.delete(crops.keys().next().value!);
+                    while (crops.size > 256) crops.delete(crops.keys().next().value!);
                     setCrop(next);
                 }}
             />

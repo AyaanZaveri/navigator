@@ -106,11 +106,19 @@ assert.ok(!player.includes('% speed'), 'Scrubbing must not display speed percent
 assert.match(player, /<SeekPreview[^>]*deferWhileMoving=/, 'The actual timeline must enable the idle policy for surface gestures');
 console.log('PASS: fine-scrub tolerance prevents timer starvation and decoder cancellation, fast travel coalesces, release cancels work, and bar previews remain immediate');
 
+// Native gestures bypass artificial settle delays; coalescing lives in the
+// scheduler/decoder, and warmed thumbnails must be available on first render.
+hooks.length = 0; timers.clear(); effects.length = 0; cursor = 0;
+const warmedMedia = { getAttribute: () => source, controller: { previewSession:'native-session' } };
+let nativeNode = context.exports.SeekPreview({media:warmedMedia,time:30.3,duration:1200,active:true,deferWhileMoving:true});
+assert.equal(nativeNode.props.active,true,'Android previews have no 100/120ms artificial settle delay');
+assert.equal(nativeNode.props.time,30.3,'Native requests follow the current finger target');
+
 // Exercise the actual preview component, including late native events and cache
 // lookup while the gesture's request policy is inactive.
 hooks.length = 0; timers.clear(); effects.length = 0;
 const listeners = new Map();
-const controller = { addEventListener: (type, fn) => listeners.set(type,fn), removeEventListener() {}, cancelPreview() {} };
+const controller = { cachedPreview() {}, addEventListener: (type, fn) => listeners.set(type,fn), removeEventListener() {}, cancelPreview() {} };
 const nativeMedia = { controller };
 let at = 10, requesting = true;
 function renderSource() {

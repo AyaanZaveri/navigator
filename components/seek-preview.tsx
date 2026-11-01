@@ -18,6 +18,7 @@ export function SeekPreview({ media, time, duration, active, deferWhileMoving = 
     const source = media?.getAttribute("src") || media?.src || "";
     const session = (media as unknown as MpvElementHandle | null)?.controller?.previewSession;
     const key = session || source;
+    const android = !!session && typeof window !== "undefined" && window.navigatorDesktop?.platform === "android";
     const [target, setTarget] = useState<SurfaceTarget | null>(null);
     useLayoutEffect(() => {
         if (!active || !deferWhileMoving) { setTarget(null); return; }
@@ -46,8 +47,8 @@ export function SeekPreview({ media, time, duration, active, deferWhileMoving = 
         const timer = setTimeout(() => setSettled(target), 100);
         return () => clearTimeout(timer);
     }, [target, inWindow, active, deferWhileMoving]);
-    const requestActive = active && (!deferWhileMoving || (inWindow && (settled === target || refined === target)));
-    const previewTime = deferWhileMoving && inWindow ? target.time : time;
+    const requestActive = active && (android || !deferWhileMoving || (inWindow && (settled === target || refined === target)));
+    const previewTime = !android && deferWhileMoving && inWindow ? target.time : time;
     return <PreviewSource key={key} media={media} source={source} time={previewTime} displayTime={time} duration={duration} active={requestActive} />;
 }
 
@@ -148,7 +149,8 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const displayBucket = previewBucket(displayTime, duration);
     // A decoded cache hit is available in this render, even while the surface
     // gesture's settle timer is pending. Never debounce an existing thumbnail.
-    const displaySrc = displayBucket === null ? undefined : cache.current.get(displayBucket);
+    const displaySrc = displayBucket === null ? undefined
+        : native?.cachedPreview(displayBucket) || cache.current.get(displayBucket) || browser.current?.cache.get(displayBucket);
     const image = displaySrc || (frame.time === displayBucket ? frame.src : null);
     const ready = !!image || (frame.time === displayBucket && frame.video);
     const unavailable = frame.time === displayBucket && frame.unavailable;

@@ -93,7 +93,7 @@ public final class MainActivity extends ComponentActivity {
     private long pageGeneration;
     private final Runnable tick = new Runnable() {
         @Override public void run() {
-            if (player != null && foreground) player.state();
+            if (player != null && foreground) { player.state(); player.warmPreviews(); }
             if (foreground) main.postDelayed(this, 250);
         }
     };
@@ -286,7 +286,8 @@ public final class MainActivity extends ComponentActivity {
                             case "visible":
                                 playerVisible = request.optBoolean("value");
                                 updateSystemBarAppearance();
-                                if (!playerVisible) { player.stop(); setFullscreen(false); }
+                                if (!playerVisible) player.stop();
+                                setFullscreen(playerVisible);
                                 updateWebPresentation();
                                 break;
                             case "seek-feedback":
@@ -301,7 +302,7 @@ public final class MainActivity extends ComponentActivity {
                                 player.command(request);
                                 updateWebPresentation();
                                 if (request.optString("type").equals("load") && player.active()) setFullscreen(true);
-                                if (request.optString("type").equals("stop") && !player.active()) setFullscreen(false);
+                                if (request.optString("type").equals("stop") && !player.active() && !playerVisible) setFullscreen(false);
                         }
                     } catch (org.json.JSONException invalid) { /* Reject malformed bridge messages. */ }
                 });

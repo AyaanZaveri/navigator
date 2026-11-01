@@ -27,6 +27,22 @@ export class MpvController extends EventTarget {
   tracks: NativeTrack[] = [];
   subtitleText = "";
   private previewId = 0;
+  private previewFrames = new Map<number, string>();
+  private decodedPreviews = new Map<number, HTMLImageElement>();
+  cachedPreview(position: number) { return this.previewFrames.get(position); }
+  private rememberPreview(position: number, src: string) {
+    if (this.previewFrames.get(position) === src) return;
+    this.previewFrames.delete(position);
+    this.previewFrames.set(position, src);
+    while (this.previewFrames.size > 256) this.previewFrames.delete(this.previewFrames.keys().next().value!);
+    // Decode proactively too: a JPEG string alone isn't a paint-ready image.
+    if (typeof Image !== "undefined") {
+      const image = new Image(); image.src = src;
+      void image.decode?.().catch(() => {});
+      this.decodedPreviews.set(position, image);
+      while (this.decodedPreviews.size > 24) this.decodedPreviews.delete(this.decodedPreviews.keys().next().value!);
+    }
+  }
   private previewActive = false;
   private previewPending?: { id: number; resolve: (src: string | null) => void; timer: ReturnType<typeof setTimeout> };
 
@@ -79,6 +95,7 @@ export class MpvController extends EventTarget {
     this.cancelPreview();
     if (this.disposed) return;
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
+    this.previewFrames.clear(); this.decodedPreviews.clear();
     this.source = url;
     this.session = crypto.randomUUID();
     this.loaded = this.ready = this.finished = false;
@@ -110,6 +127,11 @@ export class MpvController extends EventTarget {
     this.bridge.send({ type: "track", session: this.session, kind, id });
   }
   preview(position: number): Promise<string | null> {
+    const cached = this.cachedPreview(position);
+    if (cached && !this.disposed) {
+      if (this.previewPending) this.cancelPreview();
+      return Promise.resolve(cached);
+    }
     this.cancelPreview();
     if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return Promise.resolve(null);
     const id = ++this.previewId;
@@ -135,6 +157,7 @@ export class MpvController extends EventTarget {
     this.cancelPreview();
     if (this.disposed) return;
     this.disposed = true;
+    this.previewFrames.clear(); this.decodedPreviews.clear();
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
@@ -156,6 +179,7 @@ export class MpvController extends EventTarget {
     switch (message.type) {
       case "thumbnail-frame":
         if (!Number.isFinite(message.position) || message.position < 0 || !message.src?.startsWith("data:image/jpeg;base64,")) break;
+        this.rememberPreview(message.position, message.src);
         this.dispatchEvent(new CustomEvent("previewframe", { detail: { position: message.position, src: message.src } }));
         break;
       case "thumbnail":
@@ -163,7 +187,9 @@ export class MpvController extends EventTarget {
           const pending = this.previewPending;
           clearTimeout(pending.timer);
           this.previewPending = undefined;
-          pending.resolve(message.src?.startsWith("data:image/jpeg;base64,") ? message.src : null);
+          const src = message.src?.startsWith("data:image/jpeg;base64,") ? message.src : null;
+          if (src && message.position !== null && Number.isFinite(message.position)) this.rememberPreview(message.position, src);
+          pending.resolve(src);
         }
         break;
       case "state": {

@@ -258,23 +258,39 @@ Thumbnail content bounds are also cached to avoid repeating canvas analysis.
 Media3 1.11.1's `media3-inspector-frame` extracts 256 px high frames using
 `EXACT` and the hardware decoder selector. The extractor uses the same
 origin-scoped HTTP header and redirect policy as playback. Requests are bucketed
-to 100ms: one extraction runs at a time and pending movement replaces the
+to a one-second grid: one extraction runs at a time and pending movement replaces the
 desired target. A bounded worker encodes JPEGs off the UI thread and sends data
 URLs through the existing thumbnail bridge. Each requested JPEG crosses the
 bridge once; only intermediate frames use the separate streamed event. Frames stream with
 their own timestamp; React caches stale results but displays only a frame matching
-the current displayed time, rather than a different scene under a newer timestamp. The encoded cache is capped at 8 MB and controls hiding warms
-one request. Idle decoders release after ten seconds, extraction times out after
+the current sample bucket. Sampling stays approximate within that grid; the
+actual seek position and displayed playhead retain full precision. The encoded
+cache is capped at 16 MB. Idle decoders release after ten seconds, extraction times out after
 eight seconds, and source changes/backgrounding clear the cache and decoder.
 Failed extraction leaves time and progress usable and retries after a cooldown.
 Media3's default `extractHdrFrames=false` tone-maps HDR thumbnails to SDR BT.709;
 main HDR/HLG playback remains on its native surface.
 
-Surface gestures anchor a preview within a ±2 second tolerance window and wait
-100ms when moving outside it. Small fine-scrubbing adjustments neither restart
-the timer nor cancel decoding. The progress indicator and timestamp still follow
-the exact seek target; after 120ms without movement the preview refines to that
-exact target without another settle delay. Direct bar previews remain immediate.
+Android fills nearby already-buffered preview points proactively (up to 120 seconds
+ahead) while the player is ready. Pausing can finish that finite buffered window. Background work uses the same decoder/encoder
+pipeline as explicit requests, rests for at least 200ms and at least three times
+its work duration, and stops scheduling while buffering or scrubbing.
+Explicit requests take priority over the next background task. The web controller
+retains up to 256 JPEGs across tooltip mounts and pre-decodes the most recent 24
+images. Cache hits render synchronously and require no native bridge request.
+Android gestures bypass the former 100/120ms settle timers; the 60ms coalescing
+scheduler and single decode pipeline bound uncached work. Browser-only surface
+gestures retain their settle policy.
+
+Product comparison: Plex documents a two-second default for its library-wide
+server-generated index. IINA targets 100 images per local file and skips network
+streams. Infuse generates previews on the fly without a publicly documented
+interval. Navigator uses a denser one-second grid for its single active session,
+with limited buffered read-ahead, bounded memory and adaptive rest; the one-second
+value is a project choice rather than a claimed industry recommendation.
+- https://support.plex.tv/articles/201105343-advanced-hidden-server-settings/
+- https://github.com/iina/iina/blob/develop/iina/FFmpegController.m
+- https://community.firecore.com/t/plex-video-preview-thumbnails/51965/4
 
 The web preview supplies its existing skeleton and timestamp. It shares a
 translucent, token-based 12px glass treatment with the Back button. The fade and
@@ -455,3 +471,8 @@ user-provided Navigator artwork already in the repository.
 Android receives `startPosition` with the initial load and passes it to
 `setMediaItem` before `prepare`, so a resumed session's first frame is decoded at
 the saved position. Browser autoplay waits for metadata and the initial seek.
+
+The Android player enters sensor landscape when the player shell becomes visible,
+including the stream-fetching stage. Closing restores normal orientation; an
+internal source retry does not temporarily unlock orientation. Back is a 40px
+borderless glass circle with a 20px arrow, matching the toolbar icon size.
