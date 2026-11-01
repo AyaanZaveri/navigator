@@ -148,7 +148,7 @@ import AVFAudio
             catch{self.showFailure("Use an HTTPS origin without a path, query, or credentials.")}
         });present(alert,animated:true)
     }
-    func webView(_ webView:WKWebView,decidePolicyFor action:WKNavigationAction,decisionHandler:@escaping(WKNavigationActionPolicy)->Void){
+    func webView(_ webView:WKWebView,decidePolicyFor action:WKNavigationAction,decisionHandler:@escaping @MainActor @Sendable (WKNavigationActionPolicy)->Void){
         guard let url=action.request.url else{decisionHandler(.cancel);return}
         if origin.matches(url) || (action.targetFrame?.isMainFrame==false && url.scheme?.lowercased()=="https"){decisionHandler(.allow)}else{
             if action.targetFrame?.isMainFrame != false,["https","http"].contains(url.scheme?.lowercased() ?? ""){UIApplication.shared.open(url)}

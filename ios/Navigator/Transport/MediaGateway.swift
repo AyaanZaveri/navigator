@@ -6,7 +6,7 @@ import NavigatorCore
 
 /// A per-playback, loopback-only gateway. Mutable networking state is confined
 /// to `queue`; URLSession and NWConnection callbacks use that same serial queue.
-final class MediaGateway: NSObject, URLSessionDataDelegate {
+final class MediaGateway: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let source: URL
     private let headers: [String:String]
     private let token=UUID().uuidString
@@ -26,7 +26,9 @@ final class MediaGateway: NSObject, URLSessionDataDelegate {
         let delegateQueue=OperationQueue();delegateQueue.maxConcurrentOperationCount=1;delegateQueue.underlyingQueue=queue
         return URLSession(configuration:c,delegate:self,delegateQueue:delegateQueue)
     }()
-    private final class Exchange {
+    // NWConnection completions and URLSession delegate calls are both delivered
+    // on queue. References never expose mutable state to a caller's executor.
+    private final class Exchange: @unchecked Sendable {
         let client: NWConnection, method:String, upstream:URL
         var response:HTTPURLResponse?, manifest=false, data=Data(), pending=0, suspended=false, redirects=0, failed=false
         init(_ client:NWConnection,_ method:String,_ upstream:URL) { self.client=client;self.method=method;self.upstream=upstream }
