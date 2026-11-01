@@ -22,10 +22,20 @@ import UIKit
   private var timer: Timer?
   private var foreground = true, pendingStart = false, wantsPlay = true
   private var loaded = false, ready = false, seeking = false, errorSent = false
+  private var started = false
+  private var positionFloor: Double?
   private var initialPosition = 0.0, volume = 1.0, muted = false, rate = 1.0, fit = "fit"
   private var lastTracks = Data()
   init() {
-    engine.changed = { [weak self] in DispatchQueue.main.async { self?.update() } }
+    engine.changed = { [weak self] in
+      // VLCKit delivers delegates on main. Read terminal state in this callback
+      // before its subsequent Stopped event replaces the cached Ended state.
+      if Thread.isMainThread {
+        MainActor.assumeIsolated { self?.update() }
+      } else {
+        DispatchQueue.main.async { self?.update() }
+      }
+    }
     timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.update() }
     }
@@ -39,6 +49,7 @@ import UIKit
       let owner = generation
       wantsPlay = true
       initialPosition = command.number("startPosition", range: 0...2_000_000) ?? 0
+      positionFloor = initialPosition
       startupCover.isHidden = false
       emitEvent("loading")
       loadTask = Task { [weak self] in
@@ -87,6 +98,7 @@ import UIKit
     case "stop": stop()
     case "seek":
       if let at = command.number("position", range: 0...2_000_000) {
+        positionFloor = nil
         seeking = true
         engine.seek(engine.duration > 0 ? min(at, engine.duration) : at)
       }
@@ -146,6 +158,7 @@ import UIKit
     engine.setVolume(volume, muted: muted)
     engine.setRate(rate)
     engine.load(url, start: initialPosition, silent: false)
+    started = true
     #if DEBUG
       Task { [weak self] in
         try? await Task.sleep(for: .seconds(3))
@@ -180,6 +193,8 @@ import UIKit
     }
   }
   func stop() {
+    started = false
+    positionFloor = nil
     generation = UUID()
     loadTask?.cancel()
     loadTask = nil
@@ -210,9 +225,14 @@ import UIKit
     emit(["type": "error", "session": session, "message": message])
   }
   private func update() {
-    guard !session.isEmpty else { return }
+    guard !session.isEmpty, started else { return }
     let size = engine.videoSize
-    let at = engine.position
+    let rawPosition = engine.position
+    // start-time plus precise seeking governs which frames VLC presents. Its
+    // cached input clock can still report an earlier preroll timestamp, notably
+    // when a short input has reached EOF while its decoder drains frames.
+    let at = max(rawPosition, positionFloor ?? 0)
+    if let floor = positionFloor, rawPosition >= floor { positionFloor = nil }
     let duration = engine.duration
     emit([
       "type": "state", "session": session,
@@ -227,8 +247,8 @@ import UIKit
       loaded = true
       emitEvent("loaded")
     }
-    if !ready, !engine.buffering, at >= max(0, initialPosition - 0.25),
-      engine.hasVideo || engine.playing
+    if !ready, !engine.buffering, engine.playing,
+      engine.hasVideo || !engine.hasVideoTrack
     {
       ready = true
       engine.setVolume(volume, muted: muted)

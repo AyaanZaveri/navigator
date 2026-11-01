@@ -13,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic,readonly) BOOL ended;
 @property(nonatomic,readonly) BOOL failed;
 @property(nonatomic,readonly) BOOL hasVideo;
+@property(nonatomic,readonly) BOOL hasVideoTrack;
 @property(nonatomic,readonly) BOOL seekable;
 @property(nonatomic,readonly) CGSize videoSize;
 - (void)loadURL:(NSURL *)url start:(double)seconds silent:(BOOL)silent NS_SWIFT_NAME(load(_:start:silent:));

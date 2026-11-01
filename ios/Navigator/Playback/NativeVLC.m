@@ -4,6 +4,8 @@
 @property(nonatomic,strong) VLCMediaPlayer *player;
 @property(nonatomic,strong) UIView *surface;
 @property(nonatomic,copy,nullable) NSString *snapshotPath;
+@property(nonatomic,copy,nullable) NSString *lastFit;
+@property(nonatomic) NSInteger lastFitWidth,lastFitHeight;
 @end
 @implementation NativeVLC
 - (instancetype)init {
@@ -18,6 +20,7 @@
     return self;
 }
 - (void)loadURL:(NSURL *)url start:(double)seconds silent:(BOOL)silent {
+    self.lastFit=nil;
     [self.player stop];
     VLCMedia *media=[VLCMedia mediaWithURL:url];
     // VLC parses booleans by switch presence, not NSNumber's value. In
@@ -37,6 +40,10 @@
 - (BOOL)ended { return self.player.state==VLCMediaPlayerStateEnded; }
 - (BOOL)failed { return self.player.state==VLCMediaPlayerStateError; }
 - (BOOL)hasVideo { return self.player.hasVideoOut; }
+- (BOOL)hasVideoTrack {
+    for (NSNumber *index in self.player.videoTrackIndexes) if (index.intValue>=0) return YES;
+    return NO;
+}
 - (BOOL)seekable { return self.player.isSeekable; }
 - (CGSize)videoSize { return self.player.videoSize; }
 - (void)setRenderingEnabled:(BOOL)enabled { self.player.drawable=enabled ? self.surface : nil; }
@@ -50,8 +57,10 @@
 - (void)setVolume:(double)volume muted:(BOOL)muted { self.player.audio.volume=(int)(MAX(0,MIN(1,volume))*100);self.player.audio.muted=muted; }
 - (void)setRate:(double)rate { self.player.rate=(float)rate; }
 - (void)setFit:(NSString *)mode width:(NSInteger)width height:(NSInteger)height {
-    self.player.scaleFactor=0;self.player.videoAspectRatio=NULL;self.player.videoCropGeometry=NULL;
     if (width<=0 || height<=0) return;
+    if ([self.lastFit isEqualToString:mode] && self.lastFitWidth==width && self.lastFitHeight==height) return;
+    self.lastFit=mode;self.lastFitWidth=width;self.lastFitHeight=height;
+    self.player.scaleFactor=0;self.player.videoAspectRatio=NULL;self.player.videoCropGeometry=NULL;
     NSString *ratio=[NSString stringWithFormat:@"%ld:%ld",(long)width,(long)height];
     if ([mode isEqualToString:@"crop"]) self.player.videoCropGeometry=(char *)ratio.UTF8String;
     if ([mode isEqualToString:@"stretch"]) self.player.videoAspectRatio=(char *)ratio.UTF8String;
