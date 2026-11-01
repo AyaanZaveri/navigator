@@ -94,7 +94,7 @@ import AVFAudio
     }
     private func send(_ message:[String:Any]){
         guard !closed,web != nil,web.url.map(origin.matches)==true else {return}
-        web.callAsyncJavaScript("window.NavigatorIOS?.receive(message)",arguments:["message":message],in:nil,contentWorld:.page,completionHandler:nil)
+        web.callAsyncJavaScript("window.NavigatorIOS?.receive(message)",arguments:["message":message],in:nil,in:.page,completionHandler:nil)
     }
     private func setVisible(_ value:Bool){
         if value && !visible {previousOrientation=view.window?.windowScene?.interfaceOrientation.isLandscape==true ? .landscape : .portrait}
