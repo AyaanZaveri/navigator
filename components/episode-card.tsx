@@ -32,6 +32,8 @@ export function EpisodeCard({
       episodeTitle: episode.title || `Episode ${episode.episode}`,
       seasonNumber: episode.season,
       episodeNumber: episode.episode,
+      resumePositionTicks: episode.resumePositionTicks,
+      backdropUrl: episode.thumbnail,
     });
     setIsPlayerVisible(true);
   };
@@ -61,6 +63,8 @@ export function EpisodeCard({
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center pointer-events-none rounded-md">
           <div className="invisible group-hover:visible transition-opacity duration-300 pointer-events-auto">
             <button
+              type="button"
+              aria-label={"Play " + (episode.title || "Episode " + episode.episode)}
               onClick={handlePlayClick}
               className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition active:scale-[0.97] hover:cursor-pointer"
             >

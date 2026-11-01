@@ -23,7 +23,7 @@ async function SimilarShows({ showId }: { showId: string }) {
   if (!items.length) return null;
 
   return (
-    <div className="mt-8 px-4 md:px-10">
+    <div className="mt-6 px-4 md:px-10">
       <MediaSection sectionName="More Like This" mediaItems={items} />
     </div>
   );

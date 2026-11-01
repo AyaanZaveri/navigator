@@ -24,7 +24,7 @@ export function ContinueWatchingCard({ item }: ContinueWatchingCardProps) {
       seriesId: item.type === "series" ? item.seriesId || item.id : undefined,
       showName: item.type === "series" ? item.showName || item.name : undefined,
       episodeTitle:
-        item.type === "series" ? item.episodeTitle || item.name : undefined,
+        item.type === "series" ? item.episodeTitle : undefined,
       seasonNumber: item.seasonNumber,
       episodeNumber: item.episodeNumber,
       backdropUrl: item.background || item.poster,

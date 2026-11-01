@@ -12,6 +12,8 @@ import { SearchBar } from "@/components/search-component";
 import { Button } from "@/components/ui/button";
 import { UserMenu, type ThemePreference } from "@/components/arc/user-menu/user-menu";
 import { desktopBridge } from "@/lib/desktop/bridge";
+import styles from "./app-header.module.css";
+import { ProgressiveBlur } from "@/components/motion-primitives/progressive-blur";
 
 const subscribe = () => () => {};
 
@@ -42,6 +44,7 @@ function ProfileMenu({ email }: { email: string }) {
 export function AppHeader({ email, overlay = false }: { email: string; overlay?: boolean }) {
     const { isPlayerVisible } = useMediaPlayer();
     const headerRef = useRef<HTMLElement>(null);
+    const surfaceRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
         const header = headerRef.current;
         const layout = header?.closest<HTMLElement>("[data-app-layout]");
@@ -51,13 +54,42 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(header);
-        return () => observer.disconnect();
+        const scroller = header.parentElement?.querySelector("main");
+        // Fade each layer independently. Opacity on their common parent would
+        // create a backdrop root and prevent the layers sampling page content.
+        const surfaceLayers = surfaceRef.current?.querySelectorAll<HTMLElement>("[data-progressive-blur-layer], [data-header-tint]");
+        let frame = 0;
+        let previousOpacity = -1;
+        const updateSurface = () => {
+            frame = 0;
+            // Smoothstep avoids a sharp onset or stop, even during slow scrolling.
+            const progress = Math.min(1, Math.max(0, (scroller?.scrollTop ?? 0) / 192));
+            const opacity = progress * progress * (3 - 2 * progress);
+            if (opacity !== previousOpacity) {
+                surfaceLayers?.forEach(layer => { layer.style.opacity = String(opacity); });
+                previousOpacity = opacity;
+            }
+        };
+        const onScroll = () => {
+            if (!frame) frame = requestAnimationFrame(updateSurface);
+        };
+        updateSurface();
+        scroller?.addEventListener("scroll", onScroll, { passive: true });
+        return () => {
+            observer.disconnect();
+            scroller?.removeEventListener("scroll", onScroll);
+            cancelAnimationFrame(frame);
+        };
     }, [isPlayerVisible]);
     if (isPlayerVisible) return null;
 
     return (
         <header ref={headerRef} data-window-drag-region="" className="relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pt-[env(safe-area-inset-top)] pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right))]">
-            <nav aria-label="Main navigation" className="flex min-w-0 items-center gap-3 py-5">
+            <div ref={surfaceRef} className={styles.surface} aria-hidden="true">
+                <ProgressiveBlur direction="top" blurLayers={6} blurIntensity={2.4} className={styles.blur} />
+                <div data-header-tint="" className={styles.tint} />
+            </div>
+            <nav aria-label="Main navigation" className={`${styles.navigation} flex min-w-0 items-center gap-3`}>
                 <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 transition-[filter,scale] hover:bg-transparent hover:brightness-90 dark:hover:bg-transparent">
                     <Link href="/" aria-label="Navigator home" draggable={false}>
                         <AdaptiveHeaderLogo adaptive={overlay} />

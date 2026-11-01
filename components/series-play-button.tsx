@@ -61,7 +61,7 @@ export function SeriesPlayButton({ series }: SeriesPlayButtonProps) {
     return (
       <Button variant="default" disabled size="lg">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading...
+        Finding an episode…
       </Button>
     );
   }

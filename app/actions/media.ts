@@ -357,7 +357,7 @@ export async function fetchStreamsFromAddon(
     const data = await fetchAddonResource<StremioStreamResponse>(
       addonTransportUrl,
       `stream/${type}/${mediaItemId}.json`,
-      { headers: streamRequestHeaders, cache: "no-store" }
+      { headers: streamRequestHeaders, cache: "no-store", signal: AbortSignal.timeout(30_000) }
     );
 
     if (!data?.streams?.length) {

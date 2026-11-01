@@ -22,6 +22,7 @@ async function run() {
     const passthrough = ({ children }) => React.createElement('div', null, children);
     function load(file) {
         const context = { exports: {}, URL, URLSearchParams, require(name) {
+            if (name.endsWith('.module.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
             if (name === 'next/link') return ({ children, prefetch, scroll, ...props }) => React.createElement('a', props, children);
             if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({}) };
             if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: image, background: image }), episodeThumbnailUrl: value => value };

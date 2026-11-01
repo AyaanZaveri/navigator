@@ -13,6 +13,8 @@ on:
       - "lib/atoms.ts"
       - "app/globals.css"
       - "components/media-card.tsx"
+      - "components/media-card.module.css"
+      - "scripts/test-card-hover.cjs"
       - "components/media-section.tsx"
       - "app/(main)/page.tsx"
       - "app/actions/media.ts"

@@ -4,7 +4,56 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CarouselAction } from "@/components/carousel-action";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CastMember } from "@/lib/cast";
+
+function CastRole({ role, name }: { role: string; name: string }) {
+    const textRef = useRef<HTMLSpanElement>(null);
+    const [truncated, setTruncated] = useState(false);
+    const [open, setOpen] = useState(false);
+    const openOnPress = useRef(false);
+
+    useEffect(() => {
+        const text = textRef.current;
+        if (!text) return;
+        const measure = () => setTruncated(text.scrollHeight > text.clientHeight + 1);
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(text);
+        return () => observer.disconnect();
+    }, [role, truncated]);
+
+    const text = <span ref={textRef} className="line-clamp-2 break-words">{role}</span>;
+    const className = "mt-1 block w-full text-center text-[13px] leading-snug text-muted-foreground";
+    if (!truncated) return <p className={className}>{text}</p>;
+
+    return (
+        <Tooltip open={open} onOpenChange={setOpen} delayDuration={300}>
+            <TooltipTrigger asChild>
+                <button
+                    type="button"
+                    className={`${className} cursor-help rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                    aria-label={`Show full role for ${name}`}
+                    onPointerDown={() => { openOnPress.current = open; }}
+                    onClick={event => {
+                        // Radix normally closes tooltips on click; keep tapping
+                        // usable as the equivalent of hover on touch screens.
+                        event.preventDefault();
+                        if (event.detail === 0) setOpen(current => !current);
+                        else setOpen(!openOnPress.current);
+                    }}
+                >
+                    {text}
+                </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={2} collisionPadding={16} className="max-w-[min(20rem,calc(100vw-2rem))] break-words text-start leading-relaxed">
+                <div className="max-h-[min(20rem,60dvh)] overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {role}
+                </div>
+            </TooltipContent>
+        </Tooltip>
+    );
+}
 
 export function CastScrollArea({ cast }: { cast: CastMember[] }) {
     const headingId = useId();
@@ -35,7 +84,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
     if (!cast.length) return null;
 
     return (
-        <section aria-labelledby={headingId} className="relative z-10 mb-8">
+        <section aria-labelledby={headingId} className="relative z-10">
             <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 id={headingId} className="font-poppins text-xl font-semibold text-foreground sm:text-2xl">Cast</h2>
                 <div className="flex shrink-0 items-center gap-2">
@@ -58,7 +107,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
                                 </AvatarFallback>
                             </Avatar>
                             <p className="mt-3 break-words text-sm font-semibold leading-snug text-foreground">{member.name}</p>
-                            {member.role && <p className="mt-1 break-words text-[13px] leading-snug text-muted-foreground">{member.role}</p>}
+                            {member.role && <CastRole role={member.role} name={member.name} />}
                         </li>
                     ))}
                 </ul>

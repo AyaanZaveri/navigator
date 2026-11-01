@@ -133,6 +133,22 @@ async function run() {
   const absent = await missing.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo'));
   assert.equal(absent.status, 404);
   assert.equal(absent.headers.get('cache-control'), 'no-store', 'Temporary missing artwork must not stick in the browser cache');
+  const sampled = load('app/api/artwork/route.ts', {
+    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w1280/backdrop.jpg' },
+    fetch: async () => new Response('fixture-jpeg', { headers: { 'Content-Type': 'image/jpeg' } }),
+    AbortSignal,
+  });
+  const sample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1'));
+  assert.equal(sample.status, 200, 'Logo sampling needs same-origin bytes, not a cross-origin redirect');
+  assert.equal(sample.headers.get('location'), null);
+  assert.equal(sample.headers.get('content-type'), 'image/jpeg');
+  assert.equal(sample.headers.get('vary'), 'Cookie');
+  assert.equal(await sample.text(), 'fixture-jpeg');
+  const brokenSample = load('app/api/artwork/route.ts', {
+    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w1280/backdrop.jpg' },
+    fetch: async () => new Response('unavailable', { status: 503 }), AbortSignal,
+  });
+  assert.equal((await brokenSample.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1'))).status, 502);
   const React = require('react');
   const { renderToStaticMarkup } = require('react-dom/server');
   const { EpisodeHeroThumbnail } = load('components/episode-hero-thumbnail.tsx', {

@@ -1,11 +1,12 @@
 .root {
+  --stream-card-surface: color-mix(in oklab, var(--card) 50%, transparent);
+  --stream-results-gap: 0.5rem;
   container-type: inline-size;
   display: flex;
   min-width: 0;
   width: 100%;
   flex-direction: column;
-  gap: var(--space-3);
-  margin-block-end: var(--space-6);
+  gap: 0;
 }
 
 .toolbar {
@@ -16,11 +17,22 @@
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.controls {
+  display: flex;
+  flex: 1 1 40rem;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .search {
+  --search-field-surface: var(--stream-card-surface);
   flex: 1 1 28rem;
   max-width: 40rem;
   width: 100%;
@@ -39,18 +51,19 @@
 
 /* Match the search and select's control row, even when chips wrap. */
 .chips {
+  --chip-selected-surface: color-mix(in oklab, var(--primary) 78%, black);
+  --chip-selected-border: var(--chip-selected-surface);
+  --chip-selected-foreground: #fff;
   min-height: var(--control-height-md);
   align-items: center;
   align-content: center;
 }
 
 .feedback {
-  flex-basis: 100%;
-  display: flex;
+  flex: 0 1 auto;
   min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
+  margin-inline-start: auto;
+  text-align: end;
 }
 
 .loading {
@@ -59,7 +72,8 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--muted-foreground);
-  font-size: var(--text-xs);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .results,
@@ -71,25 +85,87 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding-block: var(--stream-results-gap);
+}
+
+.streamRow,
+.streamSkeleton {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.125rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-radius: 0.75rem;
+  background: var(--stream-card-surface);
+  color: var(--foreground);
+  text-align: start;
 }
 
 .streamRow {
-  display: grid;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-instant) var(--ease-out);
+}
+
+.streamRow:focus-visible {
+  outline: 2px solid var(--muted-foreground);
+  outline-offset: 2px;
+}
+
+.streamRow:enabled:active {
+  background: color-mix(in oklab, var(--muted) 35%, var(--card));
+}
+
+.streamRow:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.streamName,
+.streamTitle,
+.streamFile {
+  display: block;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
 }
 
-.playAction {
-  display: flex;
-  flex-shrink: 0;
-  justify-self: end;
+.streamName {
+  font-size: 0.9375rem;
+  font-weight: 500;
 }
 
-@container (min-width: 24rem) {
+.streamTitle {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.streamFile {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .streamRow:enabled:hover {
+    background: color-mix(in oklab, var(--muted) 35%, var(--card));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
   .streamRow {
-    grid-template-columns: minmax(0, 1fr) auto;
+    transition:
+      background-color var(--duration-instant) var(--ease-out),
+      transform var(--duration-instant) var(--ease-out);
+  }
+
+  .streamRow:enabled:active {
+    transform: scale(0.998);
   }
 }
 
@@ -97,4 +173,55 @@
   .search {
     flex-basis: 100%;
   }
+}
+
+.streamMetadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.streamStars {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* Add to the row's 2px gap: 4px above ratings, 6px below them. */
+.streamMetadata + .streamStars {
+  margin-block-start: 0.125rem;
+}
+
+.streamStars + :is(.streamTitle, .streamFile) {
+  margin-block-start: 0.25rem;
+}
+
+.streamIcon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  stroke-width: 1.75;
+}
+
+.streamLightning {
+  color: var(--color-amber-400);
+  fill: currentColor;
+}
+
+.emptyState {
+  margin-block-start: var(--stream-results-gap);
+  padding-block: 2.5rem;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-radius: 0.75rem;
+  background: var(--stream-card-surface);
+}
+
+.streamSize {
+  white-space: nowrap;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }

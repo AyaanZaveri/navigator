@@ -17,7 +17,7 @@ import { Suspense } from "react";
 
 function SimilarMoviesSkeleton() {
   return (
-    <div className="mt-8 px-4 md:px-10">
+    <div className="mt-6 px-4 md:px-10">
       <div className="mb-6 flex items-center justify-between">
         <Skeleton className="h-8 w-40 rounded" />
         <div className="flex gap-2">
@@ -47,7 +47,7 @@ async function SimilarMovies({ movieId }: { movieId: string }) {
   if (!similarItems || similarItems.length === 0) return null;
 
   return (
-    <div className="mt-8 px-4 md:px-10">
+    <div className="mt-6 px-4 md:px-10">
       <MediaSection sectionName="More Like This" mediaItems={similarItems} />
     </div>
   );

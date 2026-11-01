@@ -25,6 +25,8 @@ import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import { buildEpisodePath } from "@/lib/series-route";
 import { episodeThumbnailUrl } from "@/lib/artwork";
 import type { StremioVideo } from "@/types/stremio";
+import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import cardStyles from "./media-card.module.css";
 
 interface SeasonEpisodesProps {
   showId: string;
@@ -524,6 +526,23 @@ const EpisodeCard = React.memo(function EpisodeCard({
   showId: string;
   isActive?: boolean;
 }) {
+  const { playMedia } = useMediaPlayer();
+  const handlePlay = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void playMedia({
+      id: showId,
+      name: episode.title || "Episode " + episode.episode,
+      type: "series",
+      seriesId: showId,
+      mediaSourceId: episode.id,
+      episodeTitle: episode.title || "Episode " + episode.episode,
+      seasonNumber: episode.season,
+      episodeNumber: episode.episode,
+      resumePositionTicks: episode.resumePositionTicks,
+      backdropUrl: episode.thumbnail,
+    });
+  };
   const thumbnail = episodeThumbnailUrl(episode.thumbnail, showId, episode.season, episode.episode);
   const [imageFailure, setImageFailure] = useState<{ source?: string; attempts: number } | null>(null);
   const failedAttempts = imageFailure && imageFailure.source === thumbnail ? imageFailure.attempts : 0;
@@ -551,7 +570,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
 
   return (
     <div
-      className="shrink-0 w-72 group"
+      className={cardStyles.card + " relative shrink-0 w-72 group"}
       data-episode-id={episode.id}
       data-episode-key={`${episode.season}:${episode.episode}`}
     >
@@ -585,16 +604,6 @@ const EpisodeCard = React.memo(function EpisodeCard({
               </div>
             )}
 
-            {/* Play button overlay */}
-            {!isUpcoming && (
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
-                <div className="invisible group-hover:visible transition-opacity duration-300">
-                  <div className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition-colors">
-                    <Play className="h-6 w-6 text-white fill-white" />
-                  </div>
-                </div>
-              </div>
-            )}
 
             {typeof episode.progressPercent === "number" &&
             episode.progressPercent > 0 ? (
@@ -632,6 +641,18 @@ const EpisodeCard = React.memo(function EpisodeCard({
           </div>
         </div>
       </Link>
+      {!isUpcoming && (
+        <div className={cardStyles.playOverlay + " absolute inset-x-0 top-2 aspect-video flex items-center justify-center rounded-lg"}>
+          <button
+            type="button"
+            aria-label={"Play " + (episode.title || "Episode " + episode.episode)}
+            onClick={handlePlay}
+            className={cardStyles.playButton + " relative rounded-full p-3 backdrop-blur-md"}
+          >
+            <Play aria-hidden="true" className="h-6 w-6 text-white fill-white" />
+          </button>
+        </div>
+      )}
     </div>
   );
 });

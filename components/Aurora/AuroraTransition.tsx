@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Renderer, Program, Mesh, Color, Triangle } from "ogl";
 
 const VERT = `#version 300 es
@@ -146,21 +146,30 @@ export default function AuroraTransition(props: AuroraTransitionProps) {
   propsRef.current = props;
 
   const ctnDom = useRef<HTMLDivElement>(null);
+  const [contextVersion, setContextVersion] = useState(0);
 
   useEffect(() => {
     const ctn = ctnDom.current;
     if (!ctn) return;
 
-    const renderer = new Renderer({
-      alpha: true,
-      premultipliedAlpha: true,
-      antialias: true,
-    });
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: true,
+      });
+    } catch {
+      // The CSS glow remains available when WebGL cannot initialize.
+      return;
+    }
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.canvas.style.backgroundColor = "transparent";
+    gl.canvas.style.position = "absolute";
+    gl.canvas.style.inset = "0";
 
     let program: Program | undefined;
 
@@ -174,6 +183,8 @@ export default function AuroraTransition(props: AuroraTransitionProps) {
       }
     }
     window.addEventListener("resize", resize);
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(ctn);
 
     const geometry = new Triangle(gl);
     if (geometry.attributes.uv) {
@@ -208,6 +219,13 @@ export default function AuroraTransition(props: AuroraTransitionProps) {
     ctn.appendChild(gl.canvas);
 
     let animateId = 0;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      cancelAnimationFrame(animateId);
+    };
+    const onContextRestored = () => setContextVersion(version => version + 1);
+    gl.canvas.addEventListener("webglcontextlost", onContextLost);
+    gl.canvas.addEventListener("webglcontextrestored", onContextRestored);
     const update = (t: number) => {
       animateId = requestAnimationFrame(update);
       const { time = t * 0.01, speed = 1.0 } = propsRef.current;
@@ -240,12 +258,28 @@ export default function AuroraTransition(props: AuroraTransitionProps) {
     return () => {
       cancelAnimationFrame(animateId);
       window.removeEventListener("resize", resize);
+      resizeObserver.disconnect();
+      gl.canvas.removeEventListener("webglcontextlost", onContextLost);
+      gl.canvas.removeEventListener("webglcontextrestored", onContextRestored);
       if (ctn && gl.canvas.parentNode === ctn) {
         ctn.removeChild(gl.canvas);
       }
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [amplitude]);
+  }, [amplitude, contextVersion]);
 
-  return <div ref={ctnDom} className="w-full h-full" />;
+  return (
+    <div ref={ctnDom} className="relative w-full h-full">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse at 10% 35%, " + colorStopsTo[0] + ", transparent 65%), " +
+            "radial-gradient(ellipse at 90% 55%, " + colorStopsTo[1] + ", transparent 65%), " +
+            "radial-gradient(ellipse at 50% 0%, " + colorStopsTo[2] + ", transparent 60%)",
+        }}
+      />
+    </div>
+  );
 }

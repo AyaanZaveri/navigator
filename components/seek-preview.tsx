@@ -2,6 +2,7 @@
 
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import MuxVideo from "@mux/mux-video-react";
+import { PreviewImage } from "@/components/preview-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { BrowserPreviewFrames, PreviewCache, PreviewScheduler, previewBucket, type PreviewMedia } from "@/lib/media/preview-frames";
@@ -20,7 +21,12 @@ export function SeekPreview({ media, time, duration, active }: Props) {
 function PreviewSource({ media, source, time, duration, active }: Props & { source: string }) {
     const native = (media as unknown as MpvElementHandle | null)?.controller;
     const [fallback, setFallback] = useState(false);
+    const [videoRatio, setVideoRatio] = useState(16 / 9);
     const videoNode = useRef<PreviewMedia | null>(null);
+    const updateVideoRatio = () => {
+        const video = videoNode.current;
+        if (video?.videoWidth && video.videoHeight) setVideoRatio(video.videoWidth / video.videoHeight);
+    };
     const [videoAttached, setVideoAttached] = useState(false);
     const videoRef = useCallback((node: unknown) => { videoNode.current = node as PreviewMedia | null; setVideoAttached(!!node); }, []);
     const [frame, setFrame] = useState<Frame>(empty);
@@ -109,10 +115,11 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
     const ready = !!frame.src || (frame.video && frame.time === bucket);
     const unavailable = frame.time === bucket && frame.unavailable;
     return (
-        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && (!ready || frame.time !== bucket) && !unavailable} className="relative h-32 w-56 overflow-hidden rounded-lg bg-black">
+        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={androidNative ? "android" : undefined} aria-busy={active && (!ready || frame.time !== bucket) && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={frame.src ? undefined : { aspectRatio: videoRatio }}>
             {browserMode && source && (muxPreview ? (
                 <MuxVideo
                     ref={videoRef}
+                    onLoadedMetadata={updateVideoRatio}
                     src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback disableTracking
                     aria-hidden="true" tabIndex={-1}
                     className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
@@ -120,12 +127,13 @@ function PreviewSource({ media, source, time, duration, active }: Props & { sour
             ) : (
                 <video
                     ref={videoRef}
+                    onLoadedMetadata={updateVideoRatio}
                     src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback
                     aria-hidden="true" tabIndex={-1}
                     className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
                 />
             ))}
-            {frame.src && <img src={frame.src} alt="" className="absolute inset-0 size-full object-contain" draggable={false} />}
+            {frame.src && <PreviewImage src={frame.src} />}
             {!ready && !unavailable && <Skeleton className="absolute inset-0 size-full rounded-none bg-white/10" />}
             {unavailable && <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60">Preview unavailable</div>}
         </div>

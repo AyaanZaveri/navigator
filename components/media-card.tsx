@@ -7,6 +7,7 @@ import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { buildEpisodePath } from "@/lib/series-route";
+import styles from "./media-card.module.css";
 
 export function MediaCard({
   item,
@@ -41,6 +42,7 @@ export function MediaCard({
   const imageUrl = continueWatching ? artwork.background : artwork.poster;
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
+  const [pressed, setPressed] = useState(false);
   const subtitle = continueWatching
     ? item.progressLabel ||
       (item.type === "movie"
@@ -67,7 +69,7 @@ export function MediaCard({
         seriesId: item.type === "series" ? item.seriesId || item.id : undefined,
         showName: item.type === "series" ? item.showName || item.name : undefined,
         episodeTitle:
-          item.type === "series" ? item.episodeTitle || item.name : undefined,
+          item.type === "series" ? item.episodeTitle : undefined,
         seasonNumber: item.seasonNumber,
         episodeNumber: item.episodeNumber,
         backdropUrl: artwork.background || artwork.poster,
@@ -80,14 +82,22 @@ export function MediaCard({
 
   return (
     <div
-      className={`cursor-pointer group overflow-hidden transition select-none ${
+      data-continue-watching={continueWatching || undefined}
+      className={`${styles.card} cursor-pointer select-none ${
         continueWatching ? "w-80" : fullWidth ? "w-full" : "w-36"
       }`}
     >
       <div
-        className={`relative w-full border rounded-md overflow-hidden active:scale-[0.98] transition ${
+        className={`${styles.frame} relative w-full border overflow-hidden ${
           continueWatching ? "aspect-video" : "aspect-[2/3]"
         }`}
+        data-pressed={pressed || undefined}
+        onPointerDown={(event) => {
+          if (event.button === 0) setPressed(true);
+        }}
+        onPointerUp={() => setPressed(false)}
+        onPointerLeave={() => setPressed(false)}
+        onPointerCancel={() => setPressed(false)}
       >
         {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
         <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
@@ -97,36 +107,32 @@ export function MediaCard({
               loading="lazy"
               onError={() => setFailedImage(imageUrl)}
               alt={item.name || ""}
-              className="w-full h-full object-cover shadow-lg shadow-sm group-hover:shadow-md rounded-md"
+              className={`${styles.artwork} block w-full h-full object-cover`}
               draggable={false}
             />
           ) : (
-            <div className="w-full h-full bg-gray-800 flex items-center justify-center rounded-lg shadow-lg">
+            <div className="w-full h-full bg-gray-800 flex items-center justify-center">
               <div className="text-white/60 text-sm">No Image</div>
             </div>
           )}
         </Link>
 
-        {continueWatching ? (
-          <div className="absolute inset-0 z-10 bg-black/35 pointer-events-none" />
-        ) : null}
-
         {/* Play button overlay */}
-        <div className="absolute inset-0 z-30 bg-black/0 group-hover:bg-black/25 transition-all duration-300 flex items-center justify-center pointer-events-none rounded-md">
-          <div className="invisible group-hover:visible transition-opacity duration-300 pointer-events-auto">
-            <button
-              onClick={handlePlayClick}
-              className="relative z-40 bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition active:scale-[0.97] hover:cursor-pointer"
-            >
-              <Play className="h-6 w-6 text-white fill-white" />
-            </button>
-          </div>
+        <div className={`${styles.playOverlay} absolute inset-0 z-30 flex items-center justify-center`}>
+          <button
+            type="button"
+            aria-label={`Play ${item.episodeTitle || item.name}`}
+            onClick={handlePlayClick}
+            className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
+          >
+            <Play className="h-6 w-6 text-white fill-white" />
+          </button>
         </div>
 
         {continueWatching && typeof item.progressPercent === "number" ? (
           <div className="absolute inset-x-2 bottom-2 z-20 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
             <div
-              className="h-full rounded-full bg-white/80 transition-all"
+              className="h-full rounded-full bg-white/80"
               style={{ width: `${item.progressPercent}%` }}
             />
           </div>
@@ -146,7 +152,7 @@ export function MediaCard({
       </div>
       <Link href={linkHref} prefetch={true} draggable={false}>
         <div className="px-1">
-          <div className="mt-2.5 text-sm font-medium text-foreground truncate group-hover:underline">
+          <div className="mt-2.5 text-sm font-medium text-foreground truncate">
             {item.name}
           </div>
           <div className={`text-xs text-muted-foreground mt-0.5 ${continueWatching ? "min-h-4" : ""}`}>

@@ -1,0 +1,54 @@
+.navigation {
+    padding-block: 1.25rem;
+}
+
+.surface {
+    position: absolute;
+    inset: 0 0 -24px;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.blur,
+.tint {
+    position: absolute;
+    inset: 0;
+}
+
+.blur > div,
+.tint {
+    opacity: 0;
+    transition: opacity 180ms linear;
+}
+
+/* The shared blur's masks soften the entire height, rather than applying
+   a uniform blur with a short cutoff below the search field. */
+.tint {
+    background: linear-gradient(to bottom,
+        color-mix(in oklab, var(--background) 12%, transparent),
+        color-mix(in oklab, var(--background) 6%, transparent) 50%,
+        transparent 100%);
+}
+
+@media (width < 48rem) {
+    :global(html[data-native-engine="exoplayer"]) .navigation {
+        padding-block: .5rem;
+    }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .tint {
+        background: linear-gradient(to bottom,
+            color-mix(in oklab, var(--background) 50%, transparent), transparent);
+    }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .blur { display: none; }
+    .tint { background: var(--background); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .blur > div,
+    .tint { transition: none; }
+}

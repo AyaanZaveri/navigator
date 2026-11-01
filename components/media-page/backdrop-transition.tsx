@@ -7,7 +7,7 @@ export function BackdropTransition() {
     return (
         <div aria-hidden="true" className={styles.transition}>
             <ProgressiveBlur direction="bottom" blurLayers={4} blurIntensity={4} className={styles.blur} />
-            <div className={styles.fade} />
+            <div data-header-backdrop-fade="" className={styles.fade} />
         </div>
     );
 }

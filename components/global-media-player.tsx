@@ -24,6 +24,12 @@ import {
   MediaPlayerTooltip,
 } from "@/components/ui/media-player";
 import MuxVideo from "@mux/mux-video-react";
+import { getWebPlaybackElement } from "@/lib/media/playback-source";
+import { getPlaybackTitles } from "@/lib/media/playback-titles";
+import { fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
+import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
+import type { MediaToPlay } from "@/lib/atoms";
+import { getNextEpisodeForSeries, fetchEpisodeDetails } from "@/app/actions/tv-shows";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
 import { DesktopTracks } from "@/components/desktop/tracks";
@@ -32,7 +38,6 @@ import { ArrowLeft, RotateCcw, RotateCw, Users, Ship } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   fetchMediaDetails,
-  fetchStreams,
   reportPlaybackStart,
   reportPlaybackProgress,
   reportPlaybackStopped,
@@ -56,12 +61,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const {
     isPlayerVisible,
     setIsPlayerVisible,
-    currentMedia,
+    currentMedia: playbackRequest,
     skipTimestamp,
     setCurrentMediaWithSource,
     setCurrentTimestamp,
   } = useMediaPlayer();
   const { videoBitrate } = useSettings();
+  const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
+  const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
+    ? preparedPlayback.media : playbackRequest;
+  const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
   const [nativePlayback, setNativePlayback] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -127,12 +136,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     };
   }, [nativePlayback, isPlayerVisible, streamUrl, playerAttempt]);
 
-  const playbackKey = currentMedia
+  const playbackKey = playbackRequest
     ? [
-        currentMedia.type,
-        currentMedia.seriesId || currentMedia.id,
-        currentMedia.mediaSourceId || currentMedia.id,
-        currentMedia.streamUrl || "",
+        playbackRequest.type,
+        playbackRequest.seriesId || playbackRequest.id,
+        playbackRequest.mediaSourceId || playbackRequest.id,
+        playbackRequest.streamUrl || "",
         videoBitrate,
       ].join("::")
     : null;
@@ -431,101 +440,94 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     [subtitleData, processSubtitleText]
   );
 
-  const loadMedia = useCallback(async (media: NonNullable<typeof currentMedia>) => {
+  const loadMedia = useCallback(async (request: MediaToPlay) => {
     const generation = ++loadGenerationRef.current;
+    const isCurrent = () => generation === loadGenerationRef.current;
     setLoading(true);
     setPlaybackError(null);
     setStreamUrl(null);
-    setRequestHeaders(media.requestHeaders ?? {});
-    try {
-      const metadataId = media.seriesId || media.id;
-      const streamSourceId = media.mediaSourceId || media.id;
-      let subtitleFilename = media.subtitleFilename;
-      let subtitleVideoSize = media.subtitleVideoSize;
+    setMediaDetails(null);
+    setSubtitleTracks([]);
+    setSubtitleData([]);
+    setCurrentSubtitle(null);
+    setPlaybackPhase(request.streamUrl ? "loading-stream" : "fetching-streams");
 
-      // Fetch media details
-      const details = await fetchMediaDetails(metadataId, media.type);
-      if (generation !== loadGenerationRef.current) return;
-      setMediaDetails(details || null);
-
-      // If a direct stream URL was passed (e.g., from MediaActions), use it
-      if (media.streamUrl) {
-        setStreamUrl(media.streamUrl);
-      } else {
-        // Fetch available streams and use the first one
-        const streams = await fetchStreams(
-          streamSourceId,
-          media.type
-        );
-        if (generation !== loadGenerationRef.current) return;
-
-        if (streams.length > 0) {
-          const stream = streams[0];
-          setRequestHeaders(stream.behaviorHints?.proxyHeaders?.request ?? {});
-          const url = stream.url || stream.externalUrl || null;
-          setStreamUrl(url);
-          subtitleFilename = subtitleFilename || stream.behaviorHints?.filename;
-          subtitleVideoSize =
-            subtitleVideoSize || stream.behaviorHints?.videoSize;
-        } else {
-          setPlaybackError("No playable streams were returned for this title.");
-        }
-      }
-
-      // Update media context
-      setCurrentMediaWithSource({
-        id: metadataId,
-        name: media.name,
-        type: media.type,
-        streamUrl: media.streamUrl,
-        mediaSourceId: streamSourceId,
-        seriesId: media.seriesId,
-        showName: media.showName,
-        episodeTitle: media.episodeTitle,
-        seasonNumber: media.seasonNumber,
-        episodeNumber: media.episodeNumber,
-        backdropUrl:
-          media.backdropUrl ||
-          details?.background ||
-          details?.poster,
-        subtitleFilename,
-        subtitleVideoSize,
+    let activeMedia = request;
+    let latestDetails: MediaItem | null = null;
+    let sourceReady = false;
+    const publishTitle = () => {
+      const titles = getPlaybackTitles(activeMedia, latestDetails);
+      const title = titles.episode?.title || titles.episode?.name;
+      if (titles.isEpisode && title) activeMedia = {
+        ...activeMedia, name: title, episodeTitle: title,
+        showName: activeMedia.showName || latestDetails?.name,
+      };
+      setPreparedPlayback({ request, media: activeMedia });
+      if (sourceReady) setCurrentMediaWithSource({
+        ...activeMedia,
+        id: activeMedia.seriesId || activeMedia.id,
+        mediaSourceId: activeMedia.mediaSourceId || activeMedia.id,
       });
+    };
 
-      // Fetch subtitle tracks
-      try {
-        const tracks = await getSubtitleTracks(
-          streamSourceId,
-          media.type,
-          {
-            filename: subtitleFilename,
-            videoSize: subtitleVideoSize,
-          }
-        );
-        if (generation !== loadGenerationRef.current) return;
-        const tracksWithActiveState = tracks.map((track) => ({
-          ...track,
-          active: false,
-        }));
-        setSubtitleTracks(tracksWithActiveState);
-      } catch {
-        if (generation !== loadGenerationRef.current) return;
-        setSubtitleTracks([]);
-      }
+    // This action runs alongside stream HTTP requests, rather than behind them.
+    void fetchMediaDetails(request.seriesId || request.id, request.type).then(async details => {
+      if (!isCurrent()) return;
+      latestDetails = details || null;
+      setMediaDetails(latestDetails);
+      publishTitle();
+      const titles = getPlaybackTitles(activeMedia, latestDetails);
+      const missingTitle = !activeMedia.episodeTitle || activeMedia.episodeTitle === titles.showTitle;
+      if (!titles.isEpisode || titles.episode || !missingTitle
+        || titles.season === undefined || titles.episodeNumber === undefined) return;
+      const episode = await fetchEpisodeDetails(request.seriesId || request.id, titles.season, titles.episodeNumber);
+      if (!isCurrent() || !episode) return;
+      activeMedia = {
+        ...activeMedia, name: episode.title, episodeTitle: episode.title,
+        showName: activeMedia.showName || latestDetails?.name,
+      };
+      publishTitle();
+    }).catch(() => {});
 
-      setSubtitleData([]);
-      setCurrentSubtitle(null);
+    try {
+      const media = await resolvePlayback(request, {
+        fetchStreams: fetchPlaybackStreams, getNextEpisodeForSeries,
+      }, phase => {
+        if (isCurrent()) setPlaybackPhase(phase);
+      }, target => {
+        if (!isCurrent()) return;
+        activeMedia = target;
+        publishTitle();
+      });
+      if (!isCurrent()) return;
+      // Keep an episode title that arrived while the source request was pending.
+      const earlyTitle = activeMedia.episodeTitle;
+      activeMedia = { ...media, episodeTitle: earlyTitle || media.episodeTitle };
+      sourceReady = true;
+      publishTitle();
+      setRequestHeaders(media.requestHeaders ?? {});
+      setStreamUrl(media.streamUrl || null);
+      setLoading(false);
+      const streamSourceId = media.mediaSourceId || media.id;
+
+      // Subtitles load independently; the player can start as soon as its source is ready.
+      void getSubtitleTracks(streamSourceId, media.type, {
+        filename: media.subtitleFilename, videoSize: media.subtitleVideoSize,
+      }).then(tracks => {
+        if (isCurrent()) setSubtitleTracks(tracks.map(track => ({ ...track, active: false })));
+      }).catch(() => {
+        if (isCurrent()) setSubtitleTracks([]);
+      });
     } catch (error) {
-      if (generation !== loadGenerationRef.current) return;
-      console.error("Failed to load media:", error);
-      setPlaybackError("Could not load this title. Try again.");
+      if (!isCurrent()) return;
+      setPlaybackError(error instanceof Error ? error.message : "Could not load this stream. Try again.");
     } finally {
-      if (generation === loadGenerationRef.current) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [setCurrentMediaWithSource]);
 
   useEffect(() => {
-    if (!currentMedia || !isPlayerVisible || !playbackKey) return;
+    if (!playbackRequest || !isPlayerVisible || !playbackKey) return;
     if (lastLoadedPlaybackKeyRef.current === playbackKey) return;
 
     lastLoadedPlaybackKeyRef.current = playbackKey;
@@ -533,8 +535,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     playbackStoppedReportedRef.current = false;
     lastProgressReportAtRef.current = 0;
     setVideoReady(false);
-    void loadMedia(currentMedia);
-  }, [currentMedia, isPlayerVisible, playbackKey, loadMedia]);
+    void loadMedia(playbackRequest);
+  }, [playbackRequest, isPlayerVisible, playbackKey, loadMedia]);
 
   // Update current subtitle
   useEffect(() => {
@@ -562,21 +564,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   if (!isPlayerVisible || !currentMedia) return null;
 
-  const isEpisodePlayback =
-    currentMedia.type === "series" &&
-    ((typeof currentMedia.seasonNumber === "number" &&
-      typeof currentMedia.episodeNumber === "number") ||
-      !!currentMedia.mediaSourceId);
-  const episodeTitle = currentMedia.episodeTitle || currentMedia.name;
-  const showTitle = currentMedia.showName || mediaDetails?.name;
-  const primaryTitle = isEpisodePlayback
-    ? episodeTitle
-    : mediaDetails?.name || currentMedia.name;
+  const { isEpisode: isEpisodePlayback, showTitle, primaryTitle } = getPlaybackTitles(currentMedia, mediaDetails);
   const fallbackBackdrop =
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
   const loadingLogo = mediaDetails?.logo;
 
-  const Video = nativePlayback ? MpvVideo : MuxVideo;
+  const Video = nativePlayback
+    ? MpvVideo
+    : getWebPlaybackElement(streamUrl) === "mux"
+      ? MuxVideo
+      : "video";
   return (
     <div data-native-player-shell={nativePlayback ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
@@ -664,16 +661,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {/* Loading overlay */}
         {(loading || !streamUrl || !videoReady || playbackError) && (
           <div className="fixed inset-0 bg-black z-40">
-            <Button
-              data-player-close=""
-              aria-label="Back to browsing"
-              variant="ghost"
-              className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
-              onClick={() => handleClose()}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
+
 
             {fallbackBackdrop ? (
               <div className="relative w-full h-full">
@@ -690,6 +678,17 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             ) : (
               <div className="w-full h-full bg-black" />
             )}
+
+            <Button
+              data-player-close=""
+              aria-label="Back to browsing"
+              variant="ghost"
+              className="fixed left-4 top-4 z-10 backdrop-blur-xl"
+              onClick={() => handleClose()}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
 
             {loadingLogo && (
               <motion.div
@@ -711,14 +710,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
             {/* Title and loading spinner */}
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
               data-player-loading-copy=""
               className="absolute bottom-8 left-8 right-8"
             >
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
+                initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2, duration: 0.5 }}
                 className="flex flex-col w-full gap-1.5 pb-2"
@@ -728,7 +727,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     data-player-title=""
                     title={primaryTitle}
                     className="text-3xl font-semibold text-white truncate font-poppins"
-                    initial={{ opacity: 0 }}
+                    initial={false}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
                   >
@@ -740,7 +739,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                   <motion.p
                     data-player-loading-series=""
                     className="text-sm text-white/75 truncate"
-                    initial={{ opacity: 0 }}
+                    initial={false}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
                   >
@@ -750,7 +749,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
                 <motion.div
                   className="flex items-center gap-3 text-sm text-white/60"
-                  initial={{ opacity: 0 }}
+                  initial={false}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.6 }}
                 >
@@ -765,9 +764,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
                 <motion.div
                   className="flex items-center gap-2 mt-2"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.7 }}
+                  initial={false}
                 >
                   {playbackError ? (
                     <div className="flex flex-col items-start gap-3" role="alert">
@@ -776,12 +773,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                         setPlaybackError(null);
                         setVideoReady(false);
                         setPlayerAttempt((attempt) => attempt + 1);
-                        if (!streamUrl && currentMedia) void loadMedia(currentMedia);
+                        if (!streamUrl && playbackRequest) void loadMedia(playbackRequest);
                       }}>Try again</Button>
                     </div>
                   ) : (
                     <><div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                    <span className="text-sm text-white/70">Loading…</span></>
+                    <span className="text-sm text-white/70" role="status">{playbackPhaseLabels[playbackPhase]}</span></>
                   )}
                 </motion.div>
               </motion.div>
@@ -802,17 +799,22 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </div>
         )}
 
-        <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
+        {!loading && streamUrl && videoReady && !playbackError && (
           <Button
             data-player-close=""
-              aria-label="Back to browsing"
+            data-player-back-control=""
+            aria-label="Back to browsing"
             variant="ghost"
-            className="fixed left-4 top-4 z-10 hover:backdrop-blur-md"
+            className="fixed left-4 top-4 z-50 backdrop-blur-xl"
             onClick={() => handleClose()}
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
+        )}
+
+        <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
+
 
           {fetchingSubtitles && (
             <div className="fixed right-4 top-16 z-10 bg-black/50 backdrop-blur-sm rounded-md px-3 py-2 text-white text-sm flex items-center gap-2">

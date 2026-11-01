@@ -43,13 +43,13 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
 let height = 148, resized, disconnected = false;
 const properties = new Map(), effects = [];
 const layout = { style: { setProperty(key, value) { properties.set(key, value); } } };
-const element = { closest: () => layout, getBoundingClientRect: () => ({ height }) };
+const element = { closest: () => layout, getBoundingClientRect: () => ({ height }), querySelectorAll: () => [] };
 const { AppHeader } = load('components/app-header.tsx', name => {
   if (name === 'react') return { ...React, useRef: () => ({ current: element }), useLayoutEffect: effect => effects.push(effect) };
   if (name === 'react/jsx-runtime') return require(name);
   if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ isPlayerVisible: false }) };
   return new Proxy({}, { get: (_, key) => key });
-}, { ResizeObserver: class {
+}, { cancelAnimationFrame() {}, ResizeObserver: class {
   constructor(callback) { resized = callback; }
   observe(node) { assert.equal(node, element); }
   disconnect() { disconnected = true; }

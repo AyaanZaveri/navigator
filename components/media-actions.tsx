@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
-import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
@@ -10,15 +9,15 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Play, SearchX } from "lucide-react";
+import { Loader2, SearchX } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { SearchField } from "@/components/arc/search-field/search-field";
 import { ChipGroup } from "@/components/arc/chip-group/chip-group";
 import styles from "./media-actions.module.css";
+import { StreamSummary } from "@/components/stream-summary";
 
 interface MediaActionsProps {
   media?: MediaItem;
@@ -293,33 +292,35 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     <div className={styles.root}>
       {totalAddons > 0 && (
         <div className={styles.toolbar}>
-          <div className={styles.search}>
-            <SearchField
-              label="Search streams"
-              hideLabel
-              value={streamSearchQuery}
-              onValueChange={setStreamSearchQuery}
-              placeholder="Find the least broken stream..."
-              autoComplete="off"
-            />
+          <div className={styles.controls}>
+            <div className={styles.search}>
+              <SearchField
+                label="Search streams"
+                hideLabel
+                value={streamSearchQuery}
+                onValueChange={setStreamSearchQuery}
+                placeholder="Find the least broken stream..."
+                autoComplete="off"
+              />
+            </div>
+            <fieldset className={styles.facet}>
+              <legend className="sr-only">Resolution</legend>
+              <ChipGroup
+                label="Filter by resolution"
+                multiple
+                className={styles.chips}
+                options={RESOLUTION_FILTERS.map((resolution) => ({
+                  value: resolution,
+                  label: resolution,
+                }))}
+                value={selectedResolutions}
+                onValueChange={setSelectedResolutions}
+              />
+            </fieldset>
           </div>
-          <fieldset className={styles.facet}>
-            <legend className="sr-only">Resolution</legend>
-            <ChipGroup
-              label="Filter by resolution"
-              multiple
-              className={styles.chips}
-              options={RESOLUTION_FILTERS.map((resolution) => ({
-                value: resolution,
-                label: resolution,
-              }))}
-              value={selectedResolutions}
-              onValueChange={setSelectedResolutions}
-            />
-          </fieldset>
-          {isAddonLoading && (
-            <div className={styles.feedback}>
-              <div role="status" className={styles.loading}>
+          <div className={styles.feedback} role="status">
+            {isAddonLoading ? (
+              <span className={styles.loading}>
                 <Loader2
                   aria-hidden="true"
                   className="size-3.5 animate-spin motion-reduce:animate-none"
@@ -327,97 +328,69 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                 <span>
                   {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
                 </span>
-              </div>
-            </div>
-          )}
+              </span>
+            ) : hasCheckedStreams || streams.length > 0 ? (
+              <span className={styles.loading}>
+                {filteredStreams.length} stream
+                {filteredStreams.length === 1 ? "" : "s"} found
+              </span>
+            ) : null}
+          </div>
         </div>
       )}
 
       {filteredStreams.length > 0 && (
         <div className={styles.results}>
-          <ScrollArea className="w-full h-[24rem] rounded-xl">
-            <div className={styles.streamList}>
-              {filteredStreams.map((stream, index) => {
-                const streamUrl = stream.url || stream.externalUrl;
-                return (
-                  <div
-                    key={index}
-                    className="rounded-lg border border-border/60 bg-card/50 p-2.5 shadow-xs"
-                  >
-                    <div className={styles.streamRow}>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium break-words">
-                          {getSourceLabel(stream)}
-                        </div>
-                        {stream.title && (
-                          <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere]">
-                            {stream.title}
-                          </div>
-                        )}
-                        {(stream.behaviorHints?.filename ||
-                          stream.behaviorHints?.videoSize) && (
-                          <div className="mt-1 text-xs text-muted-foreground font-mono [overflow-wrap:anywhere]">
-                            {stream.behaviorHints?.filename ?? "Unknown file"}
-                            {formatVideoSize(stream.behaviorHints?.videoSize) &&
-                              ` ~ ${formatVideoSize(stream.behaviorHints?.videoSize)}`}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className={styles.playAction}>
-                        <Button
-                          variant="outline"
-                          className="group h-8 px-2.5 gap-1.5 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
-                          disabled={!streamUrl}
-                          onClick={() => handlePlay(stream)}
-                        >
-                          <Play className="h-3.5 w-3.5" />
-                          <span className="text-xs">Play</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-          <div className="mt-3 flex justify-end">
-            <span className="text-xs text-muted-foreground font-mono">
-              {filteredStreams.length} stream
-              {filteredStreams.length === 1 ? "" : "s"} found
-            </span>
+          <div className={styles.streamList}>
+            {filteredStreams.map((stream, index) => {
+              const streamUrl = stream.url || stream.externalUrl;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  className={styles.streamRow}
+                  disabled={!streamUrl}
+                  aria-label={`Play ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
+                  onClick={() => handlePlay(stream)}
+                >
+                  <StreamSummary stream={stream} fallbackLabel={getSourceLabel(stream)} />
+                  {(stream.behaviorHints?.filename ||
+                    stream.behaviorHints?.videoSize) && (
+                    <span className={styles.streamFile}>
+                      {stream.behaviorHints?.filename}
+                      {formatVideoSize(stream.behaviorHints?.videoSize) && (
+                        <span className={styles.streamSize}>
+                          {stream.behaviorHints?.filename && (
+                            <> <span aria-hidden="true">·</span> </>
+                          )}
+                          {formatVideoSize(stream.behaviorHints?.videoSize)}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
 
       {loading && streams.length === 0 && (
         <LoadingPlaceholder className={styles.results}>
-          <ScrollArea className="w-full h-[24rem] rounded-xl">
-            <div className={styles.streamList}>
-              {[1, 2, 3, 4, 5, 6].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-lg border border-border/60 bg-card/50 p-2.5 shadow-xs"
-                >
-                  <div className={styles.streamRow}>
-                    <div className="min-w-0 flex-1">
-                      <Skeleton className="h-5 w-56 max-w-full rounded-md" />
-                      <Skeleton className="mt-2 h-3 w-72 max-w-full rounded-md" />
-                    </div>
-                    <div className={styles.playAction}>
-                      <Skeleton className="h-8 w-[68px] rounded-md" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
+          <div className={styles.streamList}>
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+              <div key={item} className={styles.streamSkeleton}>
+                <Skeleton className="h-6 w-56 max-w-full rounded-md" />
+                <Skeleton className="mt-2 h-4 w-72 max-w-full rounded-md" />
+              </div>
+            ))}
+          </div>
         </LoadingPlaceholder>
       )}
 
       {filteredStreams.length === 0 &&
         ((!loading && hasCheckedStreams) || streams.length > 0) && (
-          <Empty className="border border-border/60 bg-card/30 py-10">
+          <Empty className={styles.emptyState}>
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <SearchX className="size-5" />

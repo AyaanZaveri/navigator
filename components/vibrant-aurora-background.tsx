@@ -5,6 +5,7 @@ import { useSetAtom } from "jotai";
 import { Vibrant } from "node-vibrant/browser";
 import { AuroraBackground } from "@/components/aurora-background";
 import { updateAuroraColorsAtom } from "@/lib/atoms";
+import { selectAuroraColors } from "@/lib/aurora-palette";
 
 interface VibrantAuroraBackgroundProps {
   backdropUrl?: string;
@@ -33,13 +34,19 @@ export function VibrantAuroraBackground({
     const extractColors = async () => {
       for (const paletteSource of paletteSources) {
         if (cancelled) return;
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        const image = new Image();
         try {
           // Set CORS mode before loading, even for our same-origin redirects.
           // Vibrant only does this automatically for visibly cross-origin URLs.
-          const image = new Image();
           image.crossOrigin = "anonymous";
           image.src = paletteSource;
-          const palette = await Vibrant.from(image).getPalette();
+          const palette = await Promise.race([
+            Vibrant.from(image).getPalette(),
+            new Promise<never>((_, reject) => {
+              timeout = setTimeout(() => reject(new Error("Palette image timed out")), 4000);
+            }),
+          ]);
           if (cancelled) return;
           const swatches = [
             palette.Vibrant,
@@ -50,29 +57,15 @@ export function VibrantAuroraBackground({
             palette.DarkMuted,
           ].filter(isDefined);
 
-          const uniqueSwatches = Array.from(
-            new Map(swatches.map((swatch) => [swatch.hex, swatch])).values()
-          );
-          const uniqueHex = uniqueSwatches.map((swatch) => swatch.hex);
-          if (uniqueHex.length < 2) {
-            continue;
-          }
-
-          // Prioritize majority colors by swatch population.
-          const ranked = [...uniqueSwatches]
-            .sort((a, b) => (b.population || 0) - (a.population || 0))
-            .map((swatch) => swatch.hex);
-
-          const primary = ranked[0];
-          const secondary = ranked[1];
-          const tertiary = ranked[2] ?? primary;
-          // AuroraTransition declares exactly three color stops in its shader.
-          const finalColors = [primary, secondary, tertiary];
-
-          updateColors(finalColors);
+          const colors = selectAuroraColors(swatches);
+          if (!colors) continue;
+          updateColors(colors);
           return;
         } catch {
           continue;
+        } finally {
+          clearTimeout(timeout);
+          image.src = "";
         }
       }
 

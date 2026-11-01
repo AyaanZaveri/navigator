@@ -6,7 +6,7 @@ export async function CastSection({ id, type, names }: { id: string; type: "movi
     if (!members.length) return null;
 
     return (
-        <div className="mt-8 px-4 md:px-10">
+        <div className="mt-2 px-4 md:px-10">
             <CastScrollArea cast={members} />
         </div>
     );

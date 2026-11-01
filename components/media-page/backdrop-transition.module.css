@@ -116,3 +116,15 @@
         bottom: 13.5rem;
     }
 }
+
+/* The installed Android app uses compact top chrome; mobile web retains its
+   original search and artwork spacing. */
+@media (width < 48rem) {
+    :global(html[data-native-engine="exoplayer"]) .hero {
+        height: 17.5rem;
+    }
+
+    :global(html[data-native-engine="exoplayer"]) .wordmarkRegion {
+        top: calc(var(--app-header-height, calc(3.75rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)))) - .5rem);
+    }
+}

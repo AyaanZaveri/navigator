@@ -1,0 +1,26 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const postcss = require('postcss');
+const css = postcss.parse(fs.readFileSync('components/media-card.module.css', 'utf8'));
+const rules = [];
+css.walkRules(rule => rules.push(rule));
+const rule = selector => rules.find(item => item.selector === selector);
+const declaration = (selector, property) => rule(selector)?.nodes.find(node => node.prop === property)?.value;
+assert.equal(declaration('.playButton', 'opacity'), '0', 'The Play surface must start transparent so its blur can fade rather than pop into visibility');
+assert.ok(declaration('.playButton', 'transition').includes('opacity'), 'The whole button surface needs an opacity transition');
+assert.equal(declaration('.playButton', 'visibility'), undefined, 'Hover must not create/destroy the WebKit blur layer via visibility');
+assert.equal(declaration('.card:hover .playButton', 'opacity'), '1');
+assert.equal(declaration('.card:has(:focus-visible) .playButton', 'opacity'), '1');
+const touch = rules.find(item => item.selector === '.playButton' && item.parent.type === 'atrule' && item.parent.params.includes('hover: none'));
+assert.equal(touch.nodes.find(node => node.prop === 'opacity').value, '1', 'Touch keeps Play available without hovering');
+assert.equal(declaration('.playButton', 'pointer-events'), 'none');
+assert.equal(declaration('.card:hover .playButton', 'pointer-events'), 'auto');
+assert.equal(declaration('.playOverlay', 'pointer-events'), 'none', 'The overlay must not interrupt the underlying card hover target');
+console.log('PASS: continuous Play-surface fade, stable blur layer, hover/focus/touch reveal, and hit-testing');
+
+const resume = '.card[data-continue-watching] .artwork';
+assert.equal(declaration(resume, 'filter'), 'brightness(0.65)', 'Continue Watching dimming must belong to the artwork itself');
+assert.equal(declaration(resume, 'transform'), 'none', 'Resume artwork must not change compositor layers on hover');
+assert.equal(declaration('.card[data-continue-watching] .playOverlay::before', 'display'), 'none', 'Resume cards must not stack a second hover dimmer');
+assert.equal(declaration('.artwork', 'filter'), undefined, 'Ordinary posters keep their existing brightness');
+console.log('PASS: Continue Watching brightness stays constant while ordinary card hover stays intact');

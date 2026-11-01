@@ -1,6 +1,6 @@
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut android:shortcutId="settings" android:enabled="true"
-        android:icon="@drawable/ic_navigator" android:shortcutShortLabel="@string/app_settings">
+        android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/app_settings">
         <intent android:action="app.navigator.android.SETTINGS"
             android:targetPackage="app.navigator.android" android:targetClass="app.navigator.android.MainActivity" />
     </shortcut>

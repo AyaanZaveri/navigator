@@ -1,0 +1,122 @@
+.card {
+  min-width: 0;
+}
+
+/* The frame owns the fixed corner mask; the zooming image stays square. */
+.frame {
+  --media-card-radius: calc(var(--radius, 0.625rem) - 2px);
+  isolation: isolate;
+  border-radius: var(--media-card-radius);
+}
+
+.playOverlay {
+  pointer-events: none;
+}
+
+/* Fade a sibling scrim, not the blur button's ancestor. An ancestor below
+   full opacity prevents backdrop-filter from sampling the poster. */
+.playOverlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 25%);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.playButton {
+  position: relative;
+  z-index: 1;
+  background: rgb(255 255 255 / 20%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: white;
+  cursor: pointer;
+  pointer-events: none;
+  opacity: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+
+/* Keyboard focus reveals the action without moving the poster or title. */
+.card:has(:focus-visible) .playOverlay::before {
+  opacity: 1;
+}
+
+.card:has(:focus-visible) .playButton {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.playButton:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .playOverlay::before {
+    opacity: 1;
+  }
+
+  .card:hover .playButton {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .playButton:hover {
+    background: rgb(255 255 255 / 30%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .artwork {
+    transition: transform var(--duration-instant) var(--ease-out);
+  }
+
+  .frame {
+    transition: transform var(--duration-instant) var(--ease-out);
+  }
+
+  .frame[data-pressed="true"] {
+    transform: scale(0.98);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .card:hover .artwork {
+    transform: scale(1.02);
+  }
+}
+
+/* Touch has no hover reveal, so keep the separate Play action available. */
+@media (hover: none), (pointer: coarse) {
+  .playOverlay::before {
+    opacity: 0;
+  }
+
+  .playButton {
+    opacity: 1;
+    background: rgb(0 0 0 / 35%);
+    pointer-events: auto;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playOverlay::before,
+  .playButton { transition: none; }
+}
+
+/* Resume artwork is already shaded for its logo. Keep that shade in the same
+   image layer, without hover zoom or a second animated dimmer. WebKit can flash
+   the unshaded image when these separate layers are recomposited on hover. */
+.card[data-continue-watching] .artwork {
+  filter: brightness(0.65);
+  transform: none;
+}
+
+.card[data-continue-watching] .playOverlay::before {
+  display: none;
+}

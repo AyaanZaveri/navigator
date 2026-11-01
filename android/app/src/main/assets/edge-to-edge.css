@@ -75,15 +75,21 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-
     bottom: calc(.5rem + var(--navigator-inset-bottom));
   }
   html[data-native-engine="exoplayer"] [data-navigator-focus-ui] :is([data-navigator-launcher], button[aria-keyshortcuts="Meta+K Control+K"]) {
-    height: 2.75rem;
+    position: relative;
+    height: 2.25rem;
     gap: .5rem;
-    padding-inline: 1.25rem;
-    font-size: 1rem;
-    line-height: 1.5rem;
+    padding-inline: .875rem;
+    font-size: .875rem;
+    line-height: 1.25rem;
+  }
+  html[data-native-engine="exoplayer"] [data-navigator-focus-ui] :is([data-navigator-launcher], button[aria-keyshortcuts="Meta+K Control+K"])::before {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
   }
   html[data-native-engine="exoplayer"] [data-navigator-focus-ui] :is([data-navigator-launcher], button[aria-keyshortcuts="Meta+K Control+K"]) > svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1rem;
+    height: 1rem;
   }
   html[data-native-engine="exoplayer"] [data-navigator-focus-ui] .mb-1:has(> button[aria-keyshortcuts="Meta+K Control+K"]) {
     margin-bottom: 0;

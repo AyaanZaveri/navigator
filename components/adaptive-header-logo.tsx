@@ -4,16 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { averageLuminance, chooseLogoTone, getLogoSampleCrop, type LogoTone } from "@/lib/logo-contrast";
+import { averageLuminance, chooseLogoTone, type LogoTone } from "@/lib/logo-contrast";
+import { logoSampleSource, paintLogoBackdrop } from "@/lib/logo-backdrop";
 import { cn } from "@/lib/utils";
 
 export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
     const ref = useRef<HTMLSpanElement>(null);
     const pathname = usePathname();
     const { resolvedTheme } = useTheme();
-    const key = `${pathname}:${resolvedTheme}`;
+    // A theme change resamples the surface without discarding the current tone.
     const [sample, setSample] = useState<{ key: string; tone: LogoTone } | null>(null);
-    const tone = adaptive && sample?.key === key ? sample.tone : null;
+    const tone = adaptive && sample?.key === pathname ? sample.tone : null;
 
     useEffect(() => {
         const logo = ref.current;
@@ -21,23 +22,22 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         if (!adaptive || !logo || !scope) return;
 
         const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = 16;
+        canvas.width = canvas.height = 24;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) return;
 
         let stopped = false;
         let frame = 0;
+        let settleUntil = 0;
         let source = "";
         let readableImage: HTMLImageElement | null = null;
         let observedImage: HTMLImageElement | null = null;
         let previous: LogoTone | null = null;
 
-        function fallback() {
-            previous = null;
-            setSample((current) => current === null ? current : null);
-        }
-
         function schedule() {
+            // Keep sampling through the header's 180ms opacity transition,
+            // including after the final scroll event in a fling.
+            settleUntil = performance.now() + 220;
             if (!stopped && !frame) frame = window.requestAnimationFrame(inspect);
         }
 
@@ -52,64 +52,63 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             const backdrop = Array.from(scope.querySelectorAll<HTMLImageElement>("img[data-header-backdrop]"))
                 .find((image) => {
                     const rect = image.getBoundingClientRect();
-                    return bounds.left >= rect.left && bounds.top >= rect.top
-                        && bounds.right <= rect.right && bounds.bottom <= rect.bottom;
+                    return bounds.left < rect.right && bounds.top < rect.bottom
+                        && bounds.right > rect.left && bounds.bottom > rect.top;
                 });
-            if (!backdrop) {
-                fallback();
-                return;
-            }
-            if (observedImage !== backdrop) {
+            if (backdrop && observedImage !== backdrop) {
                 if (observedImage) resize.unobserve(observedImage);
                 observedImage = backdrop;
                 resize.observe(backdrop);
             }
 
-            const nextSource = backdrop.currentSrc || backdrop.src;
-            if (source !== nextSource) {
-                source = nextSource;
-                previous = null;
-                fallback();
-                if (readableImage) readableImage.onload = readableImage.onerror = null;
-                const image = new window.Image();
-                readableImage = image;
-                // Use a separate CORS-enabled image so sampling cannot break displayed artwork.
-                image.crossOrigin = "anonymous";
-                image.onload = schedule;
-                image.onerror = () => { if (!stopped) fallback(); };
-                image.src = source;
+            if (backdrop) {
+                const nextSource = backdrop.currentSrc || backdrop.src;
+                if (source !== nextSource) {
+                    source = nextSource;
+                    previous = null;
+                    if (readableImage) readableImage.onload = readableImage.onerror = null;
+                    const image = new window.Image();
+                    readableImage = image;
+                    image.crossOrigin = "anonymous";
+                    image.onload = schedule;
+                    // Preserve the last sampled tone if a source temporarily fails.
+                    image.onerror = () => {};
+                    image.src = logoSampleSource(source, window.location.origin);
+                }
+                if (!readableImage?.complete || !readableImage.naturalWidth) return;
             }
 
-            if (!readableImage?.complete || !readableImage.naturalWidth) return;
-            const imageStyle = window.getComputedStyle(backdrop);
-            const crop = getLogoSampleCrop(readableImage.naturalWidth, readableImage.naturalHeight,
-                backdrop.getBoundingClientRect(), bounds, imageStyle.objectPosition);
-            if (!crop) {
-                fallback();
-                return;
-            }
             try {
-                context.globalAlpha = 1;
-                context.fillStyle = window.getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
-                context.fillRect(0, 0, 16, 16);
-                context.globalAlpha = Number(imageStyle.opacity);
-                context.drawImage(readableImage, crop.x, crop.y, crop.width, crop.height, 0, 0, 16, 16);
-                context.globalAlpha = 1;
-                const brightness = averageLuminance(context.getImageData(0, 0, 16, 16).data);
-                if (brightness === null) return;
-                const nextTone = chooseLogoTone(brightness, previous);
-                previous = nextTone;
-                setSample((current) => current?.key === key && current.tone === nextTone ? current : { key, tone: nextTone });
+                const imageStyle = backdrop ? window.getComputedStyle(backdrop) : null;
+                const overlays = Array.from(scope.querySelectorAll<HTMLElement>("[data-header-backdrop-fade], [data-header-tint]"))
+                    // Page fade paints first; the fixed header tint paints last.
+                    .sort((a, b) => Number(a.hasAttribute("data-header-tint")) - Number(b.hasAttribute("data-header-tint")))
+                    .map(element => {
+                        const style = window.getComputedStyle(element);
+                        return { rect: element.getBoundingClientRect(), background: style.backgroundImage === "none" ? style.backgroundColor : style.backgroundImage, opacity: Number(style.opacity) };
+                    });
+                paintLogoBackdrop(context, bounds,
+                    window.getComputedStyle(document.documentElement).getPropertyValue("--background").trim(),
+                    backdrop && readableImage && imageStyle ? {
+                        image: readableImage, rect: backdrop.getBoundingClientRect(),
+                        opacity: Number(imageStyle.opacity), objectPosition: imageStyle.objectPosition,
+                    } : null, overlays);
+                const brightness = averageLuminance(context.getImageData(0, 0, canvas.width, canvas.height).data);
+                if (brightness !== null) {
+                    const nextTone = chooseLogoTone(brightness, previous);
+                    previous = nextTone;
+                    setSample(current => current?.key === pathname && current.tone === nextTone ? current : { key: pathname, tone: nextTone });
+                }
             } catch {
-                // Unsupported canvas/CORS falls back to the theme's existing logo.
-                fallback();
+                // Unsupported sources retain the last valid reading instead of
+                // flipping to the theme while the same artwork remains visible.
             }
+            if (performance.now() < settleUntil) frame = window.requestAnimationFrame(inspect);
         }
 
         const changes = new MutationObserver(schedule);
         changes.observe(scope, { childList: true, subtree: true, attributes: true, attributeFilter: ["src", "srcset"] });
         scope.addEventListener("load", schedule, true);
-        scope.addEventListener("error", schedule, true);
         window.addEventListener("resize", schedule, { passive: true });
         window.addEventListener("scroll", schedule, { capture: true, passive: true });
         schedule();
@@ -121,18 +120,18 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             changes.disconnect();
             if (readableImage) readableImage.onload = readableImage.onerror = null;
             scope.removeEventListener("load", schedule, true);
-            scope.removeEventListener("error", schedule, true);
             window.removeEventListener("resize", schedule);
             window.removeEventListener("scroll", schedule, true);
         };
-    }, [adaptive, key]);
+    }, [adaptive, pathname, resolvedTheme]);
 
+    const transition = "absolute inset-0 size-8 transition-opacity duration-150 ease-[var(--ease-out)] motion-reduce:transition-none";
     return (
-        <span ref={ref} className="block size-8" data-logo-tone={tone ?? "theme"}>
+        <span ref={ref} className="relative block size-8" data-logo-tone={tone ?? "theme"}>
             <Image src="/logo/navigator-header-light.svg?v=3" alt="" width={32} height={32} draggable={false}
-                className={cn("size-8", tone === "dark" ? "block" : tone === "light" ? "hidden" : "dark:hidden")} />
+                className={cn(transition, tone === "dark" ? "opacity-100" : tone === "light" ? "opacity-0" : "opacity-100 dark:opacity-0")} />
             <Image src="/logo/navigator-header-dark.svg?v=2" alt="" width={32} height={32} draggable={false}
-                className={cn("size-8", tone === "light" ? "block" : tone === "dark" ? "hidden" : "hidden dark:block")} />
+                className={cn(transition, tone === "light" ? "opacity-100" : tone === "dark" ? "opacity-0" : "opacity-0 dark:opacity-100")} />
         </span>
     );
 }

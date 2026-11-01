@@ -60,6 +60,7 @@ import * as ReactDOM from "react-dom";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { createDesktopMediaStore } from "@/lib/desktop/media-store";
 import { SeekPreview } from "@/components/seek-preview";
+import { PreviewImage } from "@/components/preview-image";
 import { attachTouchScrubbing } from "@/lib/media/touch-scrubbing";
 
 const ROOT_NAME = "MediaPlayer";
@@ -81,7 +82,6 @@ const SEEK_TOOLTIP_X = "--seek-tooltip-x";
 const SEEK_TOOLTIP_Y = "--seek-tooltip-y";
 
 const SPRITE_CONTAINER_WIDTH = 224;
-const SPRITE_CONTAINER_HEIGHT = 128;
 
 type Direction = "ltr" | "rtl";
 
@@ -2269,11 +2269,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
 
     const spriteWidth = Number.parseFloat(thumbnail.coords[2] ?? "0");
     const spriteHeight = Number.parseFloat(thumbnail.coords[3] ?? "0");
-
-    const scaleX = spriteWidth > 0 ? SPRITE_CONTAINER_WIDTH / spriteWidth : 1;
-    const scaleY =
-      spriteHeight > 0 ? SPRITE_CONTAINER_HEIGHT / spriteHeight : 1;
-    const scale = Math.min(scaleX, scaleY);
+    const scale = spriteWidth > 0 ? SPRITE_CONTAINER_WIDTH / spriteWidth : 1;
 
     return {
       width: `${spriteWidth}px`,
@@ -2360,7 +2356,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             >
               <div
                 className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-xl bg-background/98 p-1 text-foreground shadow-sm ring-1 ring-inset ring-black/10 backdrop-blur-[12px] dark:bg-background/70 dark:ring-white/10",
+                  "flex flex-col items-center rounded-xl bg-background/98 p-1 pb-0 text-foreground shadow-sm ring-1 ring-inset ring-black/10 backdrop-blur-[12px] dark:bg-background/70 dark:ring-white/10",
                   thumbnail && "min-h-10",
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
@@ -2369,20 +2365,16 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"
-                    className="overflow-hidden rounded-lg"
+                    className="relative overflow-hidden rounded-lg"
                     style={{
                       width: `${SPRITE_CONTAINER_WIDTH}px`,
-                      height: `${SPRITE_CONTAINER_HEIGHT}px`,
+                      aspectRatio: thumbnail.coords ? `${thumbnail.coords[2]} / ${thumbnail.coords[3]}` : undefined,
                     }}
                   >
                     {thumbnail.coords ? (
-                      <div style={spriteStyle} />
+                      <div className="absolute top-0 left-0" style={spriteStyle} />
                     ) : (
-                      <img
-                        src={thumbnail.src}
-                        alt={`Preview at ${hoverTime}`}
-                        className="size-full object-cover"
-                      />
+                      <PreviewImage src={thumbnail.src} alt={`Preview at ${hoverTime}`} />
                     )}
                   </div>
                 )}
@@ -2403,7 +2395,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   data-slot="media-player-seek-time"
                   className={cn(
                     "whitespace-nowrap text-center font-sans text-xs font-semibold tabular-nums",
-                    (thumbnail || previewFrames) && "pt-1 pb-1.5",
+                    (thumbnail || previewFrames) && "py-2",
                     !(thumbnail || previewFrames || currentChapterCue) && "px-2.5 py-1"
                   )}
                 >
