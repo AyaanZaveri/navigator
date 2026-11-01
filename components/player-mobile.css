@@ -3,10 +3,10 @@
    Fading an ancestor would cut it off from the page's backdrop pixels. */
 [data-player-glass] {
   color: var(--foreground);
-  background-color: color-mix(in oklab, var(--background) var(--player-glass-tint, 38%), transparent);
+  background-color: color-mix(in oklab, var(--background) var(--player-glass-tint, 64%), transparent);
   background-image: linear-gradient(
-    color-mix(in oklab, var(--foreground) 12%, transparent),
-    color-mix(in oklab, var(--foreground) 4%, transparent)
+    color-mix(in oklab, var(--foreground) 6%, transparent),
+    color-mix(in oklab, var(--foreground) 2%, transparent)
   );
   border: 1px solid color-mix(in oklab, var(--foreground) 14%, transparent);
   backdrop-filter: blur(12px);
@@ -14,7 +14,7 @@
 }
 /* Native video is outside the WebView's backdrop. Keep the glass legible
    without copying video frames back into the scrolling/scrubbing UI. */
-html[data-native-playing] [data-player-glass] { --player-glass-tint: 55%; }
+html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   [data-player-glass],
   html[data-native-playing] [data-player-glass] { --player-glass-tint: 80%; }
