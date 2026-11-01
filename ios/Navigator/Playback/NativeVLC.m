@@ -20,14 +20,20 @@
 - (void)loadURL:(NSURL *)url start:(double)seconds silent:(BOOL)silent {
     [self.player stop];
     VLCMedia *media=[VLCMedia mediaWithURL:url];
-    [media addOptions:@{@"network-caching":@750,@"start-time":@(MAX(0,seconds)),@"input-fast-seek":@NO}];
-    if (silent) [media addOptions:@{@"no-audio":@YES,@"no-spu":@YES}];
+    // VLC parses booleans by switch presence, not NSNumber's value. In
+    // particular input-fast-seek=0 enables it; negated switches need no value.
+    [media addOptions:@{@"network-caching":@750,@"start-time":@(MAX(0,seconds)),@"no-input-fast-seek":NSNull.null}];
+    if (silent) [media addOptions:@{@"no-audio":NSNull.null,@"no-spu":NSNull.null}];
     self.player.media=media;[self.player play];
 }
 - (double)position { return MAX(0,self.player.time.intValue)/1000.0; }
 - (double)duration { return MAX(0,self.player.media.length.intValue)/1000.0; }
 - (BOOL)playing { return self.player.isPlaying; }
-- (BOOL)buffering { return self.player.state==VLCMediaPlayerStateOpening || self.player.state==VLCMediaPlayerStateBuffering; }
+- (BOOL)buffering {
+    // VLCKit caches even the final 100% buffering event as StateBuffering.
+    // The live playing getter queries libVLC instead of that cached enum.
+    return !self.player.isPlaying && (self.player.state==VLCMediaPlayerStateOpening || self.player.state==VLCMediaPlayerStateBuffering);
+}
 - (BOOL)ended { return self.player.state==VLCMediaPlayerStateEnded; }
 - (BOOL)failed { return self.player.state==VLCMediaPlayerStateError; }
 - (BOOL)hasVideo { return self.player.hasVideoOut; }
