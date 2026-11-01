@@ -116,7 +116,7 @@ import AVFAudio
         if !loaded,duration>0 { loaded=true;emitEvent("loaded") }
         if !ready,!engine.buffering,at>=max(0,initialPosition-0.25),(engine.hasVideo || engine.playing) {
             ready=true;engine.setVolume(volume,muted:muted);engine.setRate(rate)
-            engine.surface.isHidden=false;emitEvent("ready")
+            layout();engine.surface.isHidden=false;emitEvent("ready")
         }
         if seeking,!engine.buffering { seeking=false }
         let tracks=engine.tracks()

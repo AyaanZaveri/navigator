@@ -13,6 +13,7 @@ final class MediaGateway: NSObject, URLSessionDataDelegate {
     private let configuration:URLSessionConfiguration
     private let queue=DispatchQueue(label:"app.navigator.media-gateway",qos:.userInitiated)
     private var listener:NWListener?
+    private var starting:CheckedContinuation<URL,Error>?
     private var base:URL?
     private var allowedOrigins=Set<String>()
     private var exchanges:[Int:Exchange]=[:]
@@ -34,19 +35,21 @@ final class MediaGateway: NSObject, URLSessionDataDelegate {
     func start() async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
+                guard !self.stopped else { continuation.resume(throwing:CancellationError());return }
                 do {
                     let p=NWParameters.tcp
                     p.requiredLocalEndpoint = .hostPort(host:"127.0.0.1",port:.any)
-                    let listener=try NWListener(using:p,on:.any);self.listener=listener
-                    var completed=false
-                    listener.stateUpdateHandler = { state in
+                    let listener=try NWListener(using:p,on:.any);self.listener=listener;self.starting=continuation
+                    listener.stateUpdateHandler = { [weak self] state in
+                        guard let self else { return }
                         switch state {
                         case .ready:
-                            guard !completed, let port=listener.port else { return };completed=true
+                            guard let pending=self.starting,let port=self.listener?.port else { return };self.starting=nil
                             self.base=URL(string:"http://127.0.0.1:\(port.rawValue)")
-                            do { continuation.resume(returning:try self.route(self.source)) }
-                            catch { continuation.resume(throwing:error) }
-                        case .failed(let error): if !completed { completed=true;continuation.resume(throwing:error) }
+                            do { pending.resume(returning:try self.route(self.source)) }
+                            catch { pending.resume(throwing:error) }
+                        case .failed(let error): self.starting?.resume(throwing:error);self.starting=nil
+                        case .cancelled: self.starting?.resume(throwing:CancellationError());self.starting=nil
                         default: break
                         }
                     }
@@ -58,7 +61,8 @@ final class MediaGateway: NSObject, URLSessionDataDelegate {
     }
     func stop() {
         queue.async {
-            self.stopped=true;self.listener?.cancel();self.listener=nil
+            self.stopped=true;self.starting?.resume(throwing:CancellationError());self.starting=nil
+            self.listener?.stateUpdateHandler=nil;self.listener?.cancel();self.listener=nil
             self.session.invalidateAndCancel()
             self.clients.values.forEach{$0.cancel()};self.clients.removeAll();self.exchanges.removeAll()
         }

@@ -3,6 +3,7 @@ import UIKit
 
 /// Exactly one independent decoder. The active video is never used for seeking.
 @MainActor final class PreviewWorker {
+    let surface=UIView(frame:CGRect(x:0,y:0,width:448,height:252))
     private var engine:NativeVLC?
     private var source:URL?
     private var wanted:(id:Int,time:Int)?
@@ -12,7 +13,7 @@ import UIKit
     private var timeout:Task<Void,Never>?
     private var ready:((Int,Int,Data?)->Void)?
     func reset(source:URL?,ready:((Int,Int,Data?)->Void)?) {
-        timeout?.cancel();timeout=nil;engine?.stop();engine?.changed=nil;engine?.snapshot=nil;engine=nil
+        timeout?.cancel();timeout=nil;engine?.stop();engine?.changed=nil;engine?.snapshot=nil;engine?.surface.removeFromSuperview();engine=nil
         self.source=source;self.ready=ready;wanted=nil;active=nil;cache.clear()
     }
     func request(id:Int,time:Double?) {
@@ -25,7 +26,7 @@ import UIKit
         guard active==nil,let desired=wanted,let source else { return }
         active=desired.time;snapshotRequested=false
         let player=NativeVLC();engine=player
-        player.surface.frame=CGRect(x:0,y:0,width:448,height:252)
+        player.surface.frame=surface.bounds;surface.addSubview(player.surface)
         player.changed={ [weak self,weak player] in
             DispatchQueue.main.async {
                 guard let self,let player,self.engine===player,let at=self.active,!self.snapshotRequested else { return }
@@ -46,7 +47,7 @@ import UIKit
     }
     private func finish(_ data:Data?) {
         guard let at=active else { return }
-        timeout?.cancel();timeout=nil;engine?.changed=nil;engine?.snapshot=nil;engine?.stop();engine=nil;active=nil
+        timeout?.cancel();timeout=nil;engine?.changed=nil;engine?.snapshot=nil;engine?.stop();engine?.surface.removeFromSuperview();engine=nil;active=nil
         if let data { cache.insert(data,at:at) }
         if let desired=wanted,desired.time==at { ready?(desired.id,at,data);wanted=nil }
         // A superseded sample can warm the cache, but must never resolve the

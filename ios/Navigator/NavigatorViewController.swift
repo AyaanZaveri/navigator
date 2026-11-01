@@ -28,6 +28,10 @@ import AVFAudio
         let config=WKWebViewConfiguration();config.websiteDataStore = .default();config.allowsInlineMediaPlayback=true
         config.allowsPictureInPictureMediaPlayback=false
         config.userContentController.add(WeakScriptHandler(self),name:"navigator")
+        // VLC snapshots need a window-backed drawable. Keep the one preview
+        // decoder behind the opaque playback surface, never in the WebView.
+        let previewSurface=playback.previews.surface;previewSurface.isUserInteractionEnabled=false
+        view.addSubview(previewSurface)
         web=WKWebView(frame:.zero,configuration:config);web.navigationDelegate=self;web.uiDelegate=self
         web.allowsBackForwardNavigationGestures=true;web.scrollView.contentInsetAdjustmentBehavior = .never
         for child in [playback.engine.surface,web!] {

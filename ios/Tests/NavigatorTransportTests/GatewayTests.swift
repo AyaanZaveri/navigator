@@ -29,6 +29,12 @@ private final class StubProtocol:URLProtocol {
     override func stopLoading(){}
 }
 @Suite(.serialized) struct GatewayTests {
+    @Test func stoppedGatewayCannotRestart() async {
+        let gateway=MediaGateway(source:URL(string:"https://origin.test/movie.mp4")!,headers:[:])
+        gateway.stop()
+        do { _=try await gateway.start();Issue.record("Stopped session restarted") }
+        catch { #expect(error is CancellationError) }
+    }
     @Test func rangeStreamingAndTokenIsolation() async throws {
         let configuration=URLSessionConfiguration.ephemeral;configuration.protocolClasses=[StubProtocol.self]
         let gateway=MediaGateway(source:URL(string:"https://origin.test/movie.mp4")!,headers:["Authorization":"fixture-secret"],configuration:configuration)
