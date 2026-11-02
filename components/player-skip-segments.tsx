@@ -98,7 +98,7 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, enab
                         onSeek(segment.end);
                     }}
                 >
-                    <FastForward aria-hidden="true" className="size-4 fill-current" />
+                    <FastForward aria-hidden="true" className="size-5 fill-current" />
                     {labels[kind]}
                 </button>;
             })}

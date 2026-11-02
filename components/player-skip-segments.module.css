@@ -8,22 +8,22 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0.625rem 1rem;
-  border: 1px solid rgb(255 255 255 / 15%);
+  gap: 0.625rem;
+  min-height: 3rem;
+  padding: 0.75rem 1.25rem;
+  border: 0;
   border-radius: var(--radius, 0.625rem);
-  background: rgb(0 0 0 / 60%);
+  background: var(--player-glass-color);
   color: white;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 500;
   line-height: 1.25;
   white-space: nowrap;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   box-shadow: none;
-  transform: scale(0.96);
-  transform-origin: bottom right;
+  transform: none;
+  transform-origin: center;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -32,13 +32,12 @@
   -webkit-tap-highlight-color: transparent;
   transition:
     opacity var(--duration-fast, 160ms) var(--ease-out),
-    transform var(--duration-standard, 240ms) var(--ease-out),
+    transform 200ms ease-in-out,
     background-color 150ms var(--ease-out),
     visibility 0s 150ms;
 }
 
 .button[data-visible] {
-  transform: scale(1);
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -51,8 +50,11 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .button[data-visible]:enabled:hover { background: rgb(0 0 0 / 70%); transform: scale(1.03); }
-  .button[data-visible]:enabled:active:not(:focus-visible) { transform: scale(0.97); }
+  .button[data-visible]:enabled:hover { --player-glass-color: rgb(32 32 32 / 60%); }
+}
+
+.button[data-visible]:enabled:active {
+  transform: scale(0.97);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -65,8 +67,12 @@
 
 @media (prefers-reduced-transparency: reduce) {
   .button {
+    --player-glass-color: rgb(0 0 0 / 90%);
     background: rgb(0 0 0 / 90%);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .button[data-visible]:enabled:hover { --player-glass-color: rgb(32 32 32 / 90%); background: rgb(32 32 32 / 90%); }
   }
 }
