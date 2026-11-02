@@ -1,15 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import { isAIAskOpenAtom, isPlayerVisibleAtom } from "@/lib/atoms";
 import { NavigatorLauncher } from "@/components/navigator/launcher";
-import { preloadNavigator } from "@/lib/preload-tools";
+import { preloadNavigator, preloadPlayer } from "@/lib/preload-tools";
+import { desktopBridge } from "@/lib/desktop/bridge";
 
 const Player = dynamic(() => import("@/components/global-media-player").then(module => module.GlobalMediaPlayer), {
     ssr: false,
-    loading: () => <div role="status" className="fixed inset-0 z-[1000] grid place-items-center bg-background text-foreground">Opening player…</div>,
+    loading: () => null,
 });
 function NavigatorPending() {
     const [open, setOpen] = useAtom(isAIAskOpenAtom);
@@ -29,6 +30,17 @@ export function DeferredTools({ userId, navigatorEnabled, onToggleAIAsk }: {
     const open = useAtomValue(isAIAskOpenAtom);
     const [playerRequested, setPlayerRequested] = useState(false);
     const [navigatorRequested, setNavigatorRequested] = useState(false);
+    useEffect(() => {
+        if (desktopBridge()?.platform !== "android") return;
+        // Touch has no advance hover intent. Warm the existing chunk after the
+        // shell settles, so the first tap reaches the actual player loading UI.
+        if (typeof window.requestIdleCallback === "function") {
+            const idle = window.requestIdleCallback(preloadPlayer, { timeout: 1500 });
+            return () => window.cancelIdleCallback(idle);
+        }
+        const timer = window.setTimeout(preloadPlayer, 0);
+        return () => window.clearTimeout(timer);
+    }, []);
     // These one-way latches preserve player cleanup and chat history after first
     // use. Conditional render-time state adjustment avoids an extra effect commit.
     if (playing && !playerRequested) setPlayerRequested(true);
