@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Film, Tv } from "lucide-react";
+import { Film, Star, Tv } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { fetchSearchSuggestions } from "@/lib/search-catalog-stream";
 import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expanding-search/expanding-search";
@@ -227,15 +227,28 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         else handleSearch(item.name);
     };
 
-    const items = useMemo<ExpandingSearchItem[]>(() => suggestions.map(item => ({
-        id: `${item.type}:${item.id}`,
-        title: item.name,
-        group: item.type === "movie" ? "Movies" : item.type === "series" ? "TV shows" : "More",
-        meta: [item.year || item.releaseInfo, item.communityRating ? `${item.communityRating.toFixed(1)} ★` : item.imdbRating ? `${item.imdbRating} ★` : ""].filter(Boolean).join(" · "),
-        icon: item.poster
-            ? <img src={item.poster} alt="" draggable={false} loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />
-            : item.type === "movie" ? <Film size={18} /> : <Tv size={18} />,
-    })), [suggestions]);
+    const items = useMemo<ExpandingSearchItem[]>(() => suggestions.map(item => {
+        const year = item.year || item.releaseInfo;
+        const score = Number(item.communityRating ?? item.imdbRating);
+        const rating = Number.isFinite(score) && score > 0 ? score.toFixed(1) : undefined;
+        return {
+            id: `${item.type}:${item.id}`,
+            title: item.name,
+            group: item.type === "movie" ? "Movies" : item.type === "series" ? "TV shows" : "More",
+            meta: [year, rating ? `${rating} out of 10` : ""].filter(Boolean).join(" · "),
+            metaContent: year || rating ? <span className="inline-flex items-center gap-1.5">
+                {year && <span>{year}</span>}
+                {year && rating && <span aria-hidden="true">·</span>}
+                {rating && <span className="inline-flex items-center gap-1 tabular-nums" role="img" aria-label={`${item.ratingSource || "Rating"} ${rating} out of 10`}>
+                    <Star aria-hidden="true" className="size-3 shrink-0 fill-yellow-400 text-yellow-400" />
+                    <span>{rating}</span>
+                </span>}
+            </span> : undefined,
+            icon: item.poster
+                ? <img src={item.poster} alt="" draggable={false} loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />
+                : item.type === "movie" ? <Film size={18} /> : <Tv size={18} />,
+        };
+    }), [suggestions]);
 
     if (isPlayerVisible) return null;
 

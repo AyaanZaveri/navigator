@@ -18,6 +18,8 @@ export interface ExpandingSearchItem {
   title: string;
   /** One short line under the title, such as the type, owner, or last edit. */
   meta?: string;
+  /** Optional visual metadata; retain meta for plain-text filtering. */
+  metaContent?: ReactNode;
   /** Results gather under this heading, in the order groups first appear in `items`. */
   group?: string;
   icon?: ReactNode;
@@ -202,7 +204,7 @@ function Listbox({ id, label, groups, query, activeIndex, optionId, reduced, key
                 {item.icon && <span className={styles.optionIcon} aria-hidden="true">{item.icon}</span>}
                 <span className={styles.optionText}>
                   <span className={styles.optionTitle}><Match text={item.title} query={query} /></span>
-                  {item.meta && <span className={styles.optionMeta}>{item.meta}</span>}
+                  {(item.meta || item.metaContent) && <span className={styles.optionMeta}>{item.metaContent ?? item.meta}</span>}
                 </span>
               </motion.div>;
             })}
