@@ -34,7 +34,9 @@ Packaging builds the native EXE with the existing multi-size Windows icon,
 version resources and a Per-Monitor V2 manifest. It also includes the standalone
 Next server, pinned Node runtime and native libraries. The ZIP explicitly keeps
 `.next/static`; no user credentials are bundled. Build on Windows for release
-artifacts; cross-target `cargo check` skips Windows resource compilation.
+artifacts; cross-target `cargo check` skips Windows resource compilation. The
+Windows packaging script uses an explicit x64 target and a static MSVC C runtime;
+CI inspects imports so the release needs no separately installed Visual C++ runtime.
 
 Windows draws minimize, maximize/restore and close inside the app, with no
 separate system title bar. Native caption hit testing retains window dragging,
