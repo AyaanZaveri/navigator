@@ -155,6 +155,13 @@ jobs:
             if (-not ($entries -match 'resources/server/\.next/static/')) { $entries | Select-Object -First 25; throw 'Portable ZIP is missing Next static assets' }
             if (-not ($entries -contains 'resources/server/server.js')) { throw 'Portable ZIP is missing the server' }
           } finally { $zip.Dispose() }
+      - name: Ensure WebView2 runtime for the Windows Server runner
+        shell: pwsh
+        run: |
+          $setup = Start-Process -FilePath (Resolve-Path dist/MicrosoftEdgeWebview2Setup.exe) -ArgumentList '/silent /install' -Wait -PassThru
+          $keys = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}')
+          $versions = @($keys | ForEach-Object { (Get-ItemProperty -Path $_ -Name pv -ErrorAction SilentlyContinue).pv } | Where-Object { $_ -and $_ -ne '0.0.0.0' })
+          if ($versions.Count -eq 0) { throw "WebView2 runtime is unavailable (setup exit code $($setup.ExitCode))" }
       - name: Check native video and transparent WebView2
         shell: pwsh
         run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
