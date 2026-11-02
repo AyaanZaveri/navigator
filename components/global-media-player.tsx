@@ -965,6 +965,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </Button>
         )}
 
+        {fetchingSubtitles && (
+          <div role="status" className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
+            <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+            Fetching subtitles
+          </div>
+        )}
+
         {!playbackError && streamUrl && duration > 0
           && (currentMedia.type === "movie" || currentMedia.type === "series") && (
           <PlayerSkipSegments
@@ -983,13 +990,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
         <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
 
-
-          {fetchingSubtitles && (
-            <div className="fixed right-4 top-16 z-10 bg-black/50 backdrop-blur-sm rounded-md px-3 py-2 text-white text-sm flex items-center gap-2">
-              <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></div>
-              Fetching subtitles
-            </div>
-          )}
 
           <MediaPlayerControlsOverlay />
 
