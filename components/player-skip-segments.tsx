@@ -31,7 +31,8 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, enab
     }, [mediaRef]);
     useEffect(() => {
         const controller = new AbortController();
-        void fetchSkipSegments({ id, type, season, episode, duration }, controller.signal, resolveSkipIMDbId)
+        void fetchSkipSegments({ id, type, season, episode, duration }, controller.signal, resolveSkipIMDbId, undefined,
+            result => { if (!controller.signal.aborted) setSegments(result); })
             .then(result => { if (!controller.signal.aborted) setSegments(result); });
         return () => controller.abort();
     }, [id, type, season, episode, duration]);

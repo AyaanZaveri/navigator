@@ -3,7 +3,8 @@ export interface SkipSegment {
     kind: SkipSegmentKind;
     start: number;
     end: number;
-    provider: "theintrodb" | "introdb";
+    provider: "theintrodb" | "introdb" | "skipdb";
+    confidence?: number;
 }
 
 export interface SkipLookup {
@@ -22,12 +23,26 @@ const record = (value: unknown): JsonRecord => value && typeof value === "object
 export function normalizeSkipSegments(data: unknown, provider: SkipSegment["provider"], duration: number): SkipSegment[] {
     if (!Number.isFinite(duration) || duration <= 0) return [];
     const result: SkipSegment[] = [];
-    const body = record(data);
+    const body = provider === "skipdb" ? record(record(data).segments) : record(data);
+    // TheIntroDB can fall back to a popular release even when no runtime matches.
+    if (provider === "theintrodb" && typeof body.group_duration_ms === "number" && body.group_duration_ms > 0
+        && Math.abs(body.group_duration_ms - duration * 1000) > 15000) return [];
     for (const kind of ["intro", "recap", "credits"] as const) {
-        const value = body[kind === "credits" && provider === "introdb" ? "outro" : kind];
+        const value = body[kind === "credits" && provider !== "theintrodb" ? "outro" : kind];
         const candidates = Array.isArray(value) ? value : value ? [value] : [];
         for (const candidate of candidates) {
             const segment = record(candidate);
+            const confidence = segment.confidence;
+            if (confidence !== undefined && (typeof confidence !== "number" || !Number.isFinite(confidence)
+                || confidence <= 0 || confidence > 1)) continue;
+            if (provider === "skipdb") {
+                // SkipDB marks other releases explicitly; a plausible timestamp alone is insufficient.
+                const { match, confidence, offset_ms: offset } = segment;
+                if ((match !== "exact" && match !== "shifted") || typeof confidence !== "number"
+                    || !Number.isFinite(confidence) || confidence < 0.8 || confidence > 1
+                    || typeof offset !== "number" || !Number.isFinite(offset)
+                    || Math.abs(offset) > (match === "exact" ? 2000 : 15000)) continue;
+            }
             const { start_ms: startMs, end_ms: endMs } = segment;
             // Missing fields and a declared absence (null/null) are not segments.
             if (startMs === undefined || endMs === undefined || (startMs === null && endMs === null)) continue;
@@ -38,23 +53,24 @@ export function normalizeSkipSegments(data: unknown, provider: SkipSegment["prov
             // Never silently clamp a timestamp from a different/longer release.
             if (start < 0 || end > duration || end <= start) continue;
             // A provider can return 0/null for credits, marking the entire story
-            // as skippable. Opening titles are not a closing-credits segment.
-            if (kind === "credits" && start === 0) continue;
-            result.push({ kind, start, end, provider });
+            // as skippable, or put credits halfway through an episode.
+            if (kind === "credits" && (start === 0 || end - start > duration / 2)) continue;
+            result.push({ kind, start, end, provider, ...(typeof confidence === "number" ? { confidence } : {}) });
         }
     }
     return result.sort((a, b) => a.start - b.start);
 }
 
-/** Both providers load concurrently; primary data wins separately for each kind. */
+/** Load concurrently; prefer sound primary data, then IntroDB, runtime-matched SkipDB, and weak primary data. */
 export async function fetchSkipSegments(
     lookup: SkipLookup,
     signal: AbortSignal,
     resolveIMDb: (_id: string, _type: "movie" | "series") => Promise<string | null>,
     fetcher: typeof fetch = fetch,
+    onUpdate?: (_segments: SkipSegment[]) => void,
 ): Promise<SkipSegment[]> {
     const { type, season, episode, duration } = lookup;
-    if (!Number.isFinite(duration) || duration <= 0) return [];
+    if (signal.aborted || !Number.isFinite(duration) || duration <= 0) return [];
     if (type === "series" && (!Number.isInteger(season) || season! < 0 || !Number.isInteger(episode) || episode! < 1)) return [];
     let id: string;
     try { id = decodeURIComponent(lookup.id); } catch { return []; }
@@ -75,24 +91,56 @@ export async function fetchSkipSegments(
         ...(imdb ? { imdb_id: imdb } : { tmdb_id: tmdb! }),
         ...numbers,
         duration_ms: String(Math.round(duration * 1000)),
+        details: "true",
+        merge_unknown: "false",
     });
-    const primary = read(`https://api.theintrodb.org/v4/media?${primaryParams}`);
-    const fallback = (async () => {
+    const data = new Map<SkipSegment["provider"], unknown>();
+    const merge = () => {
+        const merged: SkipSegment[] = [];
+        const primary = normalizeSkipSegments(data.get("theintrodb"), "theintrodb", duration);
+        const weakPrimary = primary.filter(segment => segment.confidence !== undefined && segment.confidence < 0.5);
+        const groups = [
+            primary.filter(segment => !weakPrimary.includes(segment)),
+            normalizeSkipSegments(data.get("introdb"), "introdb", duration),
+            normalizeSkipSegments(data.get("skipdb"), "skipdb", duration),
+            weakPrimary,
+        ];
+        for (const group of groups) {
+            merged.push(...group.filter(segment => !merged.some(item => item.kind === segment.kind)));
+        }
+        return merged.sort((a, b) => a.start - b.start);
+    };
+    const settle = async (provider: SkipSegment["provider"], request: Promise<unknown>) => {
+        data.set(provider, await request);
+        // A slow/unavailable fallback must not delay a fast provider's skip button.
+        if (!signal.aborted) onUpdate?.(merge());
+    };
+    const primary = settle("theintrodb", read(`https://api.theintrodb.org/v4/media?${primaryParams}`));
+    const fallbackId = (async () => {
         try {
-            const fallbackId = imdb || await resolveIMDb(`tmdb:${tmdb}`, type);
-            if (signal.aborted || !fallbackId || !/^tt\d+$/.test(fallbackId)) return null;
-            const params = new URLSearchParams({ imdb_id: fallbackId, ...numbers });
-            if (type === "movie") params.set("is_movie", "true");
-            // IntroDB only allows its own website origin in CORS responses.
-            return await read(`/api/skip-segments/introdb?${params}`);
+            const id = imdb || await resolveIMDb(`tmdb:${tmdb}`, type);
+            return !signal.aborted && id && /^tt\d+$/.test(id) ? id : null;
         } catch { return null; }
     })();
-    const [primaryData, fallbackData] = await Promise.all([primary, fallback]);
-    if (signal.aborted) return [];
-    const preferred = normalizeSkipSegments(primaryData, "theintrodb", duration);
-    const missing = normalizeSkipSegments(fallbackData, "introdb", duration)
-        .filter(segment => !preferred.some(item => item.kind === segment.kind));
-    return [...preferred, ...missing].sort((a, b) => a.start - b.start);
+    const fallback = settle("introdb", (async () => {
+        const id = await fallbackId;
+        if (!id) return null;
+        const params = new URLSearchParams({ imdb_id: id, ...numbers });
+        if (type === "movie") params.set("is_movie", "true");
+        // IntroDB only allows its own website origin in CORS responses.
+        return read(`/api/skip-segments/introdb?${params}`);
+    })());
+    const skipdb = settle("skipdb", (async () => {
+        const id = await fallbackId;
+        if (!id) return null;
+        const params = new URLSearchParams({ imdb_id: id, ...numbers, duration: String(duration), adjust: "conservative" });
+        const result = await read(`https://api.skipdb.tv/api/segments?${params}`);
+        const body = record(result);
+        if (body.imdb_id !== id || (type === "series" && (body.season !== season || body.episode !== episode))) return null;
+        return result;
+    })());
+    await Promise.all([primary, fallback, skipdb]);
+    return signal.aborted ? [] : merge();
 }
 
 export function activeSkipSegment(segments: SkipSegment[], time: number, skipped: SkipSegment[] = []): SkipSegment | undefined {

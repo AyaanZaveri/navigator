@@ -1,0 +1,83 @@
+{
+  "primary": {
+    "tvdb_id": 95011,
+    "type": "tv",
+    "season": 8,
+    "episode": 16,
+    "group_duration_ms": 1301049,
+    "credits": [
+      {
+        "start_ms": 641366,
+        "end_ms": null,
+        "confidence": 0,
+        "submission_count": 2
+      }
+    ]
+  },
+  "introdb": {
+    "imdb_id": "tt1442437",
+    "media_type": "tv",
+    "is_movie": false,
+    "season": 8,
+    "episode": 16,
+    "intro": null,
+    "recap": null,
+    "outro": null,
+    "post_credits": null,
+    "no_intro": false,
+    "no_recap": false,
+    "no_outro": false
+  },
+  "skipdbExact": {
+    "imdb_id": "tt1442437",
+    "season": 8,
+    "episode": 16,
+    "segments": {
+      "intro": {
+        "start_ms": 65700,
+        "end_ms": 78000,
+        "adjusted": false,
+        "offset_ms": 0,
+        "match": "exact",
+        "confidence": 0.9
+      },
+      "recap": null,
+      "outro": {
+        "start_ms": 1263000,
+        "end_ms": 1342100,
+        "adjusted": false,
+        "offset_ms": 0,
+        "match": "exact",
+        "confidence": 0.9
+      },
+      "preview": null
+    },
+    "intro_length_estimate_ms": 12500
+  },
+  "skipdbOtherRelease": {
+    "imdb_id": "tt1442437",
+    "season": 8,
+    "episode": 16,
+    "segments": {
+      "intro": {
+        "start_ms": 65700,
+        "end_ms": 78000,
+        "adjusted": false,
+        "offset_ms": -52100,
+        "match": "out-of-range",
+        "confidence": 0.6
+      },
+      "recap": null,
+      "outro": {
+        "start_ms": 1263000,
+        "end_ms": 1342100,
+        "adjusted": false,
+        "offset_ms": -52100,
+        "match": "out-of-range",
+        "confidence": 0.6
+      },
+      "preview": null
+    },
+    "intro_length_estimate_ms": 12500
+  }
+}

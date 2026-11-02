@@ -829,6 +829,13 @@ export default function SettingsPage() {
                     </FieldGroup>
                 </section>
                 <ArtworkSettings />
+                <p className="text-sm text-muted-foreground">
+                    Skip timings from{" "}
+                    <a className="underline underline-offset-4" href="https://theintrodb.org" target="_blank" rel="noreferrer">TheIntroDB</a>,{" "}
+                    <a className="underline underline-offset-4" href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB</a>, and{" "}
+                    <a className="underline underline-offset-4" href="https://skipdb.tv" target="_blank" rel="noreferrer">SkipDB</a>{" "}
+                    (<a className="underline underline-offset-4" href="https://skipdb.tv/license" target="_blank" rel="noreferrer">ODbL 1.0 + reciprocity</a>).
+                </p>
             </div>
         </div>
     );

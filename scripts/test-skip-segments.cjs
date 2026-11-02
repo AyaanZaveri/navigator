@@ -32,7 +32,7 @@ async function run() {
     };
     const resolveIMDb = async () => { throw new Error('IMDb titles must not need ID translation'); };
     const segments = await fetchSkipSegments(lookup, signal, resolveIMDb, fetcher);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     assert.equal(new URL(calls[0].url).searchParams.get('duration_ms'), '3600000');
     assert.ok(calls[1].url.startsWith('/api/skip-segments/introdb?'), 'Fallback goes through the CORS proxy');
     assert.equal(segments.find(s => s.kind === 'intro').end, 90, 'Primary wins');
