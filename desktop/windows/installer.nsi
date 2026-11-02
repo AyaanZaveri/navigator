@@ -106,6 +106,9 @@ Function un.onInit
 FunctionEnd
 
 Section "Uninstall"
+  ; Windows cannot remove the process's current working directory. Move out
+  ; before deleting the installation tree; profile data is stored elsewhere.
+  SetOutPath "$TEMP"
   Delete "$SMPROGRAMS\Navigator.lnk"
   Delete "$INSTDIR\navigator-desktop.exe"
   Delete "$INSTDIR\Navigator.ico"
