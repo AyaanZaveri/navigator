@@ -19,7 +19,7 @@
     value: Object.freeze({
       protocol: __PROTOCOL__,
       platform,
-      capabilities: Object.freeze({ videoFit: true }),
+      capabilities: Object.freeze({ videoFit: true, timings: platform === "windows" }),
       get fullscreen() { return fullscreen; },
       send(message) {
         if (message.type === "load") session = message.session;

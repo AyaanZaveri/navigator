@@ -25,6 +25,9 @@ on:
       - "scripts/test-page-layout.cjs"
       - "components/app-header.tsx"
       - "components/layout-content.tsx"
+      - "components/layout-content.module.css"
+      - "components/app-header.module.css"
+      - "components/ui/scroll-area*"
       - "components/media-page/**"
       - "app/(main)/movie/**"
       - "app/(main)/series/**"
@@ -57,6 +60,11 @@ on:
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
     inputs:
+      validation_platforms:
+        description: Validate Windows only for a Windows build, or every desktop platform
+        type: choice
+        options: [windows, all]
+        default: windows
       windows_repackage_installer:
         description: Repackage an existing portable build with the current installer script
         required: false
@@ -87,7 +95,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [blacksmith-6vcpu-macos-15, blacksmith-4vcpu-windows-2025, blacksmith-4vcpu-ubuntu-2404]
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.validation_platforms != 'all' && '["blacksmith-4vcpu-windows-2025"]' || '["blacksmith-6vcpu-macos-15","blacksmith-4vcpu-windows-2025","blacksmith-4vcpu-ubuntu-2404"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +110,7 @@ jobs:
     if: inputs.windows_artifact_run == ''
     strategy:
       matrix:
-        os: [blacksmith-4vcpu-ubuntu-2404, blacksmith-6vcpu-macos-15]
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.validation_platforms != 'all' && '["blacksmith-4vcpu-ubuntu-2404"]' || '["blacksmith-4vcpu-ubuntu-2404","blacksmith-6vcpu-macos-15"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -110,6 +118,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:desktop
       - run: node scripts/test-windows-desktop.cjs
+      - run: node scripts/test-deferred-tools.cjs
       - run: bun run test:resume
       - run: bun run test:touch-scrubbing
       - run: bun run test:page-layout
@@ -173,6 +182,9 @@ jobs:
       - name: Build standalone native release
         if: inputs.windows_artifact_run != '' && inputs.windows_rebuild_native
         run: node scripts/build-windows-native.mjs
+      - name: Check rebuilt Windows native tests
+        if: inputs.windows_artifact_run != '' && inputs.windows_rebuild_native
+        run: cargo test --manifest-path desktop/Cargo.toml --locked
       - run: node scripts/desktop.mjs package
         if: inputs.windows_artifact_run == ''
         id: package
@@ -265,7 +277,7 @@ jobs:
       - name: Check installed application startup and shutdown
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         shell: pwsh
-        run: ./scripts/windows-smoke.ps1 -Executable "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe" -LaunchApp -Output dist/windows-app.png
+        run: ./scripts/windows-smoke.ps1 -Executable "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe" -LaunchApp -StartupDelaySeconds 8 -Output dist/windows-app.png
       - name: Verify uninstall and profile retention
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         shell: pwsh
@@ -309,7 +321,7 @@ jobs:
           New-Item -ItemType Directory -Force dist/windows-diagnostics | Out-Null
           Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/smoke/startup.jsonl" dist/windows-diagnostics/smoke-startup.jsonl -ErrorAction SilentlyContinue
           Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/startup.jsonl" dist/windows-diagnostics/app-startup.jsonl -ErrorAction SilentlyContinue
-          foreach ($file in @('windows-smoke.png', 'windows-app.png')) {
+          foreach ($file in @('windows-smoke.png', 'windows-app.png', 'windows-startup.png')) {
             if (Test-Path "dist/$file") { Copy-Item "dist/$file" dist/windows-diagnostics }
           }
           Get-Content dist/windows-diagnostics/*startup.jsonl -ErrorAction SilentlyContinue

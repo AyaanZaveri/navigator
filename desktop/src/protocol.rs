@@ -9,6 +9,9 @@ pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Command {
+    ClientStage {
+        stage: ClientStage,
+    },
     AppReady {
         dark: bool,
     },
@@ -64,6 +67,27 @@ pub enum Command {
         request: u64,
         position: Option<f64>,
     },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ClientStage {
+    InterfaceHydrated,
+    PlayRequested,
+    PlayerMounted,
+    StreamResolving,
+    StreamResolved,
+}
+impl ClientStage {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::InterfaceHydrated => "client-interface-hydrated",
+            Self::PlayRequested => "client-play-requested",
+            Self::PlayerMounted => "client-player-mounted",
+            Self::StreamResolving => "client-stream-resolving",
+            Self::StreamResolved => "client-stream-resolved",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
@@ -157,6 +181,11 @@ mod tests {
     use super::*;
     #[test]
     fn playback_boundary() {
+        assert!(parse(r#"{"type":"client-stage","stage":"play-requested"}"#).is_ok());
+        assert!(parse(r#"{"type":"client-stage","stage":"http://example.com"}"#).is_err());
+        assert!(
+            parse(r#"{"type":"client-stage","stage":"play-requested","url":"secret"}"#).is_err()
+        );
         assert!(parse(r#"{"type":"app-ready","dark":true}"#).is_ok());
         assert!(parse(r#"{"type":"app-ready","dark":true,"url":"file:///x"}"#).is_err());
         assert!(parse(r#"{"type":"app-ready","dark":"true"}"#).is_err());

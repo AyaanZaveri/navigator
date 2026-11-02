@@ -1,5 +1,6 @@
 import { atom } from "jotai";
 import { artworkUrl } from "@/lib/artwork";
+import { recordDesktopStage } from "@/lib/desktop/bridge";
 
 // AI Ask state
 export const isAIAskOpenAtom = atom(false);
@@ -69,6 +70,7 @@ export const currentTimestampAtom = atom(0);
 
 // Derived atom for playing media
 export const playMediaAtom = atom(null, (get, set, media: MediaToPlay) => {
+  recordDesktopStage("play-requested");
   set(isAIAskOpenAtom, false);
   set(currentMediaAtom, media.type === "series" ? {
     ...media,

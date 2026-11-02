@@ -46,10 +46,20 @@ wrap in narrow windows. Normal window size/position and maximized state persist,
 and saved placement is clamped onto an available display. A second launch
 restores/activates the running window.
 
+The Windows header uses the web's top spacing and keeps account actions beside
+search. Horizontal clearance protects the caption buttons in narrow windows;
+there is no extra caption row. The account menu expands to the right below the
+avatar and clamps to the viewport. The shared page scrollport uses
+Radix's overlay thumb on every platform, preserving native scrolling without
+reserving a scrollbar gutter.
+
 The first frame is a small native loading view. Backend and mpv initialization
-run on a worker while the window remains responsive; WebView2 is created after
-the backend is ready. A painted React readiness signal removes the loading
-view and synchronizes the caption theme. Closing during startup cancels the
+run on a worker while the window remains responsive. WebView2 starts in parallel
+and paints a bundled startup document that requires no server or network. The
+same WebView navigates as soon as the backend listens, while mpv continues
+initializing. Up to 64 validated playback commands can wait for the player;
+overflow reports a session error. A painted React readiness signal removes the
+native loading view and synchronizes the caption theme. Closing during startup cancels the
 backend wait. The backend is assigned to a kill-on-close Windows Job Object
 atomically at creation, then resumes without a console; its descendants cannot
 outlive Navigator. Playback frames stay native, and progress stays throttled
@@ -63,6 +73,7 @@ npm run desktop:check
 $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
 cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
 ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -LaunchApp -StartupDelaySeconds 8
 ./scripts/windows-performance.ps1 -AppProcessId <NavigatorPID> -Seconds 30
 ```
 
@@ -71,15 +82,39 @@ The smoke check starts no server, uses generated color bars and a separate
 WebView bridge, captures the compositor output, checks visible bars, and closes
 normally. CI uploads the screenshot and timing log as compositor diagnostics.
 It does not establish hardware decoding, HDR accuracy or physical-display behavior.
+The installed-app check deliberately blocks Node startup for eight seconds and
+checks a screenshot of the bundled startup screen before the backend is ready.
+It then verifies the hydrated app, caption hit testing and normal shutdown.
 
 `startup.jsonl` in the local data directory records elapsed milliseconds for
-`window-visible`, `backend-ready`, `player-ready`, `webview-created`, `page-loaded`
-and `app-ready`. The visibility mark records the native show call, not a measured
+`window-visible`, `backend-starting`, `backend-ready`, `player-starting`,
+`player-ready`, `webview-starting`, `startup-view-created`, `startup-page-loaded`,
+`navigation-starting`, `page-loaded` and `app-ready` (`webview-created` in the
+video-only smoke test). The visibility mark records the native show call, not a measured
 display scanout; readiness records the painted hydrated shell, not completion
 of remote catalog requests. Logs rotate at 1 MiB and contain no media URLs or
 credentials. First-window and interactive-startup goals are 300 ms and
 1 second warm / 2.5 seconds cold respectively; these are goals until measured
 on the target PC. Compare repeated cold and warm Release launches separately.
+
+New Windows shells advertise `capabilities.timings`. Their log also records
+`client-interface-hydrated`, `client-play-requested`, `client-player-mounted`,
+`client-stream-resolving`, `client-stream-resolved`, `playback-load-received`,
+`playback-open-started`, `playback-file-loaded`, `playback-seek-requested`, and
+the first `playback-ready` for each load. These distinguish deferred JavaScript,
+stream resolution, native opening and resume seeks without logging URLs or titles.
+Older shells receive none of the new diagnostic requests. Windows preloads the
+player chunk while idle so its download/evaluation need not wait for first Play.
+
+One measured Windows cold launch took 24.6 seconds: the backend listened at
+6.8 seconds, navigation started immediately, and the hydrated interface was
+ready at 24.6 seconds. The player initialized in parallel and was ready at
+9.5 seconds. This remains a startup performance issue; showing the bundled
+startup document quickly does not establish fast application readiness.
+
+Manual Actions builds default to Windows validation plus shared Linux adapter
+checks. Set `validation_platforms=all` for the full macOS/Windows/Linux matrix;
+pull requests retain the full matrix. No workflow is triggered by this setting.
 
 The performance script records the complete Navigator/Node/WebView2 process
 tree's summed working sets, private bytes, CPU and available GPU engine counters.

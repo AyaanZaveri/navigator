@@ -46,7 +46,8 @@ async function run() {
     assert.equal((await context.exports.getNextEpisodeForSeries('tmdb:123')).id, 'tmdb:123:1:1');
 
     const atoms = load('lib/atoms.ts', name => name === 'jotai'
-        ? { atom: (initial, write) => ({ initial, write }) } : artwork);
+        ? { atom: (initial, write) => ({ initial, write }) }
+        : name === '@/lib/desktop/bridge' ? { recordDesktopStage() {} } : artwork);
     const updates = new Map();
     const play = request => atoms.playMediaAtom.write(() => {}, (key, value) => updates.set(key, value), request);
     play({ id: 'tt123', type: 'series', mediaSourceId: 'tt123:0:1', backdropUrl: '/episode-still.jpg' });
