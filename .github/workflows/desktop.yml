@@ -178,7 +178,8 @@ jobs:
         if: inputs.windows_artifact_run != ''
         uses: actions/download-artifact@v4
         with:
-          name: Navigator-Windows-x64-Portable
+          pattern: Navigator-Windows-x64-*
+          merge-multiple: true
           run-id: ${{ inputs.windows_artifact_run }}
           github-token: ${{ github.token }}
           path: dist/reused
@@ -187,6 +188,7 @@ jobs:
         shell: pwsh
         run: |
           Expand-Archive -LiteralPath (Get-ChildItem dist/reused/*-portable.zip).FullName -DestinationPath dist/desktop-win32-x64
+          Copy-Item dist/reused/*-setup.exe dist/
           Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile dist/MicrosoftEdgeWebview2Setup.exe
           $signature = Get-AuthenticodeSignature dist/MicrosoftEdgeWebview2Setup.exe
           if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation(?:,|$)') { throw 'Invalid Microsoft WebView2 bootstrapper signature' }
@@ -201,10 +203,32 @@ jobs:
         id: video-smoke
         shell: pwsh
         run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
-      - name: Check packaged application startup and shutdown
+      - name: Install the per-user application
+        id: install
         if: ${{ !cancelled() && (steps.video-smoke.outcome == 'success' || steps.video-smoke.outcome == 'failure') }}
         shell: pwsh
-        run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -LaunchApp -Output dist/windows-app.png
+        run: |
+          $setup = Start-Process -FilePath (Get-ChildItem dist/*-setup.exe).FullName -ArgumentList '/S' -PassThru
+          if (-not $setup.WaitForExit(90000)) { Stop-Process -Id $setup.Id -Force; throw 'Installer timed out' }
+          if ($setup.ExitCode -ne 0) { throw "Installer exited $($setup.ExitCode)" }
+          if (-not (Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe")) { throw 'Installed executable is missing' }
+          if (-not (Test-Path "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Navigator.lnk")) { throw 'Start menu shortcut is missing' }
+          if (-not (Test-Path 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/NavigatorDesktop')) { throw 'Uninstall registration is missing' }
+      - name: Check installed application startup and shutdown
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: pwsh
+        run: ./scripts/windows-smoke.ps1 -Executable "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe" -LaunchApp -Output dist/windows-app.png
+      - name: Verify uninstall and profile retention
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $uninstall = Start-Process -FilePath "$env:LOCALAPPDATA/Programs/Navigator/Uninstall.exe" -ArgumentList '/S' -PassThru
+          if (-not $uninstall.WaitForExit(30000)) { Stop-Process -Id $uninstall.Id -Force; throw 'Uninstaller timed out' }
+          $deadline = [DateTime]::UtcNow.AddSeconds(15)
+          while ((Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe") -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
+          if (Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe") { throw 'Uninstaller left the executable behind' }
+          if (Test-Path 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/NavigatorDesktop') { throw 'Uninstaller left its registration behind' }
+          if (-not (Test-Path "$env:LOCALAPPDATA/Navigator Desktop/startup.jsonl")) { throw 'User profile was removed' }
       - name: Upload Windows installer
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@v4
