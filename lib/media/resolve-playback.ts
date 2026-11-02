@@ -6,6 +6,7 @@ import type { StremioStream } from "@/types/stremio";
 export type PlaybackPhase = "finding-episode" | "fetching-streams" | "loading-stream";
 
 interface PlaybackDependencies {
+    resolveId?: (_id: string, _type: "movie" | "series") => Promise<string>;
     environment?: "web" | "native";
     inspectStream?: (_stream: StremioStream) => Promise<StreamMetadata | undefined>;
     canPlayType?: (_mime: string) => boolean;
@@ -108,6 +109,12 @@ export async function resolvePlayback(
     onTargetReady?: (_media: MediaToPlay) => void,
 ): Promise<MediaToPlay> {
     let media = { ...request };
+    const tmdb = /^(tmdb:[1-9]\d*)(?::\d+:\d+)?$/.exec(media.seriesId || media.id);
+    if (!media.streamUrl && tmdb && dependencies.resolveId && (media.type === "movie" || media.type === "series")) {
+        const id = await dependencies.resolveId(tmdb[1], media.type);
+        media = { ...media, id, seriesId: media.type === "series" ? id : undefined,
+            mediaSourceId: media.mediaSourceId?.replace(/^tmdb:[1-9]\d*(?=:|$)/, id) };
+    }
     if (!media.streamUrl && media.type === "series" && !media.mediaSourceId) {
         onPhase("finding-episode");
         const seriesId = media.seriesId || media.id;

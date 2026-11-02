@@ -117,6 +117,8 @@ async function main() {
     assert.equal(mixed.totalPages, 3);
     assert.equal((await tmdb.getTMDBTitle('tt123', 'movie')).people[0].id, 7);
     assert.equal(await tmdb.resolveTMDBPlaybackId('tmdb:123', 'movie'), 'tt123');
+    assert.equal(await tmdb.resolveAddonMediaId('tmdb:20:1:2', 'series'), 'tt20:1:2', 'Translate only the selected episode and preserve its coordinates');
+    assert.equal(await tmdb.resolveAddonMediaId('tmdb:123', 'movie'), 'tt123');
     assert.equal(await tmdb.resolveTMDBPlaybackId('tmdb:30', 'movie'), 'tmdb:30', 'Titles without IMDb IDs must not invent a mapping');
     const beforeIMDb = requests.length;
     assert.equal(await tmdb.resolveTMDBPlaybackId('tt123', 'movie'), 'tt123');

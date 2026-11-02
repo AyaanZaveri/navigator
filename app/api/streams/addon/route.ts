@@ -58,7 +58,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ streams: [] }, { status: 404 });
     }
 
-    const streams = await fetchAddonStreams(addon.transportUrl, mediaItemId, type);
+    let sourceId = mediaItemId;
+    if (/^tmdb:[1-9]\d*(?=:|$)/.test(sourceId) && (type === "movie" || type === "series")) {
+      const { resolveAddonMediaId } = await import("@/lib/tmdb-discovery");
+      sourceId = await resolveAddonMediaId(sourceId, type, request.signal);
+    }
+    const streams = await fetchAddonStreams(addon.transportUrl, sourceId, type);
 
     return NextResponse.json({
       streams: streams.map((stream) => ({

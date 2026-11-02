@@ -77,6 +77,10 @@ export async function getSubtitleTracks(
   }>
 > {
   try {
+    if (/^tmdb:[1-9]\d*(?=:|$)/.test(itemId) && (type === "movie" || type === "series")) {
+      const { resolveAddonMediaId } = await import("@/lib/tmdb-discovery");
+      itemId = await resolveAddonMediaId(itemId, type, options?.signal);
+    }
     const addons = await getInstalledAddons();
     const subtitleRequestHeaders = {
       Referer: "https://web.stremio.com/",

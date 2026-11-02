@@ -40,6 +40,7 @@ import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
 import type { MediaToPlay } from "@/lib/atoms";
+import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
@@ -621,6 +622,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     try {
       const probe = !nativePlayback && typeof document.createElement === "function" ? document.createElement("video") : null;
       const media = await resolvePlayback(request, {
+        resolveId: (id, type) => fetchPlaybackId(id, type, metadataAbort.signal),
         fetchStreams: fallback && webStreamsRef.current.length
           ? async () => webStreamsRef.current : fetchPlaybackStreams,
         getNextEpisodeForSeries: id => loadEpisode(id, 1, 1),

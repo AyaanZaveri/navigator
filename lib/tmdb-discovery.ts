@@ -136,6 +136,14 @@ export async function resolveTMDBPlaybackId(id: string, type: TMDBMediaType, sig
     return external.imdb_id && /^tt\d+$/.test(external.imdb_id) ? external.imdb_id : `tmdb:${tmdbId}`;
 }
 
+/** Keep episode coordinates when translating a selected title for an add-on. */
+export async function resolveAddonMediaId(id: string, type: TMDBMediaType, signal?: AbortSignal): Promise<string> {
+    if (!/^tmdb:[1-9]\d*(?=:|$)/.test(id)) return id;
+    const parsed = type === "series" ? parseSeriesRouteId(id) : null;
+    const base = await resolveTMDBPlaybackId(parsed?.seriesId || id, type, signal);
+    return parsed?.isEpisodeTarget ? `${base}:${parsed.season}:${parsed.episode}` : base;
+}
+
 export async function getTMDBTitle(id: string, type: TMDBMediaType, signal?: AbortSignal) {
     const tmdbId = await tmdbIdForTitle(id, type, signal);
     const details = await request<TMDBTitleDetails>(`${type === "movie" ? "movie" : "tv"}/${tmdbId}`, {
