@@ -22,7 +22,8 @@ const powershell = (script, env) => run("powershell.exe", ["-NoProfile", "-NonIn
 // Write entry names explicitly: Windows PowerShell's legacy .NET compatibility
 // mode can otherwise write backslash-separated ZIP paths.
 export async function createWindowsZip(directory, destination) {
-  await powershell(`Add-Type -AssemblyName System.IO.Compression.FileSystem
+  await powershell(`Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $directory = [IO.Path]::GetFullPath($env:NAVIGATOR_PACKAGE_DIR)
 $archive = [IO.Compression.ZipFile]::Open($env:NAVIGATOR_PACKAGE_ZIP, [IO.Compression.ZipArchiveMode]::Create)
 try {
