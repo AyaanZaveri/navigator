@@ -22,6 +22,8 @@
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   box-shadow: none;
+  transform: scale(0.96);
+  transform-origin: bottom right;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -29,12 +31,14 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition:
-    opacity 150ms var(--ease-out),
+    opacity var(--duration-fast, 160ms) var(--ease-out),
+    transform var(--duration-standard, 240ms) var(--ease-out),
     background-color 150ms var(--ease-out),
     visibility 0s 150ms;
 }
 
 .button[data-visible] {
+  transform: scale(1);
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -47,11 +51,16 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .button:enabled:hover { background: rgb(0 0 0 / 70%); }
+  .button[data-visible]:enabled:hover { background: rgb(0 0 0 / 70%); transform: scale(1.03); }
+  .button[data-visible]:enabled:active:not(:focus-visible) { transform: scale(0.97); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .button { transition-duration: 100ms, 100ms, 0s; }
+  .button, .button[data-visible]:enabled:hover, .button[data-visible]:enabled:active {
+    transform: none;
+    transition: opacity 100ms var(--ease-out), background-color 100ms var(--ease-out), visibility 0s 100ms;
+  }
+  .button[data-visible] { transition-delay: 0s; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
