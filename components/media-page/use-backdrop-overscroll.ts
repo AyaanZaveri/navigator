@@ -31,7 +31,9 @@ export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | nul
         let frame = 0;
         let visible = false;
         const updateVisibility = () => {
-            const nextVisible = ready && scroller.scrollTop <= 0;
+            // The opaque media page masks this stationary backing during normal
+            // scrolling. Keep it painted so native bounce never waits on JS.
+            const nextVisible = ready;
             if (nextVisible === visible) return;
             visible = nextVisible;
             surface.style.visibility = visible ? "visible" : "hidden";
@@ -76,9 +78,6 @@ export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | nul
         resize.observe(scroller);
         image.addEventListener("load", scheduleDraw);
         image.addEventListener("error", hide);
-        // Chromium doesn't expose bounce distance; this stationary backing also
-        // works when scrollTop remains zero throughout the native overscroll.
-        scroller.addEventListener("scroll", updateVisibility, { passive: true });
         scheduleDraw();
 
         return () => {
@@ -86,7 +85,6 @@ export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | nul
             resize.disconnect();
             image.removeEventListener("load", scheduleDraw);
             image.removeEventListener("error", hide);
-            scroller.removeEventListener("scroll", updateVisibility);
             surface.remove();
         };
     }, [imageRef, source]);

@@ -68,7 +68,6 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
             if (opacity !== previousOpacity) {
                 surfaceLayers?.forEach(layer => {
                     layer.style.opacity = String(opacity);
-                    layer.style.visibility = opacity > 0 ? "visible" : "hidden";
                 });
                 previousOpacity = opacity;
             }

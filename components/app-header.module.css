@@ -18,10 +18,10 @@
 .blur > div,
 .tint {
     opacity: 0;
-    visibility: hidden;
-    /* Hide after the opacity fade completes; show at the start of its fade-in.
-       Apply this to each leaf, preserving the page as the backdrop source. */
-    transition: opacity 180ms linear, visibility 180ms linear;
+    /* Keep filter leaves paintable across rapid reversals at scrollTop=0.
+       Visibility changes can expose a blank backdrop while layers warm up.
+       Fade each leaf; a faded parent would change the backdrop root. */
+    transition: opacity 180ms linear;
 }
 
 /* The shared blur's masks soften the entire height, rather than applying
