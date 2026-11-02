@@ -24,6 +24,12 @@ export class MpvController extends EventTarget {
   private ready = false;
   private failure: { code: number; message: string } | null = null;
   private finished = false;
+  private pending = new Map<"position" | "paused" | "volume" | "muted" | "rate", { value: number | boolean; until: number }>();
+  private optimistic(key: "position" | "paused" | "volume" | "muted" | "rate", value: number | boolean) {
+    if (this.bridge.platform !== "windows") return;
+    this.pending.set(key, { value, until: Date.now() + (key === "position" ? 2000 : 1000) });
+    this.state = { ...this.state, [key]: value };
+  }
   tracks: NativeTrack[] = [];
   subtitleText = "";
   private previewId = 0;
@@ -56,7 +62,12 @@ export class MpvController extends EventTarget {
   get currentSrc() { return this.source; }
   get currentTime() { return this.state.position; }
   set currentTime(position: number) {
-    if (!Number.isFinite(position) || position < 0) return;
+    if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return;
+    if (this.bridge.platform === "windows") {
+      this.optimistic("position", position);
+      this.state.seeking = true;
+      this.fire("seeking", "timeupdate");
+    }
     this.bridge.send({ type: "seek", session: this.session, position });
   }
   get duration() { return this.loaded ? this.state.duration : Number.NaN; }
@@ -74,12 +85,14 @@ export class MpvController extends EventTarget {
   set volume(volume: number) {
     if (!Number.isFinite(volume)) return;
     this.state.volume = Math.max(0, Math.min(1, volume));
+    if (this.session) this.optimistic("volume", this.state.volume);
     if (this.session) this.bridge.send({ type: "volume", session: this.session, volume: this.state.volume });
     this.fire("volumechange");
   }
   get muted() { return this.state.muted; }
   set muted(muted: boolean) {
     this.state.muted = muted;
+    if (this.session) this.optimistic("muted", muted);
     if (this.session) this.bridge.send({ type: "muted", session: this.session, muted });
     this.fire("volumechange");
   }
@@ -87,6 +100,7 @@ export class MpvController extends EventTarget {
   set playbackRate(rate: number) {
     if (!Number.isFinite(rate)) return;
     this.state.rate = Math.max(0.25, Math.min(4, rate));
+    if (this.session) this.optimistic("rate", this.state.rate);
     if (this.session) this.bridge.send({ type: "rate", session: this.session, rate: this.state.rate });
     this.fire("ratechange");
   }
@@ -94,6 +108,7 @@ export class MpvController extends EventTarget {
   load(url: string, headers?: Record<string, string>, startPosition = 0) {
     this.cancelPreview();
     if (this.disposed) return;
+    this.pending.clear();
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
     this.previewFrames.clear(); this.decodedPreviews.clear();
     this.source = url;
@@ -118,10 +133,23 @@ export class MpvController extends EventTarget {
   play(): Promise<void> {
     if (this.disposed) return Promise.reject(new Error("Player has been closed"));
     if (this.failure) return Promise.reject(new Error(this.failure.message));
+    if (this.bridge.platform === "windows") {
+      const paused = this.state.paused;
+      if (paused) this.optimistic("paused", false);
+      if (paused) this.fire("play");
+    }
     this.bridge.send({ type: "play", session: this.session });
     return Promise.resolve();
   }
-  pause() { if (!this.disposed) this.bridge.send({ type: "pause", session: this.session }); }
+  pause() {
+    if (this.disposed) return;
+    if (this.bridge.platform === "windows") {
+      const paused = this.state.paused;
+      this.optimistic("paused", true);
+      if (!paused) this.fire("pause");
+    }
+    this.bridge.send({ type: "pause", session: this.session });
+  }
   selectTrack(kind: "audio" | "subtitle", id: string) {
     if (kind === "subtitle" && id === "no") this.clearSubtitle();
     this.bridge.send({ type: "track", session: this.session, kind, id });
@@ -157,6 +185,7 @@ export class MpvController extends EventTarget {
     this.cancelPreview();
     if (this.disposed) return;
     this.disposed = true;
+    this.pending.clear();
     this.previewFrames.clear(); this.decodedPreviews.clear();
     this.unsubscribe?.();
     this.unsubscribe = undefined;
@@ -169,6 +198,7 @@ export class MpvController extends EventTarget {
     this.fire("subtitlechange");
   }
   private fail(message: string) {
+    this.pending.clear();
     this.cancelPreview();
     this.clearSubtitle();
     this.failure = { code: 4, message };
@@ -194,7 +224,17 @@ export class MpvController extends EventTarget {
         break;
       case "state": {
         const previous = this.state;
-        this.state = message.state;
+        const confirmingPlay = this.pending.get("paused")?.value === false && message.state.paused === false;
+        const incoming = { ...message.state };
+        for (const [key, pending] of this.pending) {
+          const acknowledged = key === "position"
+            ? Math.abs(incoming.position - (pending.value as number)) < 0.5
+            : incoming[key] === pending.value;
+          if (acknowledged || Date.now() >= pending.until) this.pending.delete(key);
+          else Object.assign(incoming, { [key]: pending.value });
+        }
+        if (this.pending.has("position")) incoming.seeking = true;
+        this.state = incoming;
         if (previous.position !== this.state.position) this.fire("timeupdate");
         if (previous.duration !== this.state.duration) this.fire("durationchange");
         if (previous.paused !== this.state.paused) this.fire(this.state.paused ? "pause" : "play");
@@ -205,7 +245,7 @@ export class MpvController extends EventTarget {
         if (previous.width !== this.state.width || previous.height !== this.state.height) this.fire("resize");
         if (previous.buffered !== this.state.buffered) this.fire("progress");
         if (this.ready && !this.state.paused && !this.state.buffering && !this.state.seeking &&
-            (previous.paused || previous.buffering || previous.seeking)) this.fire("playing");
+            (confirmingPlay || previous.paused || previous.buffering || previous.seeking)) this.fire("playing");
         break;
       }
       case "loaded": this.loaded = true; this.fire("durationchange", "loadedmetadata"); break;

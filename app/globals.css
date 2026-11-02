@@ -34,6 +34,29 @@ navigator-mpv {
   height: 100dvh;
 }
 
+/* The Windows client can snap narrower than the desktop player toolbar.
+   Keep all controls reachable in DOM order; wrap groups before they collide. */
+html[data-native-platform="windows"] [data-slot="media-player-controls"] {
+  container-type: inline-size;
+}
+@container (max-width: 38rem) {
+  html[data-native-platform="windows"] [data-player-toolbar] {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  html[data-native-platform="windows"] [data-player-toolbar] > div {
+    flex-basis: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  html[data-native-platform="windows"] [data-player-toolbar] > div:last-child {
+    justify-content: flex-end;
+  }
+  html[data-native-platform="windows"] [data-player-title] {
+    font-size: 1.25rem;
+  }
+}
+
 /* The native macOS buttons occupy the leading side of the app's header.
    AppKit hides them in fullscreen, where the usual page gutter is restored. */
 html[data-native-platform="macos"] { --window-controls-inset: 88px; }

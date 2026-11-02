@@ -9,9 +9,15 @@ mod player;
 mod protocol;
 mod render;
 mod server;
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "macos")]
 mod tao_shell;
 mod thumbnails;
+#[cfg(any(windows, test))]
+mod window_state;
+#[cfg(windows)]
+mod windows_process;
+#[cfg(windows)]
+mod windows_shell;
 
 use mpv::Mpv;
 use serde_json::{Value, json};
@@ -28,10 +34,16 @@ struct App {
     _server: Option<server::Server>,
     _instance: std::fs::File,
     smoke: bool,
+    #[cfg(windows)]
+    backend: Option<(PathBuf, u16)>,
+    #[cfg(windows)]
+    started: std::time::Instant,
 }
 
 impl App {
     fn load() -> Result<Self, String> {
+        #[cfg(windows)]
+        let started = std::time::Instant::now();
         let mut args = std::env::args().skip(1);
         let mut url = None;
         let mut resources = None;
@@ -74,12 +86,27 @@ impl App {
         let data = dirs::data_local_dir()
             .ok_or("No local data directory")?
             .join("Navigator Desktop");
+        #[cfg(windows)]
+        let data = if smoke { data.join("smoke") } else { data };
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
-        let instance =
-            std::fs::File::create(data.join("instance.lock")).map_err(|e| e.to_string())?;
-        instance
-            .try_lock()
-            .map_err(|_| "Navigator Desktop is already running")?;
+        let instance = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(data.join("instance.lock"))
+            .map_err(|e| e.to_string())?;
+        if let Err(error) = instance.try_lock() {
+            #[cfg(windows)]
+            if matches!(error, std::fs::TryLockError::WouldBlock)
+                && platform::activate_existing(smoke)
+            {
+                std::process::exit(0);
+            }
+            return Err(format!(
+                "Cannot open Navigator's profile (another copy may be running): {error}"
+            ));
+        }
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
         let resources = resources.unwrap_or_else(|| {
             if cfg!(target_os = "macos") && exe.parent().is_some_and(|p| p.ends_with("MacOS")) {
@@ -88,6 +115,8 @@ impl App {
                 exe.parent().unwrap().join("resources")
             }
         });
+        #[cfg(windows)]
+        let mut backend = None;
         let (url, server) = if smoke {
             ("about:blank".into(), None)
         } else {
@@ -95,8 +124,21 @@ impl App {
                 Some(url) => (url, None),
                 None if cfg!(debug_assertions) => ("http://localhost:3000".into(), None),
                 None => {
+                    #[cfg(not(windows))]
                     let server = server::Server::start(&resources, port)?;
-                    (format!("http://127.0.0.1:{port}"), Some(server))
+                    #[cfg(windows)]
+                    let server = {
+                        backend = Some((resources.clone(), port));
+                        None
+                    };
+                    #[cfg(not(windows))]
+                    {
+                        (format!("http://127.0.0.1:{port}"), Some(server))
+                    }
+                    #[cfg(windows)]
+                    {
+                        (format!("http://127.0.0.1:{port}"), server)
+                    }
                 }
             }
         };
@@ -155,15 +197,27 @@ impl App {
             _server: server,
             _instance: instance,
             smoke,
+            #[cfg(windows)]
+            backend,
+            #[cfg(windows)]
+            started,
         })
     }
 
+    #[cfg(not(windows))]
     fn start_player(
         &self,
         surface: &platform::VideoSurface,
         emit: impl Fn(Value) + Send + Sync + 'static,
     ) -> Result<player::Player, String> {
-        let mut options = platform::mpv_options(surface);
+        self.start_player_options(platform::mpv_options(surface), emit)
+    }
+
+    fn start_player_options(
+        &self,
+        mut options: Vec<(&'static str, String)>,
+        emit: impl Fn(Value) + Send + Sync + 'static,
+    ) -> Result<player::Player, String> {
         if self.smoke {
             options.push(("loop-file", "inf".into()));
         }
@@ -185,7 +239,11 @@ impl App {
                 ("demuxer", "lavf"),
                 (
                     "demuxer-lavf-o",
-                    "protocol_whitelist=%40%http,https,tcp,tls,crypto,data,httpproxy",
+                    if self.smoke {
+                        "protocol_whitelist=%45%file,http,https,tcp,tls,crypto,data,httpproxy"
+                    } else {
+                        "protocol_whitelist=%40%http,https,tcp,tls,crypto,data,httpproxy"
+                    },
                 ),
                 ("force-window", if cfg!(windows) { "yes" } else { "no" }),
             ]
@@ -237,9 +295,13 @@ fn receive(message: &Value) -> String {
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let result = App::load().and_then(|app| {
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
         {
             tao_shell::run(app)
+        }
+        #[cfg(windows)]
+        {
+            windows_shell::run(app)
         }
         #[cfg(target_os = "linux")]
         {
@@ -247,6 +309,8 @@ fn main() {
         }
     });
     if let Err(message) = result {
+        #[cfg(windows)]
+        platform::show_error(&message);
         eprintln!("Navigator Desktop: {message}");
         std::process::exit(1);
     }

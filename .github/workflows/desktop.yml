@@ -12,6 +12,7 @@ on:
       - "components/navigator/focus.tsx"
       - "lib/atoms.ts"
       - "app/globals.css"
+      - "app/layout.tsx"
       - "components/media-card.tsx"
       - "components/media-card.module.css"
       - "scripts/test-card-hover.cjs"
@@ -38,6 +39,7 @@ on:
       - "scripts/test-webkit-previews.cjs"
       - "scripts/fixtures/seek-preview.mp4"
       - "scripts/*desktop*"
+      - "scripts/*windows*"
       - "scripts/generate-macos-icon.sh"
       - "public/logo/desktop/**"
       - "scripts/test-artwork*"
@@ -88,6 +90,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run test:desktop
+      - run: node scripts/test-windows-desktop.cjs
       - run: bun run test:resume
       - run: bun run test:touch-scrubbing
       - run: bun run test:page-layout
@@ -97,3 +100,63 @@ jobs:
       - if: runner.os == 'macOS'
         run: bun run test:webkit-previews
       - run: bun x tsc --noEmit --incremental false
+
+  windows-package:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.7.0
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@1.92.0
+      - run: bun install --frozen-lockfile
+      - run: node scripts/test-windows-desktop.cjs
+      - name: Parse Windows scripts
+        shell: pwsh
+        run: |
+          foreach ($file in @('scripts/windows-smoke.ps1', 'scripts/windows-performance.ps1')) {
+            $tokens = $null; $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
+          }
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis --yes --no-progress
+          "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - run: node scripts/fetch-desktop-libs.mjs
+      - name: Check Windows backend process ownership
+        shell: pwsh
+        run: |
+          $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
+          cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
+      - run: node scripts/desktop.mjs package
+      - name: Verify portable archive includes Next assets
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead((Get-ChildItem dist/*-portable.zip).FullName)
+          try {
+            if (-not ($zip.Entries.FullName -match 'resources/server/\.next/static/')) { throw 'Portable ZIP is missing Next static assets' }
+            if (-not ($zip.Entries.FullName -contains 'resources/server/server.js')) { throw 'Portable ZIP is missing the server' }
+          } finally { $zip.Dispose() }
+      - name: Check native video and transparent WebView2
+        shell: pwsh
+        run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+      - name: Upload private Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Navigator-Windows-x64
+          path: |
+            dist/*-setup.exe
+            dist/*-portable.zip
+          if-no-files-found: error
+      - name: Upload compositor diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-compositor-diagnostics
+          path: |
+            dist/windows-smoke.png
+            ~/AppData/Local/Navigator Desktop/smoke/startup*.jsonl

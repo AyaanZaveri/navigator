@@ -3,6 +3,8 @@
 import "@/components/player-mobile.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
+import { PlayerSkipSegments } from "@/components/player-skip-segments";
+import { PlayerNextEpisode } from "@/components/player-next-episode";
 import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
@@ -631,7 +633,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   if (!isPlayerVisible || !currentMedia) return null;
 
-  const { isEpisode: isEpisodePlayback, showTitle, primaryTitle } = getPlaybackTitles(currentMedia, mediaDetails);
+  const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
   const fallbackBackdrop =
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
   const loadingLogo = mediaDetails?.logo;
@@ -874,6 +876,21 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </Button>
         )}
 
+        {!loading && videoReady && !playbackError && streamUrl
+          && (currentMedia.type === "movie" || currentMedia.type === "series") && (
+          <PlayerSkipSegments
+            key={`${streamUrl}:${currentMedia.seriesId || currentMedia.id}:${season}:${episodeNumber}`}
+            lookup={{ id: currentMedia.seriesId || currentMedia.id, type: currentMedia.type,
+              season, episode: episodeNumber, duration }}
+            currentTime={currentTime}
+            mediaRef={videoRef}
+            onSeek={time => {
+              setCurrentTime(time);
+              setCurrentTimestamp(time);
+            }}
+          />
+        )}
+
         <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
 
 
@@ -920,6 +937,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           <div data-player-toolbar="" className="flex w-full items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <MediaPlayerPlay />
+              {isEpisodePlayback && season !== undefined && episodeNumber !== undefined && (
+                <PlayerNextEpisode
+                  key={`${currentMedia.seriesId || currentMedia.id}:${season}:${episodeNumber}`}
+                  media={currentMedia}
+                  season={season}
+                  episode={episodeNumber}
+                  onAdvance={() => sendPlaybackUpdate("stopped")}
+                />
+              )}
               <MediaPlayerSeekBackward>
                 <RotateCcw />
               </MediaPlayerSeekBackward>
@@ -931,7 +957,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
             <div className="flex items-center gap-2">
               {onToggleAIAsk && (
-                <MediaPlayerTooltip tooltip="Navigator" shortcut="Cmd + K">
+                <MediaPlayerTooltip tooltip="Navigator" shortcut={desktopBridge()?.platform === "windows" ? "Ctrl + K" : "Cmd + K"}>
                   <Button
                     variant="ghost"
                     size="sm"

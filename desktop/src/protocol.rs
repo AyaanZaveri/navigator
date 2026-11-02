@@ -9,6 +9,9 @@ pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Command {
+    AppReady {
+        dark: bool,
+    },
     VideoFit {
         session: String,
         mode: VideoFitMode,
@@ -143,6 +146,9 @@ mod tests {
     use super::*;
     #[test]
     fn playback_boundary() {
+        assert!(parse(r#"{"type":"app-ready","dark":true}"#).is_ok());
+        assert!(parse(r#"{"type":"app-ready","dark":true,"url":"file:///x"}"#).is_err());
+        assert!(parse(r#"{"type":"app-ready","dark":"true"}"#).is_err());
         for mode in ["fit", "crop", "stretch"] {
             assert!(
                 parse(&format!(
