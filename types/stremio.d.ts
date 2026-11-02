@@ -157,6 +157,7 @@ export interface StremioStream {
   externalUrl?: string;
   name?: string;
   title?: string;
+  description?: string;
   behaviorHints?: {
     notWebReady?: boolean;
     bingeGroup?: string;

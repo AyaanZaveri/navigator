@@ -1,9 +1,15 @@
 import type { MediaToPlay } from "@/lib/atoms";
+import type { StreamMetadata, StreamTrackMetadata } from "@/lib/media/stream-metadata";
 import type { StremioStream } from "@/types/stremio";
 
 export type PlaybackPhase = "finding-episode" | "fetching-streams" | "loading-stream";
 
 interface PlaybackDependencies {
+    environment?: "web" | "native";
+    inspectStream?: (_stream: StremioStream) => Promise<StreamMetadata | undefined>;
+    canPlayType?: (_mime: string) => boolean;
+    excludeUrls?: ReadonlySet<string>;
+    onCandidates?: (_streams: StremioStream[]) => void;
     fetchStreams: (_id: string, _type: string) => Promise<StremioStream[]>;
     getNextEpisodeForSeries: (_id: string) => Promise<{
         id: string; title: string; season: number; episode: number;
@@ -17,7 +23,78 @@ export const playbackPhaseLabels: Record<PlaybackPhase, string> = {
     "loading-stream": "Loading stream…",
 };
 
-/** Preserve add-on ranking; skip results that cannot be opened by the player. */
+/** Rank compatibility before quality: a high-resolution file with unsupported sound is not a good web source. */
+export function scoreWebStream(stream: StremioStream, canPlayType?: (_mime: string) => boolean): number {
+    const url = stream.url || stream.externalUrl || "";
+    let filename = url.split(/[?#]/)[0];
+    try { filename = decodeURIComponent(filename); } catch { /* Add-ons may supply unescaped filenames. */ }
+    const text = [stream.name, stream.title, stream.description, stream.behaviorHints?.filename, filename].join(" ")
+        .toLowerCase().replace(/[\u200b-\u200f\u2060\ufeff]/g, "").replace(/_/g, " ");
+    let score = 0;
+    const supports = (mime: string) => canPlayType?.(mime) ?? false;
+    if (/\b(avc|h[ .-]?264|x264)\b/.test(text)) score += 3000;
+    else if (/\b(hevc|h[ .-]?265|x265)\b/.test(text)) score += supports('video/mp4; codecs="hvc1.1.6.L93.B0"') ? 3000 : -8000;
+    else if (/\bav1\b/.test(text)) score += supports('video/mp4; codecs="av01.0.08M.08"') ? 3000 : -4000;
+    else if (/\bvp9\b/.test(text)) score += 3000;
+    else if (/\b(xvid|divx|mpeg2)\b/.test(text)) score -= 8000;
+
+    if (/\baac\b/.test(text)) score += 2000;
+    else if (/\b(opus|vorbis)\b/.test(text)) score += 2000;
+    else if (/\bmp3\b/.test(text)) score += 1800;
+    else if (/\b(true[ .-]?hd|dts(?:[ .-]?hd)?|dts[ .-]?x)\b/.test(text)) score -= 10000;
+    else if (/(?:\b(e[ .-]?ac[ .-]?3|ddp)(?:\b|(?=\d))|\bdd\+|\bdolby[ .-]+digital[ .-]+plus\b)/.test(text)) score += supports('audio/mp4; codecs="ec-3"') ? 2000 : -6000;
+    else if (/\b(ac[ .-]?3|dd)(?:\b|(?=\d))/.test(text)) score += supports('audio/mp4; codecs="ac-3"') ? 2000 : -6000;
+    else if (/\bflac\b/.test(text)) score += supports('audio/flac') ? 1500 : -3000;
+
+    if (/\.(mp4|m4v|webm|m3u8)(?:\b|$)/.test(text)) score += 1000;
+    else if (/\.mkv(?:\b|$)/.test(text)) score -= 2000;
+    else if (/\.(avi|m2ts|ts)(?:\b|$)/.test(text)) score -= 6000;
+    if (/\b(dv|dovi|dolby[ .-]?vision)\b/.test(text)) score -= 5000;
+    else if (/\bhdr(?:10\+?)?\b/.test(text)) score -= 500;
+    if (/\b(2160p|4k)\b/.test(text)) score += 400;
+    else if (/\b1080p\b/.test(text)) score += 300;
+    else if (/\b720p\b/.test(text)) score += 200;
+    else if (/\b480p\b/.test(text)) score += 100;
+    if (/\b(web[ .-]?dl|webrip)\b/.test(text)) score += 40;
+    if (/\b(5[ .]1|7[ .]1)\b/.test(text)) score += 30;
+    if (/\b(video[ -]?only|audio[ -]?only|no[ -]?audio|silent)\b/.test(text)) score -= 30000;
+    if (stream.behaviorHints?.notWebReady) score -= 15000;
+    if (Object.keys(stream.behaviorHints?.proxyHeaders?.request || {}).length) score -= 20000;
+    if (!stream.url) score -= 6000;
+    return score;
+}
+
+/** A container can declare multiple tracks; check its primary audio, not any AAC tag in a release name. */
+export function webMetadataSupport(metadata: StreamMetadata, canPlayType: (_mime: string) => boolean): "supported" | "unsupported" | "unknown" {
+    if (!metadata.video || !metadata.audio.length) return "unsupported";
+    const video = metadata.video;
+    const videoType = video.codec === "vp8" || video.codec === "vp9" ? "video/webm" : "video/mp4";
+    const videoSupported = video.codecString ? canPlayType(`${videoType}; codecs="${video.codecString}"`) : undefined;
+    const audio = metadata.audio.find(track => track.primary) || metadata.audio[0];
+    const codec = audioCodecString(audio);
+    const audioType = /^(opus|vorbis)$/.test(codec || "") ? "audio/webm" : codec === "mp3" ? "audio/mpeg" : codec === "flac" ? "audio/flac" : codec === "pcm" ? "audio/wav" : "audio/mp4";
+    const audioSupported = codec ? canPlayType(["mp3", "flac", "pcm"].includes(codec) ? audioType : `${audioType}; codecs="${codec}"`) : undefined;
+    if (videoSupported === false || audioSupported === false) return "unsupported";
+    return videoSupported && audioSupported ? "supported" : "unknown";
+}
+
+function audioCodecString(track: StreamTrackMetadata): string | null {
+    const raw = `${track.codec || ""} ${track.internalCodecId || ""}`.toLowerCase();
+    if (/e[_.-]?ac[_.-]?3|eac3/.test(raw)) return "ec-3";
+    if (/ac[_.-]?3/.test(raw)) return "ac-3";
+    if (/truehd/.test(raw)) return "mlpa";
+    if (/dts/.test(raw)) return "dtsc";
+    if (/pcm/.test(raw)) return "pcm";
+    if (track.codecString) return track.codecString;
+    if (/\baac\b/.test(raw)) return "mp4a.40.2";
+    if (/opus/.test(raw)) return "opus";
+    if (/vorbis/.test(raw)) return "vorbis";
+    if (/mp3/.test(raw)) return "mp3";
+    if (/flac/.test(raw)) return "flac";
+    return null;
+}
+
+/** Native retains add-on order; browsers rank direct streams by video/audio compatibility. */
 export async function resolvePlayback(
     request: MediaToPlay,
     dependencies: PlaybackDependencies,
@@ -44,7 +121,27 @@ export async function resolvePlayback(
     }
     onPhase("fetching-streams");
     const streams = await dependencies.fetchStreams(media.mediaSourceId || media.id, media.type);
-    const stream = streams.find(candidate => /^https?:\/\//i.test(candidate.url || candidate.externalUrl || ""));
+    const seen = new Set<string>();
+    let candidates = streams.filter(candidate => {
+        const url = candidate.url || candidate.externalUrl || "";
+        if (!/^https?:\/\//i.test(url) || seen.has(url) || dependencies.excludeUrls?.has(url)) return false;
+        seen.add(url);
+        return true;
+    });
+    if (dependencies.environment === "web") {
+        candidates.sort((a, b) => scoreWebStream(b, dependencies.canPlayType) - scoreWebStream(a, dependencies.canPlayType));
+        if (dependencies.inspectStream && dependencies.canPlayType) {
+            const support = new Map<StremioStream, ReturnType<typeof webMetadataSupport>>();
+            await Promise.allSettled(candidates.slice(0, 3).map(async candidate => {
+                const metadata = await dependencies.inspectStream!(candidate);
+                if (metadata) support.set(candidate, webMetadataSupport(metadata, dependencies.canPlayType!));
+            }));
+            candidates = candidates.filter(candidate => support.get(candidate) !== "unsupported");
+            candidates.sort((a, b) => Number(support.get(b) === "supported") - Number(support.get(a) === "supported"));
+        }
+    }
+    dependencies.onCandidates?.(candidates);
+    const stream = candidates[0];
     if (!stream) throw new Error("No playable streams found. Try another title or check your add-ons.");
     onPhase("loading-stream");
     return {

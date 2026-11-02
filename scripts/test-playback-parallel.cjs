@@ -28,8 +28,9 @@ const hooks = {
     useLayoutEffect: noOp,
     useCallback: callback => { callbacks.push(callback); return callback; },
 };
-const context = { exports: {}, console, require(name) {
+const context = { exports: {}, AbortController, console, require(name) {
     if (name === 'react') return hooks;
+    if (name === 'sonner') return { toast: Object.assign(noOp, { dismiss: noOp, error: noOp }) };
     if (name.endsWith('.css')) return {};
     if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ currentMedia: request, isPlayerVisible: false, setCurrentMediaWithSource: noOp }) };
     if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };

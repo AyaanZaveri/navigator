@@ -6,7 +6,7 @@ const context = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/resolve-playback.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
-const { resolvePlayback, playbackPhaseLabels } = context.exports;
+const { resolvePlayback, playbackPhaseLabels, webMetadataSupport } = context.exports;
 async function test() {
     const phases = [], calls = [];
     const deps = {
@@ -45,6 +45,61 @@ async function test() {
     assert.deepEqual(calls, [], 'A manually chosen stream must not trigger source selection');
     assert.deepEqual(phases, ['loading-stream']);
     await assert.rejects(resolvePlayback({ id: 'empty', name: 'Empty', type: 'movie' }, { ...deps, fetchStreams: async () => [] }, () => {}), /No playable streams found/);
+    const browserStreams = [
+        { url: 'https://example.test/remux.mkv', title: '2160p DV HEVC DTS-HD MA REMUX' },
+        { url: 'https://example.test/silent.mp4', title: '2160p H264 video only no audio' },
+        { url: 'https://example.test/low.mp4', title: '720p H264 AAC' },
+        { url: 'https://example.test/best.mp4', title: '1080p WEB-DL H264 AAC 5.1' },
+        { url: 'https://example.test/header.mp4', title: '2160p H264 AAC', behaviorHints: { proxyHeaders: { request: { Referer: 'https://example.test' } } } },
+    ];
+    let candidates;
+    const webDeps = { ...deps, environment: 'web', fetchStreams: async () => browserStreams,
+        onCandidates: streams => { candidates = streams; } };
+    const web = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie', resumePositionTicks: 8228 }, webDeps, () => {});
+    assert.equal(web.streamUrl, 'https://example.test/best.mp4', 'Web must prioritize supported video AND audio over the first add-on file, silent video, and headers it cannot send');
+    assert.equal(web.resumePositionTicks, 8228);
+    const next = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, { ...webDeps, excludeUrls: new Set([web.streamUrl]) }, () => {});
+    assert.equal(next.streamUrl, 'https://example.test/low.mp4', 'Fallback must choose the next compatible file without repeating a failed URL');
+    assert.ok(candidates.length > 1);
+    const capabilityStreams = [
+        { url: 'https://example.test/4k.mp4', title: '2160p HEVC AAC 5.1' },
+        { url: 'https://example.test/1080.mp4', title: '1080p H264 AAC 5.1' },
+        { url: 'https://example.test/silent-ddp.mp4', title: '2160p H264 DDP5.1' },
+    ];
+    const capabilityDeps = { ...webDeps, fetchStreams: async () => capabilityStreams };
+    const unsupported = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, { ...capabilityDeps, canPlayType: () => false }, () => {});
+    assert.equal(unsupported.streamUrl, 'https://example.test/1080.mp4', 'Unsupported HEVC and DDP5.1 audio must lose to a fully compatible source');
+    const supported = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, { ...capabilityDeps, canPlayType: mime => mime.includes('hvc1') }, () => {});
+    assert.equal(supported.streamUrl, 'https://example.test/4k.mp4', 'Prefer higher video quality when its video and audio codecs are supported');
+
+    const inspected = [];
+    const actualTracks = url => ({ mimeType: 'video/mp4', video: { codec: 'avc', codecString: 'avc1.640028', internalCodecId: 'avc1' },
+        audio: [{ codec: url.includes('best') ? 'ac3' : 'aac', codecString: url.includes('best') ? 'ac-3' : 'mp4a.40.2', internalCodecId: url.includes('best') ? 'ac-3' : 'mp4a', primary: true, channels: 2 }] });
+    const verified = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, { ...webDeps,
+        canPlayType: mime => !mime.includes('ac-3'),
+        inspectStream: async stream => { inspected.push(stream.url); return actualTracks(stream.url); },
+    }, () => {});
+    assert.equal(verified.streamUrl, 'https://example.test/low.mp4', 'Actual unsupported default audio must override an AAC filename claim');
+    assert.equal(inspected.length, 3, 'Preflight is limited to the leading candidates');
+    const mixedAudio = actualTracks('best');
+    mixedAudio.audio.push({ ...actualTracks('low').audio[0], primary: false });
+    assert.equal(webMetadataSupport(mixedAudio, mime => !mime.includes('ac-3')), 'unsupported', 'An alternate AAC track cannot hide unsupported primary audio');
+    assert.equal(webMetadataSupport({ ...mixedAudio, audio: [] }, () => true), 'unsupported', 'A file without audio is unsuitable for movie playback');
+    assert.equal(webMetadataSupport({ ...mixedAudio, audio: [{ codec: 'pcm-s16', codecString: 'pcm-s16', internalCodecId: 'A_PCM/INT/LIT', primary: true }] }, mime => mime.startsWith('video/') || mime === 'audio/wav'), 'supported', 'PCM audio must use WAV capabilities instead of an invalid MP4 PCM codec string');
+    const unavailable = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, { ...webDeps,
+        canPlayType: () => true, inspectStream: async () => { throw new Error('CORS'); },
+    }, () => {});
+    assert.equal(unavailable.streamUrl, web.streamUrl, 'Unavailable metadata must preserve normal ranking rather than reject every source');
+    const described = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, { ...webDeps, fetchStreams: async () => [
+        { url: 'https://example.test/a.mp4', description: '2160p H264 Dolby Digital Plus 5.1' },
+        { url: 'https://example.test/b.mp4', description: '1080p H264 AAC' },
+    ], canPlayType: () => false }, () => {});
+    assert.equal(described.streamUrl, 'https://example.test/b.mp4', 'Modern Stremio description metadata must participate in audio filtering');
+
+    const native = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, { ...webDeps, environment: 'native',
+        inspectStream: async () => { assert.fail('Native selection must not probe or filter sources'); },
+    }, () => {});
+    assert.equal(native.streamUrl, browserStreams[0].url, 'Native playback must preserve add-on order');
     assert.equal(playbackPhaseLabels['fetching-streams'], 'Fetching streams…');
     assert.equal(playbackPhaseLabels['loading-stream'], 'Loading stream…');
     console.log('PASS: movie/episode/show Play selects the first playable source in order, preserves headers and resume data, respects manual sources, and reports accurate phases.');

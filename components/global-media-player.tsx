@@ -29,8 +29,10 @@ import {
   MediaPlayerTooltip,
 } from "@/components/ui/media-player";
 import MuxVideo from "@mux/mux-video-react";
+import { toast } from "sonner";
 import { getWebPlaybackElement } from "@/lib/media/playback-source";
 import { getPlaybackTitles } from "@/lib/media/playback-titles";
+import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
 import type { MediaToPlay } from "@/lib/atoms";
@@ -65,7 +67,7 @@ interface GlobalMediaPlayerProps {
 }
 
 const PROGRESS_REPORT_INTERVAL_MS = 30_000;
-const WEB_STARTUP_RETRY_DELAYS_MS = [400, 1200];
+const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const {
@@ -130,20 +132,18 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const loadGenerationRef = useRef(0);
-  const startupRetriesRef = useRef(0);
-  const playbackHasPlayedRef = useRef(false);
-  const startupRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const metadataAbortRef = useRef<AbortController | null>(null);
+  const webStreamsRef = useRef<StremioStream[]>([]);
+  const audioCheckRef = useRef<{ start: number; startedAt: number; complete: boolean } | null>(null);
+  const failedStreamUrlsRef = useRef(new Set<string>());
+  const activePlaybackRequestRef = useRef<MediaToPlay | null>(null);
+  const loadMediaRef = useRef<((_request: MediaToPlay, _fallback?: boolean) => Promise<void>) | null>(null);
   const lastProgressReportAtRef = useRef(0);
   const playbackStartedReportedRef = useRef(false);
   const playbackStoppedReportedRef = useRef(false);
   const lastLoadedPlaybackKeyRef = useRef<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-
-  const cancelStartupRetry = useCallback(() => {
-    if (startupRetryTimerRef.current !== null) clearTimeout(startupRetryTimerRef.current);
-    startupRetryTimerRef.current = null;
-  }, []);
 
   useLayoutEffect(() => {
     setNativeSubtitle("");
@@ -265,40 +265,46 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     sendPlaybackUpdate("progress");
   }, [sendPlaybackUpdate]);
 
+  const tryNextWebStream = useCallback((element: HTMLVideoElement, noAudio = false) => {
+    if (nativePlayback || !currentMedia || !streamUrl || element !== videoRef.current) return;
+    failedStreamUrlsRef.current.add(streamUrl);
+    const position = element.currentTime > 0 ? element.currentTime : currentMedia.resumePositionTicks;
+    toast(noAudio ? "That stream has no supported audio. Trying another one…" : "That stream failed. Trying another one…", { id: WEB_RECOVERY_TOAST_ID });
+    // loadMedia advances the generation synchronously, deduplicating decoder errors.
+    void loadMediaRef.current?.({
+      ...currentMedia, streamUrl: undefined, requestHeaders: undefined,
+      subtitleFilename: undefined, subtitleVideoSize: undefined,
+      resumePositionTicks: position,
+    }, true);
+  }, [nativePlayback, currentMedia, streamUrl]);
+
   const handleVideoCanPlay = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
     if (event.currentTarget !== videoRef.current || event.currentTarget.error) return;
-    cancelStartupRetry();
     setVideoReady(true);
     setPlaybackError(null);
-  }, [cancelStartupRetry]);
+  }, []);
 
   const handleVideoPlaying = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
     if (event.currentTarget !== videoRef.current) return;
-    cancelStartupRetry();
-    playbackHasPlayedRef.current = true;
     setVideoReady(true);
     setPlaybackError(null);
-    reportNavigatorPlayback("playing");
-  }, [cancelStartupRetry, reportNavigatorPlayback]);
+    audioCheckRef.current ??= { start: event.currentTarget.currentTime, startedAt: Date.now(), complete: false };
+    if (!nativePlayback) toast.dismiss(WEB_RECOVERY_TOAST_ID);
+    const element = event.currentTarget as HTMLVideoElement & { webkitAudioDecodedByteCount?: number };
+    // A Chromium "playing" event can mean silent video. Confirm audible playback when decoder evidence is available.
+    if (nativePlayback || element.muted || element.volume === 0 || typeof element.webkitAudioDecodedByteCount !== "number" || element.webkitAudioDecodedByteCount > 0) {
+      reportNavigatorPlayback("playing");
+    }
+  }, [nativePlayback, reportNavigatorPlayback]);
 
   const handleVideoError = useCallback((event: React.SyntheticEvent<HTMLVideoElement>, generation: number) => {
     const element = event.currentTarget;
     if (generation !== loadGenerationRef.current || element !== videoRef.current || !isPlayerVisible) return;
     const error = element.error;
-    if (!error || error.code === 1 || startupRetryTimerRef.current !== null) return;
+    if (!error || error.code === 1) return;
 
-    // A temporary response/decoder failure can present as a format error even
-    // when reopening the same file works. Keep the URL and retry a fresh decoder.
-    if (!nativePlayback && !playbackHasPlayedRef.current && error.code >= 2 && error.code <= 4
-      && startupRetriesRef.current < WEB_STARTUP_RETRY_DELAYS_MS.length) {
-      const delay = WEB_STARTUP_RETRY_DELAYS_MS[startupRetriesRef.current++];
-      setPlaybackError(null);
-      setVideoReady(false);
-      setPlaybackPhase("loading-stream");
-      startupRetryTimerRef.current = setTimeout(() => {
-        startupRetryTimerRef.current = null;
-        if (generation === loadGenerationRef.current) setPlayerAttempt(attempt => attempt + 1);
-      }, delay);
+    if (!nativePlayback && currentMedia && streamUrl && error.code >= 2 && error.code <= 4) {
+      tryNextWebStream(element);
       return;
     }
 
@@ -306,7 +312,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     console.warn("Media player error:", { code: error.code, message });
     setPlaybackError(message);
     reportNavigatorPlayback("error", message);
-  }, [isPlayerVisible, nativePlayback, reportNavigatorPlayback]);
+  }, [isPlayerVisible, nativePlayback, currentMedia, streamUrl, tryNextWebStream, reportNavigatorPlayback]);
 
   const maybeReportPeriodicProgress = useCallback(
     (timeSeconds: number, durationSeconds?: number) => {
@@ -325,13 +331,30 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const handleTimeUpdate = useCallback(() => {
     if (videoRef.current) {
-      const time = videoRef.current.currentTime;
+      const element = videoRef.current;
+      const time = element.currentTime;
+      const audioCheck = audioCheckRef.current;
+      if (!nativePlayback && audioCheck && !audioCheck.complete && !element.paused) {
+        const decoder = element as HTMLVideoElement & { webkitAudioDecodedByteCount?: number; webkitVideoDecodedByteCount?: number };
+        // Chromium can play the picture while silently dropping an unsupported audio codec.
+        // Use decoder evidence only where exposed; other browsers retain metadata-based ranking.
+        if (typeof decoder.webkitAudioDecodedByteCount === "number" && (decoder.webkitVideoDecodedByteCount ?? 0) > 0) {
+          if (decoder.webkitAudioDecodedByteCount > 0) {
+            audioCheck.complete = true;
+            reportNavigatorPlayback("playing");
+          } else if (!element.muted && element.volume > 0 && Date.now() - audioCheck.startedAt >= 3500 && time - audioCheck.start >= 3) {
+            audioCheck.complete = true;
+            tryNextWebStream(element, true);
+            return;
+          }
+        }
+      }
       setCurrentTime(time);
       setCurrentTimestamp(time);
 
       maybeReportPeriodicProgress(time, videoRef.current.duration);
     }
-  }, [maybeReportPeriodicProgress, setCurrentTimestamp]);
+  }, [nativePlayback, tryNextWebStream, maybeReportPeriodicProgress, setCurrentTimestamp, reportNavigatorPlayback]);
 
   const handleDurationChange = useCallback(() => {
     if (videoRef.current) {
@@ -376,8 +399,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const handleClose = useCallback((options?: { ended?: boolean }) => {
     reportNavigatorPlayback("closed");
     loadGenerationRef.current++;
-    cancelStartupRetry();
+    metadataAbortRef.current?.abort();
     sendPlaybackUpdate("stopped", { ended: options?.ended });
+    toast.dismiss(WEB_RECOVERY_TOAST_ID);
     setIsPlayerVisible(false);
     setStreamUrl(null);
     setMediaDetails(null);
@@ -389,7 +413,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setVideoReady(false);
     setPlaybackError(null);
     lastLoadedPlaybackKeyRef.current = null;
-  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible, reportNavigatorPlayback, cancelStartupRetry]);
+  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible, reportNavigatorPlayback]);
 
   useEffect(() => {
     if (!nativePlayback || !isPlayerVisible) return;
@@ -504,13 +528,21 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     [subtitleData, processSubtitleText]
   );
 
-  const loadMedia = useCallback(async (request: MediaToPlay) => {
+  const loadMedia = useCallback(async (request: MediaToPlay, fallback = false) => {
     const generation = ++loadGenerationRef.current;
-    cancelStartupRetry();
-    startupRetriesRef.current = 0;
-    playbackHasPlayedRef.current = false;
+    metadataAbortRef.current?.abort();
+    const metadataAbort = new AbortController();
+    metadataAbortRef.current = metadataAbort;
+    audioCheckRef.current = null;
+    if (!fallback) {
+      activePlaybackRequestRef.current = request;
+      webStreamsRef.current = [];
+      failedStreamUrlsRef.current.clear();
+      toast.dismiss(WEB_RECOVERY_TOAST_ID);
+    }
     const isCurrent = () => generation === loadGenerationRef.current;
     setLoading(true);
+    setVideoReady(false);
     setPlaybackError(null);
     setStreamUrl(null);
     setMediaDetails(null);
@@ -529,7 +561,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         ...activeMedia, name: title, episodeTitle: title,
         showName: activeMedia.showName || latestDetails?.name,
       };
-      setPreparedPlayback({ request, media: activeMedia });
+      setPreparedPlayback({ request: activePlaybackRequestRef.current || request, media: activeMedia });
       if (sourceReady) setCurrentMediaWithSource({
         ...activeMedia,
         id: activeMedia.seriesId || activeMedia.id,
@@ -557,8 +589,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     }).catch(() => {});
 
     try {
+      const probe = !nativePlayback && typeof document.createElement === "function" ? document.createElement("video") : null;
       const media = await resolvePlayback(request, {
-        fetchStreams: fetchPlaybackStreams, getNextEpisodeForSeries,
+        fetchStreams: fallback && webStreamsRef.current.length
+          ? async () => webStreamsRef.current : fetchPlaybackStreams,
+        getNextEpisodeForSeries,
+        environment: nativePlayback ? "native" : "web",
+        canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
+        inspectStream: probe ? candidate => probeStreamMetadata(candidate, { signal: metadataAbort.signal }) : undefined,
+        excludeUrls: !nativePlayback ? failedStreamUrlsRef.current : undefined,
+        onCandidates: candidates => { if (isCurrent() && !nativePlayback) webStreamsRef.current = candidates; },
       }, phase => {
         if (isCurrent()) setPlaybackPhase(phase);
       }, target => {
@@ -587,15 +627,18 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
     } catch (error) {
       if (!isCurrent()) return;
-      const message = error instanceof Error ? error.message : "Could not load this stream. Try again.";
+      const message = fallback ? "None of the available streams could play in this browser. Try another title or check your add-ons."
+        : error instanceof Error ? error.message : "Could not load this stream. Try again.";
       setPlaybackError(message);
+      if (fallback) toast.error(message, { id: WEB_RECOVERY_TOAST_ID });
       if (request.navigatorActionId) document.dispatchEvent(new CustomEvent(NAVIGATOR_PLAYBACK_EVENT, {
         detail: { actionId: request.navigatorActionId, state: "error", message },
       }));
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [setCurrentMediaWithSource, cancelStartupRetry]);
+  }, [nativePlayback, setCurrentMediaWithSource]);
+  loadMediaRef.current = loadMedia;
 
   useEffect(() => {
     if (!playbackRequest || !isPlayerVisible || !playbackKey) return;
@@ -632,10 +675,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   useEffect(() => {
     return () => {
       loadGenerationRef.current++;
-      cancelStartupRetry();
+      metadataAbortRef.current?.abort();
       lastLoadedPlaybackKeyRef.current = null;
     };
-  }, [cancelStartupRetry]);
+  }, []);
 
   if (!isPlayerVisible || !currentMedia) return null;
 
@@ -835,13 +878,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     <div className="flex flex-col items-start gap-3" role="alert">
                       <p className="text-sm text-white">{playbackError}</p>
                       <Button variant="secondary" onClick={() => {
-                        cancelStartupRetry();
-                        startupRetriesRef.current = 0;
-                        playbackHasPlayedRef.current = false;
                         setPlaybackError(null);
                         setVideoReady(false);
                         setPlayerAttempt((attempt) => attempt + 1);
-                        if (!streamUrl && playbackRequest) void loadMedia(playbackRequest);
+                        if (playbackRequest) void loadMedia(playbackRequest);
                       }}>Try again</Button>
                     </div>
                   ) : (
