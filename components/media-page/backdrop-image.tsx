@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { MediaItem } from "@/types/stremio";
+import { useBackdropOverscroll } from "./use-backdrop-overscroll";
 
 interface BackdropImageProps {
   name?: string;
@@ -21,6 +22,8 @@ export function BackdropImage({
   height = 1080,
 }: BackdropImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  useBackdropOverscroll(imageRef, failedSrc === backdropImage ? "" : backdropImage);
   const mediaName = name ?? movie?.name ?? "Media";
 
   if (!backdropImage || failedSrc === backdropImage) {
@@ -29,6 +32,7 @@ export function BackdropImage({
 
   return (
     <img
+      ref={imageRef}
       draggable={false}
       data-header-backdrop
       className={className}

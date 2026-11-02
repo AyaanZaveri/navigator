@@ -67,9 +67,9 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
 
   return (
     <div data-app-layout className="relative flex h-dvh flex-col overflow-hidden">
-      <div data-desktop-app-content className="grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
+      <div data-desktop-app-content className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
         <AppHeader email={email} overlay={overlayHeader} />
-        <main className={`col-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain no-scrollbar pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
+        <main className={`relative z-[1] col-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain no-scrollbar pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
           {children}
         </main>
       </div>

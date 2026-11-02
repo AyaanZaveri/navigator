@@ -53,11 +53,13 @@ export class BrowserPreviewFrames {
         const cached = this.cache.get(time);
         if (cached) { this.ready(time, cached); return; }
         if (this.video.error) { this.failed(); return; }
-        if (this.video.readyState < 1 && !this.timer) this.timer = setTimeout(this.failed, 6000);
+        if (this.video.readyState < 1 && !this.timer) this.timer = setTimeout(this.timedOut, 30000);
+        if (this.decoding !== null) this.prime();
         this.pump();
     }
     cancel() {
         this.wanted = null;
+        this.video.pause();
         if (this.decoding === null) { clearTimeout(this.timer); this.timer = undefined; }
     }
     private loaded = () => { if (this.decoding !== null) this.captured(); else this.pump(); };
@@ -68,20 +70,38 @@ export class BrowserPreviewFrames {
         if (cached) { this.ready(target, cached); return; }
         this.decoding = target;
         clearTimeout(this.timer);
-        this.timer = setTimeout(this.failed, 6000);
+        this.timer = setTimeout(this.timedOut, 30000);
         if (Math.abs(this.video.currentTime - target) < 0.05 && this.video.readyState >= 2) this.captured();
         else {
             try {
                 // fastSeek may snap across a scene cut. Decode the same position
                 // playback will use when the gesture commits.
                 this.video.currentTime = target;
+                this.prime();
             } catch { this.failed(); }
         }
+    };
+    private prime() {
+        // Some paused HEVC/HDR decoders stop at metadata after a seek. Muted
+        // playback asks for a real frame; capture immediately pauses it again.
+        if (this.video.readyState < 2) {
+            try { this.video.play?.()?.catch(() => {}); } catch { /* Retain seek-based decoding when autoplay is unavailable. */ }
+        }
+    }
+    private timedOut = () => {
+        this.timer = undefined;
+        if (this.closed || this.wanted === null) return;
+        const cached = this.cache.get(this.wanted);
+        if (cached) this.ready(this.wanted, cached);
+        else this.ready(this.wanted, null, false, true);
+        // Keep the actual seek in flight. Restarting it on every progress event
+        // can permanently starve a slow remote HDR decoder. Late data recovers.
     };
     private captured = () => {
         if (this.closed || this.decoding === null || this.video.readyState < 2 || this.video.seeking) return;
         clearTimeout(this.timer);
         this.timer = undefined;
+        this.video.pause();
         const target = this.decoding;
         this.decoding = null;
         let src: string | null = null;
@@ -119,7 +139,7 @@ export class BrowserPreviewFrames {
             this.retriedWithoutCors = true;
             this.video.crossOrigin = null;
             this.video.load();
-            this.timer = setTimeout(this.failed, 6000);
+            this.timer = setTimeout(this.timedOut, 30000);
             return;
         }
         this.ready(this.wanted, null, false, !!this.video.error);

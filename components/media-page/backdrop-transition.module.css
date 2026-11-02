@@ -1,10 +1,29 @@
 .page {
     --media-content-overlap: 6rem;
     --media-content-top-padding: 1.5rem;
+    /* The backing belongs outside the scrolling page. Cover it under content
+       even when native scrolling gets ahead of the JS visibility listener. */
+    background: var(--background);
 }
 
 .hero {
     height: 19rem;
+}
+
+/* This sits behind the scrollport, so only the native bounce reveals it. */
+.overscroll {
+    position: absolute;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background: var(--background);
+}
+
+.overscrollArtwork {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
 /* The top is the search field's bottom (header minus its bottom padding).
@@ -63,7 +82,8 @@
     background: var(--background);
 }
 
-:global(html:not(.dark)) .artwork {
+:global(html:not(.dark)) .artwork,
+:global(html:not(.dark)) .overscrollArtwork {
     opacity: .88;
 }
 

@@ -7,6 +7,7 @@ let analysis = null;
 let captureEffects = false;
 const effects = [];
 const imageRequests = [];
+let canvasContext = null;
 const react = {
     ...require('react'),
     useEffect(effect) { if (captureEffects) effects.push(effect); },
@@ -24,9 +25,10 @@ function load(file, dependencies = {}, globals = {}) {
     return context.exports;
 }
 const { VibrantLogo } = load('components/vibrant-logo.tsx');
+const boundsHelpers = load('lib/wordmark-bounds.ts');
 const { HeroWordmark } = load('components/hero-wordmark.tsx', {
     './vibrant-logo': { VibrantLogo },
-    '@/lib/wordmark-bounds': {},
+    '@/lib/wordmark-bounds': boundsHelpers,
     '@/lib/utils': { cn: (...classes) => classes.filter(Boolean).join(' ') },
     './hero-wordmark.module.css': { default: { root: 'root', artwork: 'artwork', image: 'image' } },
 }, {
@@ -39,7 +41,10 @@ const { HeroWordmark } = load('components/hero-wordmark.tsx', {
             else this.onerror?.();
         }
     },
-    document: { createElement: () => ({ getContext: () => null }) },
+    document: { createElement: () => {
+        const canvas = { getContext: () => canvasContext && canvasContext(canvas) };
+        return canvas;
+    } },
 });
 function render(src = '/wide-logo.svg') {
     const tree = HeroWordmark({ src, alt: 'Title logo', movieName: 'Title' });
@@ -47,6 +52,11 @@ function render(src = '/wide-logo.svg') {
     const logo = VibrantLogo(artwork.props.children.props.children.props);
     return { root: tree, artwork, image: logo };
 }
+const initial = render();
+assert.equal(initial.root.props['data-ready'], undefined, 'Do not reveal the guessed wordmark size');
+const wordmarkCss = fs.readFileSync('components/hero-wordmark.module.css', 'utf8');
+assert.match(wordmarkCss, /\.artwork\s*\{[^}]*visibility:\s*hidden/s,
+    'Unmeasured wordmarks must stay hidden until their final crop and aspect ratio are ready');
 render().image.props.onLoad({ currentTarget: { naturalWidth: 1600, naturalHeight: 160 } });
 assert.equal(render().artwork.props.style.aspectRatio, 10, 'Wide logos must use their intrinsic ratio even without pixel analysis');
 const wideAspect = render().artwork.props.style.aspectRatio;
@@ -77,4 +87,33 @@ effects.pop()();
 assert.equal(render(artworkUrl).artwork.props.style.aspectRatio, 2944 / 834,
     'Cached logos must recover their dimensions even when the displayed image load event was missed and canvas is unavailable');
 assert.ok(imageRequests.at(-1).includes('sample=1'), 'Logo measurement must load same-origin image bytes rather than redirect to the CDN');
+assert.equal(render(artworkUrl).root.props['data-ready'], true,
+    'Reveal the final intrinsic size even if canvas analysis is unavailable');
+analysis = null;
+canvasContext = canvas => ({
+    drawImage() {},
+    getImageData() {
+        const pixels = new Uint8ClampedArray(canvas.width * canvas.height * 4);
+        for (let y = 10; y < 20; y++) for (let x = 10; x < 140; x++) {
+            pixels[(y * canvas.width + x) * 4 + 3] = 255;
+        }
+        return { data: pixels };
+    },
+});
+captureEffects = true;
+const beforeMeasurement = render(artworkUrl);
+captureEffects = false;
+beforeMeasurement.image.props.onLoad({ currentTarget: { naturalWidth: 2944, naturalHeight: 834 } });
+assert.equal(render(artworkUrl).root.props['data-ready'], undefined,
+    'Image load alone must not reveal an untrimmed provisional size');
+effects.pop()();
+const measured = render(artworkUrl);
+assert.equal(measured.root.props['data-ready'], true);
+assert.ok(measured.artwork.props.style.aspectRatio > 8, 'The first visible size must include transparent-padding analysis');
+const measuredAspect = measured.artwork.props.style.aspectRatio;
+measured.image.props.onLoad({ currentTarget: { naturalWidth: 2944, naturalHeight: 834 } });
+assert.equal(render(artworkUrl).artwork.props.style.aspectRatio, measuredAspect,
+    'A late display load must not change the visible final size');
+assert.equal(render('/new-title.png').root.props['data-ready'], undefined,
+    'Navigation must not reveal a new title with the previous title’s measurements');
 console.log('PASS: wide and cached hero logos recover dimensions without pixel analysis; cropped bounds and title navigation remain intact.');

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   }
   const image = await getTMDBArtwork(id, type, kind, season, episode);
   if (!image) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
-  if ((kind === "backdrop" || kind === "logo") && params.get("sample") === "1") {
+  if (params.get("sample") === "1") {
     // Returning image bytes keeps the canvas origin-clean even when the CDN
     // redirect does not permit CORS. The upstream URL comes only from TMDB.
     try {

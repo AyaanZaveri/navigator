@@ -38,6 +38,19 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   assert.equal(headers[0].props.overlay, /^\/(movie|series)(?:\/|$)/.test(path), `${path}: media pages retain adaptive backdrop presentation`);
 }
 
+// Native scrolling can move the page before its JS scroll listener runs.
+// Enforce the paint boundary rather than depending on scroll-event timing:
+// the scrolling content must mask the stationary backing in both themes.
+const postcss = require('postcss');
+const backdropCss = postcss.parse(fs.readFileSync('components/media-page/backdrop-transition.module.css', 'utf8'));
+const pageSurface = backdropCss.nodes.find(node => node.type === 'rule' && node.selector === '.page');
+const background = pageSurface.nodes.find(node => node.prop === 'background' || node.prop === 'background-color')?.value;
+assert.equal(background, 'var(--background)', 'Media pages must mask the overscroll backing under body text even when its visibility update is late');
+for (const file of ['app/(main)/movie/[id]/page.tsx', 'app/(main)/series/[id]/layout.tsx', 'components/media-page/loading.tsx']) {
+  assert.ok(fs.readFileSync(file, 'utf8').includes('backdropStyles.page'), `${file}: media content and loading states must share the opaque page surface`);
+}
+console.log('PASS: movie, series and loading surfaces mask the overscroll backing independently of scroll-event timing');
+
 // Exercise the actual header effect without a browser: safe-area/font changes
 // must update the geometry consumed by movie, series and episode logos.
 let height = 148, resized, disconnected = false;

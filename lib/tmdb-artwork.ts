@@ -32,7 +32,7 @@ export function selectArtwork(images: TMDBImage[] = [], kind: ArtworkKind): stri
       || (b.width ?? 0) - (a.width ?? 0);
   })[0];
   if (!image) return undefined;
-  const size = kind === "backdrop" ? "w1280" : kind === "logo" ? "original" : "w500";
+  const size = kind === "backdrop" || kind === "logo" ? "original" : "w500";
   return `https://image.tmdb.org/t/p/${size}${image.file_path}`;
 }
 

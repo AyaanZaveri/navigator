@@ -12,6 +12,7 @@ function load(file, globals = {}, dependencies = {}) {
     return context.exports;
 }
 const palette = load('lib/aurora-palette.ts');
+const artwork = load('lib/artwork.ts', { URLSearchParams });
 const colors = palette.selectAuroraColors([
     { hex: '#140a07', population: 1000 },
     { hex: '#171310', population: 800 },
@@ -31,7 +32,7 @@ async function testPaletteFallback() {
     const component = load('components/vibrant-aurora-background.tsx', {
         Image: class {}, setTimeout: callback => setTimeout(callback, 5),
     }, {
-        react: { useEffect: effect => effects.push(effect) },
+        react: { useEffect: effect => effects.push(effect), useState: () => [null, () => {}] },
         jotai: { useSetAtom: () => value => updates.push(value) },
         'node-vibrant/browser': { Vibrant: { from: image => ({ getPalette() {
             const src = image.src;
@@ -41,6 +42,7 @@ async function testPaletteFallback() {
         } }) } },
         '@/components/aurora-background': { AuroraBackground: () => null },
         '@/lib/atoms': {}, '@/lib/aurora-palette': palette,
+        '@/lib/artwork': artwork,
     });
     component.VibrantAuroraBackground({ backdropUrl: '/backdrop', posterUrl: '/poster' });
     const cleanup = effects[0]();

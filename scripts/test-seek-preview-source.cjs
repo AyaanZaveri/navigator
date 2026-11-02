@@ -31,5 +31,8 @@ for (const [source, expected] of [
 const plain = { src: 'https://stream.test/plain.webm', getAttribute: () => null };
 assert.equal(context.exports.SeekPreview({ media: plain, time: 0, duration: 120, active: false }).props.source, plain.src);
 const player = fs.readFileSync('components/global-media-player.tsx', 'utf8');
+context.VideoDecoder = class {};
+const sparse = context.exports.SeekPreview({ media, source: 'https://stream.test/large-hdr.mkv', time: 20, duration: 120, active: true });
+assert.equal(sparse.type(sparse.props).props.children[0], false, 'WebCodecs previews do not mount a second full-size HTML video decoder');
 assert.match(player, /<MediaPlayerSeek\b[^>]*previewSource=\{streamUrl\s*\?\?\s*undefined\}/, 'The production caller passes the resolved URL to the timeline');
 console.log('PASS: original HLS source survives MSE blob replacement; progressive formats keep their native decoder');

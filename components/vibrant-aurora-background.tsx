@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSetAtom } from "jotai";
 import { Vibrant } from "node-vibrant/browser";
 import { AuroraBackground } from "@/components/aurora-background";
 import { updateAuroraColorsAtom } from "@/lib/atoms";
 import { selectAuroraColors } from "@/lib/aurora-palette";
+import { artworkSampleUrl } from "@/lib/artwork";
 
 interface VibrantAuroraBackgroundProps {
   backdropUrl?: string;
@@ -23,6 +24,8 @@ export function VibrantAuroraBackground({
   blend = 0.4,
 }: VibrantAuroraBackgroundProps) {
   const updateColors = useSetAtom(updateAuroraColorsAtom);
+  const sourceKey = JSON.stringify([backdropUrl, posterUrl]);
+  const [palette, setPalette] = useState<{ sourceKey: string; colors: string[] } | null>(null);
 
   useEffect(() => {
     const paletteSources = Array.from(new Set(
@@ -59,6 +62,7 @@ export function VibrantAuroraBackground({
 
           const colors = selectAuroraColors(swatches);
           if (!colors) continue;
+          setPalette({ sourceKey, colors });
           updateColors(colors);
           return;
         } catch {
@@ -71,18 +75,22 @@ export function VibrantAuroraBackground({
 
       if (cancelled) return;
       console.warn("Failed to extract aurora colors from image sources");
-      // Keep previous colors on error - they're already in the atom
+      // Leave this title's glow hidden instead of showing unrelated colors.
     };
 
     void extractColors();
     return () => { cancelled = true; };
-  }, [backdropUrl, posterUrl, updateColors]);
+  }, [backdropUrl, posterUrl, sourceKey, updateColors]);
+
+  const colors = palette?.sourceKey === sourceKey ? palette.colors : undefined;
+  if ((backdropUrl || posterUrl) && !colors) return null;
 
   return (
     <AuroraBackground
       amplitude={amplitude}
       blend={blend}
       className={className}
+      colorStops={colors}
     />
   );
 }
@@ -92,7 +100,7 @@ function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 function buildPaletteSources(sourceUrl: string): string[] {
-  const sources = [sourceUrl];
+  const sources = [artworkSampleUrl(sourceUrl)];
 
   const isHttp = /^https?:\/\//i.test(sourceUrl);
   const isWeservProxy = /(?:^https?:\/\/)?wsrv\.nl/i.test(sourceUrl);

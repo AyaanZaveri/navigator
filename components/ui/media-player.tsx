@@ -62,6 +62,7 @@ import { createDesktopMediaStore } from "@/lib/desktop/media-store";
 import { SeekPreview } from "@/components/seek-preview";
 import { PreviewImage } from "@/components/preview-image";
 import { attachTouchScrubbing } from "@/lib/media/touch-scrubbing";
+import { playerControlSelector, playerControlsActive } from "@/lib/media/control-activity";
 
 const ROOT_NAME = "MediaPlayer";
 const SEEK_NAME = "MediaPlayerSeek";
@@ -355,12 +356,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     if (autoHide && !mediaPaused && !menuOpen && !dragging) {
       const hideWhenIdle = () => {
         const root = rootRef.current;
-        const focused = document.activeElement;
-        // Portalled track/cast menus do not all use the player's menu store.
-        const busy = store.getState().seekPreviewTime !== null || controlPointerHeldRef.current || document.querySelector(
-          '[data-state="open"]:is([role="menu"], [role="dialog"], [data-slot="popover-content"])'
-        ) || (focused instanceof Element && root?.contains(focused) &&
-          focused.closest('[data-slot="media-player-controls"]') && focused.matches(":focus-visible"));
+        const busy = store.getState().seekPreviewTime !== null || controlPointerHeldRef.current || playerControlsActive(root);
         if (busy) {
           hideControlsTimeoutRef.current = setTimeout(hideWhenIdle, 1000);
           return;
@@ -395,7 +391,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
       if (event.defaultPrevented || pointerTypeRef.current !== "mouse" || controlPointerHeldRef.current) return;
 
-      if (autoHide && !mediaPaused && !menuOpen && !dragging) {
+      if (autoHide && !mediaPaused && !menuOpen && !dragging && !playerControlsActive(rootRef.current)) {
         store.setState("controlsVisible", false);
       }
     },
@@ -426,7 +422,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     rootImplProps.onPointerDownCapture?.(event);
     pointerTypeRef.current = event.pointerType;
     if (event.defaultPrevented || !autoHide) return;
-    if ((event.target as Element).closest('[data-slot="media-player-controls"]')) {
+    if ((event.target as Element).closest(playerControlSelector)) {
       controlPointerHeldRef.current = true;
       onControlsShow();
     }

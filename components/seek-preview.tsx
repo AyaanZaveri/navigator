@@ -6,6 +6,7 @@ import { PreviewImage } from "@/components/preview-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { BrowserPreviewFrames, PreviewCache, PreviewScheduler, previewBucket, type PreviewMedia } from "@/lib/media/preview-frames";
+import { RangePreviewFrames } from "@/lib/media/range-preview-frames";
 
 type Props = { media: HTMLVideoElement | HTMLAudioElement | null; source?: string; time: number; duration: number; active: boolean; deferWhileMoving?: boolean };
 type Frame = { time: number | null; src: string | null; video: boolean; unavailable: boolean };
@@ -57,6 +58,7 @@ export function SeekPreview({ media, source: originalSource, time, duration, act
 function PreviewSource({ media, source, time, displayTime, duration, active }: Props & { source: string; displayTime: number }) {
     const native = (media as unknown as MpvElementHandle | null)?.controller;
     const [fallback, setFallback] = useState(false);
+    const [rangeUnavailable, setRangeUnavailable] = useState(false);
     const [videoRatio, setVideoRatio] = useState(16 / 9);
     const videoNode = useRef<PreviewMedia | null>(null);
     const updateVideoRatio = () => {
@@ -68,6 +70,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const [frame, setFrame] = useState<Frame>(empty);
     const cache = useRef(new PreviewCache());
     const browser = useRef<BrowserPreviewFrames | null>(null);
+    const range = useRef<RangePreviewFrames | null>(null);
     const scheduler = useRef(new PreviewScheduler());
     const ticket = useRef(0);
     const invalidate = useCallback(() => { ticket.current++; }, []);
@@ -76,6 +79,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const browserMode = !native || fallback || (!nativeFrames && /\.(m3u8|mpd)(?:[?#]|$)/i.test(source));
     const muxPreview = /\.m3u8(?:[?#]|$)/i.test(source)
         || /^https:\/\/stream\.mux\.com\/[^/.?#]+(?:[?#]|$)/i.test(source);
+    const rangeMode = browserMode && !muxPreview && !rangeUnavailable && typeof VideoDecoder !== "undefined";
     const wanted = useRef<number | null>(null);
     useLayoutEffect(() => { wanted.current = active ? bucket : null; }, [active, bucket]);
 
@@ -96,8 +100,17 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     }, [source, native, invalidate]);
 
     useLayoutEffect(() => {
+        if (!rangeMode || !source) return;
+        const provider = new RangePreviewFrames(source, (at, src) => {
+            if (wanted.current !== null) setFrame({ time: at, src, video: false, unavailable: false });
+        }, () => setRangeUnavailable(true));
+        range.current = provider;
+        return () => { provider.dispose(); if (range.current === provider) range.current = null; };
+    }, [rangeMode, source]);
+
+    useLayoutEffect(() => {
         const video = videoNode.current;
-        if (!browserMode || !videoAttached || !video || !source) return;
+        if (!browserMode || rangeMode || !videoAttached || !video || !source) return;
         const provider = new BrowserPreviewFrames(video, (at, src, videoFrame, unavailable) => {
             if (wanted.current !== null) setFrame(previous => src || videoFrame
                 ? { time: at, src, video: !!videoFrame, unavailable: false }
@@ -111,7 +124,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
         // to that video would disconnect its decoder immediately after attach.
         if (!muxPreview && video.getAttribute("src") !== source) video.src = source;
         return () => { provider.dispose(); if (browser.current === provider) browser.current = null; };
-    }, [browserMode, videoAttached, source, muxPreview]);
+    }, [browserMode, rangeMode, videoAttached, source, muxPreview]);
 
     useLayoutEffect(() => {
         if (!active || bucket === null || !source) {
@@ -119,9 +132,14 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
             invalidate();
             native?.cancelPreview();
             browser.current?.cancel();
+            range.current?.cancel();
             return;
         }
         if (browserMode) {
+            if (rangeMode) {
+                scheduler.current.want(bucket, (at) => range.current?.want(at));
+                return;
+            }
             if (!browser.current) return;
             scheduler.current.want(bucket, (at) => browser.current?.want(at));
             return;
@@ -148,19 +166,19 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
                 }
             });
         });
-    }, [active, bucket, source, native, browserMode, videoAttached, invalidate, nativeFrames]);
+    }, [active, bucket, source, native, browserMode, rangeMode, videoAttached, invalidate, nativeFrames]);
 
     const displayBucket = previewBucket(displayTime, duration);
     // A decoded cache hit is available in this render, even while the surface
     // gesture's settle timer is pending. Never debounce an existing thumbnail.
     const displaySrc = displayBucket === null ? undefined
-        : native?.cachedPreview(displayBucket) || cache.current.get(displayBucket) || browser.current?.cache.get(displayBucket);
+        : native?.cachedPreview(displayBucket) || cache.current.get(displayBucket) || range.current?.cache.get(displayBucket) || browser.current?.cache.get(displayBucket);
     const image = displaySrc || (frame.time === displayBucket ? frame.src : null);
     const ready = !!image || (frame.time === displayBucket && frame.video);
     const unavailable = frame.time === displayBucket && frame.unavailable;
     return (
         <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={image ? undefined : { aspectRatio: videoRatio }}>
-            {browserMode && source && (muxPreview ? (
+            {browserMode && !rangeMode && source && (muxPreview ? (
                 <MuxVideo
                     ref={videoRef}
                     onLoadedMetadata={updateVideoRatio}
