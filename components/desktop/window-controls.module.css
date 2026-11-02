@@ -5,3 +5,8 @@
 .controls .close:hover { background: #c42b1c; color: white; }
 .controls svg { fill: none; stroke: currentColor; stroke-width: 1; }
 :global(html[data-native-platform="windows"][data-desktop-fullscreen="false"]) { --window-controls-right-inset: 154px; }
+
+:global(html[data-native-playing]) .controls { color: white; }
+:global(html[data-window-control-hover="minimize"]) .controls button:nth-child(1),
+:global(html[data-window-control-hover="maximize"]) .controls button:nth-child(2) { background: rgb(128 128 128 / .18); }
+:global(html[data-window-control-hover="close"]) .controls .close { background: #c42b1c; color: white; }

@@ -245,6 +245,25 @@ pub fn mpv_options(video: &VideoSurface) -> Vec<(&'static str, String)> {
 
 thread_local! {
     static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
+}
+pub fn on_chrome_hover(listener: impl Fn(u32) + 'static) {
+    CHROME_LISTENER.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
+}
+fn chrome_hover(hit: u32) {
+    let hit = if [HTMINBUTTON, HTMAXBUTTON, HTCLOSE].contains(&hit) {
+        hit
+    } else {
+        0
+    };
+    if CHROME_HOVER.replace(hit) != hit {
+        CHROME_LISTENER.with(|value| {
+            if let Some(listener) = &*value.borrow() {
+                listener(hit);
+            }
+        });
+    }
 }
 pub fn set_chrome_fullscreen(value: bool) {
     CHROME_FULLSCREEN.set(value);
@@ -278,7 +297,7 @@ fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
                 HTMINBUTTON
             });
         }
-        if y < 20.0 {
+        if y < 16.0 {
             return Some(HTCAPTION);
         }
         None
@@ -297,6 +316,22 @@ unsafe extern "system" fn chrome_proc(
         if msg == WM_NCDESTROY {
             RemoveWindowSubclass(hwnd, Some(chrome_proc), id);
         }
+        if hwnd == root as HWND {
+            if msg == WM_NCMOUSEMOVE {
+                use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
+                let mut track = TRACKMOUSEEVENT {
+                    cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                    dwFlags: TME_LEAVE | TME_NONCLIENT,
+                    hwndTrack: hwnd,
+                    dwHoverTime: 0,
+                };
+                TrackMouseEvent(&mut track);
+                chrome_hover(wparam as u32);
+            }
+            if msg == WM_NCMOUSELEAVE || (msg == WM_NCACTIVATE && wparam == 0) {
+                chrome_hover(0);
+            }
+        }
         if msg == WM_NCHITTEST {
             let default = DefSubclassProc(hwnd, msg, wparam, lparam);
             // Preserve the system's resize borders before adding caption regions.
@@ -312,6 +347,9 @@ unsafe extern "system" fn chrome_proc(
                 } else {
                     HTTRANSPARENT as isize
                 };
+            }
+            if hwnd == root as HWND {
+                chrome_hover(0);
             }
             return default;
         }

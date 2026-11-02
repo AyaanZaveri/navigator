@@ -198,8 +198,13 @@ jobs:
           $versions = @($keys | ForEach-Object { (Get-ItemProperty -Path $_ -Name pv -ErrorAction SilentlyContinue).pv } | Where-Object { $_ -and $_ -ne '0.0.0.0' })
           if ($versions.Count -eq 0) { throw "WebView2 runtime is unavailable (setup exit code $($setup.ExitCode))" }
       - name: Check native video and transparent WebView2
+        id: video-smoke
         shell: pwsh
         run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+      - name: Check packaged application startup and shutdown
+        if: ${{ !cancelled() && (steps.video-smoke.outcome == 'success' || steps.video-smoke.outcome == 'failure') }}
+        shell: pwsh
+        run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -LaunchApp -Output dist/windows-app.png
       - name: Upload Windows installer
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@v4
@@ -221,6 +226,8 @@ jobs:
           New-Item -ItemType Directory -Force dist/windows-diagnostics | Out-Null
           Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/smoke/startup*.jsonl" dist/windows-diagnostics -ErrorAction SilentlyContinue
           if (Test-Path dist/windows-smoke.png) { Copy-Item dist/windows-smoke.png dist/windows-diagnostics }
+          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/startup*.jsonl" dist/windows-diagnostics -ErrorAction SilentlyContinue
+          if (Test-Path dist/windows-app.png) { Copy-Item dist/windows-app.png dist/windows-diagnostics }
           Get-Content dist/windows-diagnostics/startup.jsonl -ErrorAction SilentlyContinue
           exit 0
       - name: Upload compositor diagnostics

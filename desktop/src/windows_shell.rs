@@ -31,6 +31,7 @@ enum UserEvent {
     Emit(Value),
     Fullscreen(bool),
     Drag,
+    ChromeHover(u32),
     WindowControl(protocol::WindowAction),
     Ready(bool),
     PageLoaded,
@@ -233,6 +234,10 @@ pub fn run(app: App) -> Result<(), String> {
     }
     let window = builder.build(&event_loop).map_err(|e| e.to_string())?;
     let mut normal = restored.or_else(|| placement(&window));
+    let chrome_proxy = proxy.clone();
+    platform::on_chrome_hover(move |hit| {
+        let _ = chrome_proxy.send_event(UserEvent::ChromeHover(hit));
+    });
     platform::install_chrome(&window);
     let surface = platform::VideoSurface::new(&window)?;
     let mut loading = Some(platform::LoadingView::new(&window)?);
@@ -329,6 +334,7 @@ pub fn run(app: App) -> Result<(), String> {
             },
             Event::UserEvent(UserEvent::Ready(dark)) => {
                 window.set_theme(Some(if dark { Theme::Dark } else { Theme::Light }));
+                if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"window-state","maximized":window.is_maximized()}))); }
                 if !ready { ready = true; ready_deadline = None; loading.take(); record(&log, started, "app-ready"); }
             }
             Event::UserEvent(UserEvent::PageLoaded) => {
@@ -356,6 +362,10 @@ pub fn run(app: App) -> Result<(), String> {
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&value)); }
             }
             Event::UserEvent(UserEvent::Fullscreen(value)) => { window.set_fullscreen(value.then_some(Fullscreen::Borderless(None))); }
+            Event::UserEvent(UserEvent::ChromeHover(hit)) => {
+                let name = match hit { 8 => "minimize", 9 => "maximize", 20 => "close", _ => "" };
+                if let Some(view) = &view { let _ = view.evaluate_script(&format!("document.documentElement.dataset.windowControlHover={}", json!(name))); }
+            }
             Event::UserEvent(UserEvent::WindowControl(action)) => match action {
                 protocol::WindowAction::Minimize => window.set_minimized(true),
                 protocol::WindowAction::ToggleMaximize => window.set_maximized(!window.is_maximized()),
