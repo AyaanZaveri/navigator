@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useContext, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -10,22 +10,29 @@ import { isAIAskOpenAtom } from "@/lib/atoms";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import styles from "./result-card.module.css";
+import { ResultCardEntranceContext } from "./result-card-motion";
 
 export function ResultBadge({ children }: { children: ReactNode }) {
   return (
     <Badge
-      variant="outline"
-      className="h-5 max-w-full border-border bg-background px-1.5 py-0 text-[11px] [&_svg]:size-3"
+      variant="secondary"
+      className="h-5 max-w-full px-1.5 py-0 text-xs font-medium [&_svg]:size-3"
     >
       {children}
     </Badge>
   );
 }
 
+export function ResultMeta({ children }: { children: ReactNode }) {
+  return <span className={styles.meta}>{children}</span>;
+}
+
 export function ResultCard({
   title,
+  subtitle,
   icon: Icon,
   image,
+  imageAspect = "portrait",
   metadata,
   description,
   error,
@@ -36,8 +43,10 @@ export function ResultCard({
   index = 0,
 }: {
   title: ReactNode;
+  subtitle?: ReactNode;
   icon: LucideIcon;
   image?: string | null;
+  imageAspect?: "portrait" | "landscape";
   metadata?: ReactNode;
   description?: ReactNode;
   error?: string;
@@ -48,12 +57,13 @@ export function ResultCard({
   index?: number;
 }) {
   const reduceMotion = useReducedMotion();
+  const animateEntrance = useContext(ResultCardEntranceContext);
   const closeNavigator = useSetAtom(isAIAskOpenAtom);
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const interactive = !!(href || onClick);
   const Copy = onClick && !href ? "span" : "div";
   const Body = onClick && !href ? "span" : "div";
-  const rowClass = cn(styles.row, interactive && styles.interactive, className);
+  const rowClass = cn(styles.row, imageAspect === "landscape" && styles.landscape, interactive && styles.interactive, className);
   const content = (
     <>
       {image && image !== failedImage ? (
@@ -62,6 +72,7 @@ export function ResultCard({
           alt=""
           aria-hidden="true"
           className={styles.image}
+          data-aspect={imageAspect}
           onError={() => setFailedImage(image)}
         />
       ) : (
@@ -76,6 +87,7 @@ export function ResultCard({
             <ArrowRight aria-hidden="true" className={styles.arrow} />
           )}
         </span>
+        {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
         {metadata && <span className={styles.metadata}>{metadata}</span>}
         {description && (
           <span className={styles.description}>{description}</span>
@@ -96,10 +108,10 @@ export function ResultCard({
   return (
     <motion.div
       animate={{ opacity: 1, transform: "translateY(0)" }}
-      initial={{
+      initial={animateEntrance ? {
         opacity: 0,
         transform: reduceMotion ? "none" : "translateY(10px)",
-      }}
+      } : false}
       transition={{
         delay: reduceMotion ? 0 : index * 0.05,
         duration: 0.18,
@@ -109,7 +121,7 @@ export function ResultCard({
       {href ? (
         <Link
           href={href}
-          prefetch
+          prefetch={!href.startsWith("/api/navigator/title")}
           className={rowClass}
           draggable={false}
           onDragStart={(event) => event.preventDefault()}

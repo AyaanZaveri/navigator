@@ -60,7 +60,7 @@ async function fetchAddonResource<T>(
 
     const response = await fetch(url, {
       ...(init ?? {}),
-      signal: init?.signal ?? controller.signal,
+      signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
       ...(init?.cache || init?.next
         ? {}
         : shouldBypassDataCache
@@ -71,6 +71,7 @@ async function fetchAddonResource<T>(
     if (!response.ok) return null;
     return response.json();
   } catch {
+    init?.signal?.throwIfAborted();
     return null;
   } finally {
     clearTimeout(timeout);
@@ -222,9 +223,15 @@ export async function fetchTVShows(limit: number = 20): Promise<MediaItem[]> {
 
 export async function fetchMediaDetails(
   mediaItemId: string,
-  type: string = "movie"
+  type: string = "movie",
+  signal?: AbortSignal
 ): Promise<MediaItem | null> {
   try {
+    if (/^tmdb:[1-9]\d*$/.test(mediaItemId) && (type === "movie" || type === "series")) {
+      await getAuthData();
+      const { tmdbMediaItem } = await import("@/lib/tmdb-discovery");
+      return await tmdbMediaItem(mediaItemId, type, signal);
+    }
     const addons = await getInstalledAddons();
 
     // Try addons that support meta for this type  
@@ -235,7 +242,8 @@ export async function fetchMediaDetails(
     const metaRequests = metaAddons.map(async (addon) => {
       const data = await fetchAddonResource<StremioMetaResponse>(
         addon.transportUrl,
-        `meta/${type}/${mediaItemId}.json`
+        `meta/${type}/${mediaItemId}.json`,
+        { signal }
       );
 
       if (!data?.meta) {
@@ -256,6 +264,7 @@ export async function fetchMediaDetails(
               const data = await fetchAddonResource<StremioMetaResponse>(
                 "https://cinemeta-live.strem.io",
                 `meta/${type}/${mediaItemId}.json`,
+                { signal },
               );
               return data?.meta?.id === mediaItemId
                 ? data.meta.description
@@ -290,6 +299,7 @@ export async function fetchMediaDetails(
 
     return fallbackMeta ? await withCompleteDescription(fallbackMeta.value) : null;
   } catch (error) {
+    signal?.throwIfAborted();
     console.error("Failed to fetch media details:", error);
     return null;
   }
@@ -344,7 +354,8 @@ export async function fetchStreamsFromAddon(
   mediaItemId: string,
   type: string = "movie",
   addonTransportUrl: string,
-  addonName?: string
+  addonName?: string,
+  signal?: AbortSignal
 ): Promise<StremioStream[]> {
   try {
     const streamRequestHeaders = {
@@ -357,7 +368,7 @@ export async function fetchStreamsFromAddon(
     const data = await fetchAddonResource<StremioStreamResponse>(
       addonTransportUrl,
       `stream/${type}/${mediaItemId}.json`,
-      { headers: streamRequestHeaders, cache: "no-store", signal: AbortSignal.timeout(30_000) }
+      { headers: streamRequestHeaders, cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000) }
     );
 
     if (!data?.streams?.length) {
@@ -369,6 +380,7 @@ export async function fetchStreamsFromAddon(
       name: stream.name || addonName || "Unknown source",
     }));
   } catch (error) {
+    signal?.throwIfAborted();
     console.error("Failed to fetch streams from addon:", error);
     return [];
   }

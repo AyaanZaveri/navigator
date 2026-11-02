@@ -4,8 +4,8 @@ import { artworkFromPath } from "@/lib/artwork";
 
 import { Film, Tv, Star } from "lucide-react";
 import { RottenTomatoesIcon } from "../icons/rotten-tomatoes";
-import { buildEpisodePath, toEpisodeNavigationPath } from "@/lib/series-route";
-import { ResultCard, ResultBadge, formatCardRuntime } from "./result-card";
+import { navigatorTitlePath } from "@/lib/navigator-title-path";
+import { ResultCard, ResultMeta, formatCardRuntime } from "./result-card";
 
 interface MediaLinkCardProps {
   item: {
@@ -28,6 +28,8 @@ interface MediaLinkCardProps {
     thumbnail?: string;
     background?: string;
     releaseInfo?: string | null;
+    source?: string;
+    roles?: string[];
     addonName?: string | null;
     catalogName?: string | null;
   };
@@ -45,45 +47,22 @@ export function MediaLinkCard({
     item.type?.toLowerCase() ||
     (item.episodeNumber != null ? "episode" : "unknown");
   const episode = type === "episode";
-  const href =
-    type === "movie"
-      ? `/movie/${item.id}`
-      : type === "series"
-        ? `/series/${item.id}`
-        : episode
-          ? item.seriesId &&
-            item.seasonNumber != null &&
-            item.episodeNumber != null
-            ? buildEpisodePath(
-                item.seriesId,
-                item.seasonNumber,
-                item.episodeNumber,
-              )
-            : toEpisodeNavigationPath(item.id)
-          : undefined;
+  const href = navigatorTitlePath(episode ? item.seriesId || item.id : item.id, type, item.seasonNumber, item.episodeNumber);
   const release =
     item.releaseInfo && (episode || !item.year) ? item.releaseInfo : item.year;
   return (
     <ResultCard
       className={className}
       index={index}
-      title={
-        <>
-          {title}
-          {episode && item.seriesName && (
-            <span className="font-normal text-muted-foreground">
-              {" "}
-              · {item.seriesName}
-            </span>
-          )}
-        </>
-      }
+      title={title}
+      subtitle={episode ? item.seriesName : undefined}
       icon={type === "movie" ? Film : Tv}
-      image={artworkFromPath(href)}
+      image={item.source === "TMDB" ? (episode ? item.thumbnail : item.poster) || artworkFromPath(href) : artworkFromPath(href)}
+      imageAspect={episode ? "landscape" : "portrait"}
       href={href}
       metadata={
         <>
-          <ResultBadge>
+          <ResultMeta>
             {type === "movie"
               ? "Movie"
               : episode
@@ -91,32 +70,33 @@ export function MediaLinkCard({
                 : type === "series"
                   ? "Series"
                   : "Media"}
-          </ResultBadge>
+          </ResultMeta>
           {episode &&
             item.seasonNumber != null &&
             item.episodeNumber != null && (
-              <ResultBadge>
+              <ResultMeta>
                 S{item.seasonNumber} · E{item.episodeNumber}
-              </ResultBadge>
+              </ResultMeta>
             )}
-          {release && <ResultBadge>{release}</ResultBadge>}
+          {release && <ResultMeta>{release}</ResultMeta>}
+          {item.roles?.slice(0, 2).map(role => <ResultMeta key={role}>{role}</ResultMeta>)}
           {item.criticRating != null && (
-            <ResultBadge>
+            <ResultMeta>
               <RottenTomatoesIcon size={12} />
               {item.criticRating}%
-            </ResultBadge>
+            </ResultMeta>
           )}
           {item.communityRating != null && (
-            <ResultBadge>
+            <ResultMeta>
               <Star className="fill-yellow-400 text-yellow-400" />
               {item.communityRating.toFixed(1)}
-            </ResultBadge>
+            </ResultMeta>
           )}
           {item.officialRating && (
-            <ResultBadge>{item.officialRating}</ResultBadge>
+            <ResultMeta>{item.officialRating}</ResultMeta>
           )}
           {item.runtime ? (
-            <ResultBadge>{formatCardRuntime(item.runtime)}</ResultBadge>
+            <ResultMeta>{formatCardRuntime(item.runtime)}</ResultMeta>
           ) : null}
         </>
       }

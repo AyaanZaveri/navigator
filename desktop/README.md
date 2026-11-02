@@ -208,9 +208,13 @@ mpv converts the input to PQ with matching BT.2020/P3 primaries, Core Animation
 uses the matching PQ colorspace and EDR, and `target-peak` tracks the display's
 brightness headroom (203 nits reference white). Small changes below 5% avoid
 rebuilding mpv's shaders. Window/display changes coalesce over 250 ms; brief gaps
-between files retain EDR for 1.5 seconds. SDR restores automatic output settings.
-SDR displays, unsupported metadata/colorspaces, and 8-bit surfaces keep mpv's
-normal SDR tone mapping. The React controls stay in their existing WebView.
+between files retain EDR for 1.5 seconds only while metadata is unavailable.
+Known SDR switches immediately to an explicitly tagged sRGB layer with matching
+`target-prim=bt.709`, `target-trc=srgb`, and full-range RGB output. Core Animation
+performs display-profile conversion; mpv's ICC transform remains disabled to avoid
+double conversion. This same SDR setup applies on startup, SDR displays,
+unsupported HDR metadata/colorspaces, and 8-bit surfaces; mpv tone-maps HDR to SDR
+when the display/surface cannot present HDR. The React controls stay in their existing WebView.
 
 Native HDR tests use local, tagged `pq.mkv`, `hlg.mkv`, and `sdr.mkv` fixtures:
 
@@ -222,11 +226,17 @@ cargo run --manifest-path desktop/Cargo.toml --example hdr-check -- \
   /path/libmpv.2.dylib /path/fixtures
 ```
 
-The native check renders PQ → SDR → HLG → SDR → PQ → SDR through the actual OpenGL layer,
-checks the EDR/colorspace state, and exercises fullscreen without a backend or
+The native check renders SDR → PQ → SDR → HLG → SDR → PQ → SDR through the actual OpenGL layer,
+checks the initial/return sRGB tag and EDR/colorspace state, and exercises fullscreen without a backend or
 saved account. It reports whether the display and surface support HDR; an SDR
 machine verifies fallback rather than HDR brightness. Use known HDR test patterns
 on an HDR display for final visual/color validation.
+
+The mpv manual's [`cocoa-cb-output-csp` guidance](https://mpv.io/manual/stable/#options-cocoa-cb-output-csp)
+requires the layer tag to match the VO's target primaries/transfer. Navigator owns
+its OpenGL layer, so it configures that tag directly rather than using mpv's
+Cocoa window option. A related [upstream SDR gamma report](https://github.com/mpv-player/mpv/issues/14648)
+concerns Windows HDR mode; its configuration is not applied to our Windows backend.
 
 This version does not include AIOStreams' custom Metal/AVFoundation outputs or
 Dolby Vision output, native PiP, automatic updates, or torrent resolution.

@@ -1,6 +1,7 @@
 "use client";
 
 import "@/components/player-mobile.css";
+import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
@@ -52,6 +53,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
+import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 
 interface GlobalMediaPlayerProps {
   onToggleAIAsk?: () => void;
@@ -77,6 +79,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [nativePlayback, setNativePlayback] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
+  const reportNavigatorPlayback = useCallback((state: "playing" | "error" | "closed", message?: string) => {
+    if (!playbackRequest?.navigatorActionId) return;
+    document.dispatchEvent(new CustomEvent(NAVIGATOR_PLAYBACK_EVENT, {
+      detail: { actionId: playbackRequest.navigatorActionId, state, message },
+    }));
+  }, [playbackRequest]);
   const [requestHeaders, setRequestHeaders] = useState<Record<string, string>>({});
   useEffect(() => { setNativePlayback(!!desktopBridge()); }, []);
   useLayoutEffect(() => {
@@ -316,6 +324,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [currentMedia?.resumePositionTicks, sendPlaybackUpdate, setCurrentTimestamp]);
 
   const handleClose = useCallback((options?: { ended?: boolean }) => {
+    reportNavigatorPlayback("closed");
     loadGenerationRef.current++;
     sendPlaybackUpdate("stopped", { ended: options?.ended });
     setIsPlayerVisible(false);
@@ -329,7 +338,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setVideoReady(false);
     setPlaybackError(null);
     lastLoadedPlaybackKeyRef.current = null;
-  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible]);
+  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible, reportNavigatorPlayback]);
 
   useEffect(() => {
     if (!nativePlayback || !isPlayerVisible) return;
@@ -524,7 +533,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
     } catch (error) {
       if (!isCurrent()) return;
-      setPlaybackError(error instanceof Error ? error.message : "Could not load this stream. Try again.");
+      const message = error instanceof Error ? error.message : "Could not load this stream. Try again.";
+      setPlaybackError(message);
+      if (request.navigatorActionId) document.dispatchEvent(new CustomEvent(NAVIGATOR_PLAYBACK_EVENT, {
+        detail: { actionId: request.navigatorActionId, state: "error", message },
+      }));
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -634,6 +647,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         }}
       >
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
+        {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
         {/* Video element */}
         {streamUrl && (
           <MediaPlayerVideo asChild>
@@ -649,6 +663,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               autoPlay={false}
               className="h-screen bg-black w-screen"
               onPause={handleVideoPause}
+              onPlaying={() => reportNavigatorPlayback("playing")}
               onEnded={handleVideoEnded}
               onLoadedMetadata={handleVideoLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
@@ -657,7 +672,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               onLoadedData={handleVideoCanPlay}
               onError={(event) => {
                 console.warn("Video error caught:", event);
-                setPlaybackError(videoRef.current?.error?.message || "This stream could not be played.");
+                const message = videoRef.current?.error?.message || "This stream could not be played.";
+                setPlaybackError(message);
+                reportNavigatorPlayback("error", message);
               }}
             />
           </MediaPlayerVideo>
@@ -861,7 +878,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
           </div>
 
-          <MediaPlayerSeek previewFrames />
+          <MediaPlayerSeek previewFrames previewSource={streamUrl ?? undefined} />
 
           <div data-player-toolbar="" className="flex w-full items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">

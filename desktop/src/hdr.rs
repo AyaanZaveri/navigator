@@ -5,6 +5,21 @@
 /// PQ luminance at SDR reference white, matching AIOStreams.
 pub const REFERENCE_WHITE: f64 = 203.0;
 
+/// Core Animation does display-profile conversion from this explicitly tagged
+/// sRGB surface. mpv must encode the same primaries/transfer, without a second ICC transform.
+pub const SDR_OUTPUT_OPTIONS: &[(&str, &str)] = &[
+    ("target-prim", "bt.709"),
+    ("target-trc", "srgb"),
+    ("target-peak", "auto"),
+    ("icc-profile", ""),
+    ("video-output-levels", "full"),
+];
+
+/// Keep EDR over missing/partial HDR metadata, but never over a known SDR file.
+pub fn defer_sdr_reset(gamma: Option<&str>) -> bool {
+    matches!(gamma, None | Some("pq" | "hlg" | "unknown" | "auto" | ""))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Video {
     pub primaries: &'static str,
@@ -57,6 +72,25 @@ pub fn target_peak(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn known_sdr_does_not_inherit_hdr_gap_delay() {
+        for gamma in ["bt.1886", "srgb", "gamma2.2", "linear"] {
+            assert!(
+                !defer_sdr_reset(Some(gamma)),
+                "Known SDR must switch immediately"
+            );
+        }
+        for gamma in [None, Some("pq"), Some("hlg"), Some("unknown")] {
+            assert!(
+                defer_sdr_reset(gamma),
+                "Partial metadata must not flicker out of HDR"
+            );
+        }
+        assert!(SDR_OUTPUT_OPTIONS.contains(&("target-trc", "srgb")));
+        assert!(SDR_OUTPUT_OPTIONS.contains(&("target-prim", "bt.709")));
+        assert!(SDR_OUTPUT_OPTIONS.contains(&("video-output-levels", "full")));
+    }
 
     #[test]
     fn pq_and_hlg_use_matching_pq_colorspace() {

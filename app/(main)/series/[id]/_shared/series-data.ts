@@ -57,7 +57,7 @@ export const getSeriesEpisodeSelectionData = cache(
       !Number.isFinite(episodeNumber) ||
       !Number.isInteger(seasonNumber) ||
       !Number.isInteger(episodeNumber) ||
-      seasonNumber < 1 ||
+      seasonNumber < 0 ||
       episodeNumber < 1
     ) {
       return null;

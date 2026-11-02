@@ -42,6 +42,8 @@ interface SettingsContextType {
   setNavigatorEnabled: (enabled: boolean) => void;
   aiProvider: AIProvider;
   setAiProvider: (provider: AIProvider) => void;
+  analysisModel: string;
+  setAnalysisModel: (model: string) => void;
   // model settings
   openaiBaseUrl: string;
   setOpenaiBaseUrl: (url: string) => void;
@@ -87,6 +89,7 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [videoBitrate, setVideoBitrateState] = useState<string>("auto");
   const [navigatorEnabled, setNavigatorEnabledState] = useState<boolean>(true);
+  const [analysisModels, setAnalysisModels] = useState<Partial<Record<AIProvider, string>>>({});
   const [aiProvider, setAiProviderState] = useState<AIProvider>("openai");
   const [openaiBaseUrl, setOpenaiBaseUrlState] = useState<string>(
     "https://api.openai.com/v1"
@@ -118,8 +121,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [cerebrasApiKey, setCerebrasApiKeyState] = useState<string>("");
   const [opencodeApiKey, setOpencodeApiKeyState] = useState<string>("");
 
+  const setAnalysisModel = (model: string) => {
+    setAnalysisModels(previous => {
+      const next = { ...previous, [aiProvider]: model };
+      localStorage.setItem("navigator-analysis-models", JSON.stringify(next));
+      return next;
+    });
+  };
+
   // Load settings from localStorage on mount
   useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("navigator-analysis-models") || "{}");
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        setAnalysisModels(Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === "string")));
+      }
+    } catch { /* Ignore malformed saved preferences. */ }
     const savedBitrate = localStorage.getItem("navigator-video-bitrate");
     if (
       savedBitrate &&
@@ -343,6 +360,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <SettingsContext.Provider
       value={{
+        analysisModel: analysisModels[aiProvider] || "",
+        setAnalysisModel,
         videoBitrate,
         setVideoBitrate,
         navigatorEnabled,

@@ -427,13 +427,13 @@ impl VideoSurface {
     }
     pub fn attach(&self, mpv: Arc<Mpv>) {
         *self.layer.ivars().mpv.borrow_mut() = Some(mpv.clone());
-        self.layer.start();
         hdr::attach(
             self.layer.clone().into_super(),
             self.view.clone(),
             mpv,
             self.layer.ivars().depth == 16,
         );
+        self.layer.start();
     }
     pub fn resize(&self, width: u32, _height: u32) {
         let bounds = self.view.bounds();
@@ -456,14 +456,24 @@ impl VideoSurface {
     pub fn hdr_diagnostics(&self) -> (bool, f64, bool, bool) {
         hdr::diagnostics()
     }
+    pub fn output_colorspace(&self) -> Option<String> {
+        objc2_core_graphics::CGColorSpace::name(self.layer.colorspace().as_deref())
+            .map(|name| name.to_string())
+    }
 }
 pub fn mpv_options(_: &VideoSurface) -> Vec<(&'static str, String)> {
-    vec![
+    let mut options = vec![
         ("vo", "libmpv".into()),
         ("hwdec", "auto-safe".into()),
         ("video-timing-offset", "0".into()),
         ("vd-lavc-dr", "no".into()),
-    ]
+    ];
+    options.extend(
+        crate::hdr::SDR_OUTPUT_OPTIONS
+            .iter()
+            .map(|&(name, value)| (name, value.into())),
+    );
+    options
 }
 
 impl Drop for LayerIvars {

@@ -67,8 +67,14 @@ fn main() {
     let mpv = Arc::new(mpv::Mpv::new(std::path::Path::new(&args[1]), &options).unwrap());
     let mut player = player::Player::start(mpv.clone(), |_| {}, platform::update_hdr).unwrap();
     surface.attach(mpv);
+    assert_eq!(
+        surface.output_colorspace().as_deref(),
+        Some("kCGColorSpaceSRGB"),
+        "Startup SDR must have an explicit, matching color space"
+    );
     surface.resize(window.inner_size().width, window.inner_size().height);
     let stages = [
+        ("sdr", false),
         ("pq", true),
         ("sdr", false),
         ("hlg", true),
@@ -128,6 +134,9 @@ fn main() {
                 "{}: PQ colorspace/target mismatch",
                 stages[stage].0
             );
+            if !expected {
+                assert_eq!(surface.output_colorspace().as_deref(), Some("kCGColorSpaceSRGB"), "SDR must restore an explicit sRGB layer after HDR");
+            }
             println!(
                 "PASS: {} float={float} display-headroom={potential:.2} hdr={active}",
                 stages[stage].0

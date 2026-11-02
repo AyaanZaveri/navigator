@@ -14,11 +14,20 @@ class Video extends EventTarget {
   src = 'https://stream.test/movie.mp4'; crossOrigin = 'anonymous'; loads = 0; error = null;
   fastSeek(time) { this.currentTime = time; this.seeking = true; }
   finish() { this.seeking = false; this.dispatchEvent(new Event('seeked')); }
-  pause() {} removeAttribute() {}
+  removed = [];
+  pause() {} removeAttribute(name) { this.removed.push(name); }
   load() { this.loads++; this.error = null; this.readyState = 0; this.seeking = false; }
 }
 let failures = 0;
 function test(name, check) { try { check(); console.log('PASS:', name); } catch (error) { failures++; console.error('FAIL:', name, error.message); } }
+test('Mux owns its MediaSource across preview-provider effect cleanup', () => {
+  const video = new Video();
+  video.src = 'blob:https://navigator.test/preview-decoder';
+  const provider = new context.exports.BrowserPreviewFrames(video, () => {}, false, false, false);
+  provider.dispose();
+  assert.equal(video.loads, 0, 'Provider cleanup must not detach a Mux-managed MediaSource');
+  assert.deepEqual(video.removed, []);
+});
 test('A late error cannot overwrite a cached preview', () => {
   const video = new Video(), results = [];
   const provider = new context.exports.BrowserPreviewFrames(video, (...args) => results.push(args));

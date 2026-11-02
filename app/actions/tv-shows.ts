@@ -4,21 +4,23 @@ import { artworkUrl, mediaArtwork } from "@/lib/artwork";
 
 import type { MediaItem, StremioMeta, StremioMetaResponse
 } from "@/types/stremio";
-import { getInstalledAddons } from "./auth";
+import { getAuthData, getInstalledAddons } from "./auth";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
 async function fetchAddonResource<T>(
   transportUrl: string,
-  path: string
+  path: string,
+  signal?: AbortSignal
 ): Promise<T | null> {
   try {
     const base = transportUrl.replace(/\/manifest\.json$/, "");
     const url = `${base}/${path}`;
-    const response = await fetch(url, { next: { revalidate: 300 } });
+    const response = await fetch(url, { next: { revalidate: 300 }, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000) });
     if (!response.ok) return null;
     return response.json();
   } catch {
+    signal?.throwIfAborted();
     return null;
   }
 }
@@ -57,8 +59,13 @@ export interface Season {
   episodeCount: number;
 }
 
-export async function fetchSeasons(seriesId: string): Promise<Season[]> {
+export async function fetchSeasons(seriesId: string, signal?: AbortSignal): Promise<Season[]> {
   try {
+    if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
+      await getAuthData();
+      const { getTMDBSeasons } = await import("@/lib/tmdb-discovery");
+      return await getTMDBSeasons(seriesId, signal);
+    }
     const addons = await getInstalledAddons();
 
     for (const addon of addons) {
@@ -69,7 +76,8 @@ export async function fetchSeasons(seriesId: string): Promise<Season[]> {
 
       const data = await fetchAddonResource<StremioMetaResponse>(
         addon.transportUrl,
-        `meta/series/${seriesId}.json`
+        `meta/series/${seriesId}.json`,
+        signal
       );
 
       if (data?.meta?.videos && data.meta.videos.length > 0) {
@@ -92,6 +100,7 @@ export async function fetchSeasons(seriesId: string): Promise<Season[]> {
 
     return [];
   } catch (error) {
+    signal?.throwIfAborted();
     console.error("Failed to fetch seasons:", error);
     return [];
   }
@@ -113,9 +122,18 @@ export interface Episode {
 
 export async function fetchEpisodes(
   seriesId: string,
-  seasonNumber?: number
+  seasonNumber?: number,
+  signal?: AbortSignal
 ): Promise<Episode[]> {
   try {
+    if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
+      await getAuthData();
+      const { getTMDBSeasons, getTMDBEpisodes, mapTMDBSeasons } = await import("@/lib/tmdb-discovery");
+      if (seasonNumber !== undefined) return await getTMDBEpisodes(seriesId, seasonNumber, signal);
+      const seasons = await getTMDBSeasons(seriesId, signal);
+      return (await mapTMDBSeasons(seasons.filter(season => season.number > 0).map(season => season.number),
+        number => getTMDBEpisodes(seriesId, number, signal), signal)).flat();
+    }
     const addons = await getInstalledAddons();
 
     for (const addon of addons) {
@@ -126,7 +144,8 @@ export async function fetchEpisodes(
 
       const data = await fetchAddonResource<StremioMetaResponse>(
         addon.transportUrl,
-        `meta/series/${seriesId}.json`
+        `meta/series/${seriesId}.json`,
+        signal
       );
 
       if (data?.meta?.videos) {
@@ -158,6 +177,7 @@ export async function fetchEpisodes(
 
     return [];
   } catch (error) {
+    signal?.throwIfAborted();
     console.error("Failed to fetch episodes:", error);
     return [];
   }
@@ -169,6 +189,11 @@ export async function fetchTVShowDetails(
   seriesId: string
 ): Promise<MediaItem | null> {
   try {
+    if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
+      await getAuthData();
+      const { tmdbMediaItem } = await import("@/lib/tmdb-discovery");
+      return await tmdbMediaItem(seriesId, "series");
+    }
     const addons = await getInstalledAddons();
 
     for (const addon of addons) {
@@ -199,10 +224,11 @@ export async function fetchTVShowDetails(
 export async function fetchEpisodeDetails(
   seriesId: string,
   season: number,
-  episode: number
+  episode: number,
+  signal?: AbortSignal
 ): Promise<Episode | null> {
   try {
-    const episodes = await fetchEpisodes(seriesId, season);
+    const episodes = await fetchEpisodes(seriesId, season, signal);
     return episodes.find((e) => e.episode === episode) || null;
   } catch (error) {
     console.error("Failed to fetch episode details:", error);
@@ -216,6 +242,11 @@ export async function getNextEpisodeForSeries(
   seriesId: string
 ): Promise<Episode | null> {
   try {
+    if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
+      const seasons = await fetchSeasons(seriesId);
+      const first = seasons.find(season => season.number > 0 && season.episodeCount > 0);
+      return first ? (await fetchEpisodes(seriesId, first.number))[0] || null : null;
+    }
     const episodes = await fetchEpisodes(seriesId);
     // Return the first episode as a starting point
     return episodes[0] || null;

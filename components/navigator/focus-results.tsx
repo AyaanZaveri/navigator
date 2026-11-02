@@ -1,8 +1,12 @@
 "use client";
 
-import type { ComponentProps, ComponentType, ReactNode } from "react";
+import { Children, useId, useState, type ComponentProps, type ComponentType, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { motionTokens } from "@/components/arc/lib/motion-tokens";
+import { ResultCardEntranceContext } from "./result-card-motion";
 import {
   ArrowUpRight,
+  Film,
   BookOpen,
   Layers,
   List,
@@ -23,6 +27,10 @@ import { ThemeToggleCard } from "./theme-toggle-card";
 import { SubtitleSkipCard } from "./subtitle-skip-card";
 import { SceneExplainCard } from "./scene-explain-card";
 import { MediaAnalysisCard } from "./media-analysis-card";
+import { PersonCard } from "./person-card";
+import { actionToolNames } from "@/lib/navigator-chat";
+import { Accordion } from "@/components/arc/accordion/accordion";
+import { Button } from "@/components/ui/button";
 
 type RecordValue = Record<string, unknown>;
 const record = (value: unknown): RecordValue =>
@@ -48,9 +56,22 @@ type Trace = {
 export type NavigatorSegment =
   | { kind: "text"; key: string; text: string; streaming: boolean }
   | { kind: "trace"; key: string; trace: Trace }
+  | { kind: "lookup"; key: string; trace: Trace; cards: ReactNode }
   | { kind: "results"; key: string; results: { cards: ReactNode } };
 
+const lookupTools = new Set([
+  "searchPeople", "getPersonDetails", "getFilmography", "searchMedia",
+  "getMediaDetails", "getSeasons", "getEpisodes", "findEpisodeByTitle",
+]);
+
+export function isPlaybackRequest(value: string): boolean {
+  return /^(?:(?:please|can you|could you|would you|i want to|i[’']d like to)\s+)*(?:play|watch|put on|start playback)\b/i.test(value.trim());
+}
+
 const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
+  searchPeople: ["Searching TMDB people", "Found people", Search],
+  getPersonDetails: ["Reading person details", "Read person details", BookOpen],
+  getFilmography: ["Reading filmography", "Found filmography", Film],
   searchMedia: ["Searching media", "Searched media", Search],
   getMediaDetails: ["Reading title details", "Read title details", Search],
   getSeasons: ["Getting seasons", "Found seasons", Layers],
@@ -68,7 +89,7 @@ const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   skipToSubtitleContent: ["Searching subtitles", "Found the moment", Subtitles],
   explainScene: ["Reading scene context", "Read scene context", BookOpen],
   analyzeMedia: ["Analyzing media", "Analyzed media", ScanText],
-  themeToggle: ["Changing theme", "Changed theme", Palette],
+  themeToggle: ["Changing theme", "Theme changed", Palette],
 };
 
 function toolCards(
@@ -78,6 +99,10 @@ function toolCards(
 ): ReactNode {
   // Reuse Navigator's original cards, including their navigation and playback behavior.
   switch (name) {
+    case "searchPeople":
+      return list(output.results).map(person => <PersonCard key={text(person.id)} person={person as ComponentProps<typeof PersonCard>["person"]} />);
+    case "getPersonDetails":
+      return output.person ? <PersonCard person={output.person as ComponentProps<typeof PersonCard>["person"]} /> : null;
     case "getMediaStreams":
       return (
         <StreamListCard
@@ -126,6 +151,8 @@ function toolCards(
           media={
             {
               ...details,
+              seasonNumber: details.seasonNumber ?? details.season,
+              episodeNumber: details.episodeNumber ?? details.episode,
               type:
                 text(details.type).toLowerCase() === "series"
                   ? "Series"
@@ -161,6 +188,7 @@ function toolCards(
           item={
             {
               ...item,
+              source: item.source || output.source,
               id: text(item.id || item.Id),
               ...(Array.isArray(output.episodes) ? { type: "Episode" } : {}),
             } as ComponentProps<typeof MediaLinkCard>["item"]
@@ -174,8 +202,13 @@ function toolCards(
 
 export function toNavigatorSegments(
   parts: ReadonlyArray<unknown>,
+  options: { playbackRequest?: boolean } = {},
 ): NavigatorSegment[] {
   const segments: NavigatorSegment[] = [];
+  const collapseLookups = options.playbackRequest || parts.some(raw => {
+    const part = record(raw);
+    return part.type === "tool-playMedia" || (part.type === "dynamic-tool" && part.toolName === "playMedia");
+  });
   parts.forEach((raw, index) => {
     const part = record(raw);
     if (part.type === "text") {
@@ -197,7 +230,35 @@ export function toNavigatorSegments(
       part.type === "dynamic-tool" ? text(part.toolName) : part.type.slice(5);
     const output = record(part.output);
     const input = record(part.input);
-    const failed = part.state === "output-error" || output.success === false;
+    // Legacy handoff parts are transport details, never a second visible action.
+    if (name === "completeAction") return;
+    if (actionToolNames.has(name)) {
+      const legacyAcknowledgement = parts.map(record).find(candidate => candidate.type === "tool-completeAction"
+        && (candidate.state === "output-available" || candidate.state === "output-error")
+        && (record(candidate.output).preparedToolCallId || record(candidate.input).preparedToolCallId) === part.toolCallId);
+      const result = legacyAcknowledgement ? { ...output, ...record(legacyAcknowledgement.output), execution: "completed",
+        ...(legacyAcknowledgement.state === "output-error" ? { success: false, error: legacyAcknowledgement.errorText } : {}),
+      } : output;
+      const failed = part.state === "output-error" || part.state === "output-denied" || result.success === false;
+      if (failed) {
+        const detail = text(part.errorText || result.error || result.message) || "Unable to complete this action";
+        segments.push({ kind: "trace", key: `trace-${index}`, trace: {
+          label: detail, detail, phase: "error", icon: toolLabels[name]?.[2] || Search,
+        } });
+        return;
+      }
+      if (part.state !== "output-available") return;
+      const applied = result.execution === "completed" || !result.preparedToolCallId;
+      // Show the existing theme controls only after the browser has applied the change.
+      const cards = name !== "themeToggle" || applied ? toolCards(name, result, input) : null;
+      if (cards) segments.push({ kind: "results", key: `results-${index}`, results: { cards } });
+      const hasAnswer = parts.some(rawPart => record(rawPart).type === "text" && text(record(rawPart).text).trim());
+      if (applied && name !== "themeToggle" && result.message && !hasAnswer) {
+        segments.push({ kind: "text", key: `action-text-${index}`, text: text(result.message), streaming: false });
+      }
+      return;
+    }
+    const failed = part.state === "output-error" || part.state === "output-denied" || output.success === false;
     const complete = part.state === "output-available" || failed;
     const [running, completed, icon] = toolLabels[name] ?? [
       "Working",
@@ -220,24 +281,27 @@ export function toNavigatorSegments(
         input.question ||
         output.message,
     );
-    segments.push({
-      kind: "trace",
-      key: `trace-${index}`,
-      trace: {
-        label: failed
-          ? detail || "Unable to complete this step"
-          : `${complete ? completed : running}${count}`,
-        detail: detail || undefined,
-        phase: failed ? "error" : complete ? "completed" : "running",
-        icon,
-      },
-    });
-    if (cards)
-      segments.push({
-        kind: "results",
-        key: `results-${index}`,
-        results: { cards },
-      });
+    const trace: Trace = {
+      label: failed
+        ? detail || "Unable to complete this step"
+        : part.state === "approval-requested" ? "Awaiting approval"
+        : `${complete ? completed : running}${count}`,
+      detail: detail || undefined,
+      phase: failed ? "error" : complete ? "completed" : "running",
+      icon,
+    };
+    if (collapseLookups && complete && !failed && cards && lookupTools.has(name) && Children.count(cards) > 3) {
+      segments.push({ kind: "lookup", key: `lookup-${index}`, trace, cards });
+    } else {
+      segments.push({ kind: "trace", key: `trace-${index}`, trace });
+      if (cards) {
+        segments.push({
+          kind: "results",
+          key: `results-${index}`,
+          results: { cards },
+        });
+      }
+    }
     // Tool-only replies still expose their user-facing result, without duplicating assistant text.
     const hasAnswer = parts.some((rawPart) => {
       const p = record(rawPart);
@@ -263,16 +327,70 @@ export function NavigatorTraceRow({ trace }: { trace: Trace }) {
     <p
       aria-busy={trace.phase === "running"}
       aria-live={trace.phase === "running" ? "off" : "polite"}
-      className={`flex items-center gap-2 px-2 text-sm text-muted-foreground ${trace.phase === "error" ? "text-destructive" : ""}`}
+      className={`flex min-h-10 items-center gap-2 px-2 py-2 text-sm font-medium leading-[1.4] text-muted-foreground ${trace.phase === "error" ? "text-destructive" : ""}`}
       role="status"
       title={trace.detail}
     >
-      <Icon aria-hidden="true" className="size-3.5 shrink-0 stroke-2" />
+      <Icon aria-hidden="true" className="size-4 shrink-0 stroke-[1.5]" />
       <span className="min-w-0 truncate">{trace.label}</span>
     </p>
   );
 }
 
-export function NavigatorResultCards({ cards }: { cards: ReactNode }) {
-  return <div className="flex w-full flex-col gap-1">{cards}</div>;
+export function NavigatorLookup({ trace, cards }: { trace: Trace; cards: ReactNode }) {
+  const Icon = trace.icon;
+  const [open, setOpen] = useState(false);
+  return (
+    <Accordion
+      defaultOpen={-1}
+      onOpenChange={index => setOpen(index !== null)}
+      size="sm"
+      items={[{
+        title: trace.label,
+        icon: <Icon aria-hidden="true" className="size-4 shrink-0 stroke-[1.5]" />,
+        content: <NavigatorResultCards cards={cards} revealed={open} />,
+      }]}
+    />
+  );
+}
+
+export function NavigatorResultCards({ cards, revealed = true }: { cards: ReactNode; revealed?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const reduced = useReducedMotion();
+  const listId = useId();
+  const items = Children.toArray(cards);
+  const remaining = items.length - 5;
+  const hidden = { opacity: 0, transform: reduced ? "none" : "translateY(4px)" };
+  const visible = { opacity: 1, transform: reduced ? "none" : "translateY(0)" };
+  return (
+    <div className="flex w-full flex-col gap-0.5">
+      <div id={listId} className="flex w-full flex-col gap-0.5">
+        {(expanded ? items : items.slice(0, 5)).map((card, index) => (
+          <motion.div
+            key={typeof card === "object" && card !== null && "key" in card ? card.key : index}
+            initial={index >= 5 ? hidden : false}
+            animate={revealed ? visible : hidden}
+            transition={{ duration: 0.15, ease: motionTokens.ease.out }}
+          >
+            <ResultCardEntranceContext.Provider value={false}>{card}</ResultCardEntranceContext.Provider>
+          </motion.div>
+        ))}
+      </div>
+      {remaining > 0 && (
+        <div className="flex self-start py-1 pl-2 pr-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={expanded}
+            aria-controls={listId}
+            className="-ml-3"
+            onClick={() => setExpanded(value => !value)}
+          >
+            {expanded ? "Show fewer results" : `Show ${remaining} more ${remaining === 1 ? "result" : "results"}`}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }

@@ -26,7 +26,7 @@ export function parseSeriesRouteId(id: string): ParsedSeriesRouteId {
       Number.isFinite(episode) &&
       Number.isInteger(season) &&
       Number.isInteger(episode) &&
-      season > 0 &&
+      season >= 0 &&
       episode > 0
     ) {
       return {
@@ -51,7 +51,7 @@ export function parseSeriesRouteId(id: string): ParsedSeriesRouteId {
       Number.isFinite(episode) &&
       Number.isInteger(season) &&
       Number.isInteger(episode) &&
-      season > 0 &&
+      season >= 0 &&
       episode > 0
     ) {
       return {
@@ -80,7 +80,7 @@ export function buildEpisodePath(
 
 export function toEpisodeNavigationPath(id: string): string {
   const parsed = parseSeriesRouteId(id);
-  if (parsed.isEpisodeTarget && parsed.season && parsed.episode) {
+  if (parsed.isEpisodeTarget && parsed.season !== undefined && parsed.episode !== undefined) {
     return buildEpisodePath(parsed.seriesId, parsed.season, parsed.episode);
   }
   return buildSeriesPath(id);

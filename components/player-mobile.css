@@ -52,6 +52,37 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   background-color: var(--player-glass-color);
   background-image: var(--player-glass-sheen);
 }
+/* Chromium's HDR overlay is not always available to backdrop-filter. Sampled
+   sRGB pixels supply only the small glass surfaces; video playback stays HDR. */
+[data-browser-glass] {
+  overflow: hidden;
+  isolation: isolate;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-player-hdr-glass][data-browser-glass] { position: relative; }
+[data-browser-glass]::before,
+[data-browser-glass]::after { content: ""; position: absolute; pointer-events: none; }
+[data-browser-glass]::before {
+  inset: -12px;
+  z-index: -2;
+  background-image: var(--browser-glass-image);
+  background-size: var(--browser-glass-size);
+  background-position: calc(var(--browser-glass-x) + 12px) calc(var(--browser-glass-y) + 12px);
+  background-repeat: no-repeat;
+  filter: blur(12px);
+}
+[data-browser-glass][data-slot="media-player-seek-tooltip"]::before {
+  background-position-x: calc(50% + var(--browser-glass-half-width) - var(--seek-tooltip-x));
+  background-position-y: calc(100% + var(--browser-glass-height) - var(--seek-tooltip-y) + var(--seek-tooltip-side-offset, 0px) - 12px);
+}
+[data-browser-glass]::after {
+  inset: 0;
+  z-index: -1;
+  background-color: var(--browser-glass-color);
+  background-image: var(--browser-glass-sheen);
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   [data-player-glass],
   html[data-native-playing] [data-player-glass] { --player-glass-tint: 80%; }

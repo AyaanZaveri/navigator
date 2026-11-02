@@ -1,44 +1,36 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Palette, Sun, Moon, Monitor } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ResultCard } from "./result-card";
+import { Palette } from "lucide-react";
+import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
+import { cn } from "@/lib/utils";
+import styles from "./theme-toggle-card.module.css";
 
 interface ThemeToggleCardProps {
   className?: string;
-  index?: number;
 }
 
 export function ThemeToggleCard({
   className,
-  index = 0,
 }: ThemeToggleCardProps) {
   const { theme, setTheme } = useTheme();
   return (
-    <ResultCard
-      className={className}
-      index={index}
-      title="Theme settings"
-      icon={Palette}
-      description="Choose your preferred theme"
-    >
-      <Tabs value={theme} onValueChange={setTheme}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="light" className="gap-1 text-xs">
-            <Sun className="size-3" />
-            Light
-          </TabsTrigger>
-          <TabsTrigger value="dark" className="gap-1 text-xs">
-            <Moon className="size-3" />
-            Dark
-          </TabsTrigger>
-          <TabsTrigger value="system" className="gap-1 text-xs">
-            <Monitor className="size-3" />
-            System
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </ResultCard>
+    <div className={cn(styles.card, className)}>
+      <div className={styles.label}>
+        <Palette aria-hidden="true" size={14} strokeWidth={1.75} />
+        <span>Theme settings</span>
+      </div>
+      <SegmentedControl
+        className={styles.control}
+        label="Theme"
+        value={theme ?? "system"}
+        onValueChange={setTheme}
+        options={[
+          { value: "light", label: "Light" },
+          { value: "dark", label: "Dark" },
+          { value: "system", label: "System" },
+        ]}
+      />
+    </div>
   );
 }

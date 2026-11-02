@@ -19,6 +19,7 @@ export const isDesktopFullscreenAtom = atom((get) => {
 
 // Media Player state
 export interface MediaToPlay {
+  navigatorActionId?: string;
   id: string;
   name: string;
   type: "movie" | "series" | "channel" | "tv";

@@ -17,9 +17,10 @@ import { desktopBridge } from "@/lib/desktop/bridge";
 interface LayoutContentProps {
   children: React.ReactNode;
   email: string;
+  userId?: string;
 }
 
-export function LayoutContent({ children, email }: LayoutContentProps) {
+export function LayoutContent({ children, email, userId }: LayoutContentProps) {
   const pathname = usePathname();
   const overlayHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
@@ -72,7 +73,7 @@ export function LayoutContent({ children, email }: LayoutContentProps) {
           {children}
         </main>
       </div>
-      {navigatorEnabled && <AIAsk />}
+      {navigatorEnabled && <AIAsk userId={userId || email} />}
       <GlobalMediaPlayer onToggleAIAsk={navigatorEnabled ? handleToggleAIAsk : undefined} />
     </div>
   );

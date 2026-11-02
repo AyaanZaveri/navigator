@@ -37,6 +37,8 @@ import { NavigatorActivityStatus } from "./activity-status";
 import {
   NavigatorTraceRow,
   NavigatorResultCards,
+  NavigatorLookup,
+  isPlaybackRequest,
   toNavigatorSegments,
 } from "./focus-results";
 import {
@@ -87,6 +89,7 @@ type Props = {
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onStop: () => void;
   onNewChat: () => void;
+  onRetry: () => void;
   isBusy: boolean;
   error?: Error;
   responseDurations: Record<string, number>;
@@ -103,6 +106,7 @@ export function NavigatorFocus({
   onSubmit,
   onStop,
   onNewChat,
+  onRetry,
   isBusy,
   error,
   responseDurations,
@@ -119,7 +123,6 @@ export function NavigatorFocus({
   const isPinnedToBottom = useRef(true);
   const [isScrolledAwayFromBottom, setIsScrolledAwayFromBottom] =
     useState(false);
-  const [hasTranscriptOverflow, setHasTranscriptOverflow] = useState(false);
   const [isClearingChat, setIsClearingChat] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activityStartedAt, setActivityStartedAt] = useState<number | null>(
@@ -205,12 +208,6 @@ export function NavigatorFocus({
       isBusy ? (started ?? Date.now()) : null,
     );
   }, [isBusy]);
-  useLayoutEffect(() => {
-    const list = messageListRef.current;
-    setHasTranscriptOverflow(
-      !!list && list.scrollHeight > list.clientHeight + 1,
-    );
-  }, [error, messages, responseDurations, isOpen]);
   useEffect(() => {
     if (!isOpen || !isPinnedToBottom.current) return;
     const frame = requestAnimationFrame(() => scrollToLatest("auto"));
@@ -386,6 +383,7 @@ export function NavigatorFocus({
                 >
                   <motion.section
                     aria-label="Ask Navigator"
+                    data-player-hdr-glass={!showLauncher ? "" : undefined}
                     className="w-full rounded-xl! bg-popover/95 p-2 text-popover-foreground backdrop-blur-sm dark:bg-popover/75"
                     style={{ transformOrigin: "bottom center" }}
                   >
@@ -396,20 +394,22 @@ export function NavigatorFocus({
                             ? clearedMessages
                             : { opacity: 1, transform: "translateY(0)" }
                         }
-                        className="mb-3 h-fit max-h-72 space-y-5 px-1 py-2 sm:max-h-[min(26rem,calc(100dvh-12rem))]"
+                        className="-mx-2 mb-3 h-fit max-h-72 space-y-5 px-3 py-2 sm:max-h-[min(26rem,calc(100dvh-12rem))]"
                         initial={false}
                         onScroll={handleMessageScroll}
                         onAnimationComplete={finishNewChat}
                         ref={messageListRef}
                         style={{
-                          overflowY: hasTranscriptOverflow ? "auto" : "hidden",
+                          overflowY: "auto",
+                          overflowX: "hidden",
+                          overscrollBehavior: "contain",
                         }}
                         transition={{
                           duration: 0.18,
                           ease: [0.23, 1, 0.32, 1],
                         }}
                       >
-                        {messages.map((message) => {
+                        {messages.map((message, messageIndex) => {
                           const text = message.parts
                             .filter((part) => part.type === "text")
                             .map((part) => part.text)
@@ -420,7 +420,12 @@ export function NavigatorFocus({
                             !text.includes("\n");
                           const segments =
                             message.role === "assistant"
-                              ? toNavigatorSegments(message.parts)
+                              ? toNavigatorSegments(message.parts, {
+                                  playbackRequest: isPlaybackRequest(
+                                    messages.slice(0, messageIndex).findLast(candidate => candidate.role === "user")?.parts
+                                      .filter(part => part.type === "text").map(part => part.text).join("") ?? "",
+                                  ),
+                                })
                               : [];
 
                           if (message.role === "user") {
@@ -447,6 +452,12 @@ export function NavigatorFocus({
                                 const previous = segments[index - 1];
                                 const spacing = !previous
                                   ? ""
+                                  : previous.kind === "trace" && segment.kind === "results"
+                                    ? ""
+                                  : previous.kind === "lookup" || segment.kind === "lookup" ||
+                                      previous.kind === "trace" || segment.kind === "trace" ||
+                                      previous.kind === "results" || segment.kind === "results"
+                                    ? "mt-1"
                                   : previous.kind === "text" ||
                                       segment.kind === "text"
                                     ? "mt-3"
@@ -468,6 +479,14 @@ export function NavigatorFocus({
                                       >
                                         {segment.text}
                                       </Streamdown>
+                                    </div>
+                                  );
+                                }
+
+                                if (segment.kind === "lookup") {
+                                  return (
+                                    <div className={spacing} key={segment.key}>
+                                      <NavigatorLookup trace={segment.trace} cards={segment.cards} />
                                     </div>
                                   );
                                 }
@@ -496,14 +515,14 @@ export function NavigatorFocus({
                               })}
                               {responseDurations[message.id] !== undefined ? (
                                 <p
-                                  className="mt-2 flex items-center gap-1.5 px-2 font-mono text-[11px] leading-4 text-muted-foreground tabular-nums"
-                                  aria-label={`Response completed in ${responseDurations[message.id].toFixed(1)} seconds`}
+                                  className="mt-2 flex items-center gap-1.5 px-2 text-[0.8125rem] font-normal leading-4 text-muted-foreground tabular-nums"
+                                  aria-label={`Done in ${Math.max(1, Math.round(responseDurations[message.id]))} seconds`}
                                 >
                                   <TimerIcon
                                     aria-hidden="true"
-                                    className="size-3"
+                                    className="size-3.5"
                                   />
-                                  {responseDurations[message.id].toFixed(1)}s
+                                  Done in {Math.max(1, Math.round(responseDurations[message.id]))}s
                                 </p>
                               ) : null}
                             </div>
@@ -519,12 +538,13 @@ export function NavigatorFocus({
                           </div>
                         ) : null}
                         {error ? (
-                          <p
+                          <div
                             className="px-2 text-sm text-destructive"
                             role="alert"
                           >
                             {error.message}
-                          </p>
+                            <button className="ml-3 cursor-pointer underline underline-offset-4 disabled:opacity-50" type="button" disabled={isBusy} onClick={onRetry}>Try again</button>
+                          </div>
                         ) : null}
                       </motion.div>
                     )}
