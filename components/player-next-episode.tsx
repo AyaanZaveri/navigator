@@ -31,7 +31,8 @@ export function PlayerNextEpisode({ media, season, episode, onAdvance }: {
             <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="sm"
+                className="h-8"
                 aria-label={`Play next episode: ${next.title}`}
                 disabled={advancing}
                 onClick={() => {
@@ -47,6 +48,7 @@ export function PlayerNextEpisode({ media, season, episode, onAdvance }: {
                 }}
             >
                 <SkipForward />
+                Next episode
             </Button>
         </MediaPlayerTooltip>
     );

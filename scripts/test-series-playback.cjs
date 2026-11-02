@@ -72,6 +72,7 @@ async function run() {
         media: { id: 'tt123', type: 'series', showName: 'Show', streamUrl: 'https://old-stream.test', resumePositionTicks: 40 },
         season: 1, episode: 2, onAdvance: () => { stopped = true; },
     }).props.children;
+    assert.equal(nextButton.props.children[1], 'Next episode', 'Advancing is discoverable without an icon tooltip on touch');
     nextButton.props.onClick();
     assert.equal(played.mediaSourceId, 'tt123:2:1');
     assert.equal(played.showName, 'Show');
