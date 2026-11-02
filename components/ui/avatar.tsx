@@ -30,6 +30,7 @@ function AvatarImage({
       data-slot="avatar-image"
       className={cn("aspect-square size-full", className)}
       {...props}
+      draggable={false}
     />
   )
 }

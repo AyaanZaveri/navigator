@@ -5,6 +5,20 @@ export interface WordmarkBounds {
   height: number;
 }
 
+/** Solid lettering has more visual weight than sparse text and decorative trails. */
+export function getWordmarkDensity(
+  pixels: ArrayLike<number>,
+  width: number,
+  height: number,
+  bounds: WordmarkBounds,
+): number {
+  let coverage = 0;
+  for (let offset = 3; offset < pixels.length; offset += 4) {
+    if (pixels[offset] > 32) coverage += pixels[offset] / 255;
+  }
+  return coverage / Math.max(1, width * height * bounds.width * bounds.height);
+}
+
 /** Normalized visible bounds; transparent canvas padding should not determine logo size. */
 export function getWordmarkBounds(
   pixels: ArrayLike<number>,

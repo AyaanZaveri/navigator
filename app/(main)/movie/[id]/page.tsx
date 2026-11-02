@@ -12,6 +12,8 @@ import { Star } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { PosterImage } from "@/components/media-page/poster-image";
+import { MediaPlayButton } from "@/components/media-page/play-button";
+import { formatRuntime } from "@/lib/format-runtime";
 import type { MediaItem } from "@/types/stremio";
 import { Suspense } from "react";
 
@@ -95,7 +97,7 @@ export default async function Movie({
                   src={movie.logo}
                   alt={`${movie.name} logo`}
                   movieName={movie.name || ""}
-                  className="w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(40rem,70%)] md:[--hero-wordmark-height:7rem]"
+                  className="w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(48rem,75%)] md:[--hero-wordmark-height:7rem]"
                 />
               </div>
             )}
@@ -110,7 +112,7 @@ export default async function Movie({
             className="absolute top-4 right-4 z-30 pointer-events-none"
           />
           <section aria-labelledby="movie-title" className="@container">
-            <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
+            <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-center @3xl:gap-8">
               <div className="relative mx-auto w-[clamp(12rem,56vw,15rem)] max-w-full @3xl:mx-0 @3xl:w-full">
                 <PosterImage
                   movie={movie}
@@ -121,7 +123,7 @@ export default async function Movie({
                 />
               </div>
 
-              <div className="flex min-w-0 flex-col gap-6 text-start @3xl:pt-3">
+              <div className="flex min-w-0 flex-col gap-6 text-start">
                 <div className="flex min-w-0 flex-col items-center gap-3 text-center @3xl:items-start @3xl:text-start">
                   <h1
                     id="movie-title"
@@ -143,7 +145,7 @@ export default async function Movie({
                         variant="outline"
                         className="bg-background/90 backdrop-blur-sm"
                       >
-                        {movie.runtime}
+                        {formatRuntime(movie.runtime)}
                       </Badge>
                     )}
                     {movie.imdbRating && (
@@ -156,6 +158,15 @@ export default async function Movie({
                       </Badge>
                     )}
                   </div>
+                  <MediaPlayButton
+                    media={{
+                      id: movie.id,
+                      name: movie.name,
+                      type: "movie",
+                      resumePositionTicks: movie.resumePositionTicks,
+                      backdropUrl: movie.background || movie.poster,
+                    }}
+                  />
                 </div>
 
                 {movie.description && (
@@ -194,14 +205,6 @@ export default async function Movie({
                       <dt className="text-muted-foreground">Writers</dt>
                       <dd className="min-w-0 break-words">
                         {movie.writer.join(", ")}
-                      </dd>
-                    </>
-                  )}
-                  {movie.cast && movie.cast.length > 0 && (
-                    <>
-                      <dt className="text-muted-foreground">Cast</dt>
-                      <dd className="min-w-0 break-words">
-                        {movie.cast.slice(0, 8).join(", ")}
                       </dd>
                     </>
                   )}

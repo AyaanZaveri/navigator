@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactEventHandler } from "react";
 
 interface VibrantLogoProps {
   src: string;
@@ -9,6 +9,7 @@ interface VibrantLogoProps {
   className?: string;
   width?: number;
   height?: number;
+  onLoad?: ReactEventHandler<HTMLImageElement>;
 }
 
 export function VibrantLogo({
@@ -17,17 +18,20 @@ export function VibrantLogo({
   className = "max-h-20 md:max-h-24 w-auto object-contain",
   width = 300,
   height = 96,
+  onLoad,
 }: VibrantLogoProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   if (!src || failedSrc === src) return null;
 
   return (
     <img
+      draggable={false}
       className={className}
       src={src}
       alt={alt}
       width={width}
       height={height}
+      onLoad={onLoad}
       onError={() => setFailedSrc(src)}
     />
   );

@@ -5,11 +5,20 @@
   min-width: 0;
   place-items: center;
 }
+/* Wide marks can include flourishes much taller than their lettering.
+   Let them fill the available width without enlarging compact logos. */
+.root[data-wide] {
+  --wordmark-max-height: calc(var(--hero-wordmark-height, 7rem) * 1.6);
+}
 .artwork {
   position: relative;
   max-width: 100%;
   max-height: 100%;
   overflow: hidden;
+  transform: scale(.875);
+}
+.root[data-dense] .artwork {
+  transform: scale(.72);
 }
 .image {
   position: absolute;

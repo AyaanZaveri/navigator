@@ -85,6 +85,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 <CardHeader className="text-center">
                     <div className="flex items-center justify-center mb-5">
                         <Image
+                            draggable={false}
                             src="/logo/navigator.png"
                             alt="Navigator logo"
                             width={64}

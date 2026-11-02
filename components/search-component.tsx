@@ -243,7 +243,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
     group: item.type === "movie" ? "Movies" : item.type === "series" ? "TV shows" : "More",
     meta: [item.releaseInfo, item.imdbRating ? `${item.imdbRating} ★` : ""].filter(Boolean).join(" · "),
     icon: item.poster
-      ? <img src={item.poster} alt="" loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />
+      ? <img src={item.poster} alt="" draggable={false} loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />
       : item.type === "movie" ? <Film size={18} /> : <Tv size={18} />,
   })), [suggestions]);
 

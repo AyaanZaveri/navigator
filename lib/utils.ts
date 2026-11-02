@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { formatRuntime as formatRuntimeLabel } from "./format-runtime";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,12 +40,7 @@ export const cutOffText = (text: string, maxLength: number): string => {
 export const formatRuntime = (runTimeTicks?: number) => {
   if (!runTimeTicks) return null;
   const totalMinutes = Math.round(runTimeTicks / 600000000); // Convert from ticks to minutes
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
+  return formatRuntimeLabel(totalMinutes) ?? null;
 };
 
 export const convertToWebVTT = (trackEvents: { TrackEvents: { Id: string; Text: string; StartPositionTicks: number; EndPositionTicks: number; }[] }): string => {

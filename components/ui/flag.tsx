@@ -78,6 +78,7 @@ export function Flag({ language, className = "", size = 16 }: FlagProps) {
 
   return (
     <img
+      draggable={false}
       src={`https://flagsapi.com/${countryCode.toUpperCase()}/flat/32.png`}
       alt={`${language} flag`}
       className={`inline-block rounded-sm ${className}`}

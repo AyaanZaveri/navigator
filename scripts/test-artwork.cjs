@@ -144,6 +144,9 @@ async function run() {
   assert.equal(sample.headers.get('content-type'), 'image/jpeg');
   assert.equal(sample.headers.get('vary'), 'Cookie');
   assert.equal(await sample.text(), 'fixture-jpeg');
+  const logoSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo&sample=1'));
+  assert.equal(logoSample.status, 200, 'Wordmark measurements need same-origin logo bytes even when the CDN does not permit canvas access');
+  assert.equal(logoSample.headers.get('location'), null);
   const brokenSample = load('app/api/artwork/route.ts', {
     require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w1280/backdrop.jpg' },
     fetch: async () => new Response('unavailable', { status: 503 }), AbortSignal,
