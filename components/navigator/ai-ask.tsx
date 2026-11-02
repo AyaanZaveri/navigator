@@ -13,6 +13,7 @@ import { useTheme } from "next-themes";
 import { isAIAskOpenAtom, currentTimestampAtom } from "@/lib/atoms";
 import { useSettings } from "@/contexts/settings-context";
 import { NavigatorFocus } from "./focus";
+import { preloadPlayer } from "@/lib/preload-tools";
 import { isNavigatorRequestComplete, navigatorResponseDurations } from "@/lib/navigator-timing";
 
 const AIAsk = ({ userId }: { userId: string }) => {
@@ -167,6 +168,9 @@ const AIAsk = ({ userId }: { userId: string }) => {
         clearError,
         addToolOutput,
     } = useChat({
+        onToolCall: ({ toolCall }) => {
+            if (toolCall.toolName === "playMedia" || toolCall.toolName === "skipToSubtitleContent") preloadPlayer();
+        },
         transport,
         sendAutomaticallyWhen: ({ messages: nextMessages }) => {
             return !actionAbortRef.current.signal.aborted && continuationCountRef.current < 8
@@ -236,6 +240,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
                 const isEpisode = action.mediaType === "Episode";
                 return await acknowledgePlayback(document, preparedToolCallId, () => playMedia({
                     navigatorActionId: preparedToolCallId,
+                    resumePositionTicks: action.resumePositionTicks,
                     id: isEpisode && action.seriesId ? action.seriesId : action.mediaId,
                     name: action.mediaName,
                     type: action.mediaType === "Movie" ? "movie" : "series",

@@ -5,6 +5,19 @@ export interface SubtitleEvidence {
   text: string;
 }
 
+/** Preserve dialogue context and timeline coverage; isolated samples lose semantic scenes. */
+export function sceneSubtitleCandidates(entries: SubtitleEvidence[], limit = 420): SubtitleEvidence[] {
+    if (entries.length <= limit) return entries;
+    const size = Math.ceil(entries.length / limit);
+    const passages: SubtitleEvidence[] = [];
+    for (let index = 0; index < entries.length; index += size) {
+        const group = entries.slice(index, index + size);
+        passages.push({ ...group[0], endTimestamp: group.at(-1)?.endTimestamp,
+            text: group.map(entry => entry.text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()).join(" ").slice(0, 1200) });
+    }
+    return passages;
+}
+
 export function sceneSubtitles(entries: SubtitleEvidence[], timestamp: number, window: number, allowSpoilers = false) {
     return entries.filter(entry => entry.timestamp >= Math.max(0, timestamp - window)
     && (allowSpoilers ? entry.timestamp <= timestamp + window : (entry.endTimestamp ?? entry.timestamp) <= timestamp));

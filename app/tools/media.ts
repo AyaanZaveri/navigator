@@ -366,7 +366,7 @@ export interface EpisodeLookupTool {
 
 export const searchMedia = tool({
     description:
-    "Search TMDB for movies or TV shows by title. Returns TMDB IDs without extra per-result lookups. Use this to discover IDs before calling navigation/play tools. Do not use this when navigateToMediaByQuery or navigateToEpisode can directly resolve the request.",
+    "Search TMDB for movies or TV shows by title. Returns TMDB IDs without extra per-result lookups. Use this to discover IDs before ordinary navigation/playback. For scene requests, call skipToSubtitleContent with mediaQuery directly; it searches internally. Do not use this when navigateToMediaByQuery or navigateToEpisode can directly resolve the request.",
     inputSchema: z.object({
         mediaType: z.enum(["Movie", "Series"]).optional().describe("Restrict to movies or TV shows when known"),
         page: z.number().int().min(1).max(500).optional().describe("TMDB result page, starting at 1"),
@@ -721,7 +721,7 @@ export const findEpisodeByTitle = tool({
 
 export const navigateToMediaByQuery = tool({
     description:
-    "Resolve a movie or series title to the best match and navigate in one step. Prefer this for commands like 'go to Interstellar' or 'open The Rookie'.",
+    "Open a title details page; scene/moment requests belong to skipToSubtitleContent instead. Resolve a movie or series title to the best match and navigate in one step. Prefer this for commands like 'go to Interstellar' or 'open The Rookie'.",
     inputSchema: z.object({
         mediaQuery: z.string().describe("Movie or series title to navigate to"),
         preferredType: z
@@ -803,7 +803,7 @@ export const navigateToMediaByQuery = tool({
 
 export const playMedia = tool({
     description:
-    "Open the player immediately for a known title. The player fetches and selects streams itself, just like pressing Play on a media card. Do not call getMediaStreams first unless the user requests stream choices or a specific version/quality. For 'first episode', pass the known series mediaId, mediaType Episode, seasonNumber 1, episodeNumber 1; no season/episode listing is needed. Reuse IDs from prior search or filmography results.",
+    "For ordinary playback from the start/resume position. For a requested scene, use skipToSubtitleContent instead. Open the player immediately for a known title. The player fetches and selects streams itself, just like pressing Play on a media card. Do not call getMediaStreams first unless the user requests stream choices or a specific version/quality. For 'first episode', pass the known series mediaId, mediaType Episode, seasonNumber 1, episodeNumber 1; no season/episode listing is needed. Reuse IDs from prior search or filmography results.",
     inputSchema: z.object({
         mediaId: z.string().describe("Known TMDB/IMDb title ID, retaining the tmdb: prefix. For episodes, a series ID plus seasonNumber/episodeNumber is sufficient; an encoded episode ID also works."),
         mediaName: z.string().describe("The name of the media item"),

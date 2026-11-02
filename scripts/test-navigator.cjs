@@ -12,19 +12,26 @@ async function main() {
   let authenticated = true;
   let subtitleTracks = [];
   let subtitleContent = "";
+  let subtitleTrackLookups = 0;
+  let subtitleUserId = "test-user";
+  const subtitleDownloads = [];
+  const brokenSubtitleUrls = new Set();
   let tmdbToken = 'tmdb-test-token';
   let tmdbStatus = 200;
   const tmdbRequests = [];
+  let subtitleTransportFetch;
+  let tmdbSearchFixtures;
   let streamLookups = 0;
   let episodeMetadataUnavailable = false;
   const movieFixture = { id: 123, title: 'Example', overview: 'A TMDB synopsis.', release_date: '2020-01-02', vote_average: 8, vote_count: 10, poster_path: '/poster.jpg', media_type: 'movie' };
   async function tmdbFetch(input, init) {
+    if (subtitleTransportFetch) return subtitleTransportFetch(input, init);
     const url = new URL(input);
     assert.equal(url.hostname, 'api.themoviedb.org', 'Discovery must never fetch a Stremio add-on');
     tmdbRequests.push({ url, init });
     const endpoint = url.pathname.replace('/3/', '');
     let data;
-    if (endpoint.startsWith('search/')) data = { page: 1, total_pages: 1, total_results: 1, results: [movieFixture] };
+    if (endpoint.startsWith('search/')) data = { page: 1, total_pages: 1, total_results: 1, results: tmdbSearchFixtures || [movieFixture] };
     else if (endpoint.startsWith('find/')) data = { movie_results: [movieFixture], tv_results: [] };
     else if (endpoint === 'movie/123/external_ids') data = { imdb_id: 'tt123' };
     else if (endpoint === 'movie/123') data = { ...movieFixture, title: 'Viewed title', external_ids: { imdb_id: 'tt123' }, genres: [], credits: { cast: [], crew: [] } };
@@ -49,15 +56,15 @@ async function main() {
     '@ai-sdk/openai-compatible': { createOpenAICompatible: () => provider },
     '@openrouter/ai-sdk-provider': { openrouter: provider, createOpenRouter: () => provider },
     'ai-sdk-ollama': { createOllama: () => provider },
-    'next/headers': { cookies: async () => ({ get: () => authenticated ? { value: JSON.stringify({ user: { _id: 'test-user' } }) } : undefined }) },
+    'next/headers': { cookies: async () => ({ get: () => authenticated ? { value: JSON.stringify({ user: { _id: subtitleUserId } }) } : undefined }) },
     '@/app/actions/search': { searchItems: async () => { throw new Error('Add-on search is forbidden'); } },
     '@/app/actions/media': {
       fetchMediaDetails: async () => { throw new Error('Add-on metadata is forbidden'); },
       getStreamAddonTargets: async () => { streamLookups++; return []; }, fetchStreamsFromAddon: async () => [],
     },
     '@/app/actions/tv-shows': { fetchEpisodes: async () => [], fetchSeasons: async () => [], fetchEpisodeDetails: async () => ({ id: 'show:1:2', title: 'Selected episode' }) },
-    '@/app/actions/subtitles': { fetchSubtitleFileContent: async () => ({ success: true, content: subtitleContent }) },
-    '@/app/actions/utils': { getSubtitleTracks: async () => subtitleTracks },
+    '@/app/actions/subtitles': { fetchSubtitleFileContent: async url => { subtitleDownloads.push(url); return brokenSubtitleUrls.has(url) ? { success: false, error: 'Subtitle download failed (404)' } : ({ success: true, content: subtitleContent }); } },
+    '@/app/actions/utils': { getSubtitleTracks: async () => { subtitleTrackLookups++; return subtitleTracks; } },
   };
   function load(file) {
     const absolute = path.resolve(file);
@@ -86,9 +93,38 @@ async function main() {
   }
   const chat = load('lib/navigator-chat.ts');
   const subtitles = load('lib/navigator-subtitles.ts');
+  const semanticLines = Array.from({ length: 2111 }, (_, index) => ({ timestamp: index * 3, timestampFormatted: String(index), text: `dialogue-${index}` }));
+  semanticLines[2083].text = 'I saw the napkin he burned.';
+  semanticLines[2084].text = 'I saw him grab the gun.';
+  semanticLines[2085].text = 'I saw him driving away that night.';
+  const passages = subtitles.sceneSubtitleCandidates(semanticLines);
+  assert.ok(passages.length <= 420);
+  assert.equal(passages.map(passage => passage.text).join(' ').includes('I saw him grab the gun.'), true, 'Semantic admissions cannot disappear between timeline samples');
+  for (const entry of semanticLines) assert.ok(passages.some(passage => passage.text.includes(entry.text)), 'Ordinary film dialogue retains full context');
+  assert.equal(passages[0].timestamp, 0);
+  const { subtitleAddonBaseUrl } = load('lib/subtitle-provider.ts');
+  assert.equal(subtitleAddonBaseUrl('https://opensubtitles.strem.io/manifest.json', 'org.stremio.opensubtitles'), 'https://opensubtitles-v3.strem.io');
+  assert.equal(subtitleAddonBaseUrl('https://opensubtitles.strem.io/stremio/v1', 'org.stremio.opensubtitles'), 'https://opensubtitles-v3.strem.io');
+  assert.equal(subtitleAddonBaseUrl('https://custom.test/manifest.json', 'org.stremio.opensubtitles'), 'https://custom.test');
+  assert.equal(subtitleAddonBaseUrl('https://opensubtitles.strem.io/config/manifest.json', 'org.stremio.opensubtitles'), 'https://opensubtitles.strem.io/config');
+  assert.equal(subtitleAddonBaseUrl('https://opensubtitles.strem.io/manifest.json', 'custom-provider'), 'https://opensubtitles.strem.io');
+
   const ack = load('lib/navigator-playback-ack.ts');
   const { createAllTools } = load('app/tools/index.ts');
   const { POST } = load('app/api/chat/route.ts');
+  const { navigatorRoutingSettings } = load('lib/navigator-model-settings.ts');
+  const { createOpenAI: actualOpenAI } = await import('@ai-sdk/openai');
+  let reasoningRequest;
+  const museTransport = actualOpenAI({ name: 'opencode-responses', apiKey: 'fixture-key', fetch: async (_url, init) => {
+    reasoningRequest = JSON.parse(init.body);
+    throw new Error('Captured transport');
+  } }).responses('muse-spark-1.3-contributor');
+  await assert.rejects(museTransport.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'Choose a tool' }] }],
+    ...navigatorRoutingSettings(museTransport) }), /Captured transport/);
+  assert.equal(navigatorRoutingSettings(museTransport).providerOptions.openai.reasoningEffort, 'minimal', 'Simple routing uses the shortest supported reasoning level');
+  assert.equal(reasoningRequest.reasoning.effort, 'minimal', 'The actual SDK must send minimal reasoning for the custom Muse model ID');
+  assert.equal(navigatorRoutingSettings({ modelId: 'gpt-6-luna', provider: 'opencode-responses.responses' }).providerOptions, undefined, 'Do not override other models');
+
   const clone = value => JSON.parse(JSON.stringify(value));
   const user = (id, text) => ({ id, role: 'user', parts: [{ type: 'text', text }] });
   const latestQuestion = 'Requirements with a crucial constraint at the end. '.repeat(150);
@@ -167,6 +203,8 @@ async function main() {
   assert.match(JSON.stringify(second), /Opening your selection/);
   assert.equal(calls, 2);
   assert.match(JSON.stringify(modelPrompts[0].prompt), /Viewed title/);
+  assert.ok(modelPrompts[0].tools.some(tool => tool.name === 'skipToSubtitleContent'), 'The live route must expose scene playback with no current media');
+  assert.ok(!modelPrompts[0].tools.some(tool => tool.name === 'explainScene'), 'Current-scene explanation still requires playback');
   // Exercise the actual browser transport and Chat implementation, including automatic continuation.
   const { Chat } = await import('@ai-sdk/react');
   calls = 0;
@@ -277,7 +315,9 @@ async function main() {
   subtitleContent = '1\n00:00:05,000 --> 00:00:08,000\nEarlier evidence\n\n2\n00:00:09,000 --> 00:00:15,000\nA sentence still being spoken\n\n3\n00:00:20,000 --> 00:00:23,000\nFuture reveal\n';
   let structured = { answer: 'A grounded explanation.', evidence: [1] };
   let analysisPrompt;
+  let subtitleAnalysisCalls = 0;
   const analysisModel = new MockLanguageModelV4({ doGenerate: async options => {
+    subtitleAnalysisCalls++;
     analysisPrompt = JSON.stringify(options.prompt);
     assert.ok(options.abortSignal, 'Nested model calls receive request cancellation');
     return { content: [{ type: 'text', text: JSON.stringify(structured) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
@@ -293,6 +333,196 @@ async function main() {
   structured = { candidate: null, confidence: 'none' };
   const noMatch = await analysisTools.skipToSubtitleContent.execute({ userDescription: 'A nonexistent moment' }, toolOptions);
   assert.equal(noMatch.success, false, 'No-match output must never dispatch a seek');
+  // Scene playback must resolve subtitles without an active player or stream lookup.
+  structured = { candidate: 1, confidence: 'high' };
+  const idleTools = createAllTools(null, 0, analysisModel, new AbortController().signal);
+  const sceneInput = { userDescription: 'Earlier evidence', mediaId: 'tmdb:123', mediaName: 'Example', mediaType: 'Movie' };
+  const idleScene = await idleTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
+  assert.equal(idleScene.success, true, 'Idle scene requests must not require playback');
+  assert.equal(idleScene.action, 'play');
+  assert.equal(idleScene.mediaId, 'tt123', 'Resolve the TMDB ID before requesting subtitles');
+  assert.equal(idleScene.resumePositionTicks, 5, 'Open playback directly at the evidence timestamp');
+  assert.equal(idleScene.execution, 'prepared');
+  const episodeScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence', mediaId: 'tmdb:114294', mediaName: 'The Curse', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1 }, toolOptions);
+  assert.equal(episodeScene.success, true);
+  assert.equal(episodeScene.mediaSourceId, 'tt13623608:1:1');
+  assert.equal(episodeScene.resumePositionTicks, 5);
+  const queryScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence', mediaQuery: 'Example' }, toolOptions);
+  assert.equal(queryScene.success, true, 'A scene tool must resolve a title query internally without another model turn');
+  assert.equal(queryScene.mediaId, 'tt123');
+  const inPlace = await analysisTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
+  assert.equal(inPlace.action, 'skipTo', 'A named scene in the currently playing title should seek instead of refetching streams');
+  const queryInPlace = await analysisTools.skipToSubtitleContent.execute({ mediaQuery: 'Example', mediaType: 'Movie', userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(queryInPlace.action, 'skipTo');
+  tmdbSearchFixtures = [movieFixture, { ...movieFixture, id: 124, release_date: '2021-01-01' }];
+  const ambiguousScene = await idleTools.skipToSubtitleContent.execute({ mediaQuery: 'Example', userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(ambiguousScene.success, false, 'Compound scene lookup must not silently pick an ambiguous remake');
+  assert.equal(ambiguousScene.action, undefined);
+  const yearScene = await idleTools.skipToSubtitleContent.execute({ mediaQuery: 'Example (2020)', userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(yearScene.success, true, 'A specific year disambiguates remakes within the same tool call');
+  assert.equal(yearScene.mediaId, 'tt123');
+  tmdbSearchFixtures = [
+    { ...movieFixture, vote_count: 15000, popularity: 30 },
+    { ...movieFixture, id: 124, release_date: '2016-01-01', vote_count: 80, popularity: 1 },
+    { ...movieFixture, id: 125, release_date: '2024-01-01', vote_count: 0, popularity: 0.1 },
+  ];
+  const dominantScene = await idleTools.skipToSubtitleContent.execute({ mediaQuery: 'Example', userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(dominantScene.success, true, 'A clearly dominant exact title should not be blocked by obscure namesakes');
+  assert.equal(dominantScene.mediaId, 'tt123');
+  tmdbSearchFixtures = [{ ...movieFixture, vote_count: 15000, release_date: '2019-01-01' }];
+  const wrongYear = await idleTools.skipToSubtitleContent.execute({ mediaQuery: 'Example (2016)', userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(wrongYear.success, false, 'An explicit year must never fall back to the only result from a different year');
+  tmdbSearchFixtures = undefined;
+  const lookupsAfterScene = subtitleTrackLookups;
+  const analysisAfterScene = subtitleAnalysisCalls;
+  await idleTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
+  assert.equal(subtitleTrackLookups, lookupsAfterScene + 1, 'Every scene request discovers current subtitle tracks');
+  assert.equal(subtitleAnalysisCalls, analysisAfterScene + 1, 'Repeated scene requests must run fresh analysis without saved matches');
+  assert.equal(streamLookups, 0, 'Finding a scene must not wait for stream enumeration');
+  subtitleUserId = 'another-user';
+  await idleTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
+  assert.equal(subtitleTrackLookups, lookupsAfterScene + 2, 'Switching accounts always discovers current subtitle tracks');
+  subtitleUserId = 'test-user';
+  const releaseTools = createAllTools({ id: 'tt123', name: 'Example', type: 'movie', subtitleFilename: 'different-release.mkv' }, 10, analysisModel, new AbortController().signal);
+  await releaseTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(subtitleTrackLookups, lookupsAfterScene + 3, 'Different release hints require fresh subtitles');
+
+  structured = { candidate: null, confidence: 'none' };
+  const idleNoMatch = await idleTools.skipToSubtitleContent.execute({ ...sceneInput, userDescription: "A nonexistent moment" }, toolOptions);
+  assert.equal(idleNoMatch.success, false);
+  assert.equal(idleNoMatch.action, undefined, 'A missing scene must never start playback at zero');
+  const partialTarget = await idleTools.skipToSubtitleContent.execute({ userDescription: 'a scene', mediaId: 'tt123' }, toolOptions);
+  assert.equal(partialTarget.success, false, 'Incomplete title coordinates must not seek the current movie');
+  structured = { candidate: 1, confidence: 'high' };
+  subtitleTracks = [
+    { src: 'https://example.test/broken.srt', label: 'English', language: 'eng' },
+    { src: 'https://example.test/working.srt', label: 'English', language: 'eng' },
+  ];
+  brokenSubtitleUrls.add(subtitleTracks[0].src);
+  const fallbackTools = createAllTools({ id: 'tt-fallback', name: 'Fallback', type: 'movie' }, 10, analysisModel, new AbortController().signal);
+  const fallbackScene = await fallbackTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(fallbackScene.success, true, 'A broken preferred subtitle track must fall back to another track');
+  assert.equal(fallbackScene.action, 'skipTo', 'Active playback still seeks in place');
+  subtitleTracks = [
+    { src: 'https://official.test/en.srt', id: '1234', label: 'English', language: 'en' },
+    { src: 'https://broken.test/eng.srt', id: 'release_eng', label: 'eng', language: 'eng' },
+  ];
+  const priorityTools = createAllTools({ id: 'tt-priority', name: 'Priority', type: 'movie' }, 10, analysisModel, new AbortController().signal);
+  await priorityTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence' }, toolOptions);
+  assert.equal(subtitleDownloads.at(-1), 'https://official.test/en.srt', 'English filenames must not outrank explicit en language metadata');
+  subtitleContent = Array.from({ length: 1000 }, (_, index) => {
+    const start = new Date(index * 10_000).toISOString().slice(11, 23).replace('.', ',');
+    const end = new Date(index * 10_000 + 2000).toISOString().slice(11, 23).replace('.', ',');
+    return `${index + 1}\n${start} --> ${end}\n${index === 1 ? 'UNIQUE_JOINED_WORD_EVIDENCE black hole' : index < 700 ? 'Discussion of black hole theory' : 'SEMANTIC_LATE_CONTEXT: approaching Gargantua'}\n`;
+  }).join('\n');
+  const timelineTools = createAllTools({ id: 'tt-timeline', name: 'Timeline', type: 'movie' }, 10, analysisModel, new AbortController().signal);
+  await timelineTools.skipToSubtitleContent.execute({ userDescription: 'black hole scene' }, toolOptions);
+  assert.match(analysisPrompt, /SEMANTIC_LATE_CONTEXT/, 'Keyword matches must not exclude later semantic scenes from the model context');
+  await timelineTools.skipToSubtitleContent.execute({ userDescription: 'blackhole scene' }, toolOptions);
+  assert.match(analysisPrompt, /UNIQUE_JOINED_WORD_EVIDENCE/, 'Joined query words must retrieve matching spaced dialogue rather than falling back to sparse sampling');
+
+  const museAttempts = [];
+  const adaptiveMuse = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async options => {
+    museAttempts.push(options.providerOptions.openai.reasoningEffort);
+    return { content: [{ type: 'text', text: JSON.stringify(museAttempts.length === 1 ? { candidate: null, confidence: 'none' } : { candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
+  } });
+  const adaptiveTools = createAllTools({ id: 'tt-adaptive', name: 'Adaptive', type: 'movie' }, 0, adaptiveMuse, new AbortController().signal);
+  const adaptiveMatch = await adaptiveTools.skipToSubtitleContent.execute({ userDescription: 'blackhole scene' }, toolOptions);
+  assert.equal(adaptiveMatch.success, true);
+  assert.deepEqual(museAttempts, ['minimal', 'low'], 'An uncertain minimal Muse pass gets one bounded deeper pass');
+  assert.equal(adaptiveMatch.timings.matchPasses, 2);
+  const missingMuse = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async () => ({
+    content: [{ type: 'text', text: JSON.stringify({ candidate: null, confidence: 'none' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' },
+  }) });
+  const missingTools = createAllTools({ id: 'tt-no-scene', name: 'No scene', type: 'movie' }, 0, missingMuse, new AbortController().signal);
+  const stillMissing = await missingTools.skipToSubtitleContent.execute({ userDescription: 'A nonexistent scene' }, toolOptions);
+  assert.equal(stillMissing.success, false);
+  assert.equal(stillMissing.action, undefined, 'Two uncertain passes must never prepare playback');
+  assert.equal(missingMuse.doGenerateCalls.length, 2, 'Reasoning escalation is bounded to one retry');
+  assert.equal(stillMissing.timings.matchReasoningTokens, 0);
+
+
+  assert.equal(chat.requestsScenePlayback([user('scene-intent', 'go to the blackhole scene in interstellar')]), true);
+  assert.equal(chat.requestsScenePlayback([user('scene-question', 'What happens in the black hole scene?')]), false);
+  assert.equal(chat.requestsScenePlayback([user('discovery', 'Play movies like Interstellar')]), false);
+  const { parseScenePlaybackCommand } = load('lib/navigator-scene-intent.ts');
+  assert.equal(parseScenePlaybackCommand('go to the blackhole scene in interstellar').mediaQuery, 'interstellar');
+  assert.equal(parseScenePlaybackCommand('play the docking scene from Interstellar (2014)').userDescription, 'the docking scene');
+  assert.equal(parseScenePlaybackCommand('play the scene in the barn from Interstellar'), null, 'Ambiguous scene/title boundaries use structured extraction');
+  assert.equal(parseScenePlaybackCommand('play the black hole scene in that movie'), null);
+  assert.equal(parseScenePlaybackCommand('what happens in the black hole scene in Interstellar?'), null);
+  assert.equal(parseScenePlaybackCommand('play the black hole scene in Interstellar and explain it'), null);
+  let sceneRouterCalls = 0, scenePlanCalls = 0;
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor',
+    doStream: async () => { sceneRouterCalls++; throw new Error('A scene workflow must execute instead of generating an ungrounded confirmation'); },
+    doGenerate: async () => { scenePlanCalls++; return { content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }; },
+  });
+  const directSceneResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('compound-scene', 'Go to a scene in Example')] })));
+  assert.equal(sceneRouterCalls, 0, 'Explicit Muse scene requests use structured intent plus server execution, not free-form claims');
+  assert.equal(scenePlanCalls, 1, 'Explicit scene/title grammar needs only the subtitle-matching model call');
+  const directScenePart = directSceneResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
+  assert.equal(directScenePart.output.success, true);
+  assert.equal(chat.attemptedScenePlayback([user('compound-scene', 'Go to a scene in Example'), directSceneResponse]), true, 'The completed/prepared action must not be forced again on continuation');
+  assert.equal(directScenePart.output.action, 'play');
+  assert.equal(typeof directScenePart.output.timings.matchSceneMs, 'number', 'Scene results expose timings for diagnosis');
+  assert.equal(chat.modelToolOutput('skipToSubtitleContent', directScenePart.output).timings, undefined, 'Timing diagnostics do not inflate future model context');
+  assert.equal(directScenePart.output.timings.intentSource, 'literal');
+  const streamedProgress = directSceneResponse.parts.filter(part => part.type === 'data-sceneProgress');
+  assert.deepEqual(Array.from(streamedProgress, part => part.data.stage), ['title', 'subtitles', 'scene']);
+  assert.ok(streamedProgress.every(part => part.data.state === 'completed'), 'SDK must update each stage in place rather than append duplicate traces');
+  assert.ok(streamedProgress.every(part => part.data.toolCallId === directScenePart.toolCallId));
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
+    doStream: async () => stream([{ type: 'tool-call', toolCallId: 'luna-scene-progress', toolName: 'skipToSubtitleContent', input: JSON.stringify({ mediaQuery: 'Example', userDescription: 'a fresh semantic scene for Luna' }) }], 'tool-calls'),
+    doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }),
+  });
+  const lunaSceneProgress = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'gpt-6-luna', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('luna-scene-progress-user', 'play a fresh semantic scene in Example')] })));
+  assert.deepEqual(Array.from(lunaSceneProgress.parts.filter(part => part.type === 'data-sceneProgress'), part => part.data.stage), ['title', 'subtitles', 'scene'], 'Normal agent tools stream the same stages as the fast Muse workflow');
+  assert.equal(lunaSceneProgress.parts.find(part => part.type === 'tool-skipToSubtitleContent').output.execution, 'prepared');
+  let freeformCalls = 0;
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async () => {
+    freeformCalls++;
+    return { content: [{ type: 'text', text: JSON.stringify(freeformCalls === 1
+      ? { mediaQuery: 'Example', userDescription: 'a barn scene with a fresh description', seasonNumber: null, episodeNumber: null }
+      : { candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
+  } });
+  const freeformScene = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('freeform-scene', 'Go to the scene in the barn from Example')] })));
+  const freeformPart = freeformScene.parts.find(part => part.type === 'tool-skipToSubtitleContent');
+  assert.equal(freeformPart.output.success, true);
+  assert.equal(freeformPart.output.timings.intentSource, 'model');
+  assert.equal(freeformCalls, 2, 'Ambiguous boundaries use one structured intent call and one scene match');
+  tmdbSearchFixtures = [movieFixture, { ...movieFixture, id: 124, release_date: '2021-01-01' }];
+  const ambiguousWorkflow = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('ambiguous-once', 'play the confession scene in Example')] })));
+  const ambiguousPart = ambiguousWorkflow.parts.find(part => part.type === 'tool-skipToSubtitleContent');
+  assert.equal(ambiguousPart.output.success, false);
+  assert.equal(ambiguousWorkflow.parts.filter(part => part.type === 'text' && part.text === ambiguousPart.output.error).length, 0, 'The failed tool already displays its error; do not emit duplicate text');
+  tmdbSearchFixtures = undefined;
+
+
+
+  // Real track discovery must start providers concurrently and retain provider ordering.
+  overrides['./auth'] = { getInstalledAddons: async () => [
+    { transportUrl: 'https://first.subtitle.test/manifest.json', manifest: { id: 'first', resources: ['subtitles'] } },
+    { transportUrl: 'https://second.subtitle.test/manifest.json', manifest: { id: 'second', resources: ['subtitles'] } },
+  ] };
+  const subtitleUtils = load('app/actions/utils.ts');
+  const pendingProviders = [];
+  subtitleTransportFetch = (input, init) => new Promise(resolve => { pendingProviders.push({ input, init, resolve }); });
+  const trackDiscovery = subtitleUtils.getSubtitleTracks('tt123');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(pendingProviders.length, 2, 'Subtitle providers must start concurrently instead of waiting for one another');
+  assert.ok(pendingProviders.every(p => p.init.signal), 'Every provider request must have a timeout/cancellation signal');
+  pendingProviders[1].resolve(new Response(JSON.stringify({ subtitles: [{ id: 'second', lang: 'eng', url: 'https://files.test/second.srt' }] }), { status: 200 }));
+  pendingProviders[0].resolve(new Response(JSON.stringify({ subtitles: [{ id: 'first', lang: 'eng', url: 'https://files.test/first.srt' }] }), { status: 200 }));
+  assert.deepEqual(clone((await trackDiscovery).map(track => track.id)), ['first', 'second'], 'Provider completion order must not randomly change subtitle preference');
+  subtitleTransportFetch = undefined;
   activeModel = new MockLanguageModelV4({ doStream: async () => { throw new ai.APICallError({ message: 'rate limited', url: 'https://example.test', requestBodyValues: {}, statusCode: 429 }); } });
   const limited = await POST(request(payload));
   assert.match(await limited.text(), /rate limiting/, 'Provider errors must survive retries and the UI stream');

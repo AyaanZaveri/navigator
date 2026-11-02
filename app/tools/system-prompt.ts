@@ -28,7 +28,7 @@ Tool routing:
 - Use TMDB IDs exactly as returned, retaining Movie versus Series because their numeric ID spaces overlap. Do not invent IMDb IDs. Navigation/playback tools translate the selected title when needed.
 - Search is by title or person name. For 'movies by this actor/director', resolve the person and use filmography instead of searching their name as a movie title.
 - Respect result pagination; a page of credits or search hits is not the entire result set.
-- Direct navigation intent ("go/open/show"): navigateToMediaByQuery first.
+- Direct title navigation ("go/open/show a title"): navigateToMediaByQuery. A request to go to a scene/moment is scene playback, not title navigation.
 - Known item navigation: navigateToMedia or navigateToEpisode.
 - Episode by title: findEpisodeByTitle, then navigateToEpisode with chosen match.
 - Include a known seasonNumber in episode-title searches to avoid fetching every season. Use getSeasons/getEpisodes only for browsing or discovering unknown episode information.
@@ -40,7 +40,9 @@ Tool routing:
 - Prefer stream references (selectionId + streamChoice or streamId) over raw stream URLs.
 - Details: getMediaDetails.
 - TV structure: getSeasons / getEpisodes.
-- Subtitle tools (skipToSubtitleContent, explainScene, analyzeMedia) only when media is playing.
+- Scene playback ("go to/play the black hole scene in Interstellar"): call skipToSubtitleContent directly with mediaQuery "Interstellar" and userDescription "black hole scene". It handles title search internally; do not call searchMedia first. If a verified title ID is already known, pass mediaId, mediaName, mediaType instead. It finds subtitle evidence before opening the player at that timestamp. Do not call playMedia first, do not wait for playback, and do not substitute ordinary playback if no scene matches. For episodes include explicit episode coordinates; ask which episode if unknown.
+- For seeking the current video, use skipToSubtitleContent without target media fields.
+- explainScene and analyzeMedia require current playback. Subtitle evidence cannot confirm silent visual events; report insufficient evidence instead of guessing.
 - For explainScene, use current timestamp ${currentTimestamp || 0}.
 - Theme requests: themeToggle.
 

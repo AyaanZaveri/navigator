@@ -63,7 +63,7 @@ export function modelToolOutput(name: string, value: unknown): unknown {
         };
     }
     if (actionToolNames.has(name)) {
-        const { streamUrl: _url, poster: _poster, thumbnail: _thumbnail, background: _background, ...action } = output;
+        const { streamUrl: _url, poster: _poster, thumbnail: _thumbnail, background: _background, timings: _timings, ...action } = output;
         return action;
     }
     return value;
@@ -141,4 +141,17 @@ export function readNavigatorHistory(value: string | null): UIMessage[] {
       && (message.role === "user" || message.role === "assistant") && Array.isArray(message.parts)
       && message.parts.every((part: unknown) => typeof record(part).type === "string")).slice(-80);
     } catch { return []; }
+}
+
+/** Require execution for an explicit scene-playback command, while leaving questions/discovery unrestricted. */
+export function requestsScenePlayback(messages: UIMessage[]): boolean {
+    const lastUser = messages.findLast(message => message.role === "user");
+    const text = lastUser?.parts.filter(part => part.type === "text").map(part => record(part).text).join(" ").trim() || "";
+    return /^(?:(?:please|can you|could you|would you)\s+)*(?:go\s+to|jump\s+to|skip(?:\s+to)?|take\s+me\s+to|play|start)\b/i.test(text)
+        && /\b(?:scene|moment)\b/i.test(text);
+}
+
+export function attemptedScenePlayback(messages: UIMessage[]): boolean {
+    const turn = messages.slice(messages.findLastIndex(message => message.role === "user") + 1);
+    return turn.some(message => message.role === "assistant" && message.parts.some(part => part.type === "tool-skipToSubtitleContent"));
 }

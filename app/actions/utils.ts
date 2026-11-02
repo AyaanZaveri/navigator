@@ -1,5 +1,7 @@
 "use server";
 
+import { subtitleAddonBaseUrl } from "@/lib/subtitle-provider";
+
 import type { MediaItem, StremioAddon, StremioStream } from "@/types/stremio";
 import {
   getAuthData as getAuthDataFromAuth,
@@ -115,28 +117,31 @@ export async function getSubtitleTracks(
       default?: boolean;
     }> = [];
 
-    for (const addon of subtitleAddons) {
+    const groups = await Promise.all(subtitleAddons.map(async (addon) => {
+      const addonTracks: typeof tracks = [];
+      const timeout = AbortSignal.timeout(8_000);
+      const signal = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
       try {
-        const base = addon.transportUrl.replace(/\/manifest\.json$/, "");
+        const base = subtitleAddonBaseUrl(addon.transportUrl, addon.manifest.id);
         const hintedPath = buildSubtitlePath();
         let response = await fetch(`${base}/${hintedPath}`, {
-          signal: options?.signal,
+          signal,
           headers: subtitleRequestHeaders,
           cache: "no-store",
         });
         if (!response.ok && hintedPath.includes("/filename=")) {
           response = await fetch(`${base}/subtitles/${type}/${itemId}.json`, {
-            signal: options?.signal,
-          headers: subtitleRequestHeaders,
+            signal,
+            headers: subtitleRequestHeaders,
             cache: "no-store",
           });
         }
-        if (!response.ok) continue;
+        if (!response.ok) return addonTracks;
         const data = await response.json();
 
         if (data?.subtitles) {
           for (const sub of data.subtitles) {
-            tracks.push({
+            addonTracks.push({
               id: sub.id,
               kind: "subtitles",
               label: sub.label || sub.lang || "Unknown",
@@ -148,9 +153,10 @@ export async function getSubtitleTracks(
         }
       } catch {
         options?.signal?.throwIfAborted();
-        continue;
       }
-    }
+      return addonTracks;
+    }));
+    tracks.push(...groups.flat());
 
     return tracks;
   } catch (error) {

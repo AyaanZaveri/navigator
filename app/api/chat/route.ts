@@ -9,9 +9,12 @@ import {
 import { groq, createGroq } from "@ai-sdk/groq";
 import { cerebras, createCerebras } from "@ai-sdk/cerebras";
 import { createOllama } from "ai-sdk-ollama";
-import { APICallError, RetryError, convertToModelMessages, streamText, isStepCount, validateUIMessages, toUIMessageStream, createUIMessageStreamResponse } from "ai";
+import { APICallError, RetryError, convertToModelMessages, streamText, isStepCount, validateUIMessages, toUIMessageStream, createUIMessageStreamResponse, createUIMessageStream } from "ai";
 import { z } from "zod";
-import { actionToolNames, record, compactNavigatorMessages, pageTargetFromPath } from "@/lib/navigator-chat";
+import { actionToolNames, record, compactNavigatorMessages, pageTargetFromPath, requestsScenePlayback, attemptedScenePlayback } from "@/lib/navigator-chat";
+import { scenePlaybackResponse } from "@/app/tools/scene-workflow";
+import { navigatorRoutingSettings } from "@/lib/navigator-model-settings";
+import type { SceneProgress } from "@/lib/navigator-scene-progress";
 import { createOpenCodeGoModel } from "@/lib/opencode-go";
 import { getTMDBTitle, getTMDBEpisodes } from "@/lib/tmdb-discovery";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
@@ -310,6 +313,9 @@ export async function POST(req: Request) {
             }
         }
         const systemPrompt = createSystemPrompt(currentMedia, currentTimestamp, pageContext);
+        if (navigatorRoutingSettings(model).providerOptions && requestsScenePlayback(validatedMessages) && !attemptedScenePlayback(validatedMessages)) {
+            return scenePlaybackResponse({ model, messages: modelMessages, originalMessages: validatedMessages, tools, context: { currentMedia, viewedTitle: pageContext }, signal: req.signal, onError: error => chatError(error).message });
+        }
         const startedAt = Date.now();
 
         const streamSettings: {
@@ -320,6 +326,7 @@ export async function POST(req: Request) {
     } = {
         maxOutputTokens: 1400,
         maxRetries: 2,
+        ...navigatorRoutingSettings(model),
     };
 
         if (aiProvider === "cerebras") {
@@ -335,7 +342,24 @@ export async function POST(req: Request) {
             }
         }
 
-        const result = streamText({
+        return createUIMessageStreamResponse({ stream: createUIMessageStream({
+            originalMessages: validatedMessages,
+            onError: error => chatError(error).message,
+            execute: ({ writer }) => {
+                const progressTools: typeof generationTools = { ...generationTools, skipToSubtitleContent: {
+                    ...generationTools.skipToSubtitleContent,
+                    execute: async (input: unknown, options: Parameters<NonNullable<typeof generationTools.skipToSubtitleContent.execute>>[1]) => {
+                        let latest: SceneProgress | undefined;
+                        const onSceneProgress = (progress: SceneProgress) => {
+                            latest = progress;
+                            writer.write({ type: "data-sceneProgress", id: `${options.toolCallId}-${progress.stage}`, data: { ...progress, toolCallId: options.toolCallId } });
+                        };
+                        const output = await generationTools.skipToSubtitleContent.execute!(input, { ...options, context: { ...record(options.context), onSceneProgress } });
+                        if (record(output).success === false && latest?.state === "running") onSceneProgress({ ...latest, state: "error", detail: record(output).error });
+                        return output;
+                    },
+                } };
+                const result = streamText({
             model,
             messages: modelMessages,
             stopWhen: [isStepCount(8), ({ steps }) => steps.at(-1)?.toolResults.some(result =>
@@ -343,10 +367,10 @@ export async function POST(req: Request) {
             abortSignal: req.signal,
             timeout: { totalMs: 120_000, stepMs: 60_000 },
             ...streamSettings,
-            tools: generationTools,
+            tools: progressTools,
             instructions: systemPrompt,
             prepareStep: () => ({
-                activeTools: Object.keys(generationTools).filter(name => currentMedia || !["skipToSubtitleContent", "explainScene", "analyzeMedia"].includes(name)),
+                activeTools: Object.keys(generationTools).filter(name => currentMedia || !["explainScene", "analyzeMedia"].includes(name)),
             }),
             onStepEnd: (stepResult) => {
                 console.log("[chat] step-finish", {
@@ -373,13 +397,13 @@ export async function POST(req: Request) {
             },
         });
 
-        return createUIMessageStreamResponse({
-            stream: toUIMessageStream({
+                writer.merge(toUIMessageStream({
                 stream: result.stream,
                 originalMessages: validatedMessages,
                 onError: error => chatError(error).message,
-            }),
-        });
+                }));
+            },
+        }) });
     } catch (error) {
         console.error("Chat API Error:", error);
 
