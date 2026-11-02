@@ -1,42 +1,65 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { Button } from "@/components/ui/button";
+import { motionTokens } from "@/components/arc/lib/motion-tokens";
 
 export function EpisodeDescription({ text }: { text: string }) {
     const id = useId();
     const paragraph = useRef<HTMLParagraphElement>(null);
     const [expanded, setExpanded] = useState(false);
-    const [overflowing, setOverflowing] = useState(false);
+    const [instant, setInstant] = useState(true);
+    const [size, setSize] = useState<{ collapsed: number; full: number } | null>(null);
+    const reduced = useReducedMotion();
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const element = paragraph.current;
-        if (!element || expanded) return;
-        const measure = () => setOverflowing(element.scrollHeight > element.clientHeight + 1);
+        if (!element) return;
+        // Measure the unclamped paragraph so both directions keep the same text layout.
+        const measure = () => {
+            const full = element.scrollHeight;
+            const collapsed = Math.min(full, parseFloat(getComputedStyle(element).lineHeight) * 3);
+            setSize(previous => previous?.collapsed === collapsed && previous.full === full
+                ? previous : { collapsed, full });
+        };
         const observer = new ResizeObserver(measure);
         observer.observe(element);
         measure();
         return () => observer.disconnect();
-    }, [expanded, text]);
+    }, [text]);
 
     return (
         <div className="min-w-0 max-w-prose">
-            <p
-                ref={paragraph}
+            <motion.div
                 id={id}
-                className={`break-words text-base leading-relaxed${expanded ? "" : " line-clamp-3"}`}
+                initial={false}
+                animate={{ height: size ? expanded ? size.full : size.collapsed : "auto" }}
+                transition={reduced || instant ? { duration: 0 } : motionTokens.spring.smooth}
+                className="overflow-hidden"
+                style={size ? undefined : { maxHeight: "4.875rem" }}
             >
-                {text}
-            </p>
-            {(overflowing || expanded) && (
-                <button
-                    type="button"
-                    aria-expanded={expanded}
-                    aria-controls={id}
-                    onClick={() => setExpanded(value => !value)}
-                    className="mt-1 min-h-9 rounded-sm text-sm font-medium text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
-                >
-                    {expanded ? "Show less" : "Show more"}
-                </button>
+                <p ref={paragraph} className="break-words text-base leading-relaxed">
+                    {text}
+                </p>
+            </motion.div>
+            {size && size.full > size.collapsed + 1 && (
+                <div className="flex py-1">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-expanded={expanded}
+                        aria-controls={id}
+                        className="-ms-3"
+                        onClick={event => {
+                            setInstant(event.detail === 0);
+                            setExpanded(value => !value);
+                        }}
+                    >
+                        {expanded ? "Show less" : "Show more"}
+                    </Button>
+                </div>
             )}
         </div>
     );
