@@ -35,7 +35,10 @@ export type NativeMessage =
   | { type: "window-state"; maximized: boolean }
   | { type: "fullscreen"; value: boolean };
 
+export type ClientStage = "interface-hydrated" | "play-requested" | "player-mounted" | "stream-resolving" | "stream-resolved";
+
 export type NativeRequest =
+  | { type: "client-stage"; stage: ClientStage }
   | { type: "app-ready"; dark: boolean }
   | { type: "video-fit"; session: string; mode: "fit" | "crop" | "stretch" }
   | { type: "glass"; session: string; active: boolean }
@@ -57,7 +60,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { videoFit?: boolean; glass?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
+  readonly capabilities?: { videoFit?: boolean; timings?: boolean; glass?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;
@@ -71,4 +74,11 @@ export function desktopBridge(): DesktopBridge | undefined {
   if (typeof window === "undefined") return undefined;
   const bridge = window.navigatorDesktop;
   return bridge?.protocol === 1 ? bridge : undefined;
+}
+
+/** Fixed, URL-free stages; older native builds receive no new commands. */
+export function recordDesktopStage(stage: ClientStage) {
+  const bridge = desktopBridge();
+  if (bridge?.platform !== "windows" || !bridge.capabilities?.timings) return;
+  try { bridge.send({ type: "client-stage", stage }); } catch { /* Diagnostics never block playback. */ }
 }

@@ -1,0 +1,17 @@
+.scrollbar {
+    background: transparent;
+    user-select: none;
+}
+
+.thumb {
+    background: color-mix(in oklab, var(--foreground) 42%, transparent);
+}
+
+.scrollbar:hover .thumb,
+.scrollbar:active .thumb {
+    background: color-mix(in oklab, var(--foreground) 68%, transparent);
+}
+
+@media (forced-colors: active) {
+    .thumb { background: CanvasText; }
+}

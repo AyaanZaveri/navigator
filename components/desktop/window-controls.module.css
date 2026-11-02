@@ -4,7 +4,6 @@
 .controls button:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
 .controls .close:hover { background: #c42b1c; color: white; }
 .controls svg { fill: none; stroke: currentColor; stroke-width: 1; }
-:global(html[data-native-platform="windows"][data-desktop-fullscreen="false"]) { --window-controls-right-inset: 154px; }
 
 :global(html[data-native-playing]) .controls { color: white; }
 :global(html[data-window-control-hover="minimize"]) .controls button:nth-child(1),

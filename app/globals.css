@@ -4,35 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Native video occupies the OS view below this document. Keep alpha from first
-   paint, and draw the regular page backdrop as an independently hidden layer. */
-html[data-desktop="mpv"],
-html[data-desktop="mpv"] body {
-  background: transparent !important;
-  color-scheme: normal !important;
-}
-html[data-desktop="mpv"] body { isolation: isolate; }
-html[data-desktop="mpv"] body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: var(--background);
-  pointer-events: none;
-}
-html[data-native-playing] body::before { display: none; }
-html[data-native-playing] [data-desktop-app-content] { visibility: hidden; }
-html[data-native-playing] [data-home-gradient] { display: none; }
-html[data-native-playing] [data-native-player-shell],
-html[data-native-playing] [data-slot="media-player"] {
-  background: transparent !important;
-}
-navigator-mpv {
-  display: block;
-  background: transparent !important;
-  width: 100vw;
-  height: 100dvh;
-}
+@import "../components/desktop/native-playback.css";
 
 /* The Windows client can snap narrower than the desktop player toolbar.
    Keep all controls reachable in DOM order; wrap groups before they collide. */
@@ -61,6 +33,10 @@ html[data-native-platform="windows"] [data-slot="media-player-controls"] {
    AppKit hides them in fullscreen, where the usual page gutter is restored. */
 html[data-native-platform="macos"] { --window-controls-inset: 88px; }
 html[data-native-platform="macos"][data-desktop-fullscreen="true"] { --window-controls-inset: 0px; }
+html[data-native-platform="windows"][data-desktop-fullscreen="false"] { --window-controls-right-inset: 154px; }
+@media (width < 48rem) {
+  html[data-native-engine="exoplayer"] { --app-header-navigation-padding: .5rem; }
+}
 html[data-native-platform="macos"] [data-player-close] {
   left: max(1rem, var(--window-controls-inset));
 }
@@ -88,6 +64,15 @@ html[data-native-platform="macos"] ::-webkit-scrollbar-thumb,
 html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
   background: var(--accent);
   border-radius: 3px;
+}
+
+/* Radix supplies an overlay thumb; never leave a second native gutter beneath
+   it. This also wins over WKWebView's platform scrollbar reset above. */
+[data-radix-scroll-area-viewport] {
+  scrollbar-width: none !important;
+}
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none !important;
 }
 
 :root {

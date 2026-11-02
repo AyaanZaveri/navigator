@@ -233,7 +233,7 @@ function testBridge() {
 function testAskPlayback() {
     const { createStore } = require("jotai/vanilla");
     const artwork = load("lib/artwork.ts");
-    const atoms = load("lib/atoms.ts", { require: name => name === "@/lib/artwork" ? artwork : name === "@/lib/media/playback-context" ? require("./test-support/playback-context.cjs") : require(name) });
+    const atoms = load("lib/atoms.ts", { require: name => name === "@/lib/artwork" ? artwork : name === "@/lib/media/playback-context" ? require("./test-support/playback-context.cjs") : name === "@/lib/desktop/bridge" ? load("lib/desktop/bridge.ts") : require(name) });
     const store = createStore();
     store.set(atoms.isAIAskOpenAtom, true);
     const item = { id: "tt123", name: "Fixture", type: "movie" };

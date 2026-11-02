@@ -65,7 +65,7 @@ export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, bat
 
   const virtualizer = useVirtualizer({
     count: initialCount + remainingEntries.length,
-    getScrollElement: () => listRef.current?.closest<HTMLElement>("main") || null,
+    getScrollElement: () => listRef.current?.closest<HTMLElement>("[data-page-scroll]") || null,
     estimateSize: () => CATALOG_ROW_HEIGHT,
     getItemKey,
     overscan: 2,
@@ -75,7 +75,7 @@ export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, bat
 
   useLayoutEffect(() => {
     const list = listRef.current;
-    const scroller = list?.closest<HTMLElement>("main");
+    const scroller = list?.closest<HTMLElement>("[data-page-scroll]");
     if (!list || !scroller) return;
     const update = () => setScrollMargin(Math.max(0,
       Math.round(list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop)));

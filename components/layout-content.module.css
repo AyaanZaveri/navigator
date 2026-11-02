@@ -1,0 +1,17 @@
+.viewport {
+    /* Keep native wheel, touch, keyboard, and momentum scrolling. Only the
+       browser's scrollbar is replaced; no scroll-linked React state. */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+.viewport > div {
+    /* Radix's table wrapper is useful for horizontal scroll areas. A page must
+       instead wrap long content and keep its artwork at viewport width. */
+    display: block !important;
+    min-height: 100%;
+}
+
+.scrollbar {
+    z-index: var(--layer-header);
+}

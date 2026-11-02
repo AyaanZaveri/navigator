@@ -4,12 +4,13 @@ use crate::{
     App, platform,
     player::Player,
     protocol, receive,
+    startup_log::record,
     window_state::{Display, Placement},
 };
 use serde_json::{Value, json};
 use std::{
-    io::Write,
-    path::{Path, PathBuf},
+    collections::VecDeque,
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -28,12 +29,16 @@ use wry::{NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder};
 // NavigateToString still exposes about:blank to script/IPC, but recent
 // Evergreen versions report its encoded HTML in NavigationStarting.
 fn smoke_navigation_allowed(url: &str) -> bool {
+    bundled_navigation_allowed(url, include_bytes!("smoke.html"))
+}
+
+fn bundled_navigation_allowed(url: &str, html: &[u8]) -> bool {
     use base64::Engine;
     url == "about:blank"
         || url
             == format!(
                 "data:text/html;charset=utf-8;base64,{}",
-                base64::engine::general_purpose::STANDARD.encode(include_bytes!("smoke.html"))
+                base64::engine::general_purpose::STANDARD.encode(html)
             )
 }
 
@@ -53,16 +58,59 @@ fn smoke_navigation_is_exact() {
     assert!(!smoke_navigation_allowed(&(trusted + "AA")));
 }
 
+#[cfg(test)]
+#[test]
+fn startup_navigation_has_no_privileged_origin() {
+    use base64::Engine;
+    let html = include_bytes!("startup.html");
+    let trusted = format!(
+        "data:text/html;charset=utf-8;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(html)
+    );
+    assert!(bundled_navigation_allowed(&trusted, html));
+    assert_eq!(protocol::origin(&trusted), None);
+    assert_eq!(protocol::origin("about:blank"), None);
+    assert!(!bundled_navigation_allowed(&(trusted + "AA"), html));
+    assert!(!bundled_navigation_allowed(
+        "data:text/html;base64,PHNjcmlwdD4=",
+        html
+    ));
+    assert!(!bundled_navigation_allowed("https://example.com", html));
+}
+
 type Boot = Result<(App, Player, Option<PathBuf>), String>;
 enum UserEvent {
+    ClientStage(protocol::ClientStage),
     Boot(Box<Boot>),
+    BackendReady,
+    Command(protocol::Command, Option<Value>),
     Emit(Value),
     Fullscreen(bool),
     Drag,
     ChromeHover(u32),
     WindowControl(protocol::WindowAction),
     Ready(bool),
+    StartupLoaded,
     PageLoaded,
+}
+
+struct Frontend {
+    url: String,
+    origin: String,
+    bridge: String,
+    devtools: bool,
+    smoke: bool,
+}
+impl From<&App> for Frontend {
+    fn from(app: &App) -> Self {
+        Self {
+            url: app.url.clone(),
+            origin: app.origin.clone(),
+            bridge: app.bridge.clone(),
+            devtools: app.devtools,
+            smoke: app.smoke,
+        }
+    }
 }
 
 fn bounds(size: PhysicalSize<u32>) -> Rect {
@@ -72,19 +120,12 @@ fn bounds(size: PhysicalSize<u32>) -> Rect {
     }
 }
 
-fn record(path: &Path, started: Instant, stage: &str) {
-    if let Ok(mut file) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-    {
-        let _ = writeln!(
-            file,
-            "{}",
-            json!({"pid":std::process::id(), "stage":stage, "elapsed_ms":started.elapsed().as_millis(),
-                "unix_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()})
-        );
-    }
+fn update_startup(view: &WebView, backend_ready: bool, player_ready: bool) {
+    // The bundled document is unprivileged. Only fixed booleans cross into it;
+    // after navigation this optional function simply no longer exists.
+    let _ = view.evaluate_script(&format!(
+        "window.navigatorStartup?.({backend_ready},{player_ready})"
+    ));
 }
 
 fn placement(window: &Window) -> Option<Placement> {
@@ -131,16 +172,15 @@ fn resize_views(
 
 fn make_view(
     context: &mut WebContext,
-    app: &App,
-    player: &Player,
+    app: &Frontend,
     window: &Window,
     proxy: &tao::event_loop::EventLoopProxy<UserEvent>,
 ) -> Result<WebView, String> {
     let origin = app.origin.clone();
     let smoke = app.smoke;
-    let requests = player.sender();
     let ipc = proxy.clone();
     let nav_origin = origin.clone();
+    let page_origin = origin.clone();
     let page = proxy.clone();
     let builder = WebViewBuilder::new_with_web_context(context)
         .with_bounds(bounds(window.inner_size()))
@@ -154,6 +194,9 @@ fn make_view(
                 return;
             }
             match protocol::parse(request.body()) {
+                Ok(protocol::Command::ClientStage { stage }) => {
+                    let _ = ipc.send_event(UserEvent::ClientStage(stage));
+                }
                 Ok(protocol::Command::AppReady { dark }) => {
                     let _ = ipc.send_event(UserEvent::Ready(dark));
                 }
@@ -167,7 +210,10 @@ fn make_view(
                     let _ = ipc.send_event(UserEvent::Drag);
                 }
                 Ok(command) => {
-                    let _ = requests.send(command);
+                    let session = serde_json::from_str::<Value>(request.body())
+                        .ok()
+                        .and_then(|v| v.get("session").cloned());
+                    let _ = ipc.send_event(UserEvent::Command(command, session));
                 }
                 Err(message) => {
                     let session = serde_json::from_str::<Value>(request.body())
@@ -181,6 +227,7 @@ fn make_view(
         })
         .with_navigation_handler(move |url| {
             let allowed = (smoke && smoke_navigation_allowed(&url))
+                || (!smoke && bundled_navigation_allowed(&url, include_bytes!("startup.html")))
                 || protocol::origin(&url).as_deref() == Some(&nav_origin);
             if !allowed && protocol::media_url(&url).is_ok() {
                 let _ = open::that_detached(url);
@@ -193,15 +240,21 @@ fn make_view(
             }
             NewWindowResponse::Deny
         })
-        .with_on_page_load_handler(move |event, _| {
+        .with_on_page_load_handler(move |event, url| {
             if matches!(event, wry::PageLoadEvent::Finished) {
-                let _ = page.send_event(UserEvent::PageLoaded);
+                let _ = page.send_event(
+                    if smoke || protocol::origin(&url).as_deref() == Some(&page_origin) {
+                        UserEvent::PageLoaded
+                    } else {
+                        UserEvent::StartupLoaded
+                    },
+                );
             }
         });
     let builder = if smoke {
         builder.with_html(include_str!("smoke.html"))
     } else {
-        builder.with_url(&app.url)
+        builder.with_html(include_str!("startup.html"))
     };
     builder
         .build_as_child(window)
@@ -269,6 +322,8 @@ pub fn run(app: App) -> Result<(), String> {
         window.set_maximized(true);
     }
     record(&log, started, "window-visible");
+    let frontend = Frontend::from(&app);
+    let webview_data = app.data.join("webview");
 
     let cancelled = Arc::new(AtomicBool::new(false));
     let cancel = cancelled.clone();
@@ -276,12 +331,14 @@ pub fn run(app: App) -> Result<(), String> {
     let emit_proxy = proxy.clone();
     let options = platform::mpv_options(&surface);
     let boot_log = log.clone();
+    let backend_proxy = proxy.clone();
     let worker = std::thread::Builder::new()
         .name("navigator-startup".into())
         .spawn(move || {
             let result = (|| {
                 let mut app = app;
                 if let Some((resources, port)) = app.backend.take() {
+                    record(&boot_log, started, "backend-starting");
                     app._server = Some(crate::server::Server::start_cancellable(
                         &resources, port, &cancel,
                     )?);
@@ -290,11 +347,13 @@ pub fn run(app: App) -> Result<(), String> {
                 if cancel.load(Ordering::Relaxed) {
                     return Err("Startup cancelled".into());
                 }
+                let _ = backend_proxy.send_event(UserEvent::BackendReady);
                 let smoke = if app.smoke {
                     Some(crate::smoke_file()?)
                 } else {
                     None
                 };
+                record(&boot_log, started, "player-starting");
                 let player = match app.start_player_options(options, move |value| {
                     let _ = emit_proxy.send_event(UserEvent::Emit(value));
                 }) {
@@ -321,20 +380,78 @@ pub fn run(app: App) -> Result<(), String> {
     let mut ready = false;
     let mut loaded = false;
     let mut ready_deadline = None;
+    let mut navigating = false;
     let mut exit_code = 0;
     let mut smoke_playing = false;
+    let mut playback_session = String::new();
+    let mut playback_ready = false;
+    let mut pending = VecDeque::new();
+    // Start Chromium while Node is starting, and paint bundled HTML that needs
+    // neither the local server nor external data. Keep this WebView for the app.
+    if !frontend.smoke {
+        record(&log, started, "webview-starting");
+        context = Some(WebContext::new(Some(webview_data)));
+        match make_view(context.as_mut().unwrap(), &frontend, &window, &proxy) {
+            Ok(webview) => {
+                view = Some(webview);
+                record(&log, started, "startup-view-created");
+            }
+            Err(error) => {
+                exit_code = 1;
+                closing = true;
+                cancelled.store(true, Ordering::Relaxed);
+                platform::show_error(&format!("WebView2 could not initialize: {error}"));
+            }
+        }
+    }
     event_loop.run(move |event, _, flow| {
         *flow = if closing || ready_deadline.is_some() { ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)) } else { ControlFlow::Wait };
         match event {
+            Event::UserEvent(UserEvent::ClientStage(stage)) => record(&log, started, stage.label()),
+            Event::UserEvent(UserEvent::BackendReady) => {
+                if !closing && !frontend.smoke {
+                    if let Some(view) = &view {
+                        navigating = true;
+                        record(&log, started, "navigation-starting");
+                        update_startup(view, true, running.is_some());
+                        if let Err(error) = view.load_url(&frontend.url) {
+                            exit_code = 1; closing = true; cancelled.store(true, Ordering::Relaxed);
+                            platform::show_error(&format!("The interface could not open: {error}"));
+                        }
+                        ready_deadline = Some(Instant::now() + Duration::from_secs(30));
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::Command(command, session)) => {
+                if !closing {
+                    if let protocol::Command::Load { session, .. } = &command {
+                        playback_session = session.clone();
+                        playback_ready = false;
+                        record(&log, started, "playback-load-received");
+                    } else if matches!(&command, protocol::Command::Seek { .. }) {
+                        record(&log, started, "playback-seek-requested");
+                    }
+                    if let Some((_, player, _)) = &running { player.send(command); }
+                    else if pending.len() < 64 { pending.push_back(command); }
+                    else {
+                        if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"error","session":session,"message":"The video player is still starting. Try playback again in a moment."}))); }
+                    }
+                }
+            }
             Event::UserEvent(UserEvent::Boot(result)) => match *result {
                 Ok((app, player, smoke_path)) => {
                     if closing { player.begin_shutdown(); }
                     running = Some((app, player, smoke_path));
+                    if let Some(view) = &view { update_startup(view, navigating, true); }
                     if !closing {
                         let (app, player, _) = running.as_ref().unwrap();
                         surface.attach(player.mpv.clone());
+                        let size = window.inner_size();
+                        surface.resize(size.width, size.height);
+                        for command in pending.drain(..) { player.send(command); }
+                        if app.smoke {
                         context = Some(WebContext::new(Some(app.data.join("webview"))));
-                        match make_view(context.as_mut().unwrap(), app, player, &window, &proxy) {
+                        match make_view(context.as_mut().unwrap(), &frontend, &window, &proxy) {
                             Ok(webview) => {
                                 view = Some(webview);
                                 if let Some(loading) = &loading { let size = window.inner_size(); loading.resize(size.width, size.height); }
@@ -346,6 +463,7 @@ pub fn run(app: App) -> Result<(), String> {
                                 platform::show_error(&format!("WebView2 could not initialize: {error}"));
                                 closing = true; player.begin_shutdown();
                             }
+                        }
                         }
                     }
                 }
@@ -359,6 +477,11 @@ pub fn run(app: App) -> Result<(), String> {
                 window.set_theme(Some(if dark { Theme::Dark } else { Theme::Light }));
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"window-state","maximized":window.is_maximized()}))); }
                 if !ready { ready = true; ready_deadline = None; loading.take(); record(&log, started, "app-ready"); }
+            }
+            Event::UserEvent(UserEvent::StartupLoaded) => {
+                platform::install_chrome(&window);
+                record(&log, started, "startup-page-loaded");
+                if let Some(view) = &view { update_startup(view, navigating, running.is_some()); }
             }
             Event::UserEvent(UserEvent::PageLoaded) => {
                 loaded = true;
@@ -374,6 +497,18 @@ pub fn run(app: App) -> Result<(), String> {
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":fullscreen}))); }
             }
             Event::UserEvent(UserEvent::Emit(value)) => {
+                if !playback_session.is_empty() && value["session"].as_str() == Some(playback_session.as_str()) {
+                    match value["type"].as_str() {
+                        Some("loading") => record(&log, started, "playback-open-started"),
+                        Some("loaded") => record(&log, started, "playback-file-loaded"),
+                        Some("ready") if !playback_ready => {
+                            playback_ready = true;
+                            record(&log, started, "playback-ready");
+                        }
+                        Some("error") => record(&log, started, "playback-error"),
+                        _ => {}
+                    }
+                }
                 if !smoke_playing && running.as_ref().is_some_and(|(app, _, _)| app.smoke)
                     && value["type"] == "state" && value["state"]["width"].as_f64().unwrap_or(0.0) > 0.0
                     && value["state"]["position"].as_f64().unwrap_or(0.0) > 0.2 {
@@ -426,7 +561,7 @@ pub fn run(app: App) -> Result<(), String> {
         // Chromium can pause requestAnimationFrame while minimized. Give a
         // restored window a fresh paint deadline instead of reporting a false
         // startup failure, and leave the event loop asleep while minimized.
-        if !ready && !closing && view.is_some() && running.as_ref().is_some_and(|(app, _, _)| !app.smoke) {
+        if !ready && !closing && navigating && !frontend.smoke {
             if window.is_minimized() { ready_deadline = None; }
             else if ready_deadline.is_none() { ready_deadline = Some(Instant::now() + Duration::from_secs(30)); }
         }
