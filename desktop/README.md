@@ -7,9 +7,10 @@ state. Browser playback continues to use the current Mux/HTML media player.
 ## Windows private build
 
 The **Desktop playback** GitHub workflow now produces a **Navigator-Windows-x64**
-artifact with `Navigator-<version>-windows-x64-setup.exe` and
-`Navigator-<version>-windows-x64-portable.zip`. Download the artifact from a
-successful workflow run. Builds target Intel/AMD Windows 11 PCs; 25H2 and 26H2
+installer and portable artifacts (`Navigator-Windows-x64-Installer` and
+`Navigator-Windows-x64-Portable`) containing `Navigator-<version>-windows-x64-setup.exe`
+and `Navigator-<version>-windows-x64-portable.zip`. Download the desired artifact
+from a successful workflow run. Builds target Intel/AMD Windows 11 PCs; 25H2 and 26H2
 are the initial manual validation targets. They are unsigned private builds,
 with manual upgrades and no automatic updater.
 

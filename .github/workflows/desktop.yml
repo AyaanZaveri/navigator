@@ -144,13 +144,17 @@ jobs:
       - name: Check native video and transparent WebView2
         shell: pwsh
         run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
-      - name: Upload private Windows artifacts
+      - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Navigator-Windows-x64
-          path: |
-            dist/*-setup.exe
-            dist/*-portable.zip
+          name: Navigator-Windows-x64-Installer
+          path: dist/*-setup.exe
+          if-no-files-found: error
+      - name: Upload Windows portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Navigator-Windows-x64-Portable
+          path: dist/*-portable.zip
           if-no-files-found: error
       - name: Upload compositor diagnostics
         if: always()
