@@ -148,12 +148,12 @@ impl LoadingView {
         unsafe {
             SetWindowPos(
                 self.0,
-                HWND_TOP,
+                std::ptr::null_mut(),
                 0,
                 0,
                 width as i32,
                 height as i32,
-                SWP_NOACTIVATE,
+                SWP_NOACTIVATE | SWP_NOZORDER,
             );
         }
     }

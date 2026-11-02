@@ -25,6 +25,34 @@ use tao::{
 };
 use wry::{NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder};
 
+// NavigateToString still exposes about:blank to script/IPC, but recent
+// Evergreen versions report its encoded HTML in NavigationStarting.
+fn smoke_navigation_allowed(url: &str) -> bool {
+    use base64::Engine;
+    url == "about:blank"
+        || url
+            == format!(
+                "data:text/html;charset=utf-8;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(include_bytes!("smoke.html"))
+            )
+}
+
+#[cfg(test)]
+#[test]
+fn smoke_navigation_is_exact() {
+    use base64::Engine;
+    let trusted = format!(
+        "data:text/html;charset=utf-8;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(include_bytes!("smoke.html"))
+    );
+    assert!(smoke_navigation_allowed(&trusted));
+    assert!(smoke_navigation_allowed("about:blank"));
+    assert!(!smoke_navigation_allowed(
+        "data:text/html;base64,PHNjcmlwdD4="
+    ));
+    assert!(!smoke_navigation_allowed(&(trusted + "AA")));
+}
+
 type Boot = Result<(App, Player, Option<PathBuf>), String>;
 enum UserEvent {
     Boot(Box<Boot>),
@@ -113,8 +141,6 @@ fn make_view(
     let requests = player.sender();
     let ipc = proxy.clone();
     let nav_origin = origin.clone();
-    let nav_log = app.data.join("startup.jsonl");
-    let nav_started = app.started;
     let page = proxy.clone();
     let builder = WebViewBuilder::new_with_web_context(context)
         .with_bounds(bounds(window.inner_size()))
@@ -154,10 +180,7 @@ fn make_view(
             }
         })
         .with_navigation_handler(move |url| {
-            if smoke {
-                record(&nav_log, nav_started, &format!("smoke-navigation:{url}"));
-            }
-            let allowed = (smoke && url == "about:blank")
+            let allowed = (smoke && smoke_navigation_allowed(&url))
                 || protocol::origin(&url).as_deref() == Some(&nav_origin);
             if !allowed && protocol::media_url(&url).is_ok() {
                 let _ = open::that_detached(url);
@@ -343,10 +366,7 @@ pub fn run(app: App) -> Result<(), String> {
                 record(&log, started, "page-loaded");
                 if let Some((app, player, smoke)) = &running {
                     if app.smoke {
-                        if let Some(view) = &view {
-                            let probe_log = log.clone();
-                            let _ = view.evaluate_script_with_callback("JSON.stringify({url:location.href,origin:location.origin,html:document.documentElement.outerHTML,bridge:typeof window.navigatorDesktop,visibility:document.visibilityState})", move |result| record(&probe_log, started, &format!("smoke-document:{result}")));
-                        }
+
                         loading.take(); ready_deadline = None;
                         if let Some(path) = smoke { player.send(protocol::Command::Load { session:"native-smoke".into(), url:path.to_string_lossy().into_owned(), headers:Default::default() }); }
                     }

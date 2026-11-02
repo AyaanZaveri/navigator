@@ -224,11 +224,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist/windows-diagnostics | Out-Null
-          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/smoke/startup*.jsonl" dist/windows-diagnostics -ErrorAction SilentlyContinue
-          if (Test-Path dist/windows-smoke.png) { Copy-Item dist/windows-smoke.png dist/windows-diagnostics }
-          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/startup*.jsonl" dist/windows-diagnostics -ErrorAction SilentlyContinue
-          if (Test-Path dist/windows-app.png) { Copy-Item dist/windows-app.png dist/windows-diagnostics }
-          Get-Content dist/windows-diagnostics/startup.jsonl -ErrorAction SilentlyContinue
+          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/smoke/startup.jsonl" dist/windows-diagnostics/smoke-startup.jsonl -ErrorAction SilentlyContinue
+          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/startup.jsonl" dist/windows-diagnostics/app-startup.jsonl -ErrorAction SilentlyContinue
+          foreach ($file in @('windows-smoke.png', 'windows-app.png')) {
+            if (Test-Path "dist/$file") { Copy-Item "dist/$file" dist/windows-diagnostics }
+          }
+          Get-Content dist/windows-diagnostics/*startup.jsonl -ErrorAction SilentlyContinue
           exit 0
       - name: Upload compositor diagnostics
         if: always()
