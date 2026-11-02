@@ -60,7 +60,8 @@ final class PlayerGestureLayout extends FrameLayout {
             @Override public void write(float value) {
                 var attrs=activity.getWindow().getAttributes();
                 // FULL is an absolute display request, independent of the system slider.
-                attrs.screenBrightness=value==1 ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL : value;
+                attrs.screenBrightness=value==1 ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+                    : value==0 ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF : value;
                 activity.getWindow().setAttributes(attrs);
             }
         });
@@ -157,7 +158,7 @@ final class PlayerGestureLayout extends FrameLayout {
             scrubX=e.getX();
             if (!scrubFrameQueued) { scrubFrameQueued=true; postOnAnimation(scrubFrame); }
         } else if (mode!=SideSwipeGesture.Mode.NONE) {
-            applyProgress(mode,gesture.value(normalized(mode,initial),e.getY(),0));
+            applyProgress(mode,gesture.value(normalized(initial),e.getY(),0));
         }
     }
     private void sendScrub(boolean active) { sendScrub(active,false); }
@@ -178,14 +179,14 @@ final class PlayerGestureLayout extends FrameLayout {
         sideInteraction=true;
         if (mode==SideSwipeGesture.Mode.BRIGHTNESS) initial=brightness.begin(preferredBrightness());
         else if (mode==SideSwipeGesture.Mode.VOLUME) sampleVolume();
-        endpointHaptics.begin(normalized(mode,initial));
+        endpointHaptics.begin(normalized(initial));
         show(mode,initial);
     }
-    private float normalized(SideSwipeGesture.Mode mode,float value) {
-        return Math.max(0,Math.min(1,mode==SideSwipeGesture.Mode.BRIGHTNESS ? (value-.02f)/.98f : value));
+    private float normalized(float value) {
+        return Math.max(0,Math.min(1,value));
     }
     private float preferredBrightness() {
-        try { return Math.max(.02f,Math.min(1,Settings.System.getInt(activity.getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,128)/255f)); }
+        try { return normalized(Settings.System.getInt(activity.getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,128)/255f); }
         catch (SecurityException restricted) { return .5f; }
     }
     private void sampleVolume() {
@@ -196,12 +197,12 @@ final class PlayerGestureLayout extends FrameLayout {
         initial=audio.isStreamMute(AudioManager.STREAM_MUSIC) ? 0 : (float)(requestedVolume-minVolume)/Math.max(1,maxVolume-minVolume);
     }
     private void applyProgress(SideSwipeGesture.Mode mode,float progress) {
-        apply(mode,mode==SideSwipeGesture.Mode.BRIGHTNESS ? .02f+progress*.98f : progress);
+        apply(mode,progress);
     }
     private void apply(SideSwipeGesture.Mode mode,float value) {
         if (!available() || !Float.isFinite(value)) return;
-        value=Math.max(mode==SideSwipeGesture.Mode.BRIGHTNESS ? .02f : 0,Math.min(1,value));
-        float displayProgress=normalized(mode,value);
+        value=normalized(value);
+        float displayProgress=value;
         if (mode==SideSwipeGesture.Mode.BRIGHTNESS) {
             value=brightness.set(value);
         } else if (mode==SideSwipeGesture.Mode.VOLUME) {
@@ -224,10 +225,10 @@ final class PlayerGestureLayout extends FrameLayout {
             sampleVolume(); sideInteraction=false; endpointHaptics.end(); show(SideSwipeGesture.Mode.VOLUME,initial);
         } catch (SecurityException | IllegalArgumentException restricted) { hide(); }
     }
-    private void show(SideSwipeGesture.Mode mode,float value) { show(mode,value,normalized(mode,value)); }
+    private void show(SideSwipeGesture.Mode mode,float value) { show(mode,value,normalized(value)); }
     private void show(SideSwipeGesture.Mode mode,float value,float displayProgress) {
         removeCallbacks(hideHud); shownMode=mode;
-        float progress=normalized(mode,value);
+        float progress=normalized(value);
         side.update(mode==SideSwipeGesture.Mode.VOLUME,progress,displayProgress,
             audio!=null && audio.isStreamMute(AudioManager.STREAM_MUSIC),sideInteraction);
         if (endpointHaptics.update(displayProgress)) performHapticFeedback(Build.VERSION.SDK_INT>=34

@@ -49,12 +49,14 @@ public class PlaybackBrightnessTest {
     @Test public void fullOverrideAndRestorationAreAbsoluteAndEndpointsAreExact() {
         var w=new Window(); var b=new PlaybackBrightness(w);
         b.begin(.01f); b.set(.997f); assertEquals(1,b.set(1),0);
+        assertEquals(0,b.set(0),0); assertEquals(0,w.value,0);
+        b.suspend(); b.reapply(); assertEquals(0,w.display,0);
         b.restore(); assertEquals(-1,w.value,0);
         w.write(.2f); b.begin(.2f); b.set(1); b.restore(); assertEquals(.2f,w.value,0);
     }
     @Test public void invalidInputCannotReachTheWindow() {
         var w=new Window(); var b=new PlaybackBrightness(w); b.set(.8f);
         b.set(Float.NaN); b.set(Float.POSITIVE_INFINITY); assertEquals(.8f,w.value,0);
-        assertEquals(.02f,b.set(-3),0); assertEquals(1,b.set(3),0);
+        assertEquals(0,b.set(-3),0); assertEquals(1,b.set(3),0);
     }
 }

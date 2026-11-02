@@ -16,7 +16,7 @@ final class PlaybackBrightness {
     }
     float set(float value) {
         if (!Float.isFinite(value)) return requested!=null ? requested : window.read();
-        value=Math.max(.02f,Math.min(1,value));
+        value=Math.max(0,Math.min(1,value));
         if (original==null) original=window.read();
         requested=value;
         if (!suspended) window.write(value);
