@@ -25,6 +25,34 @@ use tao::{
 };
 use wry::{NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder};
 
+// NavigateToString still exposes about:blank to script/IPC, but recent
+// Evergreen versions report its encoded HTML in NavigationStarting.
+fn smoke_navigation_allowed(url: &str) -> bool {
+    use base64::Engine;
+    url == "about:blank"
+        || url
+            == format!(
+                "data:text/html;charset=utf-8;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(include_bytes!("smoke.html"))
+            )
+}
+
+#[cfg(test)]
+#[test]
+fn smoke_navigation_is_exact() {
+    use base64::Engine;
+    let trusted = format!(
+        "data:text/html;charset=utf-8;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(include_bytes!("smoke.html"))
+    );
+    assert!(smoke_navigation_allowed(&trusted));
+    assert!(smoke_navigation_allowed("about:blank"));
+    assert!(!smoke_navigation_allowed(
+        "data:text/html;base64,PHNjcmlwdD4="
+    ));
+    assert!(!smoke_navigation_allowed(&(trusted + "AA")));
+}
+
 type Boot = Result<(App, Player, Option<PathBuf>), String>;
 enum UserEvent {
     Boot(Box<Boot>),
@@ -152,7 +180,7 @@ fn make_view(
             }
         })
         .with_navigation_handler(move |url| {
-            let allowed = (smoke && url == "about:blank")
+            let allowed = (smoke && smoke_navigation_allowed(&url))
                 || protocol::origin(&url).as_deref() == Some(&nav_origin);
             if !allowed && protocol::media_url(&url).is_ok() {
                 let _ = open::that_detached(url);
