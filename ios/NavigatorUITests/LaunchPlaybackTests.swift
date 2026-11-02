@@ -18,8 +18,8 @@ final class LaunchPlaybackTests: XCTestCase {
     let resumed = app.webViews.staticTexts["Resume position verified"]
     XCTAssertTrue(resumed.waitForExistence(timeout: 5))
     assertResumedSceneIsGreen(app)
-    assertGlassSamplesNativeVideo(app)
     app.webViews.buttons["Pause fixture"].tap()
+    assertGlassSamplesNativeVideo(app)
     app.webViews.buttons["Preview fixture"].tap()
     XCTAssertTrue(app.webViews.staticTexts["Native preview verified"].waitForExistence(timeout: 15))
     app.webViews.buttons["Repeat cached preview"].tap()
@@ -81,8 +81,20 @@ final class LaunchPlaybackTests: XCTestCase {
     guard let image = XCUIScreen.main.screenshot().image.cgImage else {
       return XCTFail("No glass screenshot")
     }
-    let scaleX = CGFloat(image.width) / app.frame.width
-    let scaleY = CGFloat(image.height) / app.frame.height
+    // AX application frames can retain portrait dimensions during rotation.
+    // The bridge accepts these CSS/window coordinates against UIKit bounds.
+    let text = app.webViews.staticTexts.matching(
+      NSPredicate(format: "label BEGINSWITH %@", "Geometry: ")
+    ).firstMatch.label
+    guard
+      let geometry = try? JSONSerialization.jsonObject(
+        with: Data(text.dropFirst("Geometry: ".count).utf8)) as? [String: Double],
+      let width = geometry["w"], let height = geometry["h"], let x = geometry["x"],
+      let y = geometry["y"], let w = geometry["width"], let h = geometry["height"]
+    else { return XCTFail("Missing accepted viewport geometry: \(text)") }
+    let nativeFrame = CGRect(x: x, y: y, width: w, height: h)
+    let scaleX = CGFloat(image.width) / width
+    let scaleY = CGFloat(image.height) / height
     func green(at point: CGPoint) -> Int {
       let box = CGRect(x: point.x * scaleX, y: point.y * scaleY, width: 1, height: 1)
       guard let sample = image.cropping(to: box) else {
@@ -101,12 +113,12 @@ final class LaunchPlaybackTests: XCTestCase {
     }
     // The movie has alternating black/green stripes across its top. Glass
     // must smooth their contrast; a transparent or opaque backing cannot pass.
-    let y = back.frame.maxY - 9
+    let sampleY = nativeFrame.maxY - 9
     let inside = stride(from: 12, through: 32, by: 2).map {
-      green(at: CGPoint(x: back.frame.minX + CGFloat($0), y: y))
+      green(at: CGPoint(x: nativeFrame.minX + CGFloat($0), y: sampleY))
     }
     let outside = stride(from: 16, through: 80, by: 2).map {
-      green(at: CGPoint(x: back.frame.maxX + CGFloat($0), y: y))
+      green(at: CGPoint(x: nativeFrame.maxX + CGFloat($0), y: sampleY))
     }
     let rawContrast = outside.max()! - outside.min()!
     let glassContrast = inside.max()! - inside.min()!
