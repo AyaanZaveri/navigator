@@ -20,7 +20,7 @@
       setMaterials(false);
       scheduleLayout();
     }
-    if(message.type==='stop') {
+    if(message.type==='stop' && message.session===session) {
       session=''; lastLayout='';
       setMaterials(false);
     }
@@ -35,7 +35,7 @@
   Object.defineProperty(window,'NavigatorIOS',{value:Object.freeze({receive(message){
     if(location.origin!==trusted || !message || typeof message.type!=='string')return;
     if(message.type==='fullscreen')fullscreen=message.value===true;
-    if(message.type==='materials-ready' && message.session===session) {
+    if(message.type==='materials-ready' && session && message.session===session) {
       setMaterials(true);
     }
     if(message.type==='layout-request'){lastLayout='';setMaterials(false);scheduleLayout();}

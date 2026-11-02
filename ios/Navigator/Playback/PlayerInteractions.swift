@@ -50,6 +50,7 @@ import WebKit
   private let panel = PlayerSidePanel()
   private let brightness = PlaybackBrightness()
   private var pan: PlayerPan!
+  private var outsideTap: UITapGestureRecognizer!
   private var displayLink: CADisplayLink?
   private var latestScrub: (position: Double, speed: Double, x: Double)?
   private var layout: PlayerLayout?
@@ -108,6 +109,11 @@ import WebKit
     pan.delaysTouchesBegan = false
     host.addGestureRecognizer(pan)
     web.scrollView.panGestureRecognizer.require(toFail: pan)
+    outsideTap = UITapGestureRecognizer(target: self, action: #selector(dismissPanel))
+    outsideTap.delegate = self
+    outsideTap.cancelsTouchesInView = false
+    outsideTap.require(toFail: pan)
+    host.addGestureRecognizer(outsideTap)
     for name in [
       UIAccessibility.reduceTransparencyStatusDidChangeNotification,
       UIAccessibility.reduceMotionStatusDidChangeNotification,
@@ -207,6 +213,11 @@ import WebKit
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch)
     -> Bool
   {
+    if gestureRecognizer === outsideTap {
+      let point = touch.location(in: host)
+      return !panel.isHidden && !panel.frame.contains(point)
+        && !speakerMaterial.frame.contains(point) && !sunMaterial.frame.contains(point)
+    }
     guard let layout = validLayout, !layout.blocked, playback.canInteract,
       !UIAccessibility.isVoiceOverRunning
     else { return false }
@@ -271,7 +282,7 @@ import WebKit
   private func updateDrag(_ model: PlayerGesture, point: CGPoint) {
     if model.mode == .scrub {
       guard scrubSession == playback.session else { return }
-      latestScrub = (model.target, model.speed, point.x)
+      latestScrub = (model.target, model.speed, Double(point.x))
     } else {
       let value = model.sideValue(initial: sideInitial, point: point)
       panel.update(value)
@@ -339,6 +350,10 @@ import WebKit
       self?.panel.hide()
     }
   }
+  @objc private func dismissPanel() {
+    hideTask?.cancel()
+    panel.hide()
+  }
   @objc private func toggleBrightness() {
     guard host.window?.screen === UIScreen.main else { return }
     hideTask?.cancel()
@@ -372,6 +387,7 @@ import WebKit
   func dispose() {
     suspend()
     host.removeGestureRecognizer(pan)
+    host.removeGestureRecognizer(outsideTap)
     accessibilityObservers.forEach(NotificationCenter.default.removeObserver)
     accessibilityObservers = []
   }

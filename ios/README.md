@@ -48,8 +48,8 @@ Only the trusted, top-level HTTPS origin can issue native commands. Every
 playback operation is session scoped; stale commands cannot control a new title.
 The controller supplies `startPosition` with the initial load so resume does not
 reveal the opening frame first. Native previews are capability selected, not
-hard-coded to Android. PiP, AirPlay, native glass and background playback are
-not advertised in this first version.
+hard-coded to Android. PiP, AirPlay and background playback remain unavailable. Native materials and
+surface gestures are capability selected independently from Android frame-based glass.
 
 Precise resume uses VLC's value-less `no-input-fast-seek` switch. Its cached
 clock may report preroll while the first sought frames are already presenting;
@@ -101,6 +101,33 @@ release audio focus and detach rendering; returning does not secretly resume
 audio. Calls and headphone removal pause as well. Network/loading/error and server
 settings UI remain available if the hosted website fails.
 
+## Native interactions and materials
+
+Horizontal surface drags pause the playing decoder, emit display-coalesced preview
+positions, and commit one seek on release. Moving toward the top continuously
+reduces sensitivity using Android's incremental curve; changing height alone
+never jumps the target. Cancellation preserves the original position and play
+intent. Controls, menus, the timeline, safe areas and system edge gestures retain
+their own touch handling. Browser surface seeking is disabled only when the
+native gesture capability is present; direct timeline dragging stays shared.
+
+Left vertical swipes adjust screen brightness; right vertical swipes adjust
+**Video volume**, the VLC gain, without changing device volume. Native sun/speaker
+buttons expose accessible sliders. The volume panel also embeds Apple's public
+MPVolumeView under **Device volume**, synchronized with hardware controls.
+Brightness ownership saves/restores the previous value, respects Control Center
+changes, and releases on backgrounding, closing, or another scene taking playback.
+
+The circular Back button, side panels, and preview background use UIGlassEffect
+on iOS/iPadOS 26+, and UIBlurEffect on iOS 17–18. The preview's material lives
+between the VLC surface and transparent WebView; the image/text remain shared.
+A session-scoped, bounded layout message supplies exclusions and preview bounds.
+Web materials are replaced only after native geometry acknowledgement, and are
+restored while new geometry is requested. Native surfaces remain at alpha 1;
+transitions animate the material effect. Reduce Transparency uses an opaque system
+surface; Reduce Motion removes material transitions. Large text can scroll within
+the side panel. No repeating screenshots, video capture or JPEG backdrop loop is used.
+
 ## Validation and honest limits
 
 CI uses a local HTTPS fixture trusted only in its iPhone and iPad simulators,
@@ -109,6 +136,8 @@ startup and native JPEG preview generation. This is not a production TLS bypass.
 The synthetic seven-second fixture has red, green and blue scenes. The test
 checks a green rendered frame after resuming at 1.5 seconds, then a blue JPEG
 from the independent preview decoder at 6 seconds while playback stays paused.
+It checks immediate cached reuse, native surface drag/paused-state preservation,
+volume sliders, Back, and glass coloration over the actual VLC scene.
 Pure native tests cover URL/header validation, origin scoping, cache limits,
 request parsing, HLS/DASH rewriting, real loopback range delivery and CDN scoping.
 

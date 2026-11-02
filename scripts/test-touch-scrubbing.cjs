@@ -7,7 +7,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/touch-scrubbing
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
 const { attachTouchScrubbing } = context.exports;
-function fixture() {
+function fixture({ nativeSurface = false } = {}) {
     const handlers = new Map();
     const captures = new Set();
     const root = {
@@ -24,7 +24,7 @@ function fixture() {
     let cancels = 0, grabs = 0;
     const dispose = attachTouchScrubbing(root, {
         timeline: { contains: target => target === bar, getBoundingClientRect: () => ({ left: 20, width: 400 }) },
-        start: 100, end: 1100, currentTime: () => 500, enabled: () => true,
+        start: 100, end: 1100, currentTime: () => 500, enabled: () => true, surfaceEnabled: () => !nativeSurface,
         preview: (time, speed) => previews.push({ time, speed }), commit: time => commits.push(time), cancel: () => cancels++, grab: () => grabs++,
     });
     const send = (type, x, y, target = blank, extra = {}) => {
@@ -92,3 +92,15 @@ const release = fixture();
 release.send('pointerdown', 220, 600, release.bar);
 release.send('pointerup', 260, 740, release.bar);
 assert.deepEqual(release.commits, [700], 'The release coordinate is committed even when a final move was coalesced');
+
+const nativeSurface = fixture({ nativeSurface: true });
+nativeSurface.send('pointerdown', 100, 200);
+nativeSurface.send('pointermove', 300, 200);
+nativeSurface.send('pointerup', 300, 200);
+assert.equal(nativeSurface.previews.length, 0, 'Native surface ownership disables duplicate web seeking');
+assert.equal(nativeSurface.commits.length, 0);
+nativeSurface.send('pointerdown', 220, 600, nativeSurface.bar);
+nativeSurface.send('pointermove', 260, 600, nativeSurface.bar);
+nativeSurface.send('pointerup', 260, 600, nativeSurface.bar);
+assert.deepEqual(nativeSurface.commits, [700], 'Native gestures leave direct timeline dragging intact');
+console.log('PASS: native surface ownership preserves web timeline interaction without duplicate seeks');

@@ -14,6 +14,9 @@ import UIKit
     layer.cornerRadius = radius
     layer.cornerCurve = .continuous
     clipsToBounds = true
+    blur.layer.cornerRadius = radius
+    blur.layer.cornerCurve = .continuous
+    blur.clipsToBounds = true
     blur.frame = bounds
     blur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     addSubview(blur)
@@ -22,6 +25,7 @@ import UIKit
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   var content: UIView { blur.contentView }
   func present(_ visible: Bool, animated: Bool = true) {
+    if !visible && isHidden { return }
     revision += 1
     let owner = revision
     let effect: UIVisualEffect?

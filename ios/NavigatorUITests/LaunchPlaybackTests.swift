@@ -58,8 +58,15 @@ final class LaunchPlaybackTests: XCTestCase {
     slider.adjust(toNormalizedSliderPosition: 0.3)
     XCTAssertTrue(app.staticTexts["Video volume"].exists)
     XCTAssertTrue(app.staticTexts["Device volume"].exists)
+    let brightness = app.buttons["native-player-brightness"]
+    XCTAssertTrue(brightness.exists)
+    brightness.tap()
+    XCTAssertTrue(app.sliders["Brightness"].waitForExistence(timeout: 3))
+    // Both families must recover acknowledged native geometry after resizing.
+    XCUIDevice.shared.orientation = .portrait
+    XCUIDevice.shared.orientation = .landscapeLeft
     let back = app.buttons["native-player-back"]
-    XCTAssertTrue(back.exists)
+    XCTAssertTrue(back.waitForExistence(timeout: 5))
     back.tap()
     XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
   }
