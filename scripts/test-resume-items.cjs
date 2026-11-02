@@ -61,7 +61,7 @@ async function run() {
   assert.equal(items[0].subtitleFilename, 'Movie.mkv');
   assert.equal(items[0].subtitleVideoSize, 123);
   assert.equal(items[0].year, 2014);
-  assert.equal(items[0].background, '/api/artwork?id=tt0816692&type=movie&kind=backdrop');
+  assert.equal(items[0].background, '/api/artwork?id=tt0816692&type=movie&kind=backdrop&v=1');
 
   const rows = [raw,
     { ...raw, _id: 'removed', removed: true },
