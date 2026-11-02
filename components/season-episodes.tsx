@@ -29,6 +29,7 @@ import { episodeThumbnailUrl } from "@/lib/artwork";
 import type { StremioVideo } from "@/types/stremio";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import cardStyles from "./media-card.module.css";
+import styles from "./season-episodes.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
 
 interface SeasonEpisodesProps {
@@ -446,6 +447,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
         <div className="w-48 min-w-0 max-w-full">
           <Select
             label="Season"
+            className={styles.seasonTrigger}
             hideLabel
             value={selectedSeason?.toString() ?? ""}
             onValueChange={(value) => setSelectedSeason(Number(value))}

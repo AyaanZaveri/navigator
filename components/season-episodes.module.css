@@ -1,0 +1,7 @@
+.seasonTrigger {
+  --select-trigger-surface: color-mix(in oklab, var(--card) 50%, transparent);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .seasonTrigger { --select-trigger-surface: var(--background); }
+}
