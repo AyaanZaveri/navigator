@@ -950,6 +950,9 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
           mediaSourceId: typeof videoId === "string" ? videoId : undefined,
           seriesId: item.type === "series" ? item.id : undefined,
           showName: item.type === "series" ? item.name : undefined,
+          // Carry an episode name already present in library state without
+          // fetching metadata for every home/catalog card.
+          episodeTitle: item.type === "series" ? firstString(rawState?.episodeTitle, rawState?.episode_title) : undefined,
           seasonNumber,
           episodeNumber,
           streamUrl: firstString(

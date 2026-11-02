@@ -68,7 +68,7 @@ async function run() {
     { ...raw, _id: 'other', type: 'other' },
     { ...raw, _id: 'unstarted', state: { timeOffset: 0 } },
     { ...raw, _id: 'tt1442437', type: 'series', removed: true, temp: true, name: 'Modern Family', state: {
-      video_id: 'tt1442437:8:10', timeOffset: 180_000, duration: 1_200_000, lastWatched: '2026-11-01',
+      video_id: 'tt1442437:8:10', episodeTitle: 'Ringmaster Keifth', timeOffset: 180_000, duration: 1_200_000, lastWatched: '2026-11-01',
     } },
   ];
   const filtered = await setup(rows).actions.fetchResumeItems();
@@ -77,6 +77,7 @@ async function run() {
   assert.equal(filtered[0].progressLabel, 'S8 • E10');
   assert.equal(filtered[0].mediaSourceId, 'tt1442437:8:10');
   assert.equal(filtered[0].seriesId, 'tt1442437');
+  assert.equal(filtered[0].episodeTitle, 'Ringmaster Keifth', 'Reuse a supplied episode name without per-card metadata requests');
   assert.equal(filtered[0].resumePositionTicks, 180);
   assert.equal(filtered[0].progressPercent, 15);
   assert.equal(filtered[1].id, 'tt0816692');
