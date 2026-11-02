@@ -69,3 +69,11 @@ initials for missing headshots.
 
 Run `npm run test:desktop` to check credential validation/storage, image
 selection, routing, credit mapping, and fallbacks without live TMDB requests.
+
+### Skip timing data
+
+Playback uses TheIntroDB and IntroDB, with release-matched
+[SkipDB](https://skipdb.tv) data as an additional fallback. SkipDB data is
+licensed under [ODbL 1.0 + Service Provider Reciprocity](https://skipdb.tv/license).
+See [the provider audit](docs/skip-provider-audit.md) for coverage checks,
+confidence rules, release matching, and reproducible curl tests.
