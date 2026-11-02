@@ -5,6 +5,7 @@ import { preloadPlayer } from "@/lib/preload-tools";
 import React, { useState } from "react";
 import { mediaArtwork, backdropVariantUrl } from "@/lib/artwork";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
@@ -24,6 +25,7 @@ export function MediaCard({
   subtitleContent?: React.ReactNode;
 }) {
   const { playMedia, setIsPlayerVisible } = usePlaybackActions();
+  const router = useRouter();
 
   let linkHref = "";
   if (
@@ -64,6 +66,7 @@ export function MediaCard({
     e.stopPropagation();
 
     if (item) {
+      router.push(linkHref, { scroll: false });
       await playMedia({
         id: item.id,
         name: item.episodeTitle || item.name,

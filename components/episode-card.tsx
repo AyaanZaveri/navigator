@@ -4,6 +4,7 @@ import { preloadPlayer } from "@/lib/preload-tools";
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import type { Episode } from "@/app/actions/tv-shows";
@@ -19,6 +20,7 @@ export function EpisodeCard({
   seriesId: string;
 }) {
   const { playMedia, setIsPlayerVisible } = usePlaybackActions();
+  const router = useRouter();
   const [pressed, setPressed] = React.useState(false);
 
   const linkHref = buildEpisodePath(seriesId, episode.season, episode.episode);
@@ -28,6 +30,7 @@ export function EpisodeCard({
     e.preventDefault();
     e.stopPropagation();
 
+    router.push(linkHref, { scroll: false });
     await playMedia({
       id: seriesId,
       name: episode.title || `Episode ${episode.episode}`,

@@ -24,6 +24,7 @@ async function run() {
         const context = { exports: {}, URL, URLSearchParams, require(name) {
             if (name.endsWith('.module.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
             if (name === 'next/link') return ({ children, prefetch, scroll, ...props }) => React.createElement('a', props, children);
+            if (name === 'next/navigation') return { useRouter: () => ({ push() {} }) };
             if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({}) };
             if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
             if (name === '@/lib/media/series-season') return {};
