@@ -1,3 +1,5 @@
+export const DEFAULT_AURORA_COLORS = ["#6FE3F5", "#2FB8D6", "#4EA6BF"];
+
 interface AuroraSwatch {
     hex: string;
     population: number;

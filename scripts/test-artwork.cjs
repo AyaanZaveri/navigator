@@ -136,9 +136,10 @@ async function run() {
   const absent = await missing.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo'));
   assert.equal(absent.status, 404);
   assert.equal(absent.headers.get('cache-control'), 'no-store', 'Temporary missing artwork must not stick in the browser cache');
+  const sampledUrls = [];
   const sampled = load('app/api/artwork/route.ts', {
     require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w1280/backdrop.jpg' },
-    fetch: async () => new Response('fixture-jpeg', { headers: { 'Content-Type': 'image/jpeg' } }),
+    fetch: async url => { sampledUrls.push(url); return new Response('fixture-jpeg', { headers: { 'Content-Type': 'image/jpeg' } }); },
     AbortSignal,
   });
   const sample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1'));
@@ -147,6 +148,11 @@ async function run() {
   assert.equal(sample.headers.get('content-type'), 'image/jpeg');
   assert.equal(sample.headers.get('vary'), 'Cookie');
   assert.equal(await sample.text(), 'fixture-jpeg');
+  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w1280/backdrop.jpg', 'Logo contrast samples retain their full-resolution source');
+  await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1&palette=1'));
+  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w300/backdrop.jpg', 'Ambient palettes fetch only a small backdrop');
+  await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&sample=1&palette=1'));
+  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w342/backdrop.jpg', 'Poster fallbacks use a supported small poster size');
   const logoSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo&sample=1'));
   const posterSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&sample=1'));
   assert.equal(posterSample.status, 200, 'Poster palette fallback also needs same-origin image bytes');
