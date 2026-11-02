@@ -1,3 +1,5 @@
+import { sceneProgressLabel, type SceneProgress } from "@/lib/navigator-scene-progress";
+
 type ActivityMessage = {
   role: string;
   parts: ReadonlyArray<unknown>;
@@ -127,6 +129,15 @@ export function getNavigatorActivityLabel(
 
   for (const rawPart of [...assistant.parts].reverse()) {
     const part = record(rawPart);
+    if (part.type === "data-sceneProgress") {
+      const progress = record(part.data) as unknown as SceneProgress;
+      if (["title", "subtitles", "scene"].includes(progress.stage) && ["running", "completed", "error"].includes(progress.state)) {
+        if (progress.state === "running") return sceneProgressLabel(progress);
+        const action = assistant.parts.map(record).find(candidate => candidate.toolCallId === record(part.data).toolCallId);
+        if (progress.stage === "scene" && progress.state === "completed" && record(action?.output).execution === "prepared") return "Getting playback ready";
+        return sceneProgressLabel(progress);
+      }
+    }
     if (
       part.type === "text" &&
       typeof part.text === "string" &&

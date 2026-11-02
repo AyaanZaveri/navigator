@@ -7,6 +7,7 @@ const widgets = {};
 let prefersReducedMotion = false;
 function widget(name) { const Component = () => null; widgets[name] = Component; return Component; }
 const cardModules = {
+    '@/lib/navigator-scene-progress': load('lib/navigator-scene-progress.ts', {}),
     'framer-motion': { motion: { div: widget('reveal') }, useReducedMotion: () => prefersReducedMotion },
     '@/components/arc/lib/motion-tokens': load('components/arc/motion-tokens.ts', {}),
     './result-card-motion': load('components/navigator/result-card-motion.ts', {}),
@@ -89,6 +90,21 @@ assert.ok(transcript, 'Inspect the rendered transcript, not an unrelated wrapper
 assert.equal(transcript.props.style.overflowY, 'auto', 'A child accordion must be able to create scroll overflow without new messages');
 
 const { toNavigatorSegments } = load('components/navigator/focus-results.tsx', { ...cardModules, '@/lib/navigator-chat': chat });
+
+const sceneAction = { type: 'tool-skipToSubtitleContent', toolCallId: 'scene-progress-test', state: 'input-available', input: {} };
+const sceneProgress = (stage, state, detail) => ({ type: 'data-sceneProgress', id: `scene-${stage}`, data: { toolCallId: sceneAction.toolCallId, stage, state, detail } });
+const progressParts = [sceneAction, sceneProgress('title', 'completed', 'Glass Onion'), sceneProgress('subtitles', 'completed', 'eng · 2,111 lines'), sceneProgress('scene', 'running', 'the confession scene')];
+const progressSegments = toNavigatorSegments(progressParts);
+assert.equal(progressSegments.length, 3);
+assert.deepEqual(Array.from(progressSegments, segment => segment.trace.phase), ['completed', 'completed', 'running']);
+assert.equal(progressSegments[2].trace.label, 'Finding the scene in the dialogue');
+const activity = load('lib/navigator-activity-label.ts', { '@/lib/navigator-scene-progress': cardModules['@/lib/navigator-scene-progress'] });
+assert.equal(activity.getNavigatorActivityLabel([{ role: 'user', parts: [{ type: 'text', text: 'go to the confession scene in glass onion' }] }, { role: 'assistant', parts: progressParts }]), 'Finding the scene in the dialogue');
+const failedProgress = toNavigatorSegments([{ ...sceneAction, state: 'output-available', output: { success: false, error: 'No match' } }, sceneProgress('scene', 'error', 'No match')]);
+assert.equal(failedProgress.length, 1, 'A failed stage must show one error instead of duplicating the tool error');
+const completedProgress = toNavigatorSegments([{ ...sceneAction, state: 'output-available', output: { success: true, execution: 'prepared', preparedToolCallId: sceneAction.toolCallId } }, sceneProgress('title', 'completed', 'Glass Onion'), sceneProgress('subtitles', 'completed', 'eng'), sceneProgress('scene', 'completed', '01:46:32')]);
+assert.equal(completedProgress[0].kind, 'trace');
+assert.equal(completedProgress.at(-1).kind, 'results', 'Progress stays before the eventual scene card');
 
 // Long discovery lists retain every candidate while showing only a compact preview.
 let resultsExpanded = false;

@@ -29,6 +29,7 @@ import { SceneExplainCard } from "./scene-explain-card";
 import { MediaAnalysisCard } from "./media-analysis-card";
 import { PersonCard } from "./person-card";
 import { actionToolNames } from "@/lib/navigator-chat";
+import { sceneProgressLabel, type SceneProgress } from "@/lib/navigator-scene-progress";
 import { Accordion } from "@/components/arc/accordion/accordion";
 import { Button } from "@/components/ui/button";
 
@@ -209,8 +210,24 @@ export function toNavigatorSegments(
     const part = record(raw);
     return part.type === "tool-playMedia" || (part.type === "dynamic-tool" && part.toolName === "playMedia");
   });
-  parts.forEach((raw, index) => {
+  // Progress belongs before its final playback card, even though the tool input arrived first.
+  const ordered = parts.flatMap(raw => {
     const part = record(raw);
+    if (part.type === "data-sceneProgress") return [];
+    const progress = parts.filter(candidate => record(candidate).type === "data-sceneProgress" && record(record(candidate).data).toolCallId === part.toolCallId);
+    return [...progress, raw];
+  });
+  ordered.forEach((raw, index) => {
+    const part = record(raw);
+    if (part.type === "data-sceneProgress") {
+      const progress = record(part.data) as unknown as SceneProgress;
+      if (!["title", "subtitles", "scene"].includes(progress.stage) || !["running", "completed", "error"].includes(progress.state)) return;
+      segments.push({ kind: "trace", key: `progress-${text(part.id) || index}`, trace: {
+        label: progress.state === "error" ? progress.detail || sceneProgressLabel(progress) : sceneProgressLabel(progress), detail: progress.detail,
+        phase: progress.state, icon: progress.stage === "title" ? Search : Subtitles,
+      } });
+      return;
+    }
     if (part.type === "text") {
       if (text(part.text).trim())
         segments.push({
@@ -241,6 +258,7 @@ export function toNavigatorSegments(
       } : output;
       const failed = part.state === "output-error" || part.state === "output-denied" || result.success === false;
       if (failed) {
+        if (parts.some(candidate => record(candidate).type === "data-sceneProgress" && record(record(candidate).data).toolCallId === part.toolCallId && record(record(candidate).data).state === "error")) return;
         const detail = text(part.errorText || result.error || result.message) || "Unable to complete this action";
         segments.push({ kind: "trace", key: `trace-${index}`, trace: {
           label: detail, detail, phase: "error", icon: toolLabels[name]?.[2] || Search,
