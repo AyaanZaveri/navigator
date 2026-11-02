@@ -71,7 +71,7 @@ async function fetchAddonResource<T>(
     });
 
     if (!response.ok) return null;
-    return response.json();
+    return await response.json();
   } catch {
     init?.signal?.throwIfAborted();
     return null;
@@ -407,32 +407,35 @@ export async function fetchSimilarItems(
 export async function fetchLibraryItems(
   addonTransportUrl: string,
   limit: number = 50
-): Promise<{ items: MediaItem[]; totalRecordCount: number }> {
+): Promise<{ items: MediaItem[]; totalRecordCount: number; incomplete?: boolean }> {
   try {
     const addons = await getInstalledAddons();
     const addon = addons.find((a) => a.transportUrl === addonTransportUrl);
 
     if (!addon) return { items: [], totalRecordCount: 0 };
 
-    const allItems: MediaItem[] = [];
-
-    // Fetch all catalogs from this addon
-    for (const catalog of addon.manifest.catalogs) {
-      const data = await fetchAddonResource<StremioCatalogResponse>(
-        addon.transportUrl,
-        `catalog/${catalog.type}/${catalog.id}.json`
-      );
-
-      if (data?.metas) {
-        for (const meta of data.metas) {
-          allItems.push(metaPreviewToMediaItem(meta, addon.transportUrl));
-        }
+    // Keep provider order while fetching independent catalogs concurrently.
+    const catalogs = addon.manifest.catalogs;
+    const results: MediaItem[][] = new Array(catalogs.length);
+    let next = 0;
+    let incomplete = false;
+    await Promise.all(Array.from({ length: Math.min(4, catalogs.length) }, async () => {
+      while (next < catalogs.length) {
+        const index = next++;
+        const catalog = catalogs[index];
+        const data = await fetchAddonResource<StremioCatalogResponse>(
+          addon.transportUrl, `catalog/${catalog.type}/${catalog.id}.json`,
+        );
+        if (!data) incomplete = true;
+        results[index] = (data?.metas ?? []).map(meta => metaPreviewToMediaItem(meta, addon.transportUrl));
       }
-    }
+    }));
+    const allItems = results.flat();
 
     return {
       items: allItems.slice(0, limit),
       totalRecordCount: allItems.length,
+      incomplete,
     };
   } catch (error) {
     console.error("Failed to fetch library items:", error);

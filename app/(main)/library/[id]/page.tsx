@@ -1,4 +1,7 @@
-import { fetchLibraryItems, getLibraryById } from "@/app/actions";
+import { notFound, redirect } from "next/navigation";
+import { loadLibraryPage, LibraryNotFound } from "@/lib/server/library-page";
+import { INITIAL_LIBRARY_QUERY } from "@/lib/library-page";
+import { getLibraryById } from "@/app/actions";
 import { LibraryMediaList } from "@/components/library-media-list";
 
 export default async function LibraryPage({
@@ -8,12 +11,15 @@ export default async function LibraryPage({
 }) {
   const { id } = await params;
 
-  const [libraryDetails, initialLibraryItems] = await Promise.all([
+  const [libraryDetails, libraryItems] = await Promise.all([
     getLibraryById(id),
-    fetchLibraryItems(id),
+    loadLibraryPage(id, INITIAL_LIBRARY_QUERY).catch(error => {
+      if (error instanceof LibraryNotFound) notFound();
+      if (error instanceof Error && "isAuthError" in error && error.isAuthError) redirect("/login");
+      throw error;
+    }),
   ]);
 
-  const libraryItems = await fetchLibraryItems(id, initialLibraryItems.totalRecordCount);
   const libraryName = libraryDetails?.Name || "Library";
 
   return (
@@ -26,10 +32,10 @@ export default async function LibraryPage({
             </h2>
           </div>
           <span className="font-mono text-muted-foreground">
-            {libraryItems.items.length} items
+            {libraryItems.totalLibraryCount} items
           </span>
         </div>
-        <LibraryMediaList mediaItems={libraryItems.items} />
+        <LibraryMediaList key={id} initialPage={libraryItems} addonUrl={id} />
       </div>
     </div>
   );
