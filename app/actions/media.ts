@@ -611,7 +611,8 @@ async function upsertPlaybackState(
     }
 
     const previousOffset = baseState.timeOffset;
-    const nextOffset = Math.max(previousOffset, currentTimeMs);
+    // A new playback session can intentionally restart the same video at zero.
+    const nextOffset = kind === "start" ? currentTimeMs : Math.max(previousOffset, currentTimeMs);
     const watchedDelta = Math.max(0, nextOffset - previousOffset);
 
     baseState.lastWatched = nowIso;

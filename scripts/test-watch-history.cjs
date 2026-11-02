@@ -72,6 +72,9 @@ async function run() {
     assert.equal(reset.timeOffset, 0);
     assert.equal(reset.timeWatched, 0);
     assert.equal(reset.duration, 500000, 'Each episode uses its own duration');
+    await actions.reportPlaybackProgress({ ...input, videoId: 'show:1:2', durationSeconds: 500, currentTimeSeconds: 200 });
+    await actions.reportPlaybackStart({ ...input, videoId: 'show:1:2', durationSeconds: 500, currentTimeSeconds: 0 });
+    assert.equal(writes.at(-1).state.timeOffset, 0, 'Play from start resets the previous resume position for the same episode');
     await actions.reportPlaybackProgress({ ...input, videoId: 'show:1:2', durationSeconds: 500, currentTimeSeconds: 20 });
     assert.equal(writes.at(-1).state.flaggedWatched, 0, 'Previous episode duration/position cannot complete the next episode');
     await actions.reportPlaybackProgress({ ...input, videoId: 'show:1:2', durationSeconds: 500, currentTimeSeconds: 400 });

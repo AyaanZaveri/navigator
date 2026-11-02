@@ -67,6 +67,7 @@ export default async function SeriesOverviewPage({
                 )}
               </div>
               <MediaPlayButton
+                episodes={show.videos}
                 media={{
                   id: show.id,
                   name: show.name,
