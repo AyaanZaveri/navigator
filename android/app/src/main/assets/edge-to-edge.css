@@ -37,8 +37,8 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-controls"] {
   padding-right: var(--navigator-player-controls-right, max(1.5rem, var(--navigator-inset-right)));
 }
 html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-player-close], button[class~="top-4"][class~="left-4"]) {
-  top: calc(1rem + var(--navigator-inset-top));
-  left: var(--navigator-player-back-left, 1rem);
+  top: calc(1.25rem + var(--navigator-inset-top));
+  left: calc(var(--navigator-player-back-left, 1rem) + .25rem);
   width: 40px;
   height: 40px;
   min-height: 40px;

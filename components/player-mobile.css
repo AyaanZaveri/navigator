@@ -102,6 +102,11 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   outline: 2px solid var(--foreground);
   outline-offset: 2px;
 }
+/* Override the original Android client offsets in both loading and playback. */
+html[data-native-engine="exoplayer"] [data-native-player-shell] [data-slot="media-player"] button[data-player-close][data-player-glass] {
+  top: calc(1.25rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)));
+  left: calc(var(--navigator-player-back-left, 1rem) + .25rem);
+}
 @media (hover: hover) and (pointer: fine) {
   [data-player-close]:hover {
     color: var(--foreground);
