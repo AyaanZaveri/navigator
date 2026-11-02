@@ -43,6 +43,8 @@ import WebKit
   private let back = UIButton(type: .system)
   private let backMaterial = PlayerMaterial(radius: 22, interactive: true)
   private let speaker = UIButton(type: .system)
+  private let sun = UIButton(type: .system)
+  private let sunMaterial = PlayerMaterial(radius: 22, interactive: true)
   private let speakerMaterial = PlayerMaterial(radius: 22, interactive: true)
   private let preview = PlayerMaterial(radius: 22)
   private let panel = PlayerSidePanel()
@@ -54,7 +56,7 @@ import WebKit
   private var layoutSession = ""
   private var scrubSession: String?
   private var sideInitial = 0.0
-  private var endpoint: Int?
+  private var endpoints = Set<Int>()
   private var hideTask: Task<Void, Never>?
   private var visible = false
   private var size = CGSize.zero
@@ -73,6 +75,7 @@ import WebKit
     for (button, material, symbol, label) in [
       (back, backMaterial, "arrow.left", "Back"),
       (speaker, speakerMaterial, "speaker.wave.2", "Volume controls"),
+      (sun, sunMaterial, "sun.max", "Brightness"),
     ] {
       material.frame.size = CGSize(width: 44, height: 44)
       overlay.addSubview(material)
@@ -89,6 +92,8 @@ import WebKit
     }
     back.accessibilityIdentifier = "native-player-back"
     speaker.accessibilityIdentifier = "native-player-volume"
+    sun.accessibilityIdentifier = "native-player-brightness"
+    sun.addTarget(self, action: #selector(toggleBrightness), for: .touchUpInside)
     back.addTarget(self, action: #selector(goBack), for: .touchUpInside)
     speaker.addTarget(self, action: #selector(toggleVolume), for: .touchUpInside)
     overlay.addSubview(panel)
@@ -136,10 +141,11 @@ import WebKit
     return true
   }
   func refresh() { renderLayout() }
-  func resized() {
-    guard host.bounds.size != size else { return }
+  func resized() -> Bool {
+    guard host.bounds.size != size else { return false }
     size = host.bounds.size
     reset()
+    return true
   }
   func suspend() {
     reset()
@@ -157,6 +163,7 @@ import WebKit
     panel.hide()
     preview.present(false, animated: false)
     backMaterial.present(false, animated: false)
+    sunMaterial.present(false, animated: false)
     speakerMaterial.present(false, animated: false)
     layout = nil
     layoutSession = ""
@@ -170,6 +177,7 @@ import WebKit
   private func renderLayout() {
     guard let layout = validLayout else {
       backMaterial.present(false, animated: false)
+      sunMaterial.present(false, animated: false)
       speakerMaterial.present(false, animated: false)
       preview.present(false, animated: false)
       return
@@ -179,10 +187,14 @@ import WebKit
     }
     let showBack = layout.close != nil && !layout.blocked
     if backMaterial.isHidden == showBack { backMaterial.present(showBack) }
-    let showSpeaker = layout.controlsVisible && !layout.blocked && playback.canInteract
+    let showSpeaker =
+      (layout.controlsVisible || UIAccessibility.isVoiceOverRunning) && !layout.blocked
+      && playback.canInteract
     speakerMaterial.frame = CGRect(
       x: host.bounds.width - host.safeAreaInsets.right - 60, y: host.safeAreaInsets.top + 16,
       width: 44, height: 44)
+    sunMaterial.frame = speakerMaterial.frame.offsetBy(dx: -56, dy: 0)
+    if sunMaterial.isHidden == showSpeaker { sunMaterial.present(showSpeaker) }
     if speakerMaterial.isHidden == showSpeaker { speakerMaterial.present(showSpeaker) }
     if let rect = layout.preview, !layout.blocked {
       preview.frame = rect
@@ -206,6 +218,7 @@ import WebKit
       !layout.exclusions.contains(where: { $0.insetBy(dx: -4, dy: -4).contains(point) }),
       backMaterial.isHidden || !backMaterial.frame.contains(point),
       speakerMaterial.isHidden || !speakerMaterial.frame.contains(point),
+      sunMaterial.isHidden || !sunMaterial.frame.contains(point),
       panel.isHidden || !panel.frame.contains(point)
     else { return false }
     pan.model = PlayerGesture(
@@ -222,7 +235,7 @@ import WebKit
         return
       }
       hideTask?.cancel()
-      endpoint = nil
+      endpoints.removeAll()
       feedback.prepare()
       feedback.selectionChanged()
       if model.mode == .scrub {
@@ -306,8 +319,7 @@ import WebKit
   private func applySide(_ value: Double, volume: Bool) {
     if volume { playback.setInteractionVolume(value) } else { brightness.set(value) }
     let limit = value <= 0 ? 0 : value >= 1 ? 1 : nil
-    if let limit, endpoint != limit { feedback.selectionChanged() }
-    endpoint = limit
+    if let limit, endpoints.insert(limit).inserted { feedback.selectionChanged() }
   }
   private func showPanel(volume: Bool, value: Double) {
     let available = host.bounds.inset(by: host.safeAreaInsets).insetBy(dx: 16, dy: 16)
@@ -327,12 +339,25 @@ import WebKit
       self?.panel.hide()
     }
   }
+  @objc private func toggleBrightness() {
+    guard host.window?.screen === UIScreen.main else { return }
+    hideTask?.cancel()
+    endpoints.removeAll()
+    if !panel.isHidden && !panel.isVolume {
+      panel.hide()
+    } else {
+      showPanel(volume: false, value: brightness.value)
+      UIAccessibility.post(notification: .layoutChanged, argument: panel.slider)
+    }
+  }
   @objc private func toggleVolume() {
     hideTask?.cancel()
+    endpoints.removeAll()
     if !panel.isHidden && panel.isVolume {
       panel.hide()
     } else {
       showPanel(volume: true, value: playback.interactionVolume)
+      UIAccessibility.post(notification: .layoutChanged, argument: panel.slider)
     }
   }
   @objc private func goBack() {
@@ -340,7 +365,7 @@ import WebKit
     close()
   }
   private func refreshMaterials() {
-    for material in [backMaterial, speakerMaterial, preview, panel.material] {
+    for material in [backMaterial, speakerMaterial, sunMaterial, preview, panel.material] {
       if !material.isHidden { material.present(true, animated: false) }
     }
   }

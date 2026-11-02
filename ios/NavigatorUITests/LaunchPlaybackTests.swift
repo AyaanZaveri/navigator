@@ -18,6 +18,7 @@ final class LaunchPlaybackTests: XCTestCase {
     let resumed = app.webViews.staticTexts["Resume position verified"]
     XCTAssertTrue(resumed.waitForExistence(timeout: 5))
     assertResumedSceneIsGreen(app)
+    assertGlassSamplesNativeVideo(app)
     app.webViews.buttons["Pause fixture"].tap()
     app.webViews.buttons["Preview fixture"].tap()
     XCTAssertTrue(app.webViews.staticTexts["Native preview verified"].waitForExistence(timeout: 15))
@@ -61,6 +62,34 @@ final class LaunchPlaybackTests: XCTestCase {
     XCTAssertTrue(back.exists)
     back.tap()
     XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
+  }
+  private func assertGlassSamplesNativeVideo(_ app: XCUIApplication) {
+    let back = app.buttons["native-player-back"]
+    XCTAssertTrue(back.waitForExistence(timeout: 5))
+    guard let image = XCUIScreen.main.screenshot().image.cgImage else {
+      return XCTFail("No glass screenshot")
+    }
+    let scaleX = CGFloat(image.width) / app.frame.width
+    let scaleY = CGFloat(image.height) / app.frame.height
+    let box = CGRect(
+      x: (back.frame.maxX - 12) * scaleX, y: (back.frame.maxY - 12) * scaleY, width: 1, height: 1)
+    guard let sample = image.cropping(to: box) else {
+      return XCTFail("Glass sample outside screen: \(box)")
+    }
+    var pixel = [UInt8](repeating: 0, count: 4)
+    pixel.withUnsafeMutableBytes { bytes in
+      let context = CGContext(
+        data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+      context.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+    }
+    XCTAssertGreaterThan(
+      Int(pixel[1]), Int(pixel[0]) + 6, "Native glass must sample the green VLC scene: \(pixel)")
+    XCTAssertGreaterThan(Int(pixel[1]), Int(pixel[2]) + 6)
+    XCTAssertLessThan(
+      Int(pixel[1]), 250,
+      "The glass material must modify the movie pixels, rather than being a transparent button")
   }
   private func assertResumedSceneIsGreen(_ app: XCUIApplication) {
     guard let image = XCUIScreen.main.screenshot().image.cgImage else {

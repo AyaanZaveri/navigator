@@ -26,6 +26,7 @@ import UIKit
   private var positionFloor: Double?
   private var scrubOwner: String?
   var invalidateInteraction: () -> Void = {}
+  var relinquishInteraction: () -> Void = {}
   var canInteract: Bool {
     started && ready && foreground && !errorSent && engine.seekable && engine.duration > 0
   }
@@ -150,7 +151,10 @@ import UIKit
     update()
   }
   private func activate() throws {
-    if let other = Self.active, other !== self { other.pause() }
+    if let other = Self.active, other !== self {
+      other.pause()
+      other.relinquishInteraction()
+    }
     Self.active = self
     let audio = AVAudioSession.sharedInstance()
     try audio.setCategory(.playback, mode: .moviePlayback)

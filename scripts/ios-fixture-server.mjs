@@ -13,7 +13,7 @@ document.getElementById('timeline').onchange=e=>{bridge.send({type:'seek',sessio
 document.addEventListener('navigatornativeclose',e=>{e.preventDefault();document.getElementById('close').click();});
 document.getElementById('pause').onclick=()=>bridge.send({type:'pause',session:owner});
 document.getElementById('preview').onclick=()=>bridge.send({type:'thumbnail',session:owner,request:1,position:6});
-document.getElementById('play').onclick=()=>{document.documentElement.setAttribute('data-native-playing','');bridge.send({type:'load',session:owner,url:'https://localhost:9443/protected.mp4',headers:{Authorization:'fixture-secret'},startPosition:1.5});};
+document.getElementById('play').onclick=()=>{document.documentElement.setAttribute('data-native-playing','');bridge.send({type:'load',session:owner,url:'https://localhost:9443/protected.mp4',headers:{Authorization:'fixture-secret'},startPosition:1.5});bridge.send({type:'video-fit',session:owner,mode:'stretch'});};
 document.getElementById('close').onclick=()=>{bridge.send({type:'stop',session:owner});document.documentElement.removeAttribute('data-native-playing');document.getElementById('status').textContent='Player closed';};
 </script></body></html>`;
 https.createServer({key:fs.readFileSync(process.env.FIXTURE_KEY),cert:fs.readFileSync(process.env.FIXTURE_CERT)},(req,res)=>{

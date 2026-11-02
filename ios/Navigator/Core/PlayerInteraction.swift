@@ -1,4 +1,5 @@
 import CoreFoundation
+import CoreGraphics
 import Foundation
 
 /// Native and Android scrubbing use incremental movement, so changing height

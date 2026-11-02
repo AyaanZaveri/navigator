@@ -38,7 +38,8 @@
     if(message.type==='materials-ready' && message.session===session) {
       setMaterials(true);
     }
-    if(message.session===session) scheduleLayout();
+    if(message.type==='layout-request'){lastLayout='';setMaterials(false);scheduleLayout();}
+    else if(['ready','loaded','fullscreen'].includes(message.type))scheduleLayout();
     if(message.type==='close'){
       const event=new Event('navigatornativeclose',{cancelable:true});
       if(document.dispatchEvent(event))document.querySelector('[data-player-close]')?.click();
@@ -99,8 +100,20 @@
         if(settleFrames-->0){pendingLayout=true;requestAnimationFrame(measure);}
       };
       scheduleLayout=()=>{settleFrames=12;if(!pendingLayout){pendingLayout=true;requestAnimationFrame(measure);}};
-      new MutationObserver(scheduleLayout).observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','data-state','data-visible','hidden']});
-      if(typeof ResizeObserver==='function')new ResizeObserver(scheduleLayout).observe(root);
+      const relevant='[data-slot="media-player"],[data-player-close],[data-slot="media-player-controls"],[data-slot="media-player-seek-tooltip"],[role="menu"],[role="dialog"]';
+      const resizeObserver=typeof ResizeObserver==='function'?new ResizeObserver(scheduleLayout):null;
+      const observeGeometry=()=>{
+        resizeObserver?.disconnect();resizeObserver?.observe(root);
+        for(const element of document.querySelectorAll(relevant))resizeObserver?.observe(element);
+      };
+      new MutationObserver(records=>{
+        if(records.some(record=>record.type==='attributes'
+          ?record.target.matches?.(relevant)||record.target===root
+          :[...record.addedNodes,...record.removedNodes].some(node=>node.matches?.(relevant)||node.querySelector?.(relevant)))){
+          observeGeometry();scheduleLayout();
+        }
+      }).observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','data-state','data-visible','hidden']});
+      observeGeometry();
       window.addEventListener('resize',()=>{lastLayout='';scheduleLayout();});
       window.addEventListener('scroll',scheduleLayout,true);
       window.visualViewport?.addEventListener('resize',scheduleLayout);

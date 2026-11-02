@@ -64,6 +64,10 @@ import WebKit
     interactions = PlayerInteractions(host: view, web: web, playback: playback)
     interactions.close = { [weak self] in self?.send(["type": "close"]) }
     playback.invalidateInteraction = { [weak self] in self?.interactions?.invalidatePlayback() }
+    playback.relinquishInteraction = { [weak self] in
+      self?.interactions?.suspend()
+      self?.send(["type": "layout-request"])
+    }
     playback.emit = { [weak self] message in
       self?.send(message)
       self?.interactions?.refresh()
@@ -80,7 +84,7 @@ import WebKit
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     playback.layout()
-    interactions?.resized()
+    if interactions?.resized() == true { send(["type": "layout-request"]) }
   }
   private func observeAudio() {
     observations.append(
@@ -395,7 +399,10 @@ import WebKit
     send(["type": "suspend"])
     playback.suspend()
   }
-  func resume() { playback.resumeRendering() }
+  func resume() {
+    playback.resumeRendering()
+    send(["type": "layout-request"])
+  }
   func close() {
     closed = true
     timeout?.cancel()
@@ -403,6 +410,7 @@ import WebKit
     observations = []
     interactions?.dispose()
     playback.invalidateInteraction = {}
+    playback.relinquishInteraction = {}
     playback.close()
     web?.configuration.userContentController.removeScriptMessageHandler(forName: "navigator")
     web?.stopLoading()

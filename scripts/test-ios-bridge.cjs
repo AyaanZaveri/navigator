@@ -43,7 +43,7 @@ console.log('PASS: iOS bridge origin/frame isolation, sessions, capabilities, vi
  assert.equal(attrs.has('data-native-materials'),false,'Keep web fallback until native geometry acknowledgement');
  window.NavigatorIOS.receive({type:'materials-ready',session:'old'});assert.equal(attrs.has('data-native-materials'),false);
  window.NavigatorIOS.receive({type:'materials-ready',session:'layout-one'});assert.equal(attrs.has('data-native-materials'),true);flush();
- menuOpen=true;window.NavigatorIOS.receive({type:'state',session:'layout-one',state:{position:2}});flush();
+ menuOpen=true;window.NavigatorIOS.receive({type:'layout-request'});flush();
  assert.equal(sent.filter(m=>m.type==='player-layout').at(-1).blocked,true);
  window.navigatorDesktop.send({type:'stop',session:'layout-one'});assert.equal(attrs.has('data-native-materials'),false);assert.equal(close.attrs.has('aria-hidden'),false);
  assert.equal(window.navigatorDesktop.capabilities.nativeSurfaceGestures,true);

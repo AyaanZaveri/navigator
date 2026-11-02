@@ -106,11 +106,22 @@ import UIKit
     stack.axis = .vertical
     stack.spacing = 8
     stack.translatesAutoresizingMaskIntoConstraints = false
-    material.content.addSubview(stack)
+    let scroll = UIScrollView()
+    scroll.translatesAutoresizingMaskIntoConstraints = false
+    material.content.addSubview(scroll)
+    scroll.addSubview(stack)
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: material.leadingAnchor, constant: 20),
-      stack.trailingAnchor.constraint(equalTo: material.trailingAnchor, constant: -20),
-      stack.centerYAnchor.constraint(equalTo: material.centerYAnchor),
+      scroll.leadingAnchor.constraint(equalTo: material.content.leadingAnchor),
+      scroll.trailingAnchor.constraint(equalTo: material.content.trailingAnchor),
+      scroll.topAnchor.constraint(equalTo: material.content.topAnchor),
+      scroll.bottomAnchor.constraint(equalTo: material.content.bottomAnchor),
+      stack.leadingAnchor.constraint(
+        equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 20),
+      stack.trailingAnchor.constraint(
+        equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -20),
+      stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 20),
+      stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -20),
+      stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40),
       slider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
       deviceVolume.heightAnchor.constraint(equalToConstant: 44),
     ])
