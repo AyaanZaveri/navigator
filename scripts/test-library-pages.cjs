@@ -20,7 +20,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const core = load('lib/server/library-page.ts', {
     'server-only': {},
     '@/app/actions/auth': { getAuthData: async () => ({ authKey: account }), getInstalledAddons: async () => installed ? [{ transportUrl: 'addon', manifest: { catalogs: [{ id: 'top' }] } }] : [] },
-    '@/app/actions/media': { fetchLibraryItems: async () => { calls++; await tick(); return { items, totalRecordCount: items.length }; } },
+    '@/app/actions/media': { fetchLibraryItems: async () => { calls++; await tick(); return { items: account === 'empty' ? [] : items, totalRecordCount: items.length }; } },
     '@/lib/library-page': pure,
   }, { Date: { now: () => clock } });
   const pages = await Promise.all([core.loadLibraryPage('addon', initial), core.loadLibraryPage('addon', { ...initial, page: 2 })]);
@@ -34,9 +34,14 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(calls, 2, 'Accounts cannot share private catalog snapshots');
   clock = 31_000; await core.loadLibraryPage('addon', initial);
   assert.equal(calls, 3, 'Expired catalogs refresh');
+  account = 'empty';
+  const beforeEmpty = calls;
+  assert.equal((await core.loadLibraryPage('addon', initial)).items.length, 0);
+  await core.loadLibraryPage('addon', { ...initial, search: 'anything' });
+  assert.equal(calls, beforeEmpty + 1, 'Successful empty catalogs are cached too, avoiding repeated server work');
   installed = false;
   await assert.rejects(core.loadLibraryPage('addon', initial), core.LibraryNotFound);
-  assert.equal(calls, 3, 'Membership is checked even with a cached snapshot');
+  assert.equal(calls, beforeEmpty + 1, 'Membership is checked even with a cached snapshot');
 
   let active = 0, peak = 0;
   const jobs = new Map();

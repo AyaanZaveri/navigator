@@ -29,7 +29,7 @@ export async function loadLibraryPage(addonUrl: string, query: LibraryQuery) {
             request = fetchLibraryItems(addonUrl, Number.MAX_SAFE_INTEGER).then(data => {
                 // Only card metadata belongs in this cache or its paged response.
                 const cards = data.items.map(({ id, type, name, year, releaseInfo, imdbRating }) => ({ id, type, name, year, releaseInfo, imdbRating }));
-                if (cards.length && !data.incomplete) {
+                if (!data.incomplete) {
                     snapshots.set(key, { expires: Date.now() + SNAPSHOT_TTL_MS, items: cards });
                     if (snapshots.size > SNAPSHOT_LIMIT) snapshots.delete(snapshots.keys().next().value!);
                 }
