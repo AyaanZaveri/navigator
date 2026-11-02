@@ -79,3 +79,26 @@ import Testing
   #expect(throws: PolicyError.self) { try BridgeCommand(["type": "player-layout"]) }
   #expect(try BridgeCommand(["type": "player-layout", "session": "one"]).session == "one")
 }
+
+@Test func androidBarMetricsScaleWithTheCurrentPadWindow() {
+  let phone = SideControlMetrics(
+    size: CGSize(width: 874, height: 402), safeArea: CGSize(width: 120, height: 21), isPad: false)
+  #expect(phone.width == 56)
+  #expect(phone.height == 232)
+  let pad = SideControlMetrics(
+    size: CGSize(width: 1376, height: 1032), safeArea: .zero, isPad: true)
+  #expect(abs(pad.width - 72.8) < 0.01)
+  #expect(abs(pad.height - 301.6) < 0.01)
+  let compact = SideControlMetrics(
+    size: CGSize(width: 400, height: 200), safeArea: CGSize(width: 0, height: 20), isPad: true)
+  #expect(compact.scale == 1)
+  #expect(compact.height <= 160)
+}
+@Test func verticalBarDoesNotJumpAndReversesImmediatelyAtAnEndpoint() {
+  var drag = VerticalSliderDrag(value: 0.5, y: 100, span: 100)
+  #expect(drag.move(y: 100) == 0.5)
+  #expect(drag.move(y: -100) == 1)
+  #expect(abs(drag.move(y: -90) - 0.9) < 0.001)
+  #expect(drag.move(y: 1000) == 0)
+  #expect(abs(drag.move(y: 990) - 0.1) < 0.001)
+}

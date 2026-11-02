@@ -7,7 +7,9 @@ import UIKit
   private let blur = UIVisualEffectView()
   private var revision = 0
   let interactive: Bool
-  init(radius: CGFloat, interactive: Bool = false) {
+  private let usesMaterial: Bool
+  init(radius: CGFloat, interactive: Bool = false, usesMaterial: Bool = true) {
+    self.usesMaterial = usesMaterial
     self.interactive = interactive
     super.init(frame: .zero)
     overrideUserInterfaceStyle = .dark
@@ -26,6 +28,10 @@ import UIKit
   var content: UIView { blur.contentView }
   func present(_ visible: Bool, animated: Bool = true) {
     if !visible && isHidden { return }
+    if !usesMaterial {
+      isHidden = !visible
+      return
+    }
     revision += 1
     let owner = revision
     let effect: UIVisualEffect?
@@ -89,91 +95,222 @@ import UIKit
   deinit { if let observation { NotificationCenter.default.removeObserver(observation) } }
 }
 
-@MainActor final class PlayerSidePanel: PlayerPanelBase {
-  let material = PlayerMaterial(radius: 24)
-  let slider = UISlider()
-  private let title = UILabel()
-  private let valueLabel = UILabel()
-  private let deviceLabel = UILabel()
-  private let deviceVolume = MPVolumeView()
+/// The same transparent bar, track, Lucide icons, and relative drag as Android.
+/// Only its geometry grows on a roomy iPad; there is no panel or material.
+@MainActor final class PlayerSidePanel: UIControl {
+  private let track = CALayer()
+  private let fill = CALayer()
+  private let icon = UIImageView()
+  private var drag: VerticalSliderDrag?
+  private var iconPress = false
+  private var value = 0.0
+  private var previousBounds = CGRect.zero
+  var scale: CGFloat = 1
   var changed: (Double) -> Void = { _ in }
   var began: () -> Void = {}
+  var released: () -> Void = {}
+  var mute: () -> Void = {}
+  var deviceVolume: () -> Void = {}
   private(set) var isVolume = false
+  var slider: UIControl { self }
   override init(frame: CGRect) {
     super.init(frame: frame)
-    overrideUserInterfaceStyle = .dark
-    material.frame = bounds
-    material.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    addSubview(material)
-    let stack = UIStackView(arrangedSubviews: [
-      title, slider, valueLabel, deviceLabel, deviceVolume,
-    ])
-    stack.axis = .vertical
-    stack.spacing = 8
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    let scroll = UIScrollView()
-    scroll.translatesAutoresizingMaskIntoConstraints = false
-    material.content.addSubview(scroll)
-    scroll.addSubview(stack)
-    NSLayoutConstraint.activate([
-      scroll.leadingAnchor.constraint(equalTo: material.content.leadingAnchor),
-      scroll.trailingAnchor.constraint(equalTo: material.content.trailingAnchor),
-      scroll.topAnchor.constraint(equalTo: material.content.topAnchor),
-      scroll.bottomAnchor.constraint(equalTo: material.content.bottomAnchor),
-      stack.leadingAnchor.constraint(
-        equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 20),
-      stack.trailingAnchor.constraint(
-        equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -20),
-      stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 20),
-      stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -20),
-      stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40),
-      slider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-      deviceVolume.heightAnchor.constraint(equalToConstant: 44),
-    ])
-    title.font = .preferredFont(forTextStyle: .headline)
-    valueLabel.font = .preferredFont(forTextStyle: .subheadline)
-    valueLabel.textColor = .secondaryLabel
-    deviceLabel.font = .preferredFont(forTextStyle: .subheadline)
-    deviceLabel.text = "Device volume"
-    for label in [title, valueLabel, deviceLabel] {
-      label.adjustsFontForContentSizeCategory = true
-      label.numberOfLines = 0
-    }
-    slider.minimumValue = 0
-    slider.maximumValue = 1
-    slider.addTarget(self, action: #selector(slide), for: .valueChanged)
-    slider.addTarget(self, action: #selector(beginSliding), for: .touchDown)
-    slider.accessibilityIdentifier = "native-side-slider"
-    deviceVolume.showsRouteButton = false
+    backgroundColor = .clear
+    isOpaque = false
+    track.backgroundColor = UIColor.white.withAlphaComponent(0.2).cgColor
+    fill.backgroundColor = UIColor.white.cgColor
+    layer.addSublayer(track)
+    layer.addSublayer(fill)
+    icon.tintColor = .white
+    icon.contentMode = .scaleAspectFit
+    addSubview(icon)
+    isAccessibilityElement = true
+    accessibilityTraits = .adjustable
+    accessibilityIdentifier = "native-side-slider"
+    isContextMenuInteractionEnabled = true
     isHidden = true
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-  func show(volume: Bool, value: Double) {
-    isVolume = volume
-    title.text = volume ? "Video volume" : "Brightness"
-    slider.accessibilityLabel = title.text
-    deviceLabel.isHidden = !volume
-    deviceVolume.isHidden = !volume
-    update(value)
-    isHidden = false
-    material.present(true)
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard bounds != previousBounds else { return }
+    previousBounds = bounds
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    track.frame = CGRect(
+      x: bounds.midX - 3 * scale, y: 44 * scale, width: 6 * scale,
+      height: max(1, bounds.height - 60 * scale))
+    track.cornerRadius = 3 * scale
+    fill.cornerRadius = 3 * scale
+    icon.frame = CGRect(
+      x: bounds.midX - 9 * scale, y: 13 * scale, width: 18 * scale, height: 18 * scale)
+    fill.frame = fillFrame
+    fill.removeAllAnimations()
+    CATransaction.commit()
   }
-  func update(_ value: Double) {
-    slider.value = Float(value)
-    let text = "\(Int((value * 100).rounded()))%"
-    valueLabel.text = text
-    slider.accessibilityValue = text
+  private var fillFrame: CGRect {
+    let bottom = bounds.height - 16 * scale
+    let height = max(1, bounds.height - 60 * scale) * value
+    return CGRect(x: bounds.midX - 3 * scale, y: bottom - height, width: 6 * scale, height: height)
+  }
+  func show(volume: Bool, value: Double) {
+    let reset = isHidden || isVolume != volume
+    isVolume = volume
+    accessibilityLabel = volume ? "Video volume" : "Brightness"
+    accessibilityHint = volume ? "The top icon toggles mute. Hold it for device volume." : nil
+    accessibilityCustomActions =
+      volume
+      ? [
+        UIAccessibilityCustomAction(
+          name: "Toggle video mute", target: self, selector: #selector(toggleMute)),
+        UIAccessibilityCustomAction(
+          name: "Device volume", target: self, selector: #selector(openDeviceVolume)),
+      ] : nil
+    isHidden = false
+    layoutIfNeeded()
+    update(value, animated: !reset)
+  }
+  func update(_ next: Double, animated: Bool = true) {
+    value = max(0, min(1, next))
+    accessibilityValue = "\(Int((value * 100).rounded()))%"
+    let name =
+      !isVolume
+      ? "PlayerSun"
+      : value <= 0
+        ? "PlayerVolumeMuted"
+        : value < 0.34
+          ? "PlayerVolumeLow" : value < 0.67 ? "PlayerVolumeMedium" : "PlayerVolumeHigh"
+    icon.image = UIImage(named: name)
+    let fromBounds = fill.presentation()?.bounds ?? fill.bounds
+    let fromPosition = fill.presentation()?.position ?? fill.position
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    fill.frame = fillFrame
+    CATransaction.commit()
+    if animated && !UIAccessibility.isReduceMotionEnabled {
+      for (key, from, to) in [
+        ("bounds", NSValue(cgRect: fromBounds), NSValue(cgRect: fill.bounds)),
+        ("position", NSValue(cgPoint: fromPosition), NSValue(cgPoint: fill.position)),
+      ] {
+        let animation = CABasicAnimation(keyPath: key)
+        animation.fromValue = from
+        animation.toValue = to
+        animation.duration = 0.1
+        animation.timingFunction = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
+        fill.add(animation, forKey: key)
+      }
+    } else {
+      fill.removeAllAnimations()
+    }
   }
   func hide() {
-    material.present(false, animated: false)
+    fill.removeAllAnimations()
     isHidden = true
+    drag = nil
+    iconPress = false
   }
-  @objc private func beginSliding() { began() }
-  @objc private func slide() {
-    let value = Double(slider.value)
-    update(value)
-    changed(value)
+  override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+    began()
+    let point = touch.location(in: self)
+    iconPress = isVolume && point.y < 44 * scale
+    drag =
+      iconPress
+      ? nil : VerticalSliderDrag(value: value, y: point.y, span: bounds.height - 60 * scale)
+    return true
   }
+  override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+    if let next = drag?.move(y: touch.location(in: self).y) { apply(next) }
+    return true
+  }
+  override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
+    if let touch {
+      if iconPress && touch.location(in: self).y < 44 * scale {
+        mute()
+      } else if let next = drag?.move(y: touch.location(in: self).y) {
+        apply(next)
+      }
+    }
+    drag = nil
+    iconPress = false
+    released()
+  }
+  override func cancelTracking(with event: UIEvent?) {
+    drag = nil
+    iconPress = false
+    released()
+  }
+  private func apply(_ next: Double) {
+    update(next)
+    changed(next)
+  }
+  override func accessibilityIncrement() {
+    began()
+    apply(min(1, value + 0.05))
+    released()
+  }
+  override func accessibilityDecrement() {
+    began()
+    apply(max(0, value - 0.05))
+    released()
+  }
+  override func accessibilityActivate() -> Bool { isVolume ? toggleMute() : false }
+  @objc private func toggleMute() -> Bool {
+    began()
+    mute()
+    released()
+    return true
+  }
+  @objc private func openDeviceVolume() -> Bool {
+    began()
+    deviceVolume()
+    return true
+  }
+  override func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    guard isVolume, location.y < 44 * scale else { return nil }
+    began()
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+      UIMenu(children: [
+        UIAction(title: "Device volume", image: UIImage(systemName: "speaker.wave.2")) { _ in
+          self?.deviceVolume()
+        }
+      ])
+    }
+  }
+}
+
+/// Apple's public device-volume slider stays separate from the swipe HUD.
+@MainActor final class DeviceVolumeViewController: UIViewController {
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = .secondarySystemBackground
+    overrideUserInterfaceStyle = .dark
+    preferredContentSize = CGSize(width: 300, height: 200)
+    let label = UILabel()
+    label.text = "Device volume"
+    label.font = .preferredFont(forTextStyle: .headline)
+    label.adjustsFontForContentSizeCategory = true
+    let volume = MPVolumeView()
+    volume.showsRouteButton = false
+    let done = UIButton(type: .system)
+    done.setTitle("Done", for: .normal)
+    done.addTarget(self, action: #selector(close), for: .touchUpInside)
+    done.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+    let stack = UIStackView(arrangedSubviews: [label, volume, done])
+    stack.axis = .vertical
+    stack.spacing = 12
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
+      stack.trailingAnchor.constraint(
+        equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -24),
+      stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+      volume.heightAnchor.constraint(equalToConstant: 44),
+    ])
+  }
+  @objc private func close() { dismiss(animated: true) }
 }
 
 /// Native overlays only intercept their actual controls, leaving the movie and

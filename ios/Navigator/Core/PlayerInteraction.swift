@@ -69,6 +69,36 @@ public struct BrightnessRestoration: Sendable {
   }
 }
 
+/// Android's relative slider drag: reverse immediately at a limit, with no
+/// accumulated overshoot and no jump to the initial finger position.
+public struct VerticalSliderDrag {
+  public private(set) var value: Double
+  private var lastY: Double
+  private let span: Double
+  public init(value: Double, y: Double, span: Double) {
+    self.value = max(0, min(1, value))
+    lastY = y
+    self.span = max(1, span)
+  }
+  public mutating func move(y: Double) -> Double {
+    value = max(0, min(1, value + (lastY - y) / span))
+    lastY = y
+    return value
+  }
+}
+
+public struct SideControlMetrics {
+  public let scale: Double
+  public let width: Double
+  public let height: Double
+  public init(size: CGSize, safeArea: CGSize, isPad: Bool) {
+    scale = isPad && min(size.width, size.height) >= 600 ? 1.3 : 1
+    width = 56 * scale
+    height = min(
+      232 * scale, max(60 * scale + 1, Double(size.height - safeArea.height) - 40 * scale))
+  }
+}
+
 public struct PlayerLayout {
   public let size: CGSize
   public let blocked: Bool

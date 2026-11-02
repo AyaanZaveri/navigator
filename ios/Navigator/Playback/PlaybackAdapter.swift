@@ -34,6 +34,7 @@ import UIKit
   var interactionVolume: Double { muted ? 0 : volume }
   private var initialPosition = 0.0, volume = 1.0, muted = false, rate = 1.0, fit = "fit"
   private var lastTracks = Data()
+  private var lastAudibleVolume = 1.0
   init() {
     engine.changed = { [weak self] in
       // VLCKit delivers delegates on main. Read terminal state in this callback
@@ -113,6 +114,7 @@ import UIKit
     case "volume":
       if let v = command.number("volume", range: 0...1) {
         volume = v
+        if v > 0 { lastAudibleVolume = v }
         engine.setVolume(v, muted: muted)
       }
     case "muted":
@@ -240,7 +242,18 @@ import UIKit
   }
   func setInteractionVolume(_ value: Double) {
     volume = max(0, min(1, value))
+    if volume > 0 { lastAudibleVolume = volume }
     muted = volume == 0
+    engine.setVolume(volume, muted: muted)
+    update()
+  }
+  func toggleInteractionMute() {
+    if muted || volume == 0 {
+      muted = false
+      if volume == 0 { volume = lastAudibleVolume }
+    } else {
+      muted = true
+    }
     engine.setVolume(volume, muted: muted)
     update()
   }

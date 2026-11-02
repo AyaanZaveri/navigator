@@ -52,21 +52,48 @@ final class LaunchPlaybackTests: XCTestCase {
     let right = app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.58))
     right.press(
       forDuration: 0.05,
-      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.38)))
-    let slider = app.sliders["native-side-slider"]
-    XCTAssertTrue(slider.waitForExistence(timeout: 3), app.debugDescription)
-    // The swipe HUD intentionally dismisses quickly. Open the persistent
-    // panel for a user-driven slider interaction, independently of test speed.
+      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.78)))
+    let slider = app.descendants(matching: .any)["native-side-slider"]
+    XCTAssertTrue(
+      app.webViews.staticTexts["Video volume adjusted"].waitForExistence(timeout: 3),
+      app.debugDescription)
+    // Open a persistent bar for direct touch and mute checks, so the Android
+    // 900 ms swipe-HUD dismissal does not race XCTest's accessibility polling.
     app.buttons["native-player-volume"].tap()
     if !slider.exists { app.buttons["native-player-volume"].tap() }
     XCTAssertTrue(slider.waitForExistence(timeout: 3))
-    slider.adjust(toNormalizedSliderPosition: 0.3)
-    XCTAssertTrue(app.staticTexts["Video volume"].exists)
-    XCTAssertTrue(app.staticTexts["Device volume"].exists)
+    XCTAssertEqual(slider.label, "Video volume")
+    XCTAssertGreaterThan(slider.frame.height, slider.frame.width * 3)
+    let expectedWidth: CGFloat = app.frame.width >= 600 && app.frame.height >= 600 ? 72.8 : 56
+    XCTAssertEqual(slider.frame.width, expectedWidth, accuracy: 1)
+    let barStart = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    barStart.press(
+      forDuration: 0.05,
+      thenDragTo: slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
+    // Explicitly reopen after the short-lived bar gesture, then tap its icon.
+    app.buttons["native-player-volume"].tap()
+    if !slider.exists { app.buttons["native-player-volume"].tap() }
+    slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.09)).tap()
+    XCTAssertTrue(app.webViews.staticTexts["Video muted"].waitForExistence(timeout: 3))
+    app.buttons["native-player-volume"].tap()
+    if !slider.exists { app.buttons["native-player-volume"].tap() }
+    slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.09)).tap()
+    XCTAssertTrue(app.webViews.staticTexts["Video audible"].waitForExistence(timeout: 3))
+    app.buttons["native-player-volume"].tap()
+    if !slider.exists { app.buttons["native-player-volume"].tap() }
+    let volumeShot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    volumeShot.name = "Android-style volume bar"
+    volumeShot.lifetime = .keepAlways
+    add(volumeShot)
     let brightness = app.buttons["native-player-brightness"]
     XCTAssertTrue(brightness.exists)
     brightness.tap()
-    XCTAssertTrue(app.sliders["Brightness"].waitForExistence(timeout: 3))
+    XCTAssertTrue(slider.waitForExistence(timeout: 3))
+    XCTAssertEqual(slider.label, "Brightness")
+    let brightnessShot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    brightnessShot.name = "Android-style brightness bar"
+    brightnessShot.lifetime = .keepAlways
+    add(brightnessShot)
     // Both families must recover acknowledged native geometry after resizing.
     XCUIDevice.shared.orientation = .portrait
     XCUIDevice.shared.orientation = .landscapeLeft
@@ -74,6 +101,20 @@ final class LaunchPlaybackTests: XCTestCase {
     XCTAssertTrue(back.waitForExistence(timeout: 5))
     back.tap()
     XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
+  }
+  func testMediaCardLongPressDoesNotPreviewOrNavigate() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-server", "https://localhost:9443"]
+    app.launch()
+    let card = app.webViews.links["Media card fixture"]
+    XCTAssertTrue(card.waitForExistence(timeout: 25))
+    card.press(forDuration: 1.2)
+    XCTAssertFalse(app.menus.firstMatch.exists)
+    app.webViews.buttons["Check link previews"].tap()
+    XCTAssertTrue(
+      app.webViews.staticTexts["No link preview requested"].waitForExistence(timeout: 5))
+    card.tap()
+    XCTAssertTrue(app.webViews.staticTexts["Media card opened"].waitForExistence(timeout: 5))
   }
   private func assertGlassSamplesNativeVideo(_ app: XCUIApplication) {
     let back = app.buttons["native-player-back"]
