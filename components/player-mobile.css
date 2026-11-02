@@ -112,7 +112,7 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] [data-slot="medi
 @media (hover: hover) and (pointer: fine) {
   [data-player-glass][data-player-close]:enabled:hover,
   [data-player-glass][data-player-skip][data-visible]:enabled:hover {
-    --player-glass-interaction-color: color-mix(in oklab, color-mix(in oklab, var(--background) 75%, var(--foreground) 25%) var(--player-glass-hover-opacity, 80%), transparent);
+    --player-glass-interaction-color: color-mix(in oklab, color-mix(in oklab, var(--background) 85%, var(--foreground) 15%) var(--player-glass-hover-opacity, 80%), transparent);
   }
   [data-player-close]:not([data-browser-glass]):not([data-native-glass]):enabled:hover {
     color: var(--foreground);

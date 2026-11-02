@@ -171,8 +171,10 @@ export async function fetchSkipSegments(
     return signal.aborted ? [] : merge();
 }
 
-export function activeSkipSegment(segments: SkipSegment[], time: number, skipped: SkipSegment[] = []): SkipSegment | undefined {
-    return segments.find(segment => time >= segment.start && time < segment.end
-        && !skipped.some(previous => previous.kind === segment.kind
-            && previous.start < segment.end && segment.start < previous.end));
+export function activeSkipSegment(segments: SkipSegment[], time: number, skipped: SkipSegment[] = [], introLeadSeconds = 0): SkipSegment | undefined {
+    const eligible = segments.filter(segment => !skipped.some(previous => previous.kind === segment.kind
+        && previous.start < segment.end && segment.start < previous.end));
+    // A currently playing recap/other segment takes priority over an upcoming intro.
+    return eligible.find(segment => time >= segment.start && time < segment.end)
+        ?? eligible.find(segment => segment.kind === "intro" && time >= Math.max(0, segment.start - introLeadSeconds) && time < segment.start);
 }

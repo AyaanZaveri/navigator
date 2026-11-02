@@ -56,7 +56,7 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, enab
         };
     }, [mediaRef]);
 
-    const segment = activeSkipSegment(segments, currentTime, skipped);
+    const segment = activeSkipSegment(segments, currentTime, skipped, 2);
     useEffect(() => {
         console.log("[Navigator skips] Button state", {
             id, season, episode, time: formatSkipTime(currentTime), duration: formatSkipTime(duration),

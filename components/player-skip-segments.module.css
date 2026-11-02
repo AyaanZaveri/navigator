@@ -23,6 +23,7 @@
   -webkit-backdrop-filter: blur(6px);
   box-shadow: none;
   transform: none;
+  translate: 0 8px;
   transform-origin: center;
   opacity: 0;
   visibility: hidden;
@@ -33,15 +34,27 @@
   transition:
     opacity var(--duration-fast, 160ms) var(--ease-out),
     transform 200ms ease-in-out,
+    translate var(--duration-fast, 160ms) var(--ease-out),
     background-color 150ms var(--ease-out),
     visibility 0s 150ms;
 }
 
 .button[data-visible] {
   opacity: 1;
+  translate: 0 0;
   visibility: visible;
   pointer-events: auto;
-  transition-delay: 0s;
+  transition:
+    opacity var(--duration-standard, 240ms) var(--ease-out),
+    translate var(--duration-standard, 240ms) var(--ease-out),
+    transform 200ms ease-in-out,
+    background-color 150ms var(--ease-out),
+    visibility 0s;
+}
+
+/* Also animate when provider data arrives before the first painted frame. */
+@starting-style {
+  .button[data-visible] { opacity: 0; translate: 0 8px; }
 }
 
 .button:focus-visible {
@@ -54,8 +67,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .button, .button[data-visible]:enabled:hover, .button[data-visible]:enabled:active {
+  .button, .button[data-visible], .button[data-visible]:enabled:hover, .button[data-visible]:enabled:active {
     transform: none;
+    translate: none;
     transition: opacity 100ms var(--ease-out), background-color 100ms var(--ease-out), visibility 0s 100ms;
   }
   .button[data-visible] { transition-delay: 0s; }
