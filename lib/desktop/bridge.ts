@@ -32,6 +32,7 @@ export type NativeMessage =
   | { type: "thumbnail"; session: string; request: number; src: string | null; position: number | null }
   | { type: "loading" | "loaded" | "ready" | "ended"; session: string }
   | { type: "error"; session: string; message: string }
+  | { type: "window-state"; maximized: boolean }
   | { type: "fullscreen"; value: boolean };
 
 export type NativeRequest =
@@ -48,6 +49,7 @@ export type NativeRequest =
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
   | { type: "fullscreen"; value: boolean }
   | { type: "window-drag" }
+  | { type: "window-control"; action: "minimize" | "toggle-maximize" | "close" }
   | { type: "settings" }
   | { type: "seek-feedback"; session: string };
 

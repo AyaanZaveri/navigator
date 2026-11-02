@@ -56,11 +56,22 @@ pub enum Command {
         value: bool,
     },
     WindowDrag {},
+    WindowControl {
+        action: WindowAction,
+    },
     Thumbnail {
         session: String,
         request: u64,
         position: Option<f64>,
     },
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "kebab-case")]
+pub enum WindowAction {
+    Minimize,
+    ToggleMaximize,
+    Close,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
@@ -181,6 +192,9 @@ mod tests {
         assert!(parse(r#"{"type":"volume","session":"one","volume":2}"#).is_err());
         assert!(parse(r#"{"type":"command","args":["run","sh"]}"#).is_err());
         assert!(parse(r#"{"type":"window-drag"}"#).is_ok());
+        assert!(parse(r#"{"type":"window-control","action":"toggle-maximize"}"#).is_ok());
+        assert!(parse(r#"{"type":"window-control","action":"exec"}"#).is_err());
+        assert!(parse(r#"{"type":"window-control","action":"close","script":"x"}"#).is_err());
         assert!(parse(r#"{"type":"window-drag","script":"arbitrary"}"#).is_err());
         assert!(parse(r#"{"type":"play","session":"one","extra":"ignored?"}"#).is_err());
         assert_ne!(

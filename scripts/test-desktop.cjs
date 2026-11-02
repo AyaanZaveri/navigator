@@ -209,7 +209,7 @@ function testBridge() {
         vm.runInNewContext(script.replace('const platform = "macos"', `const platform = "${platform}"`), {
             window: otherWindow, document: otherDocument, location: { origin: "http://localhost:3000" }, console,
         });
-        assert.equal(handlers.has("mousedown"), false, "Custom header dragging only applies to macOS");
+        assert.equal(handlers.has("mousedown"), platform === "windows", "Frameless macOS and Windows support blank-header dragging; Linux keeps its system frame");
         assert.equal(otherDocument.documentElement.dataset.nativePlatform, platform);
     }
 }

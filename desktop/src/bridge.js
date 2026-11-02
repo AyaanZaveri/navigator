@@ -48,7 +48,7 @@
     observer.observe(document, { childList: true, subtree: true });
   }
   document.addEventListener("DOMContentLoaded", mark, { once: true });
-  if (platform === "macos") {
+  if (platform === "macos" || platform === "windows") {
     // Only blank header space drags. Inputs, links, menus and player gestures
     // retain their normal mouse behavior; synthetic events cannot move windows.
     document.addEventListener("mousedown", (event) => {

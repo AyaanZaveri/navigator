@@ -242,3 +242,145 @@ pub fn mpv_options(video: &VideoSurface) -> Vec<(&'static str, String)> {
         ("tone-mapping", "bt.2390".into()),
     ]
 }
+
+thread_local! {
+    static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
+}
+pub fn on_chrome_hover(listener: impl Fn(u32) + 'static) {
+    CHROME_LISTENER.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
+}
+fn chrome_hover(hit: u32) {
+    let hit = if [HTMINBUTTON, HTMAXBUTTON, HTCLOSE].contains(&hit) {
+        hit
+    } else {
+        0
+    };
+    if CHROME_HOVER.replace(hit) != hit {
+        CHROME_LISTENER.with(|value| {
+            if let Some(listener) = &*value.borrow() {
+                listener(hit);
+            }
+        });
+    }
+}
+pub fn set_chrome_fullscreen(value: bool) {
+    CHROME_FULLSCREEN.set(value);
+}
+
+fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
+    if CHROME_FULLSCREEN.get() {
+        return None;
+    }
+    unsafe {
+        let mut point = POINT {
+            x: (lparam as u16 as i16) as i32,
+            y: ((lparam >> 16) as u16 as i16) as i32,
+        };
+        ScreenToClient(root, &mut point);
+        let mut rect: RECT = std::mem::zeroed();
+        GetClientRect(root, &mut rect);
+        let scale = windows_sys::Win32::UI::HiDpi::GetDpiForWindow(root) as f64 / 96.0;
+        let x = point.x as f64 / scale;
+        let y = point.y as f64 / scale;
+        let right = rect.right as f64 / scale;
+        if y < 3.0 || !(0.0..right).contains(&x) {
+            return None;
+        }
+        if y < 32.0 && x >= right - 138.0 {
+            return Some(if x >= right - 46.0 {
+                HTCLOSE
+            } else if x >= right - 92.0 {
+                HTMAXBUTTON
+            } else {
+                HTMINBUTTON
+            });
+        }
+        if y < 16.0 {
+            return Some(HTCAPTION);
+        }
+        None
+    }
+}
+unsafe extern "system" fn chrome_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    id: usize,
+    root: usize,
+) -> LRESULT {
+    use windows_sys::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass};
+    unsafe {
+        if msg == WM_NCDESTROY {
+            RemoveWindowSubclass(hwnd, Some(chrome_proc), id);
+        }
+        if hwnd == root as HWND {
+            if msg == WM_NCMOUSEMOVE {
+                use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
+                let mut track = TRACKMOUSEEVENT {
+                    cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                    dwFlags: TME_LEAVE | TME_NONCLIENT,
+                    hwndTrack: hwnd,
+                    dwHoverTime: 0,
+                };
+                TrackMouseEvent(&mut track);
+                chrome_hover(wparam as u32);
+            }
+            if msg == WM_NCMOUSELEAVE || (msg == WM_NCACTIVATE && wparam == 0) {
+                chrome_hover(0);
+            }
+        }
+        if msg == WM_NCHITTEST {
+            let default = DefSubclassProc(hwnd, msg, wparam, lparam);
+            // Preserve the system's resize borders before adding caption regions.
+            if hwnd == root as HWND && (HTLEFT as isize..=HTBOTTOMRIGHT as isize).contains(&default)
+            {
+                return default;
+            }
+            if let Some(hit) = chrome_hit(root as HWND, lparam) {
+                // Transparent hit testing forwards from WebView2's child HWNDs to
+                // the top-level frame, where Windows provides Snap and system actions.
+                return if hwnd == root as HWND {
+                    hit as isize
+                } else {
+                    HTTRANSPARENT as isize
+                };
+            }
+            if hwnd == root as HWND {
+                chrome_hover(0);
+            }
+            return default;
+        }
+        DefSubclassProc(hwnd, msg, wparam, lparam)
+    }
+}
+unsafe extern "system" fn hook_chrome_child(hwnd: HWND, root: LPARAM) -> i32 {
+    unsafe {
+        windows_sys::Win32::UI::Shell::SetWindowSubclass(
+            hwnd,
+            Some(chrome_proc),
+            0x4e4156,
+            root as usize,
+        );
+    }
+    1
+}
+pub fn install_chrome(window: &Window) {
+    unsafe {
+        let hwnd = window.hwnd() as HWND;
+        windows_sys::Win32::UI::Shell::SetWindowSubclass(
+            hwnd,
+            Some(chrome_proc),
+            0x4e4156,
+            hwnd as usize,
+        );
+        EnumChildWindows(hwnd, Some(hook_chrome_child), hwnd as isize);
+    }
+}
+pub fn request_close(window: &Window) {
+    unsafe {
+        PostMessageW(window.hwnd() as HWND, WM_CLOSE, 0, 0);
+    }
+}

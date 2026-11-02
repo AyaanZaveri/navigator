@@ -36,8 +36,10 @@ Next server, pinned Node runtime and native libraries. The ZIP explicitly keeps
 `.next/static`; no user credentials are bundled. Build on Windows for release
 artifacts; cross-target `cargo check` skips Windows resource compilation.
 
-Windows retains system caption buttons, window menus, Alt+F4, Snap and native
-fullscreen. Its minimum client size is 480×360 logical pixels; player controls
+Windows draws minimize, maximize/restore and close inside the app, with no
+separate system title bar. Native caption hit testing retains window dragging,
+double-click maximize, Alt+Space, Alt+F4 and Snap (HTMAXBUTTON). Fullscreen hides
+the window buttons and retains F11/Escape behavior. Its minimum client size is 480×360 logical pixels; player controls
 wrap in narrow windows. Normal window size/position and maximized state persist,
 and saved placement is clamped onto an available display. A second launch
 restores/activates the running window.
@@ -98,7 +100,7 @@ Before accepting a private build on physical Windows hardware, check:
   including SDR→HDR→SDR, Windows HDR toggles and moving between SDR/HDR monitors,
   before making HDR claims.
 
-ARM64 release artifacts, a custom integrated title bar, OS media controls,
+ARM64 release artifacts, OS media controls,
 public signing, Store distribution and automatic updates remain later milestones.
 
 The renderer is adapted from AIOStreams; see [THIRD-PARTY.md](THIRD-PARTY.md)
