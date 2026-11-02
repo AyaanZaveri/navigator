@@ -27,70 +27,153 @@ assert.equal(palette.selectAuroraColors([{ hex: '#332211', population: 1 }]).len
 assert.equal(palette.selectAuroraColors([]), null);
 console.log('PASS: dark artwork remains visible, vivid colors lead, and a single swatch is supported.');
 
-async function testPaletteFallback() {
-    const effects = [], updates = [], requests = [];
-    const component = load('components/vibrant-aurora-background.tsx', {
-        Image: class {}, setTimeout: callback => setTimeout(callback, 5),
-    }, {
-        react: { useEffect: effect => effects.push(effect), useState: () => [null, () => {}] },
-        jotai: { useSetAtom: () => value => updates.push(value) },
-        'node-vibrant/browser': { Vibrant: { from: image => ({ getPalette() {
-            const src = image.src;
-            requests.push(src);
-            return src.includes('backdrop') ? new Promise(() => {})
-                : Promise.resolve({ Vibrant: { hex: '#d74b22', population: 10 } });
-        } }) } },
-        '@/components/aurora-background': { AuroraBackground: () => null },
-        '@/lib/atoms': {}, '@/lib/aurora-palette': palette,
-        '@/lib/artwork': artwork,
-    });
-    component.VibrantAuroraBackground({ backdropUrl: '/backdrop', posterUrl: '/poster' });
-    const cleanup = effects[0]();
-    await new Promise(resolve => setTimeout(resolve, 25));
-    assert.deepEqual(requests, ['/backdrop', '/poster']);
-    assert.equal(updates.length, 1, 'A stalled backdrop must not prevent poster fallback');
-    cleanup();
-    console.log('PASS: backdrop is preferred; stalled image extraction falls back to the poster.');
-}
+const { hooks } = require('./test-support/react-hooks.cjs');
+const transition = load('lib/aurora-transition.ts');
+const red = ['#ff0000', '#ff0000', '#ff0000'];
+const blue = ['#0000ff', '#0000ff', '#0000ff'];
+const green = ['#00ff00', '#00ff00', '#00ff00'];
+const track = transition.createAuroraTransition(red);
+let shader;
+const buffer = track.value;
+track.target(blue, 0);
+assert.equal(track.sample(0)[0], 1, 'Retargeting starts at the displayed color');
+track.sample(240);
+assert.equal(track.value[0], 0.5);
+assert.equal(track.value[2], 0.5);
+track.target(green, 240);
+assert.equal(track.sample(240)[0], 0.5, 'Rapid navigation cannot jump to an obsolete target');
+assert.equal(track.value[2], 0.5);
+track.sample(720);
+assert.equal(track.value[1], 1);
+assert.equal(track.value, buffer, 'Steady frames reuse the uniform buffer');
+assert.equal(track.active, false);
+track.target(blue, 800, true);
+assert.equal(track.value[2], 1, 'Reduced motion updates without a color animation');
+assert.equal(track.active, false);
+console.log('PASS: palette blending is continuous, interruptible and allocation-free between targets.');
 
-function testGpuFallback() {
-    let effect, unavailable = true, state = 0, draws = 0, observed = false;
-    const queued = [];
-    const listeners = new Map();
-    const canvas = { style: {}, parentNode: null, addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) };
-    const container = { offsetWidth: 390, offsetHeight: 844, appendChild(node) { node.parentNode = this; }, removeChild(node) { node.parentNode = null; } };
-    const gl = { canvas, clearColor() {}, enable() {}, blendFunc() {}, getExtension: () => ({ loseContext() {} }) };
-    const component = load('components/Aurora/AuroraTransition.tsx', {
-        requestAnimationFrame: callback => { queued.push(callback); return queued.length; }, cancelAnimationFrame() {},
-        ResizeObserver: class { observe() { observed = true; } disconnect() {} },
-        window: { addEventListener() {}, removeEventListener() {} },
-    }, {
-        react: {
-            useRef: value => ({ current: value === null ? container : value }),
-            useEffect: callback => { effect = callback; },
-            useState: value => [value, update => { state = update(state); }],
-        },
-        ogl: {
-            Renderer: class { constructor() { if (unavailable) throw Error('No GPU'); this.gl = gl; } setSize() {} render() { draws++; } },
-            Program: class { constructor(_, options) { this.uniforms = options.uniforms; } },
-            Mesh: class {}, Triangle: class { attributes = {}; }, Color: class { r = 1; g = 0.3; b = 0.1; },
-        },
-    });
-    const tree = component.default({ colorStopsTo: ['#d74b22', '#42b8aa', '#efbe41'] });
-    assert.ok(tree.props.children.props.style.backgroundImage.includes('#d74b22'), 'CSS artwork glow must exist independently of WebGL');
-    assert.doesNotThrow(() => effect(), 'Unavailable WebGL must leave the fallback without throwing');
-    unavailable = false;
-    const cleanup = effect();
-    assert.equal(observed, true, 'Container resizing must update the renderer');
-    queued.shift()(0);
-    assert.equal(draws, 1);
-    let prevented = false;
-    listeners.get('webglcontextlost')({ preventDefault() { prevented = true; } });
-    assert.equal(prevented, true);
-    listeners.get('webglcontextrestored')();
-    assert.equal(state, 1, 'Context restoration must request fresh GPU resources');
-    cleanup();
-    assert.equal(listeners.size, 0);
-    console.log('PASS: CSS glow survives GPU unavailability; restoration rebuilds the renderer and cleanup removes listeners.');
+function rendererTest(unavailable = false) {
+  const h = hooks(), frames = new Map(), docEvents = new Map(), motionEvents = new Map();
+  let now = 0, nextFrame = 0, draws = 0, renderers = 0, deletes = 0, forcedLosses = 0;
+  let observerCallback, resized, uniforms, canvas;
+  const fallback = { style: {} };
+  const container = { offsetWidth: 390, offsetHeight: 844, appendChild(node) { node.parentNode = this; } };
+  const motion = { matches: false, addEventListener: (name, cb) => motionEvents.set(name, cb), removeEventListener: name => motionEvents.delete(name) };
+  const document = { hidden: false, addEventListener: (name, cb) => docEvents.set(name, cb), removeEventListener: name => docEvents.delete(name) };
+  const ogl = {
+    Renderer: class {
+      constructor(options) {
+        renderers++;
+        assert.equal(options.antialias, false);
+        assert.equal(options.dpr, 1);
+        if (unavailable === true) throw Error('No GPU');
+        canvas = { style: {}, listeners: new Map(),
+          addEventListener(name, cb) { this.listeners.set(name, cb); },
+          removeEventListener(name) { this.listeners.delete(name); },
+          remove() { this.parentNode = null; } };
+        this.gl = { canvas, clearColor() {}, enable() {}, blendFunc() {}, getProgramParameter: () => unavailable !== 'shader', getExtension: () => ({ loseContext() { forcedLosses++; } }) };
+      }
+      setSize(w, height) { canvas.width = w; canvas.height = height; }
+      render() { draws++; }
+    },
+    Program: class { constructor(_, options) { shader = options.fragment; this.uniforms = uniforms = options.uniforms; } remove() { deletes++; } },
+    Mesh: class {}, Triangle: class { attributes = {}; remove() { deletes++; } },
+  };
+  const component = load('components/Aurora/AuroraTransition.tsx', {
+    requestAnimationFrame: cb => { frames.set(++nextFrame, cb); return nextFrame; },
+    cancelAnimationFrame: id => frames.delete(id), document,
+    performance: { now: () => now },
+    ResizeObserver: class { constructor(cb) { resized = cb; } observe() {} disconnect() {} },
+    IntersectionObserver: class { constructor(cb) { observerCallback = cb; } observe() {} disconnect() {} },
+    window: { matchMedia: () => motion },
+  }, { react: h.react, 'react/jsx-runtime': h.jsx, ogl, '@/lib/aurora-transition': transition }).default;
+  const render = props => {
+    const tree = h.render(component, props);
+    tree.props.ref.current = container;
+    tree.props.children.props.ref.current = fallback;
+    h.flush();
+  };
+  const advance = time => { now = time; const work = [...frames.values()]; frames.clear(); work.forEach(cb => cb(time)); };
+  render({ colorStops: red });
+  if (unavailable) {
+    assert.equal(fallback.style.opacity, '0.4');
+    assert.equal(frames.size, 0, 'Static fallback must not run an idle animation loop');
+    render({ colorStops: blue });
+    advance(240);
+    assert.ok(fallback.style.backgroundImage.includes('128 0 128'), 'CPU fallback blends instead of snapping');
+    advance(480);
+    assert.equal(frames.size, 0);
+    h.unmount();
+    return;
+  }
+  assert.equal(fallback.style.opacity, '0', 'CSS fallback must not double the GPU glow');
+  const updates = h.updates;
+  const initialDraws = draws;
+  for (let i = 1; i <= 60; i++) advance(i * 1000 / 60);
+  assert.ok(draws - initialDraws <= 31, 'Ambient drawing is capped at 30 fps');
+  assert.equal(h.updates, updates, 'Animation frames must not rerender React');
+  render({ colorStops: blue, amplitude: 1.2 });
+  assert.equal(renderers, 1, 'Palette and amplitude changes reuse the same WebGL context');
+  advance(1240);
+  assert.ok(uniforms.uColorStops.value[0] > 0 && uniforms.uColorStops.value[2] > 0);
+  container.offsetWidth = 800; resized();
+  assert.equal(uniforms.uResolution.value[0], 800);
+  document.hidden = true; docEvents.get('visibilitychange')();
+  assert.equal(frames.size, 0, 'Background tabs release their animation loop');
+  document.hidden = false; docEvents.get('visibilitychange')();
+  assert.equal(frames.size, 1);
+  observerCallback([{ isIntersecting: false }]);
+  assert.equal(frames.size, 0);
+  observerCallback([{ isIntersecting: true }]);
+  motion.matches = true; motionEvents.get('change')();
+  assert.equal(frames.size, 0, 'Reduced motion draws once');
+  render({ colorStops: green, paused: true });
+  assert.equal(frames.size, 0, 'Playback/hidden surfaces do no GPU work');
+  motion.matches = false;
+  render({ colorStops: green, paused: false });
+  assert.equal(frames.size, 1);
+  canvas.listeners.get('webglcontextlost')({ preventDefault() {} });
+  assert.equal(fallback.style.opacity, '0.4');
+  canvas.listeners.get('webglcontextrestored')();
+  render({ colorStops: green });
+  assert.equal(renderers, 2, 'Restored GPU contexts recreate their resources');
+  h.replay();
+  assert.equal(renderers, 3, 'Strict Mode cleanup/setup remains usable');
+  h.unmount();
+  assert.equal(frames.size, 0);
+  assert.equal(docEvents.size, 0);
+  assert.equal(motionEvents.size, 0);
+  assert.equal(forcedLosses, 0);
+  assert.equal(deletes, 6, 'Every context releases both program and geometry');
 }
-testPaletteFallback().then(testGpuFallback).catch(error => { console.error(error); process.exitCode = 1; });
+rendererTest();
+rendererTest(true);
+rendererTest('shader');
+console.log('PASS: persistent GPU lifecycle, frame cap, visibility/playback/reduced-motion pausing, fallback blending and context recovery.');
+
+// Exercise the installed OGL uniform binder, rather than assuming a typed
+// buffer is accepted for every GLSL declaration (vec3 arrays are special).
+const { Program } = require('ogl');
+const uploads = [];
+const matrix = /uniform mat3 uColorStops;/.test(shader);
+const gl = new Proxy({
+  canvas: {}, LINK_STATUS: 1, ACTIVE_UNIFORMS: 2, ACTIVE_ATTRIBUTES: 3,
+  renderer: new Proxy({ state: { currentProgram: null, uniformLocations: new Map() } }, { get: (o, k) => o[k] ?? (() => {}) }),
+  createShader: () => ({}), createProgram: () => ({}), getShaderInfoLog: () => '',
+  getProgramParameter: (_, type) => type === 1 ? true : type === 2 ? 1 : 0,
+  getActiveUniform: () => ({ name: matrix ? 'uColorStops' : 'uColorStops[0]', type: matrix ? 35675 : 35665 }),
+  getUniformLocation: () => 'palette',
+  uniformMatrix3fv: (_, transpose, value) => { assert.equal(transpose, false); uploads.push(Array.from(value)); },
+  uniform3fv: (_, value) => uploads.push(Array.from(value)),
+}, { get: (object, key) => object[key] ?? (() => {}) });
+const colorTrack = transition.createAuroraTransition(red);
+const program = new Program(gl, { vertex: 'void main() {}', fragment: shader, uniforms: { uColorStops: { value: colorTrack.value } } });
+program.use();
+assert.deepEqual(uploads.at(-1), Array.from(colorTrack.value), 'Actual OGL must deliver all nine palette channels to WebGL');
+program.use();
+assert.equal(uploads.length, 1, 'Unchanged palette uniforms must not be uploaded again');
+colorTrack.target(blue, 0); colorTrack.sample(240); program.use();
+assert.equal(uploads.length, 2, 'In-place palette changes must still reach WebGL');
+assert.equal(uploads.at(-1)[2], 0.5);
+program.remove();
+console.log('PASS: installed OGL uploads the shared palette buffer and skips unchanged uniform data.');

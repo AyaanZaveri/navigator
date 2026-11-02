@@ -1,0 +1,7 @@
+.surface {
+  transition: opacity var(--duration-considered, 480ms) ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface { transition-duration: 100ms; }
+}

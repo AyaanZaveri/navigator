@@ -74,11 +74,11 @@ export default async function Movie({
     };
 
     return (
-      <div className={`${backdropStyles.page} relative isolate min-h-screen overflow-hidden pb-8`}>
+      <div className={`${backdropStyles.page} relative min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
           backdropUrl={movie.background}
           posterUrl={movie.poster}
-          className="fixed inset-0 z-[3] pointer-events-none opacity-20"
+          opacity={0.2}
         />
 
         {/* Backdrop section */}

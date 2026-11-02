@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Renderer, Program, Mesh, Color, Triangle } from "ogl";
+import { Renderer, Program, Mesh, Triangle } from "ogl";
+import { createAuroraTransition } from "@/lib/aurora-transition";
 
 const VERT = `#version 300 es
 in vec2 position;
@@ -15,11 +16,9 @@ precision highp float;
 
 uniform float uTime;
 uniform float uAmplitude;
-uniform vec3 uColorStopsFrom[3];
-uniform vec3 uColorStopsTo[3];
+uniform mat3 uColorStops;
 uniform vec2 uResolution;
 uniform float uBlend;
-uniform float uTransition;
 
 out vec4 fragColor;
 
@@ -89,27 +88,13 @@ struct ColorStop {
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution;
   
-  // Create color stops for from colors
-  ColorStop colorsFrom[3];
-  colorsFrom[0] = ColorStop(uColorStopsFrom[0], 0.0);
-  colorsFrom[1] = ColorStop(uColorStopsFrom[1], 0.5);
-  colorsFrom[2] = ColorStop(uColorStopsFrom[2], 1.0);
-  
-  // Create color stops for to colors
-  ColorStop colorsTo[3];
-  colorsTo[0] = ColorStop(uColorStopsTo[0], 0.0);
-  colorsTo[1] = ColorStop(uColorStopsTo[1], 0.5);
-  colorsTo[2] = ColorStop(uColorStopsTo[2], 1.0);
-  
-  vec3 rampColorFrom;
-  vec3 rampColorTo;
-  COLOR_RAMP(colorsFrom, uv.x, rampColorFrom);
-  COLOR_RAMP(colorsTo, uv.x, rampColorTo);
-  
-  // Smooth transition between color sets using easing
-  float easedTransition = uTransition * uTransition * (3.0 - 2.0 * uTransition);
-  vec3 rampColor = mix(rampColorFrom, rampColorTo, easedTransition);
-  
+  ColorStop colors[3];
+  colors[0] = ColorStop(uColorStops[0], 0.0);
+  colors[1] = ColorStop(uColorStops[1], 0.5);
+  colors[2] = ColorStop(uColorStops[2], 1.0);
+  vec3 rampColor;
+  COLOR_RAMP(colors, uv.x, rampColor);
+
   float height = snoise(vec2(uv.x * 2.0 + uTime * 0.1, uTime * 0.25)) * 0.5 * uAmplitude;
   height = exp(height);
   height = (uv.y * 2.0 - height + 0.2);
@@ -125,161 +110,180 @@ void main() {
 `;
 
 interface AuroraTransitionProps {
-  colorStopsFrom?: string[];
-  colorStopsTo?: string[];
+  colorStops: string[];
   amplitude?: number;
   blend?: number;
-  transition?: number; // 0-1, where 0 is fully "from" and 1 is fully "to"
+  paused?: boolean;
   time?: number;
   speed?: number;
 }
 
 export default function AuroraTransition(props: AuroraTransitionProps) {
-  const {
-    colorStopsFrom = ["#5227FF", "#7cff67", "#5227FF"],
-    colorStopsTo = ["#5227FF", "#7cff67", "#5227FF"],
-    amplitude = 1.0,
-    blend = 0.5,
-    transition = 1.0,
-  } = props;
-  const propsRef = useRef<AuroraTransitionProps>(props);
-  propsRef.current = props;
+    const propsRef = useRef(props);
+    useEffect(() => { propsRef.current = props; }, [props]);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const fallbackRef = useRef<HTMLDivElement>(null);
+    const refreshRef = useRef<(() => void) | null>(null);
+    const [contextVersion, setContextVersion] = useState(0);
+    const [initialGradient] = useState(() => gradient(createAuroraTransition(props.colorStops).value));
+    const colorKey = props.colorStops.join(",");
 
-  const ctnDom = useRef<HTMLDivElement>(null);
-  const [contextVersion, setContextVersion] = useState(0);
+    useEffect(() => {
+        const container = containerRef.current;
+        const fallback = fallbackRef.current;
+        if (!container || !fallback) return;
+        const palette = createAuroraTransition(propsRef.current.colorStops);
+        let renderer: Renderer | undefined;
+        let program: Program | undefined;
+        let geometry: Triangle | undefined;
+        let mesh: Mesh | undefined;
+        let lost = false;
+        let frame = 0;
+        let previousTime: number | null = null;
+        let elapsed = 0;
+        let lastDraw = -Infinity;
+        let inView = true;
+        let disposed = false;
+        const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  useEffect(() => {
-    const ctn = ctnDom.current;
-    if (!ctn) return;
+        try {
+            renderer = new Renderer({
+                alpha: true, premultipliedAlpha: true, antialias: false,
+                depth: false, stencil: false, dpr: 1, webgl: 2, powerPreference: "low-power",
+            });
+            const gl = renderer.gl;
+            gl.clearColor(0, 0, 0, 0);
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+            Object.assign(gl.canvas.style, { position: "absolute", inset: "0", backgroundColor: "transparent" });
+            geometry = new Triangle(gl);
+            if (geometry.attributes.uv) delete geometry.attributes.uv;
+            program = new Program(gl, {
+                vertex: VERT, fragment: FRAG,
+                uniforms: {
+                    uTime: { value: 0 }, uAmplitude: { value: propsRef.current.amplitude ?? 0.8 },
+                    // Three RGB columns: OGL can upload this reusable buffer
+                    // directly, without flattening an array of color vectors.
+                    uColorStops: { value: palette.value }, uResolution: { value: [1, 1] },
+                    uBlend: { value: propsRef.current.blend ?? 0.4 },
+                },
+            });
+            if (!gl.getProgramParameter(program.program, gl.LINK_STATUS)) throw new Error("Aurora shader unavailable");
+            mesh = new Mesh(gl, { geometry, program });
+            container.appendChild(gl.canvas);
+        } catch {
+            // Keep the same palette/transition path when WebGL is unavailable.
+            program?.remove();
+            geometry?.remove();
+            renderer = undefined;
+            program = undefined;
+            geometry = undefined;
+        }
 
-    let renderer: Renderer;
-    try {
-      renderer = new Renderer({
-        alpha: true,
-        premultipliedAlpha: true,
-        antialias: true,
-      });
-    } catch {
-      // The CSS glow remains available when WebGL cannot initialize.
-      return;
-    }
-    const gl = renderer.gl;
-    gl.clearColor(0, 0, 0, 0);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.canvas.style.backgroundColor = "transparent";
-    gl.canvas.style.position = "absolute";
-    gl.canvas.style.inset = "0";
-
-    let program: Program | undefined;
-
-    function resize() {
-      if (!ctn) return;
-      const width = ctn.offsetWidth;
-      const height = ctn.offsetHeight;
-      renderer.setSize(width, height);
-      if (program) {
-        program.uniforms.uResolution.value = [width, height];
-      }
-    }
-    window.addEventListener("resize", resize);
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(ctn);
-
-    const geometry = new Triangle(gl);
-    if (geometry.attributes.uv) {
-      delete geometry.attributes.uv;
-    }
-
-    const colorStopsFromArray = colorStopsFrom.map((hex) => {
-      const c = new Color(hex);
-      return [c.r, c.g, c.b];
-    });
-
-    const colorStopsToArray = colorStopsTo.map((hex) => {
-      const c = new Color(hex);
-      return [c.r, c.g, c.b];
-    });
-
-    program = new Program(gl, {
-      vertex: VERT,
-      fragment: FRAG,
-      uniforms: {
-        uTime: { value: 0 },
-        uAmplitude: { value: amplitude },
-        uColorStopsFrom: { value: colorStopsFromArray },
-        uColorStopsTo: { value: colorStopsToArray },
-        uResolution: { value: [ctn.offsetWidth, ctn.offsetHeight] },
-        uBlend: { value: blend },
-        uTransition: { value: transition },
-      },
-    });
-
-    const mesh = new Mesh(gl, { geometry, program });
-    ctn.appendChild(gl.canvas);
-
-    let animateId = 0;
-    const onContextLost = (event: Event) => {
-      event.preventDefault();
-      cancelAnimationFrame(animateId);
-    };
-    const onContextRestored = () => setContextVersion(version => version + 1);
-    gl.canvas.addEventListener("webglcontextlost", onContextLost);
-    gl.canvas.addEventListener("webglcontextrestored", onContextRestored);
-    const update = (t: number) => {
-      animateId = requestAnimationFrame(update);
-      const { time = t * 0.01, speed = 1.0 } = propsRef.current;
-      if (program) {
-        program.uniforms.uTime.value = time * speed * 0.1;
-        program.uniforms.uAmplitude.value = propsRef.current.amplitude ?? 1.0;
-        program.uniforms.uBlend.value = propsRef.current.blend ?? blend;
-        program.uniforms.uTransition.value = propsRef.current.transition ?? 1.0;
-        
-        const stopsFrom = propsRef.current.colorStopsFrom ?? colorStopsFrom;
-        const stopsTo = propsRef.current.colorStopsTo ?? colorStopsTo;
-        
-        program.uniforms.uColorStopsFrom.value = stopsFrom.map((hex: string) => {
-          const c = new Color(hex);
-          return [c.r, c.g, c.b];
+        function stop() {
+            cancelAnimationFrame(frame);
+            frame = 0;
+            previousTime = null;
+        }
+        function canDraw() {
+            return !disposed && !document.hidden && inView && !propsRef.current.paused;
+        }
+        function draw(now: number) {
+            const current = propsRef.current;
+            const colors = palette.sample(now);
+            if (previousTime !== null) elapsed += Math.min(100, now - previousTime) / 1000;
+            previousTime = now;
+            lastDraw = now;
+            if (renderer && program && mesh && !lost) {
+                program.uniforms.uTime.value = (current.time ?? elapsed) * (current.speed ?? 1);
+                program.uniforms.uAmplitude.value = current.amplitude ?? 0.8;
+                program.uniforms.uBlend.value = current.blend ?? 0.4;
+                renderer.render({ scene: mesh });
+                renderer.gl.canvas.style.opacity = "1";
+        fallback!.style.opacity = "0";
+            } else {
+        fallback!.style.opacity = "0.4";
+        fallback!.style.backgroundImage = gradient(colors);
+            }
+        }
+        function needsFrames() {
+            return !motion.matches && ((Boolean(renderer) && !lost) || palette.active);
+        }
+        function tick(now: number) {
+            frame = 0;
+            if (!canDraw()) { previousTime = null; return; }
+            // A soft ambient background does not need a 60/120 Hz GPU draw rate.
+            if (now - lastDraw >= 1000 / 30 - 0.5) draw(now);
+            if (needsFrames()) frame = requestAnimationFrame(tick);
+        }
+        function refresh() {
+            stop();
+            if (!canDraw()) return;
+            const now = performance.now();
+            palette.target(propsRef.current.colorStops, now, motion.matches);
+            draw(now);
+            if (needsFrames()) frame = requestAnimationFrame(tick);
+        }
+        refreshRef.current = refresh;
+        function resize() {
+            if (renderer && program && !lost) {
+                const width = Math.max(1, container!.offsetWidth);
+                const height = Math.max(1, container!.offsetHeight);
+                renderer.setSize(width, height);
+                program.uniforms.uResolution.value = [renderer.gl.canvas.width, renderer.gl.canvas.height];
+            }
+            refresh();
+        }
+        function onContextLost(event: Event) {
+            event.preventDefault();
+            lost = true;
+            if (renderer) renderer.gl.canvas.style.opacity = "0";
+      fallback!.style.backgroundImage = gradient(palette.value);
+      fallback!.style.opacity = "0.4";
+      refresh();
+        }
+        function onContextRestored() { setContextVersion(version => version + 1); }
+        renderer?.gl.canvas.addEventListener("webglcontextlost", onContextLost);
+        renderer?.gl.canvas.addEventListener("webglcontextrestored", onContextRestored);
+        document.addEventListener("visibilitychange", refresh);
+        motion.addEventListener("change", refresh);
+        const resizeObserver = new ResizeObserver(resize);
+        resizeObserver.observe(container);
+        const intersection = new IntersectionObserver(([entry]) => {
+            inView = entry.isIntersecting;
+            refresh();
         });
-        
-        program.uniforms.uColorStopsTo.value = stopsTo.map((hex: string) => {
-          const c = new Color(hex);
-          return [c.r, c.g, c.b];
-        });
-        
-        renderer.render({ scene: mesh });
-      }
-    };
-    animateId = requestAnimationFrame(update);
+        intersection.observe(container);
+        resize();
 
-    resize();
+        return () => {
+            disposed = true;
+            stop();
+            refreshRef.current = null;
+            resizeObserver.disconnect();
+            intersection.disconnect();
+            document.removeEventListener("visibilitychange", refresh);
+            motion.removeEventListener("change", refresh);
+            renderer?.gl.canvas.removeEventListener("webglcontextlost", onContextLost);
+            renderer?.gl.canvas.removeEventListener("webglcontextrestored", onContextRestored);
+            renderer?.gl.canvas.remove();
+            program?.remove();
+            geometry?.remove();
+            // Release owned resources without forcing loss of the browser's context.
+        };
+    }, [contextVersion]);
 
-    return () => {
-      cancelAnimationFrame(animateId);
-      window.removeEventListener("resize", resize);
-      resizeObserver.disconnect();
-      gl.canvas.removeEventListener("webglcontextlost", onContextLost);
-      gl.canvas.removeEventListener("webglcontextrestored", onContextRestored);
-      if (ctn && gl.canvas.parentNode === ctn) {
-        ctn.removeChild(gl.canvas);
-      }
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
-    };
-  }, [amplitude, contextVersion]);
+    useEffect(() => {
+        refreshRef.current?.();
+    }, [colorKey, props.amplitude, props.blend, props.paused, props.speed, props.time]);
 
-  return (
-    <div ref={ctnDom} className="relative w-full h-full">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 opacity-40"
-        style={{
-          backgroundImage:
-            "radial-gradient(ellipse at 10% 35%, " + colorStopsTo[0] + ", transparent 65%), " +
-            "radial-gradient(ellipse at 90% 55%, " + colorStopsTo[1] + ", transparent 65%), " +
-            "radial-gradient(ellipse at 50% 0%, " + colorStopsTo[2] + ", transparent 60%)",
-        }}
-      />
-    </div>
-  );
+    return <div ref={containerRef} className="relative w-full h-full">
+        <div ref={fallbackRef} aria-hidden="true" className="absolute inset-0 opacity-40"
+            style={{ backgroundImage: initialGradient }} />
+    </div>;
+}
+
+function gradient(colors: Float32Array): string {
+    const color = (index: number) => `rgb(${Math.round(colors[index * 3] * 255)} ${Math.round(colors[index * 3 + 1] * 255)} ${Math.round(colors[index * 3 + 2] * 255)})`;
+    return `radial-gradient(ellipse at 10% 35%, ${color(0)}, transparent 65%), radial-gradient(ellipse at 90% 55%, ${color(1)}, transparent 65%), radial-gradient(ellipse at 50% 0%, ${color(2)}, transparent 60%)`;
 }

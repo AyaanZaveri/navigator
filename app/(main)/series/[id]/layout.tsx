@@ -53,11 +53,11 @@ export default async function SeriesLayout({
     const { show } = layoutData;
 
     return (
-      <div className={`${backdropStyles.page} relative isolate min-h-screen overflow-hidden pb-8`}>
+      <div className={`${backdropStyles.page} relative min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
           backdropUrl={show.background}
           posterUrl={show.poster}
-          className="fixed inset-0 z-[3] pointer-events-none opacity-20"
+          opacity={0.2}
         />
 
         <div className="relative">

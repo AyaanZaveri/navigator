@@ -2,115 +2,30 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { useAtom } from "jotai";
 import AuroraTransition from "@/components/Aurora/AuroraTransition";
-import { auroraColorsAtom, previousAuroraColorsAtom } from "@/lib/atoms";
+import styles from "@/components/Aurora/aurora.module.css";
 
 interface AuroraBackgroundProps {
-  imageUrl?: string;
-  colorStops?: string[];
+  colorStops: string[];
   amplitude?: number;
   blend?: number;
   className?: string;
+  opacity?: number;
 }
 
 export function AuroraBackground({
-  imageUrl,
-  colorStops,
-  amplitude = 0.8,
-  blend = 0.4,
-  className = "fixed inset-0 z-0 pointer-events-none opacity-20",
+    colorStops, amplitude = 0.8, blend = 0.4, opacity = 0.2,
+    className = "fixed inset-0 z-0 pointer-events-none",
 }: AuroraBackgroundProps) {
-  const [currentColors] = useAtom(auroraColorsAtom);
-  const [previousColors] = useAtom(previousAuroraColorsAtom);
-  const [transitionProgress, setTransitionProgress] = useState(1.0);
-  const hasColorOverride = colorStops !== undefined;
-
-  // Start transition when colors change
-  useEffect(() => {
-    if (hasColorOverride) return;
-    if (JSON.stringify(currentColors) !== JSON.stringify(previousColors)) {
-      setTransitionProgress(0);
-
-      // Animate transition over 3 seconds
-      const startTime = Date.now();
-      const duration = 3000;
-
-      let frame = 0;
-      const animateTransition = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Use easing function for smoother transition
-        const easedProgress = progress * progress * (3 - 2 * progress);
-        setTransitionProgress(easedProgress);
-
-        if (progress < 1) {
-          frame = requestAnimationFrame(animateTransition);
-        }
-      };
-
-      frame = requestAnimationFrame(animateTransition);
-      return () => cancelAnimationFrame(frame);
-    }
-  }, [currentColors, previousColors, hasColorOverride]);
-
-  // Use provided colorStops or fall back to atom colors
-  const finalCurrentColors = colorStops ?? currentColors;
-  const finalPreviousColors = colorStops ?? previousColors;
-
-  const [mounted, setMounted] = useState(false);
-  const [themeResolved, setThemeResolved] = useState(false);
-  const { theme, resolvedTheme } = useTheme();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Wait for theme to be resolved
-  useEffect(() => {
-    if (
-      mounted &&
-      (theme === "dark" ||
-        theme === "light" ||
-        (theme === "system" && resolvedTheme))
-    ) {
-      // Add a small delay to ensure theme is fully applied
-      const timer = setTimeout(() => setThemeResolved(true), 50);
-      return () => clearTimeout(timer);
-    }
-  }, [mounted, theme, resolvedTheme]);
-
-  // Only show aurora in dark mode or when system theme resolves to dark
-  const shouldShowAurora =
-    theme === "dark" || (theme === "system" && resolvedTheme === "dark");
-
-  // Don't render anything if not in dark mode and theme is resolved
-  if (mounted && themeResolved && !shouldShowAurora) {
-    return null;
-  }
-
-  // During initialization, don't render anything to prevent hydration mismatch
-  // This ensures server and client render the same content initially
-  if (!mounted || !themeResolved) {
-    return null;
-  }
-
-  return (
-    <div
-      className={className}
-      style={{
-        backgroundColor: "transparent",
-        transition: "opacity 0.5s ease-in-out",
-      }}
-    >
-      <AuroraTransition
-        colorStopsFrom={finalPreviousColors}
-        colorStopsTo={finalCurrentColors}
-        transition={transitionProgress}
-        amplitude={amplitude}
-        blend={blend}
-      />
-    </div>
-  );
+    const { resolvedTheme } = useTheme();
+    const visibleOpacity = resolvedTheme === "dark" ? opacity : 0;
+    const [activated, setActivated] = useState(false);
+    useEffect(() => {
+        if (activated || visibleOpacity <= 0) return;
+        const frame = requestAnimationFrame(() => setActivated(true));
+        return () => cancelAnimationFrame(frame);
+    }, [activated, visibleOpacity]);
+    return <div aria-hidden="true" className={`${className} ${styles.surface}`} style={{ opacity: visibleOpacity }}>
+        {activated && <AuroraTransition colorStops={colorStops} amplitude={amplitude} blend={blend} paused={visibleOpacity === 0} />}
+    </div>;
 }
