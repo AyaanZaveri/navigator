@@ -28,6 +28,8 @@ async function run() {
     assert.equal(chooseLogoTreatment(mustard, logos, 'deep'), 'neutral', 'Muddy teal must switch to near-white on textured mustard artwork');
     assert.ok(minimumLogoContrast(mustard, logos.neutral) >= 3, 'The neutral strokes clear the contrast target on the mustard patch');
     assert.ok(minimumLogoContrast(mustard, logos.deep) < 3, 'The prior deep teal fails the same target');
+    const scrolled = await sharp('scripts/fixtures/header-logo-scrolled.png').ensureAlpha().raw().toBuffer();
+    assert.equal(chooseLogoTreatment(scrolled, logos, 'deep'), 'light', 'The supplied scrolled-header surface must leave the muddy dark icon');
     assert.equal(chooseLogoTreatment(background([30, 30, 30]), logos, 'neutral'), 'light', 'Readable mint returns on dark artwork');
     assert.equal(chooseLogoTreatment(bright, logos, 'neutral'), 'deep', 'Readable deep teal returns on bright artwork');
     const split = background([16, 29, 26]);

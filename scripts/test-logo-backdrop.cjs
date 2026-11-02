@@ -10,11 +10,39 @@ function load(file, dependencies = {}) {
     return context.exports;
 }
 const contrast = load('lib/logo-contrast.ts');
-const { paintLogoBackdrop, logoSampleSource, verticalGradientStops } = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast });
+const { paintLogoBackdrop, logoSampleSource, verticalGradientStops, logoBlurRadius } = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast });
 const css = 'linear-gradient(rgba(255, 255, 255, 0) 0%, rgb(255, 255, 255) 100%)';
 assert.equal(verticalGradientStops(css).length, 2, 'Commas inside color functions must not split the gradient');
 assert.equal(verticalGradientStops('linear-gradient(90deg, black, white)'), null);
 assert.equal(verticalGradientStops('linear-gradient(to bottom, transparent, white 100%)')[0].position, 0);
+assert.equal(verticalGradientStops('linear-gradient(0deg, transparent 0%, white 100%)')[0].color, 'white');
+const box = { left: 0, top: 0, width: 100, height: 100 };
+const logoBox = { left: 40, top: 40, width: 20, height: 20 };
+const layer = { rect: box, filter: 'blur(10px)', mask: 'linear-gradient(180deg, transparent 0%, rgba(255,255,255,1) 100%)', opacity: .5 };
+assert.equal(logoBlurRadius([layer], logoBox), 5, 'Mask and scroll-transition opacity both affect the sampled blur');
+assert.equal(logoBlurRadius([{ ...layer, opacity: 0 }], logoBox), 0);
+assert.equal(logoBlurRadius([{ ...layer, rect: { ...box, top: 200 } }], logoBox), 0);
+const opaque = { ...layer, mask: 'none', opacity: 1 };
+assert.equal(logoBlurRadius([opaque, opaque], logoBox), Math.sqrt(200));
+
+const calls = [];
+function recordingCanvas() {
+    const canvas = { width: 64, height: 64 };
+    const context = { canvas, filter: 'none', globalAlpha: 1,
+        clearRect() {}, save() {}, restore() { this.filter = 'none'; }, scale() {}, translate() {},
+        fillRect() { calls.push(['fill', this.fillStyle]); },
+        drawImage(...args) { calls.push(['image', this.filter, args]); },
+    };
+    canvas.getContext = () => context;
+    return canvas;
+}
+const output = recordingCanvas(), scratch = recordingCanvas();
+paintLogoBackdrop(output.getContext(), { left: 64, top: 64, width: 32, height: 32 }, 'white', {
+    image: { naturalWidth: 160, naturalHeight: 160 }, rect: { left: 0, top: 0, width: 160, height: 160 }, opacity: 1, objectPosition: '50% 50%',
+}, [{ rect: box, background: 'black', opacity: .1, header: true }], { radius: 12, canvas: scratch });
+assert.ok(calls.find(call => call[0] === 'image' && call[1] === 'blur(24px)'), 'Blur is applied at the canvas sampling scale');
+assert.ok(calls.find(call => call[0] === 'image' && call[2][3] > 32), 'Surrounding source pixels participate, not just the unblurred logo crop');
+assert.equal(calls.at(-1)[0], 'fill', 'The header tint paints after the filtered backdrop');
 assert.ok(logoSampleSource('/api/artwork?id=tt123&type=movie&kind=backdrop', 'https://navigator.test').includes('sample=1'));
 assert.equal(logoSampleSource('https://image.tmdb.org/t/p/w1280/art.jpg', 'https://navigator.test'), 'https://image.tmdb.org/t/p/w1280/art.jpg');
 

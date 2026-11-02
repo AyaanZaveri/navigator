@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { HEADER_LOGO_SOURCES, chooseLogoTreatment, type LogoPixels, type LogoTone } from "@/lib/logo-contrast";
-import { logoSampleSource, paintLogoBackdrop } from "@/lib/logo-backdrop";
+import { logoBlurRadius, logoSampleSource, paintLogoBackdrop } from "@/lib/logo-backdrop";
 import { cn } from "@/lib/utils";
 import styles from "./adaptive-header-logo.module.css";
 
@@ -26,6 +26,8 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         canvas.width = canvas.height = 64;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) return;
+        const blurCanvas = document.createElement("canvas");
+        const header = logo.closest("header");
 
         let stopped = false;
         let frame = 0;
@@ -70,11 +72,19 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             if (stopped || !logo || !scope || !context) return;
             if (!logoPixels.light || !logoPixels.dark || !logoPixels.deep || !logoPixels.neutral) return;
             const bounds = logo.getBoundingClientRect();
+            const blurLayers = Array.from(header?.querySelectorAll<HTMLElement>("[data-progressive-blur-layer]") || [])
+                .map(element => {
+                    const style = window.getComputedStyle(element);
+                    return { rect: element.getBoundingClientRect(), filter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter"),
+                        mask: style.maskImage || style.webkitMaskImage, opacity: Number(style.opacity) };
+                });
+            const blurRadius = logoBlurRadius(blurLayers, bounds);
+            const padding = Math.ceil(blurRadius * 3);
             const backdrop = Array.from(scope.querySelectorAll<HTMLImageElement>("img[data-header-backdrop]"))
                 .find((image) => {
                     const rect = image.getBoundingClientRect();
-                    return bounds.left < rect.right && bounds.top < rect.bottom
-                        && bounds.right > rect.left && bounds.bottom > rect.top;
+                    return bounds.left - padding < rect.right && bounds.top - padding < rect.bottom
+                        && bounds.right + padding > rect.left && bounds.bottom + padding > rect.top;
                 });
             if (backdrop && observedImage !== backdrop) {
                 if (observedImage) resize.unobserve(observedImage);
@@ -106,14 +116,14 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
                     .sort((a, b) => Number(a.hasAttribute("data-header-tint")) - Number(b.hasAttribute("data-header-tint")))
                     .map(element => {
                         const style = window.getComputedStyle(element);
-                        return { rect: element.getBoundingClientRect(), background: style.backgroundImage === "none" ? style.backgroundColor : style.backgroundImage, opacity: Number(style.opacity) };
+                        return { rect: element.getBoundingClientRect(), background: style.backgroundImage === "none" ? style.backgroundColor : style.backgroundImage, opacity: Number(style.opacity), header: element.hasAttribute("data-header-tint") };
                     });
                 paintLogoBackdrop(context, bounds,
                     window.getComputedStyle(document.documentElement).getPropertyValue("--background").trim(),
                     backdrop && readableImage && imageStyle ? {
                         image: readableImage, rect: backdrop.getBoundingClientRect(),
                         opacity: Number(imageStyle.opacity), objectPosition: imageStyle.objectPosition,
-                    } : null, overlays);
+                    } : null, overlays, { radius: blurRadius, canvas: blurCanvas });
                 const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
                 const nextTreatment = chooseLogoTreatment(pixels, logoPixels as LogoPixels, previous);
                 previous = nextTreatment;
@@ -127,6 +137,9 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
 
         const changes = new MutationObserver(schedule);
         changes.observe(scope, { childList: true, subtree: true, attributes: true, attributeFilter: ["src", "srcset"] });
+        const surfaceChanges = new MutationObserver(schedule);
+        header?.querySelectorAll("[data-progressive-blur-layer], [data-header-tint]").forEach(layer =>
+            surfaceChanges.observe(layer, { attributes: true, attributeFilter: ["style", "class"] }));
         scope.addEventListener("load", schedule, true);
         window.addEventListener("resize", schedule, { passive: true });
         window.addEventListener("scroll", schedule, { capture: true, passive: true });
@@ -137,6 +150,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             window.cancelAnimationFrame(frame);
             resize.disconnect();
             changes.disconnect();
+            surfaceChanges.disconnect();
             if (readableImage) readableImage.onload = readableImage.onerror = null;
             paletteImages.forEach(image => { image.onload = null; });
             scope.removeEventListener("load", schedule, true);

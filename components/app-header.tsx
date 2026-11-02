@@ -41,7 +41,7 @@ function ProfileMenu({ email }: { email: string }) {
     );
 }
 
-export function AppHeader({ email, overlay = false }: { email: string; overlay?: boolean }) {
+export function AppHeader({ email }: { email: string; overlay?: boolean }) {
     const isPlayerVisible = useIsPlayerVisible();
     const headerRef = useRef<HTMLElement>(null);
     const surfaceRef = useRef<HTMLDivElement>(null);
@@ -96,7 +96,7 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
             <nav aria-label="Main navigation" className={`${styles.navigation} flex min-w-0 items-center gap-3`}>
                 <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 hover:bg-transparent dark:hover:bg-transparent">
                     <Link href="/" aria-label="Navigator home" draggable={false}>
-                        <AdaptiveHeaderLogo adaptive={overlay} />
+                        <AdaptiveHeaderLogo adaptive />
                     </Link>
                 </Button>
                 <div className="min-w-0 flex-1 sm:max-w-xl">
