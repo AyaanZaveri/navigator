@@ -8,6 +8,7 @@ import { Play } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { buildEpisodePath } from "@/lib/series-route";
 import styles from "./media-card.module.css";
+import { WatchedIndicator } from "@/components/watched-indicator";
 
 export function MediaCard({
   item,
@@ -128,6 +129,14 @@ export function MediaCard({
             <Play className="h-6 w-6 text-white fill-white" />
           </button>
         </div>
+
+        <WatchedIndicator
+          id={item.seriesId || item.id}
+          type={item.type}
+          videoId={item.mediaSourceId || item.episodeId || (item.type === "series" && item.seasonNumber !== undefined && item.episodeNumber !== undefined
+            ? `${item.seriesId || item.id}:${item.seasonNumber}:${item.episodeNumber}` : undefined)}
+          aboveProgress={continueWatching && typeof item.progressPercent === "number"}
+        />
 
         {continueWatching && typeof item.progressPercent === "number" ? (
           <div className="absolute inset-x-2 bottom-2 z-20 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">

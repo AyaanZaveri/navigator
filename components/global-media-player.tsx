@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
+import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 
 interface GlobalMediaPlayerProps {
   onToggleAIAsk?: () => void;
@@ -237,23 +238,26 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     ) => {
       const payload = buildPlaybackPayload(overrides);
       if (!payload) return;
+      const refreshWatched = (success: boolean) => {
+        if (success) window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: payload.libraryItemId } }));
+      };
 
       if (kind === "start") {
         if (playbackStartedReportedRef.current) return;
         playbackStartedReportedRef.current = true;
         playbackStoppedReportedRef.current = false;
-        void reportPlaybackStart(payload);
+        void Promise.resolve(reportPlaybackStart(payload)).then(refreshWatched).catch(() => {});
         return;
       }
 
       if (kind === "stopped") {
         if (playbackStoppedReportedRef.current) return;
         playbackStoppedReportedRef.current = true;
-        void reportPlaybackStopped(payload);
+        void Promise.resolve(reportPlaybackStopped(payload)).then(refreshWatched).catch(() => {});
         return;
       }
 
-      void reportPlaybackProgress(payload);
+      void Promise.resolve(reportPlaybackProgress(payload)).then(refreshWatched).catch(() => {});
     },
     [buildPlaybackPayload]
   );

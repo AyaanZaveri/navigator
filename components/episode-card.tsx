@@ -7,6 +7,7 @@ import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import type { Episode } from "@/app/actions/tv-shows";
 import { buildEpisodePath } from "@/lib/series-route";
 import styles from "./media-card.module.css";
+import { WatchedIndicator } from "@/components/watched-indicator";
 
 export function EpisodeCard({
   episode,
@@ -63,6 +64,8 @@ export function EpisodeCard({
             </div>
           )}
         </Link>
+
+        <WatchedIndicator id={seriesId} type="series" videoId={episode.id} />
 
         {/* Play button overlay */}
         <div className={styles.playOverlay + " absolute inset-0 z-30 flex items-center justify-center"}>

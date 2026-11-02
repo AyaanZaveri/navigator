@@ -15,6 +15,8 @@ import type {
 } from "@/types/stremio";
 import { getAuthData, getInstalledAddons } from "./auth";
 import { completeMediaDescription } from "@/lib/media-description";
+import { markVideoWatched, orderedEpisodeIds } from "@/lib/stremio-watched";
+import { fetchEpisodes } from "./tv-shows";
 
 const STREMIO_API = "https://api.strem.io/api";
 const ADDON_RESOURCE_TIMEOUT_MS = 3_500;
@@ -507,6 +509,7 @@ type LibraryItemState = {
   duration: number;
   video_id: string | null;
   watched: string | null;
+  watchedEpisodes?: (number | boolean)[];
   noNotif: boolean;
 };
 
@@ -590,13 +593,17 @@ async function upsertPlaybackState(
       video_id:
         firstString(existingItem?.state?.video_id, input.videoId) || null,
       watched: firstString(existingItem?.state?.watched) || null,
+      ...(Array.isArray(existingItem?.state?.watchedEpisodes) ? { watchedEpisodes: existingItem.state.watchedEpisodes } : {}),
       noNotif: Boolean(existingItem?.state?.noNotif),
     };
 
+    const previousWatchedVideo = input.mediaType === "series" && input.videoId && baseState.video_id
+      && input.videoId !== baseState.video_id && baseState.flaggedWatched > 0 ? baseState.video_id : null;
     // When switching videos (episode context), reset per-video tracking.
     if (input.videoId && baseState.video_id && input.videoId !== baseState.video_id) {
-      baseState.overallTimeWatched = baseState.overallTimeWatched + baseState.timeWatched;
       baseState.timeWatched = 0;
+      baseState.timeOffset = 0;
+      baseState.duration = durationMs;
       baseState.flaggedWatched = 0;
       baseState.video_id = input.videoId;
     } else if (input.videoId && !baseState.video_id) {
@@ -617,6 +624,7 @@ async function upsertPlaybackState(
       baseState.overallTimeWatched = baseState.overallTimeWatched + watchedDelta;
     }
 
+    const wasFlaggedWatched = baseState.flaggedWatched > 0;
     if (
       baseState.flaggedWatched === 0 &&
       baseState.duration > 0 &&
@@ -624,6 +632,17 @@ async function upsertPlaybackState(
     ) {
       baseState.flaggedWatched = 1;
       baseState.timesWatched = baseState.timesWatched + 1;
+    }
+
+    // Keep per-episode history after the active video changes. Metadata order
+    // matches Stremio's bitfield order, with specials after regular episodes.
+    if (input.mediaType === "series" && input.videoId && (previousWatchedVideo
+      || (baseState.flaggedWatched > 0 && (!wasFlaggedWatched || !baseState.watched)))) {
+      const episodes = await fetchEpisodes(input.libraryItemId);
+      const specials = /^tmdb:/.test(input.libraryItemId) ? await fetchEpisodes(input.libraryItemId, 0) : [];
+      const ids = orderedEpisodeIds([...episodes, ...specials]);
+      if (previousWatchedVideo) baseState.watched = markVideoWatched(baseState.watched, ids, previousWatchedVideo, baseState.watchedEpisodes);
+      if (baseState.flaggedWatched > 0) baseState.watched = markVideoWatched(baseState.watched, ids, input.videoId, baseState.watchedEpisodes);
     }
 
     // Match Stremio behavior for completed playback when stopping near credits.

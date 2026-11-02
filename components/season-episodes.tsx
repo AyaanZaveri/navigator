@@ -27,6 +27,7 @@ import { episodeThumbnailUrl } from "@/lib/artwork";
 import type { StremioVideo } from "@/types/stremio";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import cardStyles from "./media-card.module.css";
+import { WatchedIndicator } from "@/components/watched-indicator";
 
 interface SeasonEpisodesProps {
   showId: string;
@@ -612,6 +613,13 @@ const EpisodeCard = React.memo(function EpisodeCard({
               </div>
             )}
 
+
+            <WatchedIndicator
+              id={showId}
+              type="series"
+              videoId={episode.id}
+              aboveProgress={typeof episode.progressPercent === "number" && episode.progressPercent > 0}
+            />
 
             {typeof episode.progressPercent === "number" &&
             episode.progressPercent > 0 ? (

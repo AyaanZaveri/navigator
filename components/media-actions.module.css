@@ -51,7 +51,7 @@
 
 /* Match the search and select's control row, even when chips wrap. */
 .chips {
-  --chip-selected-surface: color-mix(in oklab, var(--primary) 78%, black);
+  --chip-selected-surface: color-mix(in oklab, var(--primary) 84%, black);
   --chip-selected-border: var(--chip-selected-surface);
   --chip-selected-foreground: #fff;
   min-height: var(--control-height-md);

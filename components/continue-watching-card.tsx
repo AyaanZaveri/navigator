@@ -3,6 +3,7 @@
 import React from "react";
 import type { MediaItem } from "@/types/stremio";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { WatchedIndicator } from "@/components/watched-indicator";
 
 interface ContinueWatchingCardProps {
   item: MediaItem;
@@ -40,6 +41,7 @@ export function ContinueWatchingCard({ item }: ContinueWatchingCardProps) {
       className="cursor-pointer group overflow-hidden transition select-none w-64"
     >
       <div className="relative w-full aspect-video">
+        <WatchedIndicator id={item.seriesId || item.id} type={item.type} videoId={item.mediaSourceId} />
         {imageUrl ? (
           <img
             src={imageUrl}
