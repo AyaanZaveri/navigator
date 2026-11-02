@@ -1,6 +1,7 @@
 "use client";
 
 import "@/components/player-mobile.css";
+import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
@@ -646,6 +647,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         }}
       >
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
+        {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
         {/* Video element */}
         {streamUrl && (
           <MediaPlayerVideo asChild>
@@ -876,7 +878,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
           </div>
 
-          <MediaPlayerSeek previewFrames />
+          <MediaPlayerSeek previewFrames previewSource={streamUrl ?? undefined} />
 
           <div data-player-toolbar="" className="flex w-full items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">

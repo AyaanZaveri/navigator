@@ -7,15 +7,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { BrowserPreviewFrames, PreviewCache, PreviewScheduler, previewBucket, type PreviewMedia } from "@/lib/media/preview-frames";
 
-type Props = { media: HTMLVideoElement | HTMLAudioElement | null; time: number; duration: number; active: boolean; deferWhileMoving?: boolean };
+type Props = { media: HTMLVideoElement | HTMLAudioElement | null; source?: string; time: number; duration: number; active: boolean; deferWhileMoving?: boolean };
 type Frame = { time: number | null; src: string | null; video: boolean; unavailable: boolean };
 const empty: Frame = { time: null, src: null, video: false, unavailable: false };
 type SurfaceTarget = { key: string; time: number };
 const SURFACE_TOLERANCE_SECONDS = 2;
 
 /** Kept mounted across hover exits so decoder buffers and recent frames stay warm. */
-export function SeekPreview({ media, time, duration, active, deferWhileMoving = false }: Props) {
-    const source = media?.getAttribute("src") || media?.src || "";
+export function SeekPreview({ media, source: originalSource, time, duration, active, deferWhileMoving = false }: Props) {
+    // Mux/MSE replaces the playing element's src with a decoder-owned blob.
+    // A second decoder must open the original stream, not that MediaSource.
+    const source = originalSource || media?.getAttribute("src") || media?.src || "";
     const session = (media as unknown as MpvElementHandle | null)?.controller?.previewSession;
     const key = session || source;
     const nativePreviews = !!session && typeof window !== "undefined" && (window.navigatorDesktop?.capabilities?.nativePreviews || window.navigatorDesktop?.platform === "android");
@@ -72,8 +74,8 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const bucket = previewBucket(time, duration);
     const nativeFrames = !!native && typeof window !== "undefined" && (window.navigatorDesktop?.capabilities?.nativePreviews || window.navigatorDesktop?.platform === "android");
     const browserMode = !native || fallback || (!nativeFrames && /\.(m3u8|mpd)(?:[?#]|$)/i.test(source));
-    const muxPreview = /\.(m3u8|mpd)(?:[?#]|$)/i.test(source)
-        || !!(media as unknown as { nativeEl?: HTMLVideoElement } | null)?.nativeEl?.currentSrc?.startsWith("blob:");
+    const muxPreview = /\.m3u8(?:[?#]|$)/i.test(source)
+        || /^https:\/\/stream\.mux\.com\/[^/.?#]+(?:[?#]|$)/i.test(source);
     const wanted = useRef<number | null>(null);
     useLayoutEffect(() => { wanted.current = active ? bucket : null; }, [active, bucket]);
 
@@ -101,11 +103,13 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
                 ? { time: at, src, video: !!videoFrame, unavailable: false }
                 : unavailable ? { ...previous, time: at, unavailable: true }
                 : { ...previous, unavailable: false });
-        }, false, !muxPreview);
+        }, false, !muxPreview, !muxPreview);
         browser.current = provider;
         // Restore the source after Strict Mode's effect cleanup on the same element.
         video.muted = true;
-        if (video.getAttribute("src") !== source) video.src = source;
+        // Mux attaches a MediaSource blob itself. Assigning the manifest URL
+        // to that video would disconnect its decoder immediately after attach.
+        if (!muxPreview && video.getAttribute("src") !== source) video.src = source;
         return () => { provider.dispose(); if (browser.current === provider) browser.current = null; };
     }, [browserMode, videoAttached, source, muxPreview]);
 
@@ -160,7 +164,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
                 <MuxVideo
                     ref={videoRef}
                     onLoadedMetadata={updateVideoRatio}
-                    src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback disableTracking
+                    src={source} muted playsInline preload={active ? "auto" : "metadata"} crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback disableTracking
                     aria-hidden="true" tabIndex={-1}
                     className={`pointer-events-none absolute inset-0 size-full object-contain ${ready && frame.video ? "opacity-100" : "opacity-0"}`}
                 />
@@ -168,7 +172,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
                 <video
                     ref={videoRef}
                     onLoadedMetadata={updateVideoRatio}
-                    src={source} muted playsInline preload="metadata" crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback
+                    src={source} muted playsInline preload={active ? "auto" : "metadata"} crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback
                     aria-hidden="true" tabIndex={-1}
                     className={`pointer-events-none absolute inset-0 size-full object-contain ${ready && frame.video ? "opacity-100" : "opacity-0"}`}
                 />

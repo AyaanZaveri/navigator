@@ -383,6 +383,7 @@ export function NavigatorFocus({
                 >
                   <motion.section
                     aria-label="Ask Navigator"
+                    data-player-hdr-glass={!showLauncher ? "" : undefined}
                     className="w-full rounded-xl! bg-popover/95 p-2 text-popover-foreground backdrop-blur-sm dark:bg-popover/75"
                     style={{ transformOrigin: "bottom center" }}
                   >

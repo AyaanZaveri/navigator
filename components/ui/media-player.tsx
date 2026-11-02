@@ -1557,6 +1557,8 @@ interface MediaPlayerSeekProps
   withoutTooltip?: boolean;
   tooltipThumbnailSrc?: string | ((time: number) => string);
   previewFrames?: boolean;
+  /** Original URL, before an MSE player replaces media.src with a blob URL. */
+  previewSource?: string;
   tooltipTimeVariant?: "current" | "progress";
   tooltipSideOffset?: number;
   tooltipCollisionBoundary?: Element | Element[];
@@ -1573,6 +1575,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     tooltipTimeVariant = "current",
     tooltipThumbnailSrc,
     previewFrames = false,
+    previewSource,
     tooltipSideOffset,
     tooltipCollisionPadding = SEEK_COLLISION_PADDING,
     tooltipCollisionBoundary,
@@ -2369,7 +2372,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   !thumbnail && currentChapterCue && "px-3 py-1.5"
                 )}
               >
-                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} time={touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} deferWhileMoving={seekMode === "surface"} />}
+                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} source={previewSource} time={touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} deferWhileMoving={seekMode === "surface"} />}
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"

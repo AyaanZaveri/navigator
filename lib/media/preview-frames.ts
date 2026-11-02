@@ -38,8 +38,10 @@ export class BrowserPreviewFrames {
     private allowCorsRetry: boolean;
     private retriedWithoutCors = false;
     private captureBlocked = false;
-    constructor(video: PreviewMedia, ready: (_time: number, _src: string | null, _videoFrame?: boolean, _unavailable?: boolean) => void, preserveVideo = false, allowCorsRetry = false) {
+    private ownsSource: boolean;
+    constructor(video: PreviewMedia, ready: (_time: number, _src: string | null, _videoFrame?: boolean, _unavailable?: boolean) => void, preserveVideo = false, allowCorsRetry = false, ownsSource = true) {
         this.video = video; this.ready = ready; this.preserveVideo = preserveVideo; this.allowCorsRetry = allowCorsRetry;
+        this.ownsSource = ownsSource;
         video.addEventListener('loadeddata', this.loaded);
         video.addEventListener('loadedmetadata', this.pump);
         video.addEventListener('seeked', this.captured);
@@ -131,8 +133,12 @@ export class BrowserPreviewFrames {
         for (const event of ['canplay', 'timeupdate', 'progress']) this.video.removeEventListener(event, this.loaded);
         this.video.removeEventListener('error', this.failed);
         this.video.pause();
-        this.video.removeAttribute('src');
-        this.video.load();
+        // Mux owns its MSE attachment and teardown. Touching src/load here
+        // disconnects its MediaSource during React's effect cleanup/replay.
+        if (this.ownsSource) {
+            this.video.removeAttribute('src');
+            this.video.load();
+        }
         this.cache.clear();
     }
 }
