@@ -4,6 +4,7 @@ export interface TouchScrubbingOptions {
   end: number;
   currentTime: () => number;
   enabled: () => boolean;
+  surfaceEnabled?: () => boolean;
   preview: (_time: number, _speed: number, _mode: "bar" | "surface") => void;
   grab?: () => void;
   commit: (_time: number) => void;
@@ -35,6 +36,7 @@ export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingO
         suppressClick = false;
         const target = event.target as Element;
         const onBar = options.timeline.contains(target);
+        if (!onBar && options.surfaceEnabled?.() === false) return;
         if (!onBar && target.closest('button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"]')) return;
         const rect = options.timeline.getBoundingClientRect();
         if (rect.width <= 0 || !Number.isFinite(options.end) || options.end <= options.start) return;

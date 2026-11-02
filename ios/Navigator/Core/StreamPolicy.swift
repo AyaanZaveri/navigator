@@ -76,13 +76,13 @@ public struct BridgeCommand {
       [
         "hello", "appearance", "visible", "load", "play", "pause", "stop", "seek", "volume",
         "muted", "rate", "track", "thumbnail", "video-fit", "fullscreen", "settings",
-        "seek-feedback",
+        "seek-feedback", "player-layout",
       ].contains(type)
     else { throw PolicyError.invalidMessage }
     let session = dict["session"] as? String
     if [
       "load", "play", "pause", "stop", "seek", "volume", "muted", "rate", "track", "thumbnail",
-      "video-fit", "seek-feedback",
+      "video-fit", "seek-feedback", "player-layout",
     ].contains(type) {
       guard let session,
         session.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil

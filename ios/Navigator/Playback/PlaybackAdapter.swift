@@ -24,6 +24,13 @@ import UIKit
   private var loaded = false, ready = false, seeking = false, errorSent = false
   private var started = false
   private var positionFloor: Double?
+  private var scrubOwner: String?
+  var invalidateInteraction: () -> Void = {}
+  var canInteract: Bool {
+    started && ready && foreground && !errorSent && engine.seekable && engine.duration > 0
+  }
+  var interactionPosition: Double { max(engine.position, positionFloor ?? 0) }
+  var interactionVolume: Double { muted ? 0 : volume }
   private var initialPosition = 0.0, volume = 1.0, muted = false, rate = 1.0, fit = "fit"
   private var lastTracks = Data()
   init() {
@@ -87,6 +94,7 @@ import UIKit
     guard command.session == session, !session.isEmpty else { return }
     switch command.type {
     case "play":
+      invalidateInteraction()
       if foreground {
         try activate()
         wantsPlay = true
@@ -95,6 +103,7 @@ import UIKit
     case "pause": pause()
     case "stop": stop()
     case "seek":
+      invalidateInteraction()
       if let at = command.number("position", range: 0...2_000_000) {
         positionFloor = nil
         seeking = true
@@ -160,6 +169,8 @@ import UIKit
   }
   func pause() {
     wantsPlay = false
+    invalidateInteraction()
+    scrubOwner = nil
     engine.pause()
     update()
   }
@@ -181,6 +192,8 @@ import UIKit
   }
   func stop() {
     started = false
+    invalidateInteraction()
+    scrubOwner = nil
     positionFloor = nil
     generation = UUID()
     loadTask?.cancel()
@@ -202,6 +215,30 @@ import UIKit
       Self.active = nil
       try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
+  }
+  func beginScrub() -> Bool {
+    guard canInteract, scrubOwner == nil else { return false }
+    scrubOwner = session
+    engine.pause()
+    return true
+  }
+  func endScrub(owner: String, commit: Bool, position: Double) {
+    guard scrubOwner == owner, owner == session else { return }
+    scrubOwner = nil
+    guard started && foreground && !errorSent else { return }
+    if commit {
+      positionFloor = nil
+      seeking = true
+      engine.seek(max(0, min(engine.duration, position)))
+    }
+    if wantsPlay { engine.play() }
+    update()
+  }
+  func setInteractionVolume(_ value: Double) {
+    volume = max(0, min(1, value))
+    muted = volume == 0
+    engine.setVolume(volume, muted: muted)
+    update()
   }
   func layout() {
     engine.setFit(
@@ -226,7 +263,8 @@ import UIKit
       "state": [
         "position": at, "duration": duration,
         "paused": !wantsPlay, "volume": volume, "muted": muted, "rate": rate,
-        "buffering": engine.buffering, "seeking": seeking, "buffered": 0, "width": size.width,
+        "buffering": scrubOwner == nil && engine.buffering, "seeking": seeking, "buffered": 0,
+        "width": size.width,
         "height": size.height,
       ],
     ])
@@ -254,10 +292,12 @@ import UIKit
     }
     if engine.failed, !errorSent {
       errorSent = true
+      invalidateInteraction()
       emitError("Playback failed. Try another stream or retry.")
     }
     if engine.ended, !errorSent {
       errorSent = true
+      invalidateInteraction()
       emitEvent("ended")
     }
   }

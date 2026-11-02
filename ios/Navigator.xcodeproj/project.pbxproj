@@ -19,12 +19,15 @@
 		3AFE101B4A7307A9D76EC43C /* LaunchPlaybackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A156B042ECA0F08FA5F6E5B0 /* LaunchPlaybackTests.swift */; };
 		46D1307388A5BDA78FC1CB76 /* Pods_Navigator.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9FF567FFD80A571E039F6B4B /* Pods_Navigator.framework */; };
 		4FE9CD634EAB8DCCD568C8D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 897C40043E574F7CAE5BCEE9 /* Assets.xcassets */; };
+		79987CA3A550F155834D06C2 /* PlayerInteractions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 808F67BF44D0A07C06F0F6E2 /* PlayerInteractions.swift */; };
 		7B00788A410C5304218E37CB /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = AEED906741B79D3AA8BC6D35 /* ThirdPartyNotices.txt */; };
 		808408CF7E686BF1FC9C1CE8 /* bridge.js in Resources */ = {isa = PBXBuildFile; fileRef = EC0EF74633A157EC964A85AA /* bridge.js */; };
 		85ED0C6515A639DE62A5F5EA /* PlaybackAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A951D1BC2A9322AE964126B9 /* PlaybackAdapter.swift */; };
 		918835B9FCBF235B20EAB8F4 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1D036E8D842C448F65883D70 /* LaunchScreen.storyboard */; };
 		9B63BD5A02835C3E7BC43221 /* NavigatorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05062CAE7C6B941936DAE2C7 /* NavigatorViewController.swift */; };
 		B1C9A4E550BBBE13CA3E452D /* NativeVLC.m in Sources */ = {isa = PBXBuildFile; fileRef = 04CDE6D4FF20FB4DE2CDC1B7 /* NativeVLC.m */; };
+		D8DC8E50C6E791535191BFDE /* PlayerInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE2514AC23892C6F4AA1DF4 /* PlayerInteraction.swift */; };
+		E7493A6B1EF2ACD62F5286D5 /* PlayerMaterial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3738FC545F407B777C693D8E /* PlayerMaterial.swift */; };
 		F8837A53789B5B8B70E606F8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2370E752AAA407FD52CFCFFE /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
@@ -47,11 +50,13 @@
 		1D036E8D842C448F65883D70 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Resources/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		2370E752AAA407FD52CFCFFE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		26EDAE4556C47497333AD8E3 /* NavigatorUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NavigatorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3738FC545F407B777C693D8E /* PlayerMaterial.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerMaterial.swift; path = Playback/PlayerMaterial.swift; sourceTree = "<group>"; };
 		37D6E2F3DCB5758F30794876 /* StreamPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StreamPolicy.swift; path = Core/StreamPolicy.swift; sourceTree = "<group>"; };
 		3E4C4BF11673780E0E7B5FD4 /* native.css */ = {isa = PBXFileReference; includeInIndex = 1; name = native.css; path = Resources/native.css; sourceTree = "<group>"; };
 		6BBCB8CBB372727DA8C5DDD9 /* MediaGateway.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MediaGateway.swift; path = Transport/MediaGateway.swift; sourceTree = "<group>"; };
 		777C3D936A9AD11C2C853FFF /* PreviewCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PreviewCache.swift; path = Core/PreviewCache.swift; sourceTree = "<group>"; };
 		7A2A606D04A6E41E0459BA8A /* NativeVLC.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = NativeVLC.h; path = Playback/NativeVLC.h; sourceTree = "<group>"; };
+		808F67BF44D0A07C06F0F6E2 /* PlayerInteractions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerInteractions.swift; path = Playback/PlayerInteractions.swift; sourceTree = "<group>"; };
 		897C40043E574F7CAE5BCEE9 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		96BDDC710E4606B61B939B16 /* Pods-Navigator.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Navigator.debug.xcconfig"; path = "Target Support Files/Pods-Navigator/Pods-Navigator.debug.xcconfig"; sourceTree = "<group>"; };
 		9FF567FFD80A571E039F6B4B /* Pods_Navigator.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Navigator.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -62,6 +67,7 @@
 		D263039317ABD3EDEC0D97B0 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DE54F0E18894BFB39682EC52 /* ManifestRewriter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ManifestRewriter.swift; path = Core/ManifestRewriter.swift; sourceTree = "<group>"; };
 		EC0EF74633A157EC964A85AA /* bridge.js */ = {isa = PBXFileReference; includeInIndex = 1; name = bridge.js; path = Resources/bridge.js; sourceTree = "<group>"; };
+		EDE2514AC23892C6F4AA1DF4 /* PlayerInteraction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerInteraction.swift; path = Core/PlayerInteraction.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -134,6 +140,9 @@
 				AEED906741B79D3AA8BC6D35 /* ThirdPartyNotices.txt */,
 				EC0EF74633A157EC964A85AA /* bridge.js */,
 				3E4C4BF11673780E0E7B5FD4 /* native.css */,
+				EDE2514AC23892C6F4AA1DF4 /* PlayerInteraction.swift */,
+				3738FC545F407B777C693D8E /* PlayerMaterial.swift */,
+				808F67BF44D0A07C06F0F6E2 /* PlayerInteractions.swift */,
 			);
 			name = Navigator;
 			path = Navigator;
@@ -315,6 +324,9 @@
 				85ED0C6515A639DE62A5F5EA /* PlaybackAdapter.swift in Sources */,
 				33FC2A0C802E8EA9D81BA027 /* PreviewWorker.swift in Sources */,
 				24A9CA72E48CA73A81E66048 /* MediaGateway.swift in Sources */,
+				D8DC8E50C6E791535191BFDE /* PlayerInteraction.swift in Sources */,
+				E7493A6B1EF2ACD62F5286D5 /* PlayerMaterial.swift in Sources */,
+				79987CA3A550F155834D06C2 /* PlayerInteractions.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

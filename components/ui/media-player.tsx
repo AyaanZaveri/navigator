@@ -2207,10 +2207,11 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       timeline, start: seekableStart, end: seekableEnd,
       currentTime: () => touchCallbacksRef.current.mediaCurrentTime,
       enabled: () => !store.getState().menuOpen,
+      surfaceEnabled: () => !bridge?.capabilities?.nativeSurfaceGestures,
       preview,
       grab: () => {
         const owner = session();
-        if (bridge?.platform === "android" && owner) bridge.send({ type: "seek-feedback", session: owner });
+        if ((bridge?.platform === "android" || bridge?.platform === "ios") && owner) bridge.send({ type: "seek-feedback", session: owner });
       },
       commit: time => {
         touchScrubbingRef.current = false;

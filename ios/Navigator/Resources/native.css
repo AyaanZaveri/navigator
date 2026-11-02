@@ -13,3 +13,7 @@ html[data-native-platform="ios"] [data-slot="media-player-pip"],html[data-native
 html[data-native-platform="ios"] [data-player-loading-copy] {left:max(1.5rem,var(--native-safe-left));right:max(1.5rem,var(--native-safe-right));bottom:calc(1.5rem + var(--native-safe-bottom));}
 html[data-native-platform="ios"] [data-navigator-focus-ui] {bottom:calc(1rem + var(--native-safe-bottom));}
 html[data-native-platform="ios"] input,html[data-native-platform="ios"] textarea {font-size:max(16px,1em);}
+
+/* Enabled only after native geometry has been accepted for this session. */
+html[data-native-materials][data-native-platform="ios"] [data-player-close] { opacity:0!important;pointer-events:none!important; }
+html[data-native-materials][data-native-platform="ios"] [data-slot="media-player-seek-tooltip"][data-player-glass] { background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;border:none!important; }

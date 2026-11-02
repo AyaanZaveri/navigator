@@ -13,6 +13,7 @@ import WebKit
 {
   private let playback = PlaybackAdapter()
   private var web: WKWebView!
+  private var interactions: PlayerInteractions!
   private var origin: TrustedOrigin!
   private var visible = false, fullscreen = false, closed = false
   private var appearanceDark = true
@@ -60,7 +61,13 @@ import WebKit
         child.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       ])
     }
-    playback.emit = { [weak self] message in self?.send(message) }
+    interactions = PlayerInteractions(host: view, web: web, playback: playback)
+    interactions.close = { [weak self] in self?.send(["type": "close"]) }
+    playback.invalidateInteraction = { [weak self] in self?.interactions?.invalidatePlayback() }
+    playback.emit = { [weak self] message in
+      self?.send(message)
+      self?.interactions?.refresh()
+    }
     let back = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(backSwipe(_:)))
     back.edges = .left
     back.isEnabled = false
@@ -73,6 +80,7 @@ import WebKit
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     playback.layout()
+    interactions?.resized()
   }
   private func observeAudio() {
     observations.append(
@@ -142,6 +150,10 @@ import WebKit
       let command = try BridgeCommand(message.body)
 
       switch command.type {
+      case "player-layout":
+        if let session = command.session, try interactions.receive(command.body, session: session) {
+          send(["type": "materials-ready", "session": session])
+        }
       case "appearance":
         if let theme = command.body["theme"] as? String, ["dark", "light"].contains(theme) {
           appearanceDark = theme == "dark"
@@ -179,6 +191,7 @@ import WebKit
         view.window?.windowScene?.interfaceOrientation.isLandscape == true ? .landscape : .portrait
     }
     visible = value
+    interactions?.setVisible(value)
     backGesture?.isEnabled = value
     web.isOpaque = !value
     web.backgroundColor = value ? .clear : UIColor(white: 0.04, alpha: 1)
@@ -378,6 +391,7 @@ import WebKit
     loadServer()
   }
   func suspend() {
+    interactions?.suspend()
     send(["type": "suspend"])
     playback.suspend()
   }
@@ -387,6 +401,8 @@ import WebKit
     timeout?.cancel()
     observations.forEach(NotificationCenter.default.removeObserver)
     observations = []
+    interactions?.dispose()
+    playback.invalidateInteraction = {}
     playback.close()
     web?.configuration.userContentController.removeScriptMessageHandler(forName: "navigator")
     web?.stopLoading()
