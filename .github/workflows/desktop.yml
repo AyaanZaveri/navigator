@@ -135,31 +135,36 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: windows-desktop-rust-1.92-${{ hashFiles('desktop/Cargo.lock', 'desktop/Cargo.toml', 'desktop/build.rs', 'desktop/src/**/*.rs') }}
+          restore-keys: windows-desktop-rust-1.92-
       - name: Check Windows backend process ownership
         shell: pwsh
         run: |
           $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
           cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
       - run: node scripts/desktop.mjs package
+        id: package
       - name: Verify portable archive includes Next assets
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [IO.Compression.ZipFile]::OpenRead((Get-ChildItem dist/*-portable.zip).FullName)
           try {
-            if (-not ($zip.Entries.FullName -match 'resources/server/\.next/static/')) { throw 'Portable ZIP is missing Next static assets' }
-            if (-not ($zip.Entries.FullName -contains 'resources/server/server.js')) { throw 'Portable ZIP is missing the server' }
+            $entries = @($zip.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
+            if (-not ($entries -match 'resources/server/\.next/static/')) { $entries | Select-Object -First 25; throw 'Portable ZIP is missing Next static assets' }
+            if (-not ($entries -contains 'resources/server/server.js')) { throw 'Portable ZIP is missing the server' }
           } finally { $zip.Dispose() }
       - name: Check native video and transparent WebView2
         shell: pwsh
         run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
       - name: Upload Windows installer
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: Navigator-Windows-x64-Installer
           path: dist/*-setup.exe
           if-no-files-found: error
       - name: Upload Windows portable build
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: Navigator-Windows-x64-Portable
