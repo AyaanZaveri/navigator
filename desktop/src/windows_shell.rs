@@ -4,13 +4,13 @@ use crate::{
     App, platform,
     player::Player,
     protocol, receive,
+    startup_log::record,
     window_state::{Display, Placement},
 };
 use serde_json::{Value, json};
 use std::{
     collections::VecDeque,
-    io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -116,21 +116,6 @@ fn bounds(size: PhysicalSize<u32>) -> Rect {
     Rect {
         position: PhysicalPosition::new(0, 0).into(),
         size: size.into(),
-    }
-}
-
-fn record(path: &Path, started: Instant, stage: &str) {
-    if let Ok(mut file) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-    {
-        let _ = writeln!(
-            file,
-            "{}",
-            json!({"pid":std::process::id(), "stage":stage, "elapsed_ms":started.elapsed().as_millis(),
-                "unix_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()})
-        );
     }
 }
 
@@ -383,6 +368,7 @@ pub fn run(app: App) -> Result<(), String> {
     let mut ready = false;
     let mut loaded = false;
     let mut ready_deadline = None;
+    let mut navigating = false;
     let mut exit_code = 0;
     let mut smoke_playing = false;
     let mut pending = VecDeque::new();
@@ -410,6 +396,7 @@ pub fn run(app: App) -> Result<(), String> {
             Event::UserEvent(UserEvent::BackendReady) => {
                 if !closing && !frontend.smoke {
                     if let Some(view) = &view {
+                        navigating = true;
                         record(&log, started, "navigation-starting");
                         let _ = view.evaluate_script("document.getElementById('status').textContent='Opening your library…'");
                         if let Err(error) = view.load_url(&frontend.url) {
@@ -538,7 +525,7 @@ pub fn run(app: App) -> Result<(), String> {
         // Chromium can pause requestAnimationFrame while minimized. Give a
         // restored window a fresh paint deadline instead of reporting a false
         // startup failure, and leave the event loop asleep while minimized.
-        if !ready && !closing && view.is_some() && !frontend.smoke && (ready_deadline.is_some() || running.is_some()) {
+        if !ready && !closing && navigating && !frontend.smoke {
             if window.is_minimized() { ready_deadline = None; }
             else if ready_deadline.is_none() { ready_deadline = Some(Instant::now() + Duration::from_secs(30)); }
         }

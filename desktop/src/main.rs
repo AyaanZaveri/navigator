@@ -9,6 +9,8 @@ mod player;
 mod protocol;
 mod render;
 mod server;
+#[cfg(any(windows, test))]
+mod startup_log;
 #[cfg(target_os = "macos")]
 mod tao_shell;
 mod thumbnails;

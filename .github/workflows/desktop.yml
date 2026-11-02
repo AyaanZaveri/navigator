@@ -176,6 +176,9 @@ jobs:
       - name: Build standalone native release
         if: inputs.windows_artifact_run != '' && inputs.windows_rebuild_native
         run: node scripts/build-windows-native.mjs
+      - name: Check rebuilt Windows native tests
+        if: inputs.windows_artifact_run != '' && inputs.windows_rebuild_native
+        run: cargo test --manifest-path desktop/Cargo.toml --locked
       - run: node scripts/desktop.mjs package
         if: inputs.windows_artifact_run == ''
         id: package

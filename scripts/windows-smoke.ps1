@@ -60,7 +60,9 @@ try {
     if (-not $LaunchApp) { throw 'A startup delay requires -LaunchApp' }
     $fixture = Join-Path ([IO.Path]::GetTempPath()) ("navigator-startup-" + [Guid]::NewGuid().ToString('N') + '.cjs')
     [IO.File]::WriteAllText($fixture, "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,$($StartupDelaySeconds*1000));")
-    $env:NODE_OPTIONS = "$oldNodeOptions --require `"$fixture`""
+    # NODE_OPTIONS interprets backslashes inside quotes as escape characters.
+    $preloadPath = $fixture.Replace('\', '/')
+    $env:NODE_OPTIONS = "$oldNodeOptions --require `"$preloadPath`""
   }
   $app = Start-Process @arguments
 } finally { $env:NODE_OPTIONS = $oldNodeOptions }
