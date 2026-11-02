@@ -151,7 +151,8 @@ export function MediaCard({
         />
 
         {continueWatching && typeof item.progressPercent === "number" ? (
-          <div className="absolute inset-x-2 bottom-2 z-20 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
+          // Keep playback status above the hover scrim, like the watched indicator.
+          <div className="absolute inset-x-2 bottom-2 z-40 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
             <div
               className="h-full rounded-full bg-white/80"
               style={{ width: `${item.progressPercent}%` }}
