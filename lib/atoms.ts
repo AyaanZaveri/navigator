@@ -20,6 +20,8 @@ export const isDesktopFullscreenAtom = atom((get) => {
 
 // Media Player state
 export interface MediaToPlay {
+  /** Navigate behind the player only after its opaque surface has mounted. */
+  detailsPath?: string;
   /** Pointer-triggered card playback can soften the web player's initial reveal. */
   animateEntrance?: boolean;
   navigatorActionId?: string;

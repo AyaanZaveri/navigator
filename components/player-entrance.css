@@ -1,18 +1,18 @@
-/* Pointer-triggered card playback: soften the fullscreen switch without moving
-   the picture. Native video is a separate surface and must open without fading
-   a DOM ancestor. The transition leaves no persistent opacity layer afterward. */
-[data-player-enter]:not([data-native-player-shell]) {
+/* Keep the outer black shell opaque while the route changes behind it.
+   Fade only the player contents, never expose the rearranging page underneath.
+   Native video is a separate surface and must not have a fading DOM ancestor. */
+[data-player-enter]:not([data-native-player-shell]) > [data-slot="media-player"] {
   transition: opacity var(--duration-standard) var(--ease-out);
 }
 
 @starting-style {
-  [data-player-enter]:not([data-native-player-shell]) {
+  [data-player-enter]:not([data-native-player-shell]) > [data-slot="media-player"] {
     opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-player-enter]:not([data-native-player-shell]) {
+  [data-player-enter]:not([data-native-player-shell]) > [data-slot="media-player"] {
     transition-duration: var(--duration-instant);
   }
 }

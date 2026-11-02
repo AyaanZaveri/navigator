@@ -7,10 +7,22 @@ import { isAIAskOpenAtom, isPlayerVisibleAtom } from "@/lib/atoms";
 import { NavigatorLauncher } from "@/components/navigator/launcher";
 import { preloadNavigator, preloadPlayer } from "@/lib/preload-tools";
 import { desktopBridge } from "@/lib/desktop/bridge";
+import { ArrowLeft } from "lucide-react";
 
+function PlayerPending() {
+    const [playing, setPlaying] = useAtom(isPlayerVisibleAtom);
+    if (!playing) return null;
+    // Cover the page in the same commit that hides its header/background.
+    // This is the player's black surface, with no separate opening interstitial.
+    return <div data-player-shell="" aria-busy="true" className="fixed inset-0 z-[var(--layer-player)] bg-black">
+        <button type="button" aria-label="Back to browsing" className="fixed left-4 top-4 inline-flex size-9 items-center justify-center rounded-full text-white" onClick={() => setPlaying(false)}>
+            <ArrowLeft aria-hidden="true" className="size-5" />
+        </button>
+    </div>;
+}
 const Player = dynamic(() => import("@/components/global-media-player").then(module => module.GlobalMediaPlayer), {
     ssr: false,
-    loading: () => null,
+    loading: PlayerPending,
 });
 function NavigatorPending() {
     const [open, setOpen] = useAtom(isAIAskOpenAtom);

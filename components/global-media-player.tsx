@@ -9,6 +9,7 @@ import { PlayerNextEpisode } from "@/components/player-next-episode";
 import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -71,6 +72,7 @@ const PROGRESS_REPORT_INTERVAL_MS = 30_000;
 const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
+  const router = useRouter();
   const {
     isPlayerVisible,
     setIsPlayerVisible,
@@ -79,6 +81,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setCurrentMediaWithSource,
     setCurrentTimestamp,
   } = useMediaPlayer();
+  const routedRequest = useRef<MediaToPlay | null>(null);
+  useEffect(() => {
+    if (!isPlayerVisible) { routedRequest.current = null; return; }
+    if (!playbackRequest?.detailsPath || routedRequest.current === playbackRequest) return;
+    // Effects run after the opaque shell commits, so route/layout changes cannot
+    // flash through while the player chunk loads or its content fades in.
+    routedRequest.current = playbackRequest;
+    router.push(playbackRequest.detailsPath, { scroll: false });
+  }, [isPlayerVisible, playbackRequest, router]);
   const { videoBitrate } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
@@ -695,7 +706,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       ? MuxVideo
       : "video";
   return (
-    <div data-native-player-shell={nativePlayback ? "" : undefined} data-player-enter={playbackRequest?.animateEntrance ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
+    <div data-player-shell="" data-native-player-shell={nativePlayback ? "" : undefined} data-player-enter={playbackRequest?.animateEntrance ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
         autoHide
         onEnded={handleVideoEnded}

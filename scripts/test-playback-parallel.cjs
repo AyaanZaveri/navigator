@@ -29,6 +29,7 @@ const hooks = {
     useCallback: callback => { callbacks.push(callback); return callback; },
 };
 const context = { exports: {}, AbortController, console, require(name) {
+    if (name === 'next/navigation') return { useRouter: () => ({ push: noOp }) };
     if (name === 'react') return hooks;
     if (name === 'sonner') return { toast: Object.assign(noOp, { dismiss: noOp, error: noOp }) };
     if (name.endsWith('.css')) return {};

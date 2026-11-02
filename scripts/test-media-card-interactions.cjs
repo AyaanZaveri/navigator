@@ -72,13 +72,13 @@ function findButton(node) {
     assert.equal(playback[0].streamUrl, 'https://example.test/movie.mp4');
     assert.equal(playback[0].resumePositionTicks, 30);
     assert.equal(playback[1], true);
-    assert.equal(routes.at(-1).href, '/movie/tt123', 'Movie Play opens its detail route behind the player');
-    assert.equal(routes.at(-1).options.scroll, false);
+    assert.equal(routes.length, 0, 'Card Play cannot switch the page before the player covers it');
+    assert.equal(playback[0].detailsPath, '/movie/tt123', 'The player receives the return destination');
     for (const continueWatching of [false, true]) {
         stateIndex = 0;
         const card = context.exports.MediaCard({ continueWatching, item: { id: 'tt-show', name: 'Show', type: 'series', seasonNumber: 2, episodeNumber: 3, mediaSourceId: 'tt-show:2:3', resumePositionTicks: 42 } });
         await findButton(card).props.onClick({ preventDefault() {}, stopPropagation() {} });
-        assert.equal(routes.at(-1).href, continueWatching ? '/series/tt-show/2/3' : '/series/tt-show');
+        assert.equal(playback.at(-2).detailsPath, continueWatching ? '/series/tt-show/2/3' : '/series/tt-show');
         assert.equal(playback.at(-2).resumePositionTicks, 42);
     }
     const episodeContext = { exports: {}, require: context.require };
@@ -88,7 +88,7 @@ function findButton(node) {
     stateIndex = 0;
     const episode = episodeContext.exports.EpisodeCard({ seriesId: 'tmdb:114294', episode: { id: 'tmdb:114294:1:2', title: 'Episode two', season: 1, episode: 2, resumePositionTicks: 15 } });
     await findButton(episode).props.onClick({ preventDefault() {}, stopPropagation() {} });
-    assert.equal(routes.at(-1).href, '/series/tmdb%3A114294/1/2', 'Episode Play opens its exact episode route');
+    assert.equal(playback.at(-2).detailsPath, '/series/tmdb%3A114294/1/2', 'Episode Play retains its exact return route');
     assert.equal(playback.at(-2).mediaSourceId, 'tmdb:114294:1:2');
     console.log('PASS: press scale resets on pointer leave, cancel and release; secondary clicks are ignored; playback remains intact.');
     console.log('PASS: movie, show, Continue Watching, and episode Play navigate to their matching detail route.');

@@ -10,7 +10,8 @@ const { DeferredTools } = load('components/deferred-tools.tsx', {
     function LazyTool() {}
     LazyTool.options = options; dynamicComponents.push(LazyTool); return LazyTool;
   } },
-  jotai: { useAtomValue: atom => atom === 'player' ? playing : open, useAtom: () => [open, () => {}] },
+  jotai: { useAtomValue: atom => atom === 'player' ? playing : open,
+    useAtom: atom => atom === 'player' ? [playing, value => { playing = value; }] : [open, () => {}] },
   '@/lib/atoms': atoms,
   '@/components/navigator/launcher': { NavigatorLauncher: 'Launcher' },
   '@/lib/preload-tools': { preloadNavigator: () => preloads++ },
@@ -36,8 +37,22 @@ assert.equal(children(tree).some(child => child.type === dynamicComponents[1]), 
 assert.equal(children(render(false)).some(child => child.type === dynamicComponents[1]), false, 'Disabled Navigator releases its UI');
 assert.equal(dynamicComponents[0].options.ssr, false);
 assert.equal(dynamicComponents[0].options.loading(), null, 'Cold player chunks must not add a separate Opening player screen');
+playing = true;
+const coldPlayer = dynamicComponents[0].options.loading();
+assert.ok(coldPlayer && coldPlayer.props['data-player-shell'] !== undefined, 'A cold player needs an immediate opaque surface over the changing page');
+assert.ok(coldPlayer.props.className.includes('bg-black'));
+coldPlayer.props.children.props.onClick();
+assert.equal(playing, false, 'A delayed player chunk must still allow the user to cancel playback');
+playing = false;
 assert.equal(dynamicComponents[1].options.ssr, false);
 assert.equal(typeof dynamicComponents[1].options.loading, 'function', 'A cold AI chunk has immediate loading feedback');
+
+const entrance = require('postcss').parse(require('node:fs').readFileSync('components/player-entrance.css', 'utf8'));
+entrance.walkRules(rule => {
+  if (rule.selector.includes('[data-player-enter]')) {
+    assert.ok(rule.selector.includes('> [data-slot="media-player"]'), 'Entrance opacity must never expose the page through the outer player shell');
+  }
+});
 
 function warmup(platform, idleSupported = true) {
   const native = hooks(), pending = new Map();

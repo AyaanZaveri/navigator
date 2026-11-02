@@ -27,9 +27,9 @@ class Media extends EventTarget {
 }
 function harness({ native = false, automatic = false, streams: customStreams } = {}) {
     const source = 'https://stream.example/Buddy.2160p.mkv';
-    let request = { id: 'buddy', type: 'movie', name: 'Buddy', navigatorActionId: 'test-playback-ack', resumePositionTicks: 42, ...(automatic ? {} : { streamUrl: source }) };
+    let request = { id: 'buddy', type: 'movie', name: 'Buddy', detailsPath: '/movie/buddy', navigatorActionId: 'test-playback-ack', resumePositionTicks: 42, ...(automatic ? {} : { streamUrl: source }) };
     let visible = true, dirty = true, index = 0, tree, renderedVideo, media, timerId = 0, streamFetches = 0, wallTime = 0;
-    const slots = [], effects = [], timers = new Map(), events = [], toasts = [], published = [];
+    const slots = [], effects = [], timers = new Map(), events = [], toasts = [], published = [], routes = [];
     const streams = customStreams || [{ url: source, title: '2160p HEVC DTS REMUX' },
         { url: 'https://stream.example/best.mp4', title: '1080p H264 AAC' },
         { url: 'https://stream.example/next.mp4', title: '720p H264 AAC' }];
@@ -69,6 +69,10 @@ function harness({ native = false, automatic = false, streams: customStreams } =
             dispatchEvent(event) { events.push(event.detail); } },
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
         require(name) {
+            if (name === 'next/navigation') return { useRouter: () => ({ push(path, options) {
+                assert.ok(find(tree, node => node.props?.['data-player-shell'] !== undefined).length, 'Navigation must wait for the opaque player shell to commit');
+                routes.push({ path, options });
+            } }) };
             if (name === 'react') return hooks;
             if (name === 'sonner') return { toast };
             if (name.endsWith('.css')) return {};
@@ -102,7 +106,7 @@ function harness({ native = false, automatic = false, streams: customStreams } =
         while (effects.length) effects.shift()();
     }
     return {
-        source, timers, events, toasts, published,
+        source, timers, events, toasts, published, routes,
         get video() { return renderedVideo; },
         get media() { return media; },
         get streamFetches() { return streamFetches; },
@@ -132,6 +136,8 @@ async function run() {
     for (const automatic of [false, true]) {
         const player = harness({ automatic });
         await player.settle();
+        assert.equal(player.routes[0].path, '/movie/buddy');
+        assert.equal(player.routes[0].options.scroll, false);
         assert.equal(player.video.props.src, automatic ? 'https://stream.example/best.mp4' : player.source);
         const original = player.video;
         player.fail(); player.fail();
@@ -149,6 +155,7 @@ async function run() {
         player.video.props.onLoadedMetadata();
         assert.equal(player.media.currentTime, 123, 'Errors after playback starts must resume the next file at the current position');
         assert.equal(player.streamFetches, 1, 'Fallback must reuse discovered candidates instead of fetching them repeatedly');
+        assert.equal(player.routes.length, 1, 'Stream fallback must not navigate again');
         assert.equal(player.errorVisible, false);
         assert.equal(player.timers.size, 0, 'Web recovery must not waste time retrying the same failed file');
     }
