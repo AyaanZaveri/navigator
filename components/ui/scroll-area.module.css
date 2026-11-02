@@ -1,0 +1,19 @@
+.scrollbar {
+    background: transparent;
+    user-select: none;
+}
+
+.thumb {
+    background: color-mix(in oklab, var(--foreground) 42%, transparent);
+    /* Delineate the thumb on both light and dark portions of artwork. */
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--background) 30%, transparent);
+}
+
+.scrollbar:hover .thumb,
+.scrollbar:active .thumb {
+    background: color-mix(in oklab, var(--foreground) 68%, transparent);
+}
+
+@media (forced-colors: active) {
+    .thumb { background: CanvasText; box-shadow: none; }
+}

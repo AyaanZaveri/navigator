@@ -4,6 +4,12 @@ import * as React from "react";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
 import { cn } from "@/lib/utils";
+import styles from "./scroll-area.module.css";
+
+// Expose the primitives for the persistent page shell: its header and overlay
+// scrollbar share a root, while the viewport remains the single page scroller.
+const ScrollAreaRoot = ScrollAreaPrimitive.Root;
+const ScrollAreaViewport = ScrollAreaPrimitive.Viewport;
 
 function ScrollArea({
   className,
@@ -38,21 +44,22 @@ function ScrollBar({
       data-slot="scroll-area-scrollbar"
       orientation={orientation}
       className={cn(
-        "flex touch-none transition-colors select-none",
+        styles.scrollbar,
+        "flex touch-none select-none",
         orientation === "vertical" &&
-          "h-full w-1.5 border-l border-l-transparent",
+          "w-3 p-[3px]",
         orientation === "horizontal" &&
-          "h-1.5 flex-col border-t border-t-transparent",
+          "h-3 flex-col p-[3px]",
         className
       )}
       {...props}
     >
       <ScrollAreaPrimitive.ScrollAreaThumb
         data-slot="scroll-area-thumb"
-        className="bg-accent relative flex-1 rounded-full"
+        className={cn(styles.thumb, "relative flex-1 rounded-full")}
       />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>
   );
 }
 
-export { ScrollArea, ScrollBar };
+export { ScrollArea, ScrollBar, ScrollAreaRoot, ScrollAreaViewport };

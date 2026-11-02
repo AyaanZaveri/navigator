@@ -297,7 +297,7 @@ fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
                 HTMINBUTTON
             });
         }
-        if y < 16.0 {
+        if y < 32.0 {
             return Some(HTCAPTION);
         }
         None

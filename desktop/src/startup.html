@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Navigator</title>
+<style>
+  :root { color-scheme: dark; font: 15px/1.5 'Segoe UI Variable', 'Segoe UI', sans-serif; color: #eee; background: #111214; }
+  body { margin: 0; min-height: 100dvh; display: grid; place-content: center; text-align: center; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 12px; letter-spacing: -.5px; }
+  p { margin: 0; color: #b8b9be; }
+  .hint { margin-top: 16px; font-size: 12px; color: #8e9098; }
+  .caption { position: fixed; top: 0; right: 0; display: flex; height: 32px; }
+  .caption span { display: grid; place-content: center; width: 46px; }
+  .caption span:hover { background: #ffffff20; }
+  .caption span:last-child:hover { background: #c42b1c; }
+  svg { stroke: currentColor; stroke-width: 1; fill: none; }
+</style>
+<div class="caption" aria-hidden="true">
+  <span><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 6.5h10"/></svg></span>
+  <span><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z"/></svg></span>
+  <span><svg width="12" height="12" viewBox="0 0 12 12"><path d="m1.5 1.5 9 9m0-9-9 9"/></svg></span>
+</div>
+<main aria-label="Starting Navigator">
+  <h1>Navigator</h1>
+  <p id="status" role="status">Starting Navigator…</p>
+  <p class="hint">Your library will appear here when it’s ready.</p>
+</main>
+</html>

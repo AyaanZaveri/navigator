@@ -25,6 +25,9 @@ on:
       - "scripts/test-page-layout.cjs"
       - "components/app-header.tsx"
       - "components/layout-content.tsx"
+      - "components/layout-content.module.css"
+      - "components/app-header.module.css"
+      - "components/ui/scroll-area*"
       - "components/media-page/**"
       - "app/(main)/movie/**"
       - "app/(main)/series/**"
@@ -265,7 +268,7 @@ jobs:
       - name: Check installed application startup and shutdown
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         shell: pwsh
-        run: ./scripts/windows-smoke.ps1 -Executable "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe" -LaunchApp -Output dist/windows-app.png
+        run: ./scripts/windows-smoke.ps1 -Executable "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe" -LaunchApp -StartupDelaySeconds 8 -Output dist/windows-app.png
       - name: Verify uninstall and profile retention
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         shell: pwsh
@@ -309,7 +312,7 @@ jobs:
           New-Item -ItemType Directory -Force dist/windows-diagnostics | Out-Null
           Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/smoke/startup.jsonl" dist/windows-diagnostics/smoke-startup.jsonl -ErrorAction SilentlyContinue
           Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/startup.jsonl" dist/windows-diagnostics/app-startup.jsonl -ErrorAction SilentlyContinue
-          foreach ($file in @('windows-smoke.png', 'windows-app.png')) {
+          foreach ($file in @('windows-smoke.png', 'windows-app.png', 'windows-startup.png')) {
             if (Test-Path "dist/$file") { Copy-Item "dist/$file" dist/windows-diagnostics }
           }
           Get-Content dist/windows-diagnostics/*startup.jsonl -ErrorAction SilentlyContinue

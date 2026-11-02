@@ -1,5 +1,19 @@
+.header {
+    padding-block-start: calc(env(safe-area-inset-top, 0px) + var(--window-caption-height, 0px));
+}
+
 .navigation {
-    padding-block: 1.25rem;
+    padding-block: var(--app-header-navigation-padding, 1.25rem);
+}
+
+.profile {
+    margin-inline-start: auto;
+}
+
+/* Windows caption buttons have their own row. Keep account actions with search,
+   instead of leaving the avatar floating beside the system controls. */
+:global(html[data-native-platform="windows"]) .profile {
+    margin-inline-start: 0;
 }
 
 .surface {
@@ -31,12 +45,6 @@
         color-mix(in oklab, var(--background) 12%, transparent),
         color-mix(in oklab, var(--background) 6%, transparent) 50%,
         transparent 100%);
-}
-
-@media (width < 48rem) {
-    :global(html[data-native-engine="exoplayer"]) .navigation {
-        padding-block: .5rem;
-    }
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

@@ -46,10 +46,18 @@ wrap in narrow windows. Normal window size/position and maximized state persist,
 and saved placement is clamped onto an available display. A second launch
 restores/activates the running window.
 
+The Windows header keeps account actions beside search, below a 32px caption
+zone. The backdrop extends behind both rows. The shared page scrollport uses
+Radix's overlay thumb on every platform, preserving native scrolling without
+reserving a scrollbar gutter.
+
 The first frame is a small native loading view. Backend and mpv initialization
-run on a worker while the window remains responsive; WebView2 is created after
-the backend is ready. A painted React readiness signal removes the loading
-view and synchronizes the caption theme. Closing during startup cancels the
+run on a worker while the window remains responsive. WebView2 starts in parallel
+and paints a bundled startup document that requires no server or network. The
+same WebView navigates as soon as the backend listens, while mpv continues
+initializing. Up to 64 validated playback commands can wait for the player;
+overflow reports a session error. A painted React readiness signal removes the
+native loading view and synchronizes the caption theme. Closing during startup cancels the
 backend wait. The backend is assigned to a kill-on-close Windows Job Object
 atomically at creation, then resumes without a console; its descendants cannot
 outlive Navigator. Playback frames stay native, and progress stays throttled
@@ -63,6 +71,7 @@ npm run desktop:check
 $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
 cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
 ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -LaunchApp -StartupDelaySeconds 8
 ./scripts/windows-performance.ps1 -AppProcessId <NavigatorPID> -Seconds 30
 ```
 
@@ -71,10 +80,15 @@ The smoke check starts no server, uses generated color bars and a separate
 WebView bridge, captures the compositor output, checks visible bars, and closes
 normally. CI uploads the screenshot and timing log as compositor diagnostics.
 It does not establish hardware decoding, HDR accuracy or physical-display behavior.
+The installed-app check deliberately blocks Node startup for eight seconds and
+checks a screenshot of the bundled startup screen before the backend is ready.
+It then verifies the hydrated app, caption hit testing and normal shutdown.
 
 `startup.jsonl` in the local data directory records elapsed milliseconds for
-`window-visible`, `backend-ready`, `player-ready`, `webview-created`, `page-loaded`
-and `app-ready`. The visibility mark records the native show call, not a measured
+`window-visible`, `backend-starting`, `backend-ready`, `player-starting`,
+`player-ready`, `webview-starting`, `startup-view-created`, `startup-page-loaded`,
+`navigation-starting`, `page-loaded` and `app-ready` (`webview-created` in the
+video-only smoke test). The visibility mark records the native show call, not a measured
 display scanout; readiness records the painted hydrated shell, not completion
 of remote catalog requests. Logs rotate at 1 MiB and contain no media URLs or
 credentials. First-window and interactive-startup goals are 300 ms and

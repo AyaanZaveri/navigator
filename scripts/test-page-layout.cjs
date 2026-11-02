@@ -30,9 +30,10 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   const page = React.createElement('p', null, 'Page content');
   const tree = LayoutContent({ children: page, email: 'fixture@example.invalid' });
   const headers = find(tree, node => node.type === Header);
-  const mains = find(tree, node => node.type === 'main');
+  const mains = find(tree, node => node.props?.['data-page-scroll'] !== undefined);
   assert.equal(headers.length, 1, `${path}: one persistent header`);
   assert.equal(mains.length, 1, `${path}: one page scrollport`);
+  assert.equal(mains[0].props.role, 'main', `${path}: retain the main landmark on the actual scroll viewport`);
   assert.equal(find(mains[0], node => node.type === Header).length, 0, `${path}: scrolling page content must not contain the navbar`);
   assert.ok(find(mains[0], node => node.type === "p" && node.props.children === "Page content").length, `${path}: page content remains in the scrollport`);
   assert.equal(headers[0].props.overlay, /^\/(movie|series)(?:\/|$)/.test(path), `${path}: media pages retain adaptive backdrop presentation`);

@@ -32,7 +32,7 @@
 .wordmarkRegion {
     position: absolute;
     inset-inline: 0;
-    top: calc(var(--app-header-height, calc(5.25rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)))) - 1.25rem);
+    top: calc(var(--app-header-height, calc(5.25rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)))) - var(--app-header-navigation-padding, 1.25rem));
     bottom: calc(var(--media-content-overlap) - var(--media-content-top-padding));
     z-index: 10;
     display: grid;
