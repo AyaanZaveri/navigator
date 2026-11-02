@@ -109,9 +109,12 @@ export async function resolvePlayback(
     onTargetReady?: (_media: MediaToPlay) => void,
 ): Promise<MediaToPlay> {
     let media = { ...request };
+    const knownStreams = request.streamRequest?.id === (request.mediaSourceId || request.id)
+        && request.streamRequest.type === request.type ? request.streamRequest : undefined;
     const tmdb = /^(tmdb:[1-9]\d*)(?::\d+:\d+)?$/.exec(media.seriesId || media.id);
     if (!media.streamUrl && tmdb && dependencies.resolveId && (media.type === "movie" || media.type === "series")) {
-        const id = await dependencies.resolveId(tmdb[1], media.type);
+        const canonicalTarget = knownStreams ? await knownStreams.canonicalId : undefined;
+        const id = canonicalTarget ? canonicalTarget.replace(/:(\d+):(\d+)$/, '') : await dependencies.resolveId(tmdb[1], media.type);
         media = { ...media, id, seriesId: media.type === "series" ? id : undefined,
             mediaSourceId: media.mediaSourceId?.replace(/^tmdb:[1-9]\d*(?=:|$)/, id) };
     }
@@ -133,7 +136,8 @@ export async function resolvePlayback(
         return media;
     }
     onPhase("fetching-streams");
-    const streams = await dependencies.fetchStreams(media.mediaSourceId || media.id, media.type);
+    const streams = knownStreams ? await knownStreams.promise
+        : await dependencies.fetchStreams(media.mediaSourceId || media.id, media.type);
     const seen = new Set<string>();
     let candidates = streams.filter(candidate => {
         const url = candidate.url || candidate.externalUrl || "";

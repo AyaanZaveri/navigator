@@ -40,6 +40,7 @@ export function PlayerNextEpisode({ media, season, episode, onAdvance }: {
                     onAdvance();
                     void playMedia({
                         id, seriesId: id, type: "series", name: next.title,
+                        details: media.details, detailsLoaded: media.detailsLoaded,
                         showName: media.showName,
                         mediaSourceId: next.id, episodeTitle: next.title,
                         seasonNumber: next.season, episodeNumber: next.episode,

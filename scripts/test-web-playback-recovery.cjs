@@ -94,6 +94,7 @@ function harness({ native = false, automatic = false, streams: customStreams } =
             if (name === '@/lib/desktop/bridge') return { desktopBridge: () => native ? {} : null };
             if (name === '@/lib/media/playback-source') return utility('lib/media/playback-source.ts');
             if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
+            if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
             if (name === '@/lib/media/fetch-playback-streams') return { async fetchPlaybackStreams() { streamFetches++; return streams; } };
             if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails: async () => null };

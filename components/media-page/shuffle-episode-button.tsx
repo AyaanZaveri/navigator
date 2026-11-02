@@ -50,6 +50,7 @@ export function ShuffleEpisodeButton({ media, episodes }: { media: MediaToPlay; 
                                 const title = episode.title || episode.name || `Episode ${episode.episode}`;
                                 await playMedia({
                                     id, type: "series", seriesId: id,
+                                    details: media.details, detailsLoaded: media.detailsLoaded,
                                     name: title, showName: media.showName || media.name,
                                     mediaSourceId: episode.id, episodeTitle: title,
                                     seasonNumber: episode.season, episodeNumber: episode.episode,

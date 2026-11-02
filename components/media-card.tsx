@@ -1,5 +1,7 @@
 "use client";
 
+import { projectPlaybackDetails } from "@/lib/media/playback-details";
+
 import { ArtworkImage } from "@/components/artwork-image";
 
 import { preloadPlayer } from "@/lib/preload-tools";
@@ -67,6 +69,7 @@ export function MediaCard({
 
     if (item) {
       await playMedia({
+        details: projectPlaybackDetails({ ...item, id: item.seriesId || item.id, name: item.showName || item.name }),
         detailsPath: linkHref,
         animateEntrance: e.detail > 0,
         id: item.id,

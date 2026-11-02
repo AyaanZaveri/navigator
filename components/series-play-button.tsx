@@ -1,5 +1,7 @@
 "use client";
 
+import { projectPlaybackDetails } from "@/lib/media/playback-details";
+
 import React, { useState, useEffect } from "react";
 import type { MediaItem } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,7 @@ export function SeriesPlayButton({ series }: SeriesPlayButtonProps) {
 
     try {
       await playMedia({
+        details: projectPlaybackDetails(series),
         id: series.id,
         name: nextEpisode.title || `Episode ${nextEpisode.episode}`,
         type: "series",

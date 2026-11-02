@@ -213,6 +213,8 @@ export interface StremioAuthData {
 
 /** Unified media item shape used across UI components */
 export interface MediaItem {
+  imdbId?: string;
+  tmdbId?: number;
   id: string;
   type: "movie" | "series" | "channel" | "tv";
   name: string;

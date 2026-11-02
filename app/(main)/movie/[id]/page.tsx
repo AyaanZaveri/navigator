@@ -1,3 +1,4 @@
+import { PlaybackPageProvider } from "@/components/playback-page-provider";
 import backdropStyles from "@/components/media-page/backdrop-transition.module.css";
 import { BackdropTransition } from "@/components/media-page/backdrop-transition";
 import { CastSection } from "@/components/media-page/cast-section";
@@ -74,6 +75,7 @@ export default async function Movie({
     };
 
     return (
+      <PlaybackPageProvider media={movie}>
       <div className={`${backdropStyles.page} relative min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
           backdropUrl={movie.background}
@@ -226,6 +228,7 @@ export default async function Movie({
           <SimilarMovies movieId={id} />
         </Suspense>
       </div>
+      </PlaybackPageProvider>
     );
   } catch (error: any) {
     if (error.message?.includes("Authentication expired")) {

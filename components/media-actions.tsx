@@ -18,26 +18,24 @@ import { SearchField } from "@/components/arc/search-field/search-field";
 import { ChipGroup } from "@/components/arc/chip-group/chip-group";
 import styles from "./media-actions.module.css";
 import { StreamSummary } from "@/components/stream-summary";
+import { usePlaybackPage } from "@/components/playback-page-provider";
+import { createPlaybackStreamRequest, type StreamWithAddon } from "@/lib/media/fetch-playback-streams";
+import { streamRequestKey } from "@/lib/media/playback-context";
+import { projectPlaybackDetails } from "@/lib/media/playback-details";
 
 interface MediaActionsProps {
   media?: MediaItem;
   movie?: MediaItem;
 }
 
-interface StreamAddonTarget {
-  id: string;
-  name: string;
-}
-
-interface StreamWithAddon extends StremioStream {
-  addonId: string;
-  addonName: string;
-}
 
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p", "480p"] as const;
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const activeMedia = media ?? movie;
+  const page = usePlaybackPage();
+  const activeId = activeMedia?.id;
+  const activeType = activeMedia?.type;
   const { setIsPlayerVisible, playMedia } = usePlaybackActions();
   const [streams, setStreams] = useState<StreamWithAddon[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,107 +85,36 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   ]);
 
   useEffect(() => {
-    if (!activeMedia) return;
+    if (!activeId || !activeType) return;
     let cancelled = false;
 
-    const getStreamKey = (stream: StremioStream) =>
-      `${stream.url || stream.externalUrl || ""}|${stream.title || ""}|${stream.name || ""}`;
-
-    const loadStreams = async () => {
-      setStreams([]);
-      setHasCheckedStreams(false);
-      setLoading(true);
-      setPendingAddons(0);
-      setTotalAddons(0);
-      setSelectedResolutions([]);
-      try {
-        const targetsResponse = await fetch(
-          `/api/streams/addons?type=${encodeURIComponent(activeMedia.type)}`,
-        );
-        const targetsData = await targetsResponse.json();
-        const targets: StreamAddonTarget[] = Array.isArray(targetsData?.addons)
-          ? targetsData.addons
-          : [];
-
-        if (cancelled) return;
-
-        setTotalAddons(targets.length);
-        setPendingAddons(targets.length);
-
-        if (targets.length === 0) {
-          setLoading(false);
-          setHasCheckedStreams(true);
-          return;
-        }
-
-        let remaining = targets.length;
-
-        targets.forEach((target) => {
-          void (async () => {
-            try {
-              const streamResponse = await fetch(
-                `/api/streams/addon?mediaItemId=${encodeURIComponent(activeMedia.id)}&type=${encodeURIComponent(activeMedia.type)}&addonId=${encodeURIComponent(target.id)}`,
-              );
-              const streamData = await streamResponse.json();
-              const result: StreamWithAddon[] = Array.isArray(
-                streamData?.streams,
-              )
-                ? streamData.streams.map((stream: StremioStream) => ({
-                    ...stream,
-                    addonId: target.id,
-                    addonName: target.name,
-                  }))
-                : [];
-
-              if (cancelled) return;
-
-              if (result.length > 0) {
-                setStreams((previous) => {
-                  const existing = new Set(
-                    previous.map(
-                      (stream) => `${stream.addonId}|${getStreamKey(stream)}`,
-                    ),
-                  );
-                  const next = [...previous];
-                  for (const stream of result) {
-                    const key = `${stream.addonId}|${getStreamKey(stream)}`;
-                    if (!existing.has(key)) {
-                      existing.add(key);
-                      next.push(stream);
-                    }
-                  }
-                  return next;
-                });
-              }
-            } catch (error) {
-              if (!cancelled) {
-                console.error("Failed to fetch streams for addon:", error);
-              }
-            } finally {
-              if (cancelled) return;
-              remaining -= 1;
-              setPendingAddons(remaining);
-              if (remaining === 0) {
-                setLoading(false);
-                setHasCheckedStreams(true);
-              }
-            }
-          })();
-        });
-      } catch (error) {
-        console.error("Failed to fetch streams:", error);
-        if (!cancelled) {
-          setLoading(false);
-          setHasCheckedStreams(true);
-        }
-      }
-    };
-
-    loadStreams();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeMedia?.id, activeMedia?.type]);
+    const key = streamRequestKey(activeId, activeType);
+    let request = page?.streamRequests.get(key);
+    if (!request) {
+      request = createPlaybackStreamRequest(activeId, activeType);
+      // Keep only this page's current stream list. Already-joined players own
+      // their promise independently, even after navigation/unmount.
+      page?.streamRequests.clear();
+      page?.streamRequests.set(key, request);
+    }
+    let firstSnapshot = true;
+    const unsubscribe = request.subscribe(snapshot => {
+      if (cancelled) return;
+      if (firstSnapshot) { setSelectedResolutions([]); firstSnapshot = false; }
+      setLoading(!snapshot.complete);
+      setHasCheckedStreams(snapshot.complete);
+      setStreams(snapshot.streams);
+      setTotalAddons(snapshot.total);
+      setPendingAddons(snapshot.pending);
+    });
+    void request.promise.then(() => {
+      if (!cancelled) { setLoading(false); setHasCheckedStreams(true); }
+    }).catch(error => {
+      if (page?.streamRequests.get(key) === request) page.streamRequests.delete(key);
+      if (!cancelled) { console.error("Failed to fetch streams:", error); setLoading(false); setHasCheckedStreams(true); }
+    });
+    return () => { cancelled = true; unsubscribe(); };
+  }, [activeId, activeType, page]);
 
   if (!activeMedia) return null;
 
@@ -238,6 +165,9 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       !!activeMedia.episodeId;
 
     await playMedia({
+      details: projectPlaybackDetails({ ...activeMedia, id: activeMedia.seriesId || activeMedia.id, name: activeMedia.showName || activeMedia.name }),
+      detailsLoaded: true,
+      streamRequest: page?.streamRequests.get(streamRequestKey(activeMedia.id, activeMedia.type)),
       id: isEpisode ? activeMedia.seriesId! : activeMedia.id,
       name: isEpisode
         ? activeMedia.episodeTitle || activeMedia.name

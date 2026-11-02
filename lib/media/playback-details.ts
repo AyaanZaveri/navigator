@@ -12,8 +12,8 @@ export function playbackDetailsId(media: Pick<MediaToPlay, "id" | "seriesId" | "
 export function initialPlaybackDetails(media: MediaToPlay): MediaItem {
   const id = playbackDetailsId(media);
   const artwork = mediaArtwork(id, media.type);
-  return { id, type: media.type, name: media.showName || media.name,
-    ...artwork, background: media.backdropUrl || artwork.background };
+  return mergePlaybackDetails({ id, type: media.type, name: media.showName || media.name,
+    ...artwork, background: media.backdropUrl || artwork.background }, media.details);
 }
 
 /** Empty/partial responses must not erase fields already obtained for this title. */
@@ -32,6 +32,7 @@ export function projectPlaybackDetails(item: MediaItem, season?: number, episode
     ? item.videos?.find(video => video.season === season && video.episode === episode) : undefined;
   return mergePlaybackDetails({ id: item.id, type: item.type, name: item.name }, {
     id: item.id, type: item.type, name: item.name, description: item.description,
+    imdbId: item.imdbId, tmdbId: item.tmdbId,
     year: item.year, releaseInfo: item.releaseInfo, imdbRating: item.imdbRating, runtime: item.runtime,
     poster: item.poster, background: item.background, logo: item.logo, cast: item.cast,
     genres: item.genres, director: item.director, writer: item.writer,

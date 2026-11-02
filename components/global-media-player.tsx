@@ -118,7 +118,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [nativePlayback, isPlayerVisible, currentMedia]);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
-  const [mediaDetails, setMediaDetails] = useState<MediaItem | null>(null);
+  const [loadedMediaDetails, setMediaDetails] = useState<MediaItem | null>(null);
+  const mediaDetailsOwner = useRef<MediaToPlay | null>(null);
+  const mediaDetails = mediaDetailsOwner.current === playbackRequest ? loadedMediaDetails
+    : currentMedia ? initialPlaybackDetails(currentMedia) : null;
   const [subtitleTracks, setSubtitleTracks] = useState<
     Array<{
       id?: string;
@@ -566,6 +569,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setPlaybackError(null);
     setStreamUrl(null);
     const initialDetails = initialPlaybackDetails(request);
+    mediaDetailsOwner.current = activePlaybackRequestRef.current || request;
     if (initialDetails.logo) preload(initialDetails.logo, { as: "image", fetchPriority: "high" });
     setMediaDetails(initialDetails);
     setSubtitleTracks([]);
@@ -575,6 +579,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
     let activeMedia = request;
     let latestDetails: MediaItem | null = initialDetails;
+    let metadataLoaded = Boolean(request.detailsLoaded);
     let sourceReady = false;
     let resolvedEpisodeTitle: string | undefined;
     let episodeLookupKey: string | undefined;
@@ -589,6 +594,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       return pending;
     };
     const publishTitle = () => {
+      activeMedia = { ...activeMedia, details: latestDetails || undefined, detailsLoaded: metadataLoaded };
       const titles = getPlaybackTitles(activeMedia, latestDetails);
       const title = resolvedEpisodeTitle || titles.episodeTitle;
       if (titles.isEpisode && title) activeMedia = {
@@ -606,7 +612,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const resolveEpisodeTitle = () => {
       const titles = getPlaybackTitles(activeMedia, latestDetails);
       if (!titles.isEpisode || titles.season === undefined || titles.episodeNumber === undefined) return;
-      if (isMeaningfulEpisodeTitle(activeMedia.episodeTitle) && activeMedia.episodeTitle !== titles.showTitle) return;
+      if (isMeaningfulEpisodeTitle(titles.episodeTitle) && titles.episodeTitle !== titles.showTitle) return;
       const seriesId = activeMedia.seriesId || activeMedia.id;
       const key = `${seriesId}:${titles.season}:${titles.episodeNumber}`;
       if (episodeLookupKey === key) return;
@@ -618,10 +624,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       }).catch(() => {});
     };
     // Neither episode names nor show metadata wait on stream resolution or each other.
+    publishTitle();
     resolveEpisodeTitle();
-    void fetchPlaybackDetails(request, metadataAbort.signal).then(details => {
+    if (!request.detailsLoaded) void fetchPlaybackDetails(request, metadataAbort.signal).then(details => {
       if (!isCurrent()) return;
       latestDetails = mergePlaybackDetails(initialDetails, details);
+      metadataLoaded = Boolean(details);
       setMediaDetails(latestDetails);
       publishTitle();
     }).catch(() => {});

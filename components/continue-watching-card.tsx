@@ -1,5 +1,7 @@
 "use client";
 
+import { projectPlaybackDetails } from "@/lib/media/playback-details";
+
 import { ArtworkImage } from "@/components/artwork-image";
 
 import React from "react";
@@ -18,6 +20,7 @@ export function ContinueWatchingCard({ item }: ContinueWatchingCardProps) {
 
   const handlePlayResume = async () => {
     await playMedia({
+        details: projectPlaybackDetails({ ...item, id: item.seriesId || item.id, name: item.showName || item.name }),
       id: item.id,
       name: item.episodeTitle || item.name,
       type: item.type,

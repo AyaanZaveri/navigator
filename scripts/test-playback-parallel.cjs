@@ -27,7 +27,8 @@ function utility(file) {
 }
 const callbacks = [], changes = [], requests = [];
 const ordinarySeries = process.argv.includes("--series");
-const provided = process.argv.includes("--provided");
+const onPage = process.argv.includes("--page");
+const provided = process.argv.includes("--provided") || onPage;
 const canonical = process.argv.includes("--canonical") || ordinarySeries || provided;
 const expectedTitle = provided ? 'Provided episode title' : canonical ? 'Canonical episode title' : 'Early episode title';
 let finishDetails, finishStreams;
@@ -36,6 +37,11 @@ const streams = new Promise(resolve => { finishStreams = resolve; });
 const request = { id: 'show', type: 'series', name: canonical ? 'Episode 3' : 'Show', episodeTitle: canonical ? 'Episode 3' : undefined, showName: 'Show', mediaSourceId: 'show:1:3', seasonNumber: 1, episodeNumber: 3 };
 if (ordinarySeries) { delete request.mediaSourceId; delete request.seasonNumber; delete request.episodeNumber; delete request.episodeTitle; request.name = 'Show'; }
 if (provided) request.episodeTitle = 'Provided episode title';
+if (onPage) {
+    request.detailsLoaded = true;
+    request.details = { id: 'show', type: 'series', name: 'Show', year: 2009, runtime: '21 min', imdbRating: '8.5', logo: '/logo.svg' };
+    request.streamRequest = { id: 'show:1:3', type: 'series', canonicalId: Promise.resolve('show:1:3'), promise: streams };
+}
 const noOp = () => {};
 const hooks = {
     ...React,
@@ -78,7 +84,7 @@ assert.ok(load, 'Exercise the actual player loading callback');
 (async () => {
     const pending = load(request);
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(requests, provided ? ['details', 'streams'] : ordinarySeries ? ['details', 'episode-http', 'streams'] : ['episode-http', 'details', 'streams'], 'Only the selected episode is fetched, independently of pending stream and show requests');
+    assert.deepEqual(requests, onPage ? [] : provided ? ['details', 'streams'] : ordinarySeries ? ['details', 'episode-http', 'streams'] : ['episode-http', 'details', 'streams'], 'Only the selected episode is fetched, independently of pending stream and show requests');
     finishDetails({ id: 'show', type: 'series', name: 'Show', year: 2009, runtime: '21 min', imdbRating: '8.5', logo: '/logo.svg', poster: '/poster.jpg', background: '/backdrop.jpg', cast: ['Actor'], videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
     await new Promise(resolve => setImmediate(resolve));
     assert.ok(changes.some(value => value?.media?.episodeTitle === expectedTitle), 'Episode title must publish while stream discovery is still pending');
@@ -88,5 +94,5 @@ assert.ok(load, 'Exercise the actual player loading callback');
     const lastPrepared = changes.filter(value => value?.media).at(-1);
     assert.equal(lastPrepared.media.episodeTitle, expectedTitle, 'Source completion must preserve the early title');
     assert.equal(lastPrepared.media.streamUrl, 'https://example.test/top.mp4');
-    console.log('PASS: actual player requests metadata and streams concurrently, publishes the episode title first, and preserves it when playback becomes ready.');
+    console.log(onPage ? 'PASS: actual player starts from page title/artwork/metadata and joins its stream request with zero duplicate reads.' : 'PASS: actual player requests missing metadata and streams concurrently, publishes the episode title first, and preserves it when playback becomes ready.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,5 +1,8 @@
 import { atom } from "jotai";
 import { artworkUrl } from "@/lib/artwork";
+import type { MediaItem } from "@/types/stremio";
+import type { PlaybackStreamRequest } from "@/lib/media/fetch-playback-streams";
+import { applyPlaybackContext, type PlaybackPageContext } from "@/lib/media/playback-context";
 
 // AI Ask state
 export const isAIAskOpenAtom = atom(false);
@@ -20,6 +23,10 @@ export const isDesktopFullscreenAtom = atom((get) => {
 
 // Media Player state
 export interface MediaToPlay {
+  details?: MediaItem;
+  /** Full metadata already read on a details page; absent fields need no refetch. */
+  detailsLoaded?: boolean;
+  streamRequest?: PlaybackStreamRequest;
   /** Navigate behind the player only after its opaque surface has mounted. */
   detailsPath?: string;
   /** Pointer-triggered card playback can soften the web player's initial reveal. */
@@ -61,6 +68,7 @@ export interface CurrentMediaWithSource {
 
 export const isPlayerVisibleAtom = atom(false);
 export const currentMediaAtom = atom<MediaToPlay | null>(null);
+export const playbackPageContextAtom = atom<PlaybackPageContext | null>(null);
 export const currentMediaWithSourceAtom = atom<CurrentMediaWithSource | null>(
   null
 );
@@ -69,6 +77,7 @@ export const currentTimestampAtom = atom(0);
 
 // Derived atom for playing media
 export const playMediaAtom = atom(null, (get, set, media: MediaToPlay) => {
+  media = applyPlaybackContext(media, get(playbackPageContextAtom));
   set(isAIAskOpenAtom, false);
   set(currentMediaAtom, media.type === "series" ? {
     ...media,

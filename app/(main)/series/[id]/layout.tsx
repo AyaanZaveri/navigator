@@ -1,3 +1,4 @@
+import { PlaybackPageProvider } from "@/components/playback-page-provider";
 import backdropStyles from "@/components/media-page/backdrop-transition.module.css";
 import { BackdropTransition } from "@/components/media-page/backdrop-transition";
 import { CastSection } from "@/components/media-page/cast-section";
@@ -53,6 +54,7 @@ export default async function SeriesLayout({
     const { show } = layoutData;
 
     return (
+      <PlaybackPageProvider media={show}>
       <div className={`${backdropStyles.page} relative min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
           backdropUrl={show.background}
@@ -120,6 +122,7 @@ export default async function SeriesLayout({
           <SimilarShows showId={id} />
         </Suspense>
       </div>
+      </PlaybackPageProvider>
     );
   } catch (error: any) {
     if (error.message?.includes("Authentication expired")) {

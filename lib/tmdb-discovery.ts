@@ -275,7 +275,7 @@ export async function getTMDBFilmography(personId: number, options: {
 export async function tmdbMediaItem(id: string, type: TMDBMediaType, signal?: AbortSignal): Promise<MediaItem> {
     const title = await getTMDBTitle(id, type, signal);
     return {
-        id: title.id, type, name: title.name, description: title.overview, year: title.year,
+        id: title.id, imdbId: title.imdbId, type, name: title.name, description: title.overview, year: title.year,
         releaseInfo: title.releaseInfo, poster: title.poster, background: title.background,
         logo: artworkUrl(id, type, "logo"),
         genres: title.genres, cast: title.cast, director: title.director, writer: title.writer,
