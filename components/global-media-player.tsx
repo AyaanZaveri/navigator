@@ -2,6 +2,8 @@
 
 import "@/components/player-mobile.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
+import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
+import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
@@ -60,6 +62,7 @@ interface GlobalMediaPlayerProps {
 }
 
 const PROGRESS_REPORT_INTERVAL_MS = 30_000;
+const WEB_STARTUP_RETRY_DELAYS_MS = [400, 1200];
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const {
@@ -125,12 +128,20 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const loadGenerationRef = useRef(0);
+  const startupRetriesRef = useRef(0);
+  const playbackHasPlayedRef = useRef(false);
+  const startupRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProgressReportAtRef = useRef(0);
   const playbackStartedReportedRef = useRef(false);
   const playbackStoppedReportedRef = useRef(false);
   const lastLoadedPlaybackKeyRef = useRef<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  const cancelStartupRetry = useCallback(() => {
+    if (startupRetryTimerRef.current !== null) clearTimeout(startupRetryTimerRef.current);
+    startupRetryTimerRef.current = null;
+  }, []);
 
   useLayoutEffect(() => {
     setNativeSubtitle("");
@@ -165,11 +176,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       minute: "2-digit",
       hour12: true,
     });
-  };
-
-  const formatRuntime = (runtimeStr?: string) => {
-    if (!runtimeStr) return null;
-    return runtimeStr;
   };
 
   const buildPlaybackPayload = useCallback(
@@ -254,9 +260,48 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     sendPlaybackUpdate("progress");
   }, [sendPlaybackUpdate]);
 
-  const handleVideoCanPlay = useCallback(() => {
+  const handleVideoCanPlay = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (event.currentTarget !== videoRef.current || event.currentTarget.error) return;
+    cancelStartupRetry();
     setVideoReady(true);
-  }, []);
+    setPlaybackError(null);
+  }, [cancelStartupRetry]);
+
+  const handleVideoPlaying = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (event.currentTarget !== videoRef.current) return;
+    cancelStartupRetry();
+    playbackHasPlayedRef.current = true;
+    setVideoReady(true);
+    setPlaybackError(null);
+    reportNavigatorPlayback("playing");
+  }, [cancelStartupRetry, reportNavigatorPlayback]);
+
+  const handleVideoError = useCallback((event: React.SyntheticEvent<HTMLVideoElement>, generation: number) => {
+    const element = event.currentTarget;
+    if (generation !== loadGenerationRef.current || element !== videoRef.current || !isPlayerVisible) return;
+    const error = element.error;
+    if (!error || error.code === 1 || startupRetryTimerRef.current !== null) return;
+
+    // A temporary response/decoder failure can present as a format error even
+    // when reopening the same file works. Keep the URL and retry a fresh decoder.
+    if (!nativePlayback && !playbackHasPlayedRef.current && error.code >= 2 && error.code <= 4
+      && startupRetriesRef.current < WEB_STARTUP_RETRY_DELAYS_MS.length) {
+      const delay = WEB_STARTUP_RETRY_DELAYS_MS[startupRetriesRef.current++];
+      setPlaybackError(null);
+      setVideoReady(false);
+      setPlaybackPhase("loading-stream");
+      startupRetryTimerRef.current = setTimeout(() => {
+        startupRetryTimerRef.current = null;
+        if (generation === loadGenerationRef.current) setPlayerAttempt(attempt => attempt + 1);
+      }, delay);
+      return;
+    }
+
+    const message = error.message || "This stream could not be played.";
+    console.warn("Media player error:", { code: error.code, message });
+    setPlaybackError(message);
+    reportNavigatorPlayback("error", message);
+  }, [isPlayerVisible, nativePlayback, reportNavigatorPlayback]);
 
   const maybeReportPeriodicProgress = useCallback(
     (timeSeconds: number, durationSeconds?: number) => {
@@ -326,6 +371,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const handleClose = useCallback((options?: { ended?: boolean }) => {
     reportNavigatorPlayback("closed");
     loadGenerationRef.current++;
+    cancelStartupRetry();
     sendPlaybackUpdate("stopped", { ended: options?.ended });
     setIsPlayerVisible(false);
     setStreamUrl(null);
@@ -338,7 +384,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setVideoReady(false);
     setPlaybackError(null);
     lastLoadedPlaybackKeyRef.current = null;
-  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible, reportNavigatorPlayback]);
+  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible, reportNavigatorPlayback, cancelStartupRetry]);
 
   useEffect(() => {
     if (!nativePlayback || !isPlayerVisible) return;
@@ -455,6 +501,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const loadMedia = useCallback(async (request: MediaToPlay) => {
     const generation = ++loadGenerationRef.current;
+    cancelStartupRetry();
+    startupRetriesRef.current = 0;
+    playbackHasPlayedRef.current = false;
     const isCurrent = () => generation === loadGenerationRef.current;
     setLoading(true);
     setPlaybackError(null);
@@ -541,7 +590,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [setCurrentMediaWithSource]);
+  }, [setCurrentMediaWithSource, cancelStartupRetry]);
 
   useEffect(() => {
     if (!playbackRequest || !isPlayerVisible || !playbackKey) return;
@@ -575,9 +624,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   useEffect(() => {
     return () => {
       loadGenerationRef.current++;
+      cancelStartupRetry();
       lastLoadedPlaybackKeyRef.current = null;
     };
-  }, []);
+  }, [cancelStartupRetry]);
 
   if (!isPlayerVisible || !currentMedia) return null;
 
@@ -585,6 +635,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const fallbackBackdrop =
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
   const loadingLogo = mediaDetails?.logo;
+  const videoGeneration = loadGenerationRef.current;
 
   const Video = nativePlayback
     ? MpvVideo
@@ -596,10 +647,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       <MediaPlayer
         autoHide
         onEnded={handleVideoEnded}
-        onMediaError={(error) => {
-          console.warn("Media player error caught:", error);
-          if (error) setPlaybackError(error.message || "This stream could not be played.");
-        }}
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
@@ -663,19 +710,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               autoPlay={false}
               className="h-screen bg-black w-screen"
               onPause={handleVideoPause}
-              onPlaying={() => reportNavigatorPlayback("playing")}
+              onPlaying={handleVideoPlaying}
               onEnded={handleVideoEnded}
               onLoadedMetadata={handleVideoLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
               onDurationChange={handleDurationChange}
               onCanPlay={handleVideoCanPlay}
               onLoadedData={handleVideoCanPlay}
-              onError={(event) => {
-                console.warn("Video error caught:", event);
-                const message = videoRef.current?.error?.message || "This stream could not be played.";
-                setPlaybackError(message);
-                reportNavigatorPlayback("error", message);
-              }}
+              onError={(event) => handleVideoError(event, videoGeneration)}
             />
           </MediaPlayerVideo>
         )}
@@ -688,6 +730,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             {fallbackBackdrop ? (
               <div className="relative w-full h-full">
                 <img
+                  draggable={false}
                   src={fallbackBackdrop}
                   alt={currentMedia?.name}
                   className="w-full h-full object-cover brightness-75"
@@ -714,21 +757,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </Button>
 
             {loadingLogo && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="absolute inset-0 z-[2] flex items-center justify-center px-8 pointer-events-none"
-              >
-                <img
-                  src={loadingLogo}
-                  alt={`${showTitle || primaryTitle} logo`}
-                  className="w-auto max-w-[66vw] md:max-w-[52vw] max-h-[18vh] md:max-h-[22vh] object-contain opacity-85 drop-shadow-[0_10px_28px_rgba(0,0,0,0.85)]"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              </motion.div>
+              <PlayerLoadingWordmark
+                key={loadingLogo}
+                src={loadingLogo}
+                alt={`${showTitle || primaryTitle} logo`}
+                loading={!playbackError}
+              />
             )}
 
             {/* Title and loading spinner */}
@@ -777,7 +811,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                   transition={{ delay: 0.6 }}
                 >
                   {mediaDetails?.runtime && (
-                    <span>{mediaDetails.runtime}</span>
+                    <span>{formatRuntime(mediaDetails.runtime)}</span>
                   )}
                   {mediaDetails?.year && <span>{mediaDetails.year}</span>}
                   {mediaDetails?.imdbRating && (
@@ -793,6 +827,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     <div className="flex flex-col items-start gap-3" role="alert">
                       <p className="text-sm text-white">{playbackError}</p>
                       <Button variant="secondary" onClick={() => {
+                        cancelStartupRetry();
+                        startupRetriesRef.current = 0;
+                        playbackHasPlayedRef.current = false;
                         setPlaybackError(null);
                         setVideoReady(false);
                         setPlayerAttempt((attempt) => attempt + 1);
@@ -800,7 +837,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                       }}>Try again</Button>
                     </div>
                   ) : (
-                    <><Loader2 aria-hidden="true" className="size-4 animate-spin text-white/70" />
+                    <><Loader2 aria-hidden="true" className="size-4 animate-spin text-white/70 motion-reduce:animate-none" />
                     <span className="text-sm text-white/70" role="status">{playbackPhaseLabels[playbackPhase]}</span></>
                   )}
                 </motion.div>
@@ -872,7 +909,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 </span>
               )}
               {mediaDetails?.runtime && (
-                <span>{mediaDetails.runtime}</span>
+                <span>{formatRuntime(mediaDetails.runtime)}</span>
               )}
               {mediaDetails?.year && <span>{mediaDetails.year}</span>}
             </div>

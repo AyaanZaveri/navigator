@@ -1,4 +1,5 @@
 import { PosterImage } from "@/components/media-page/poster-image";
+import { MediaPlayButton } from "@/components/media-page/play-button";
 import { Badge } from "@/components/ui/badge";
 import { Star } from "lucide-react";
 import { redirect } from "next/navigation";
@@ -22,7 +23,7 @@ export default async function SeriesOverviewPage({
 
     return (
       <section aria-labelledby="series-title" className="@container">
-        <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-start @3xl:gap-8">
+        <div className="grid min-w-0 gap-6 @3xl:grid-cols-[14rem_minmax(0,1fr)] @3xl:items-center @3xl:gap-8">
           <div className="relative mx-auto w-[clamp(12rem,56vw,15rem)] max-w-full @3xl:mx-0 @3xl:w-full">
             <PosterImage
               movie={show}
@@ -33,7 +34,7 @@ export default async function SeriesOverviewPage({
             />
           </div>
 
-          <div className="flex min-w-0 flex-col gap-6 text-start @3xl:pt-3">
+          <div className="flex min-w-0 flex-col gap-6 text-start">
             <div className="flex min-w-0 flex-col items-center gap-3 text-center @3xl:items-start @3xl:text-start">
               <h1
                 id="series-title"
@@ -65,6 +66,16 @@ export default async function SeriesOverviewPage({
                   </Badge>
                 )}
               </div>
+              <MediaPlayButton
+                media={{
+                  id: show.id,
+                  name: show.name,
+                  type: "series",
+                  seriesId: show.id,
+                  showName: show.name,
+                  backdropUrl: show.background || show.poster,
+                }}
+              />
             </div>
 
             {show.description && (
@@ -103,14 +114,6 @@ export default async function SeriesOverviewPage({
                   <dt className="text-muted-foreground">Writers</dt>
                   <dd className="min-w-0 break-words">
                     {show.writer.join(", ")}
-                  </dd>
-                </>
-              )}
-              {show.cast && show.cast.length > 0 && (
-                <>
-                  <dt className="text-muted-foreground">Cast</dt>
-                  <dd className="min-w-0 break-words">
-                    {show.cast.slice(0, 8).join(", ")}
                   </dd>
                 </>
               )}

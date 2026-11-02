@@ -41,6 +41,7 @@ export function PosterImage({
 
   return (
     <img
+      draggable={false}
       className={className}
       src={resolvedPosterImage}
       alt={`${mediaName} poster`}

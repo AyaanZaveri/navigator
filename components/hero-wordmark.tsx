@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { VibrantLogo } from "./vibrant-logo";
-import { getWordmarkBounds, type WordmarkBounds } from "@/lib/wordmark-bounds";
+import { getWordmarkBounds, getWordmarkDensity, type WordmarkBounds } from "@/lib/wordmark-bounds";
 import { cn } from "@/lib/utils";
 import styles from "./hero-wordmark.module.css";
 
@@ -17,10 +17,12 @@ export function HeroWordmark({
   movieName: string;
   className?: string;
 }) {
+  const logoSrc = src.startsWith("/api/artwork?") ? `${src}&sample=1` : src;
   const [analysis, setAnalysis] = useState<{
     src: string;
     bounds: WordmarkBounds;
     aspect: number;
+    dense?: boolean;
   } | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +30,13 @@ export function HeroWordmark({
     image.crossOrigin = "anonymous";
     image.onload = () => {
       if (cancelled || !image.naturalWidth || !image.naturalHeight) return;
+      // The displayed image may have loaded before hydration attached onLoad.
+      // Record dimensions here even if canvas analysis is unavailable.
+      setAnalysis((previous) => previous?.src === src ? previous : {
+        src,
+        bounds: { left: 0, top: 0, width: 1, height: 1 },
+        aspect: image.naturalWidth / image.naturalHeight,
+      });
       const canvas = document.createElement("canvas");
       const scale = Math.min(
         1,
@@ -39,8 +48,9 @@ export function HeroWordmark({
       if (!context) return;
       try {
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
         const bounds = getWordmarkBounds(
-          context.getImageData(0, 0, canvas.width, canvas.height).data,
+          pixels,
           canvas.width,
           canvas.height,
         );
@@ -48,6 +58,7 @@ export function HeroWordmark({
           setAnalysis({
             src,
             bounds,
+            dense: getWordmarkDensity(pixels, canvas.width, canvas.height, bounds) > .5,
             aspect:
               (image.naturalWidth * bounds.width) /
               (image.naturalHeight * bounds.height),
@@ -56,17 +67,27 @@ export function HeroWordmark({
         /* Keep the original artwork if its pixels cannot be inspected. */
       }
     };
-    image.src = src;
+    image.onerror = () => {
+      if (cancelled || !image.crossOrigin) return;
+      image.crossOrigin = null;
+      image.src = logoSrc;
+    };
+    image.src = logoSrc;
     return () => {
       cancelled = true;
       image.onload = null;
+      image.onerror = null;
     };
-  }, [src]);
+  }, [src, logoSrc]);
   const current = analysis?.src === src ? analysis : null;
   const bounds = current?.bounds ?? { left: 0, top: 0, width: 1, height: 1 };
   const aspect = current?.aspect ?? 800 / 310;
   return (
-    <div className={cn(styles.root, className)}>
+    <div
+      className={cn(styles.root, className)}
+      data-wide={aspect >= 3 || undefined}
+      data-dense={current?.dense || undefined}
+    >
       <div
         className={styles.artwork}
         style={{
@@ -84,12 +105,23 @@ export function HeroWordmark({
           }}
         >
           <VibrantLogo
-            src={src}
+            src={logoSrc}
             alt={alt}
             movieName={movieName}
             width={800}
             height={310}
             className="block size-full max-w-none object-contain"
+            onLoad={(event) => {
+              const { naturalWidth, naturalHeight } = event.currentTarget;
+              if (!naturalWidth || !naturalHeight) return;
+              // Image dimensions remain available when CORS prevents pixel analysis.
+              // Keep any tighter visible bounds that have already been measured.
+              setAnalysis((previous) => previous?.src === src ? previous : {
+                src,
+                bounds: { left: 0, top: 0, width: 1, height: 1 },
+                aspect: naturalWidth / naturalHeight,
+              });
+            }}
           />
         </div>
       </div>

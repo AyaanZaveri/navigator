@@ -1,4 +1,10 @@
-export type LogoTone = "light" | "dark";
+export type LogoTone = "light" | "dark" | "deep";
+export const HEADER_LOGO_SOURCES: Record<LogoTone, string> = {
+    dark: "/logo/navigator-header-light.svg?v=3",
+    light: "/logo/navigator-header-dark.svg?v=2",
+    deep: "/logo/navigator-header-high-contrast.svg?v=1",
+};
+export type LogoPixels = Record<LogoTone, ArrayLike<number>>;
 type Rectangle = { left: number; top: number; width: number; height: number };
 
 function linearChannel(channel: number): number {
@@ -10,27 +16,27 @@ function luminance(red: number, green: number, blue: number): number {
     return 0.2126 * linearChannel(red) + 0.7152 * linearChannel(green) + 0.0722 * linearChannel(blue);
 }
 
-// Contrast crossover for the two existing SVG gradients, rather than black/white.
-const darkLogo = (luminance(24, 163, 141) + luminance(17, 135, 119)) / 2;
-const lightLogo = (luminance(168, 244, 228) + luminance(54, 204, 176)) / 2;
-export const LOGO_LUMINANCE_THRESHOLD = Math.sqrt((darkLogo + 0.05) * (lightLogo + 0.05)) - 0.05;
-const HYSTERESIS = 0.03;
-
-export function chooseLogoTone(brightness: number, current: LogoTone | null = null): LogoTone {
-    if (current === "dark" && brightness >= LOGO_LUMINANCE_THRESHOLD - HYSTERESIS) return "dark";
-    if (current === "light" && brightness <= LOGO_LUMINANCE_THRESHOLD + HYSTERESIS) return "light";
-    return brightness > LOGO_LUMINANCE_THRESHOLD ? "dark" : "light";
+/** Compare actual SVG stroke interiors with the background directly beneath them. */
+export function minimumLogoContrast(background: ArrayLike<number>, logo: ArrayLike<number>): number {
+    if (background.length !== logo.length) return 0;
+    let minimum = Infinity;
+    for (let i = 0; i + 3 < logo.length; i += 4) {
+        // Anti-aliased edges and transparent gaps must not determine the tone.
+        if (logo[i + 3] < 242 || background[i + 3] < 242) continue;
+        const foreground = luminance(logo[i], logo[i + 1], logo[i + 2]);
+        const surface = luminance(background[i], background[i + 1], background[i + 2]);
+        minimum = Math.min(minimum, (Math.max(foreground, surface) + .05) / (Math.min(foreground, surface) + .05));
+    }
+    return Number.isFinite(minimum) ? minimum : 0;
 }
 
-export function averageLuminance(pixels: ArrayLike<number>): number | null {
-    let total = 0;
-    let weight = 0;
-    for (let index = 0; index + 3 < pixels.length; index += 4) {
-        const alpha = pixels[index + 3] / 255;
-        total += luminance(pixels[index], pixels[index + 1], pixels[index + 2]) * alpha;
-        weight += alpha;
-    }
-    return weight > 0 ? total / weight : null;
+export function chooseLogoTreatment(background: ArrayLike<number>, logos: LogoPixels, current: LogoTone | null = null): LogoTone {
+    const tones: LogoTone[] = ["light", "dark", "deep"];
+    const scores = Object.fromEntries(tones.map(tone => [tone, minimumLogoContrast(background, logos[tone])])) as Record<LogoTone, number>;
+    const best = tones.reduce((a, b) => scores[a] >= scores[b] ? a : b);
+    // Avoid flickering between similarly readable variants during scroll/blur changes.
+    if (current && scores[best] < scores[current] + .3) return current;
+    return best;
 }
 
 function positionOffset(position: string, space: number): number {

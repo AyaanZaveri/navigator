@@ -54,6 +54,7 @@ export function VibrantBackdrop({
 
   return (
     <img
+      draggable={false}
       className={className}
       src={src}
       alt={alt}

@@ -9,6 +9,7 @@ import { useSetAtom } from "jotai";
 import { isAIAskOpenAtom } from "@/lib/atoms";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatRuntime } from "@/lib/format-runtime";
 import styles from "./result-card.module.css";
 import { ResultCardEntranceContext } from "./result-card-motion";
 
@@ -68,6 +69,7 @@ export function ResultCard({
     <>
       {image && image !== failedImage ? (
         <img
+          draggable={false}
           src={image}
           alt=""
           aria-hidden="true"
@@ -142,5 +144,5 @@ export function ResultCard({
 
 export function formatCardRuntime(minutes?: number) {
   if (!minutes) return null;
-  return `${Math.floor(minutes / 60) ? `${Math.floor(minutes / 60)}h ` : ""}${minutes % 60}m`;
+  return formatRuntime(minutes);
 }

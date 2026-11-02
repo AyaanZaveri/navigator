@@ -58,14 +58,16 @@ function reading({ top = 0, background = 255, fade = false, imageOpacity = 1, ti
     paintLogoBackdrop(context, {left:0,top:0,width:16,height:16}, `rgb(${background}, ${background}, ${background})`, {
         image: { naturalWidth: 100, naturalHeight: 100, color: [30,30,30,1] }, rect, opacity: imageOpacity, objectPosition: '50% 50%',
     }, overlays);
-    return contrast.chooseLogoTone(contrast.averageLuminance(new Uint8ClampedArray([...pixel,255])));
+    return contrast.chooseLogoTreatment(new Uint8ClampedArray([...pixel,255]), {
+        light: [54,204,176,255], dark: [17,135,119,255], deep: [7,84,73,255],
+    });
 }
 assert.equal(reading(), 'light', 'Dark artwork selects the bright logo in light mode');
 assert.equal(reading({ background: 0 }), 'light', 'The same opaque artwork selects the same logo in dark mode');
 assert.equal(reading({ imageOpacity: .88 }), 'light', 'A subtle light-theme artwork wash does not force a theme-based logo');
 assert.equal(reading({ fade: true }), 'light');
-assert.equal(reading({ top: -70, fade: true }), 'dark', 'The fade to white must switch the logo before the backdrop leaves the screen');
-assert.equal(reading({ top: -94 }), 'dark', 'Partially exposed page background must be sampled too');
-assert.equal(reading({ top: -120 }), 'dark', 'Once artwork leaves, sample the actual white page');
+assert.equal(reading({ top: -70, fade: true }), 'deep', 'The fade to white must switch the logo before the backdrop leaves the screen');
+assert.equal(reading({ top: -94 }), 'deep', 'Partially exposed page background must be sampled too');
+assert.equal(reading({ top: -120 }), 'deep', 'Once artwork leaves, sample the actual white page');
 assert.equal(reading({ top: -120, background: 0 }), 'light', 'A black page retains the brighter logo');
 console.log('PASS: local compositing, theme-independent artwork contrast, scroll fades, partial overlap, page color, and origin-clean sample URLs');

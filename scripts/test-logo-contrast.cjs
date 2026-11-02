@@ -7,21 +7,30 @@ const context = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/logo-contrast.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
-const { averageLuminance, chooseLogoTone, getLogoSampleCrop, LOGO_LUMINANCE_THRESHOLD } = context.exports;
+const { minimumLogoContrast, chooseLogoTreatment, getLogoSampleCrop } = context.exports;
 
 const solid = (value) => new Uint8ClampedArray([value, value, value, 255]);
-assert.equal(chooseLogoTone(averageLuminance(solid(255))), 'dark', 'White artwork needs the darker logo, regardless of app theme');
-assert.equal(chooseLogoTone(averageLuminance(solid(0))), 'light', 'Dark artwork needs the brighter logo');
-assert.equal(chooseLogoTone(averageLuminance(solid(128))), 'light', 'Mid-dark artwork should retain contrast with the bright teal asset');
-assert.equal(chooseLogoTone(averageLuminance(solid(220))), 'dark');
-assert.equal(averageLuminance([]), null);
-assert.equal(averageLuminance([255, 255, 255, 0]), null);
-assert.equal(averageLuminance([255, 255, 255, 255, 0, 0, 0, 255]), 0.5);
-
-assert.equal(chooseLogoTone(LOGO_LUMINANCE_THRESHOLD - 0.01, 'dark'), 'dark', 'Small brightness changes must not flicker');
-assert.equal(chooseLogoTone(LOGO_LUMINANCE_THRESHOLD + 0.01, 'light'), 'light');
-assert.equal(chooseLogoTone(LOGO_LUMINANCE_THRESHOLD - 0.06, 'dark'), 'light');
-assert.equal(chooseLogoTone(LOGO_LUMINANCE_THRESHOLD + 0.06, 'light'), 'dark');
+const colors = { light: [54, 204, 176, 255], dark: [17, 135, 119, 255], deep: [7, 84, 73, 255] };
+function paletteFor(background) {
+    return Object.fromEntries(Object.entries(colors).map(([tone, color]) => {
+        const pixels = new Uint8ClampedArray(background.length);
+        for (let i = 0; i < pixels.length; i += 4) pixels.set(color, i);
+        return [tone, pixels];
+    }));
+}
+const treatment = (pixels, current) => chooseLogoTreatment(pixels, paletteFor(pixels), current);
+assert.equal(treatment(solid(255)), 'deep', 'Bright artwork needs the high-contrast deep teal variant');
+assert.equal(treatment(solid(0)), 'light', 'Dark artwork needs the light mint variant');
+assert.equal(treatment(solid(128)), 'deep', 'Midtone surfaces choose the highest-contrast bare variant');
+assert.equal(minimumLogoContrast([], []), 0);
+assert.equal(minimumLogoContrast(solid(255), [0, 0, 0, 0]), 0, 'Transparent gaps must not influence contrast');
+assert.equal(minimumLogoContrast(solid(255), solid(0)), 21);
+const nearlyEqual = { light: solid(240), dark: solid(239), deep: solid(0) };
+assert.equal(chooseLogoTreatment(solid(0), nearlyEqual, 'dark'), 'dark', 'Small score differences must not flicker');
+assert.equal(chooseLogoTreatment(solid(255), nearlyEqual, 'dark'), 'deep', 'Hysteresis must never retain an unreadable bare mark');
+for (let value = 0; value <= 255; value++) {
+    assert.ok(['light', 'dark', 'deep'].includes(treatment(solid(value))), 'Every surface must select one of the three bare marks');
+}
 
 function approximately(actual, expected) {
     assert.ok(Math.abs(actual - expected) < 0.00001, `${actual} should equal ${expected}`);
@@ -62,7 +71,7 @@ for (let y = localCrop.y; y < localCrop.y + localCrop.height; y++) {
         patch.push(...image.slice((y * 100 + x) * 4, (y * 100 + x) * 4 + 4));
     }
 }
-assert.equal(chooseLogoTone(averageLuminance(image)), 'light');
-assert.equal(chooseLogoTone(averageLuminance(patch)), 'dark');
+assert.equal(treatment(image), 'dark');
+assert.equal(treatment(new Uint8ClampedArray(patch)), 'deep', 'The pixels immediately beneath the logo determine its treatment');
 
-console.log('PASS: logo polarity, luminance averaging, hysteresis, localized image crops, object-position, and resize geometry');
+console.log('PASS: exactly three bare logo variants, stroke contrast, hysteresis, localized crops, object-position, and resize geometry');

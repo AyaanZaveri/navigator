@@ -1,0 +1,92 @@
+.root {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 2rem;
+    pointer-events: none;
+    animation: appear var(--duration-standard, 240ms) var(--ease-out) both;
+}
+
+.logo {
+    position: relative;
+    opacity: .85;
+}
+
+.logo[data-loading] {
+    /* An indeterminate loading loop, independent of stream progress. */
+    animation: breathe calc(var(--duration-considered, 480ms) * 6) var(--ease-in-out) infinite;
+}
+
+.image {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 66vw;
+    max-height: 18vh;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 28px rgb(0 0 0 / .85));
+}
+
+.mask {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+}
+
+.sheen {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / .55) 50%, transparent 65%);
+    animation: sweep calc(var(--duration-considered, 480ms) * 6) linear infinite;
+}
+
+@keyframes appear {
+    from { opacity: 0; transform: scale(.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes breathe {
+    0%, 100% { opacity: .72; transform: scale(.985); }
+    50% { opacity: .95; transform: scale(1.015); }
+}
+
+@keyframes sweep {
+    0% { opacity: 0; transform: translateX(-100%); }
+    15% { opacity: .65; }
+    65%, 100% { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes loading-opacity {
+    0%, 100% { opacity: .8; }
+    50% { opacity: .95; }
+}
+
+@keyframes appear-opacity {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (min-width: 48rem) {
+    .image {
+        max-width: 52vw;
+        max-height: 22vh;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .root { animation-name: appear-opacity; }
+    .logo[data-loading] {
+        animation-name: loading-opacity;
+        animation-duration: calc(var(--duration-considered, 480ms) * 10);
+    }
+    .mask { display: none; }
+}

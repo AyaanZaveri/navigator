@@ -90,7 +90,7 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
                 <div data-header-tint="" className={styles.tint} />
             </div>
             <nav aria-label="Main navigation" className={`${styles.navigation} flex min-w-0 items-center gap-3`}>
-                <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 transition-[filter,scale] hover:bg-transparent hover:brightness-90 dark:hover:bg-transparent">
+                <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 hover:bg-transparent dark:hover:bg-transparent">
                     <Link href="/" aria-label="Navigator home" draggable={false}>
                         <AdaptiveHeaderLogo adaptive={overlay} />
                     </Link>

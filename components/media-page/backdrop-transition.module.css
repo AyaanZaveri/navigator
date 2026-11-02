@@ -108,7 +108,7 @@
     }
 
     .hero {
-        height: 62vh;
+        height: min(62vh, 40rem);
     }
 
     .wordmarkRegion {

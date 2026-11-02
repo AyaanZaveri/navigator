@@ -32,6 +32,7 @@ export function SearchSuggestionItem({
       <div className="aspect-[2/3] h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
         {item.poster ? (
           <img
+            draggable={false}
             src={item.poster}
             alt={item.name}
             className="w-full h-full object-cover transition-opacity duration-300"

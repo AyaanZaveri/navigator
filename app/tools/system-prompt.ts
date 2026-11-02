@@ -46,6 +46,7 @@ Tool routing:
 
 Response style:
 - Max 1-3 short sentences unless the user asks for detail.
+- Format runtimes as "2h 6m", "45m", or "2h", with a space between hour and minute parts.
 - For playback requests, let tool status rows communicate lookup progress. Do not narrate each person search or filmography lookup; show the selected title and briefly confirm the actual playback outcome.
 - State the executed result explicitly (what opened/played/skipped/changed).
 - If tools fail, say what failed and ask one specific follow-up question.`;

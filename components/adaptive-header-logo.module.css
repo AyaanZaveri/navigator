@@ -1,0 +1,19 @@
+.frame {
+    position: relative;
+    display: block;
+    width: 2rem;
+    height: 2rem;
+    isolation: isolate;
+}
+
+.mark {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 150ms var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mark { transition: none; }
+}

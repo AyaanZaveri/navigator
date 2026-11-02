@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { buildSeriesPath } from "@/lib/series-route";
 import { getSeriesEpisodeSelectionData } from "../../_shared/series-data";
 import { EpisodeHeroThumbnail } from "@/components/episode-hero-thumbnail";
+import { MediaPlayButton } from "@/components/media-page/play-button";
 
 export default async function EpisodeOnSeriesPage({
   params,
@@ -106,6 +107,21 @@ export default async function EpisodeOnSeriesPage({
                   </Badge>
                 )}
               </div>
+              <MediaPlayButton
+                media={{
+                  id: show.id,
+                  name: selectedEpisodeTitle,
+                  type: "series",
+                  mediaSourceId: selectedEpisode.id,
+                  seriesId: show.id,
+                  showName: show.name,
+                  episodeTitle: selectedEpisodeTitle,
+                  seasonNumber,
+                  episodeNumber,
+                  resumePositionTicks: selectedEpisode.resumePositionTicks,
+                  backdropUrl: show.background || selectedEpisode.thumbnail || show.poster,
+                }}
+              />
             </div>
 
             {selectedEpisode.overview && (

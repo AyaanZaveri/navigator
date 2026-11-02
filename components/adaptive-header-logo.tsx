@@ -4,17 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { averageLuminance, chooseLogoTone, type LogoTone } from "@/lib/logo-contrast";
+import { HEADER_LOGO_SOURCES, chooseLogoTreatment, type LogoPixels, type LogoTone } from "@/lib/logo-contrast";
 import { logoSampleSource, paintLogoBackdrop } from "@/lib/logo-backdrop";
 import { cn } from "@/lib/utils";
+import styles from "./adaptive-header-logo.module.css";
 
 export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
     const ref = useRef<HTMLSpanElement>(null);
     const pathname = usePathname();
     const { resolvedTheme } = useTheme();
     // A theme change resamples the surface without discarding the current tone.
-    const [sample, setSample] = useState<{ key: string; tone: LogoTone } | null>(null);
-    const tone = adaptive && sample?.key === pathname ? sample.tone : null;
+    const [sample, setSample] = useState<{ key: string; treatment: LogoTone } | null>(null);
+    const tone = adaptive && sample?.key === pathname ? sample.treatment : null;
 
     useEffect(() => {
         const logo = ref.current;
@@ -22,7 +23,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         if (!adaptive || !logo || !scope) return;
 
         const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = 24;
+        canvas.width = canvas.height = 64;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) return;
 
@@ -33,6 +34,25 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         let readableImage: HTMLImageElement | null = null;
         let observedImage: HTMLImageElement | null = null;
         let previous: LogoTone | null = null;
+        const logoPixels: Partial<LogoPixels> = {};
+        const paletteCanvas = document.createElement("canvas");
+        paletteCanvas.width = paletteCanvas.height = canvas.width;
+        const paletteContext = paletteCanvas.getContext("2d", { willReadFrequently: true });
+        if (!paletteContext) return;
+        const paletteImages = (Object.keys(HEADER_LOGO_SOURCES) as LogoTone[]).map(tone => {
+            const image = new window.Image();
+            image.onload = () => {
+                if (stopped) return;
+                try {
+                    paletteContext.clearRect(0, 0, canvas.width, canvas.height);
+                    paletteContext.drawImage(image, 0, 0, canvas.width, canvas.height);
+                    logoPixels[tone] = paletteContext.getImageData(0, 0, canvas.width, canvas.height).data;
+                    schedule();
+                } catch { /* Retain the current tone if a palette cannot be read. */ }
+            };
+            image.src = HEADER_LOGO_SOURCES[tone];
+            return image;
+        });
 
         function schedule() {
             // Keep sampling through the header's 180ms opacity transition,
@@ -48,6 +68,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         function inspect() {
             frame = 0;
             if (stopped || !logo || !scope || !context) return;
+            if (!logoPixels.light || !logoPixels.dark || !logoPixels.deep) return;
             const bounds = logo.getBoundingClientRect();
             const backdrop = Array.from(scope.querySelectorAll<HTMLImageElement>("img[data-header-backdrop]"))
                 .find((image) => {
@@ -93,12 +114,10 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
                         image: readableImage, rect: backdrop.getBoundingClientRect(),
                         opacity: Number(imageStyle.opacity), objectPosition: imageStyle.objectPosition,
                     } : null, overlays);
-                const brightness = averageLuminance(context.getImageData(0, 0, canvas.width, canvas.height).data);
-                if (brightness !== null) {
-                    const nextTone = chooseLogoTone(brightness, previous);
-                    previous = nextTone;
-                    setSample(current => current?.key === pathname && current.tone === nextTone ? current : { key: pathname, tone: nextTone });
-                }
+                const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+                const nextTreatment = chooseLogoTreatment(pixels, logoPixels as LogoPixels, previous);
+                previous = nextTreatment;
+                setSample(current => current?.key === pathname && current.treatment === nextTreatment ? current : { key: pathname, treatment: nextTreatment });
             } catch {
                 // Unsupported sources retain the last valid reading instead of
                 // flipping to the theme while the same artwork remains visible.
@@ -119,19 +138,21 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             resize.disconnect();
             changes.disconnect();
             if (readableImage) readableImage.onload = readableImage.onerror = null;
+            paletteImages.forEach(image => { image.onload = null; });
             scope.removeEventListener("load", schedule, true);
             window.removeEventListener("resize", schedule);
             window.removeEventListener("scroll", schedule, true);
         };
     }, [adaptive, pathname, resolvedTheme]);
 
-    const transition = "absolute inset-0 size-8 transition-opacity duration-150 ease-[var(--ease-out)] motion-reduce:transition-none";
     return (
-        <span ref={ref} className="relative block size-8" data-logo-tone={tone ?? "theme"}>
-            <Image src="/logo/navigator-header-light.svg?v=3" alt="" width={32} height={32} draggable={false}
-                className={cn(transition, tone === "dark" ? "opacity-100" : tone === "light" ? "opacity-0" : "opacity-100 dark:opacity-0")} />
-            <Image src="/logo/navigator-header-dark.svg?v=2" alt="" width={32} height={32} draggable={false}
-                className={cn(transition, tone === "light" ? "opacity-100" : tone === "dark" ? "opacity-0" : "opacity-0 dark:opacity-100")} />
+        <span ref={ref} className={styles.frame} data-logo-tone={tone ?? "theme"}>
+            <Image src={HEADER_LOGO_SOURCES.dark} alt="" width={32} height={32} draggable={false}
+                className={cn(styles.mark, tone === "dark" ? "opacity-100" : tone ? "opacity-0" : "opacity-100 dark:opacity-0")} />
+            <Image src={HEADER_LOGO_SOURCES.light} alt="" width={32} height={32} draggable={false}
+                className={cn(styles.mark, tone === "light" ? "opacity-100" : tone ? "opacity-0" : "opacity-0 dark:opacity-100")} />
+            <Image src={HEADER_LOGO_SOURCES.deep} alt="" width={32} height={32} draggable={false}
+                className={cn(styles.mark, tone === "deep" ? "opacity-100" : "opacity-0")} />
         </span>
     );
 }

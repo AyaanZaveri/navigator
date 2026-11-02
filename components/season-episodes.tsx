@@ -600,6 +600,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
               </div>
             ) : hasUsableThumbnail ? (
               <img
+                draggable={false}
                 src={imageSrc}
                 alt={episode.title || "Episode thumbnail"}
                 className={cardStyles.artwork + " absolute inset-0 block w-full h-full object-contain"}
