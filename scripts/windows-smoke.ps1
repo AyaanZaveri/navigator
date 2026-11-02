@@ -10,6 +10,7 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class NavigatorSmokeWindow {
+  [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
@@ -20,6 +21,9 @@ public static class NavigatorSmokeWindow {
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd, uint msg, IntPtr wparam, IntPtr lparam);
 }
 '@
+# GetWindowRect is virtualized for a DPI-unaware PowerShell process, while
+# CopyFromScreen needs physical pixels. Match Navigator's per-monitor context.
+[void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
 function Save-NavigatorScreenshot($app, $Output, [switch]$CheckBars, [switch]$CheckStartup) {
   $rect = New-Object NavigatorSmokeWindow+Rect
   if (-not [NavigatorSmokeWindow]::GetWindowRect($app.MainWindowHandle, [ref]$rect)) { throw 'No smoke window bounds' }

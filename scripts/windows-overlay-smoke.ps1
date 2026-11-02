@@ -35,11 +35,13 @@ try {
   Add-Type @'
 using System;using System.Runtime.InteropServices;
 public static class OverlayWindow {
+ [DllImport("user32.dll")]public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
  [StructLayout(LayoutKind.Sequential)] public struct Rect{public int Left,Top,Right,Bottom;}
  [DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out Rect r);
  [DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);
 }
 '@
+  [void][OverlayWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
   [void][OverlayWindow]::SetForegroundWindow($app.MainWindowHandle)
   Start-Sleep -Milliseconds 500
   $rect=New-Object OverlayWindow+Rect
