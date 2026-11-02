@@ -4,7 +4,7 @@
 // See desktop/THIRD-PARTY.md for provenance and modifications.
 
 use crate::{
-    hdr::{Video, target_peak},
+    hdr::{SDR_OUTPUT_OPTIONS, Video, defer_sdr_reset, target_peak},
     mpv::Mpv,
 };
 use block2::RcBlock;
@@ -35,6 +35,7 @@ struct State {
     float_surface: bool,
     video: Option<Video>,
     applied: Option<Applied>,
+    sdr_configured: bool,
     generation: u64,
     refresh_pending: bool,
     observer: Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>,
@@ -64,6 +65,7 @@ pub fn attach(
         s.mpv = Some(mpv);
         s.float_surface = float_surface;
         s.observer = Some(observer);
+        s.switch_off();
     });
     if !float_surface {
         log::warn!("HDR unavailable: using an 8-bit OpenGL surface; keeping SDR tone mapping");
@@ -73,10 +75,11 @@ pub fn attach(
 /// The worker reads mpv's metadata; all Core Animation work stays on the main queue.
 pub fn update(gamma: Option<String>, primaries: Option<String>) {
     DispatchQueue::main().exec_async(move || {
+        let defer_reset = defer_sdr_reset(gamma.as_deref());
         let video = Video::from_metadata(gamma.as_deref(), primaries.as_deref());
         let (wait, generation) = STATE.with_borrow_mut(|s| {
             s.generation = s.generation.wrapping_add(1);
-            let wait = video.is_none() && s.applied.is_some();
+            let wait = video.is_none() && s.applied.is_some() && defer_reset;
             s.video = video;
             (wait, s.generation)
         });
@@ -159,6 +162,7 @@ impl State {
             };
             layer.setColorspace(Some(&space));
             layer.setWantsExtendedDynamicRangeContent(true);
+            self.sdr_configured = false;
             // HLG/PQ input is rendered as PQ; an ICC profile would turn it back into SDR.
             for (name, value) in [
                 ("target-prim", want.video.primaries),
@@ -178,19 +182,31 @@ impl State {
     }
 
     fn switch_off(&mut self) {
-        if self.applied.take().is_none() {
+        // A queued display refresh may arrive after shutdown. Only mark SDR
+        // configured when there is an actual layer and mpv instance to configure.
+        if self.layer.is_none() || self.mpv.is_none() {
             return;
         }
+        if self.applied.take().is_none() && self.sdr_configured {
+            return;
+        }
+        let Some(space) =
+            CGColorSpace::with_name(Some(&CFString::from_static_str("kCGColorSpaceSRGB")))
+        else {
+            log::error!("Unable to create the SDR sRGB colorspace");
+            return;
+        };
         if let Some(layer) = &self.layer {
             layer.setWantsExtendedDynamicRangeContent(false);
-            layer.setColorspace(None);
+            layer.setColorspace(Some(&space));
         }
         if let Some(mpv) = &self.mpv {
-            for name in ["target-prim", "target-trc", "target-peak"] {
-                set(mpv, name, "auto");
+            for &(name, value) in SDR_OUTPUT_OPTIONS {
+                set(mpv, name, value);
             }
         }
-        log::info!("HDR off: SDR output restored");
+        self.sdr_configured = true;
+        log::info!("SDR output: sRGB layer, BT.709/sRGB full-range pixels");
     }
 }
 
@@ -234,4 +250,73 @@ pub fn diagnostics() -> (bool, f64, bool, bool) {
                 .is_some_and(|layer| layer.colorspace().is_some());
         (s.float_surface, potential, active, configured)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mpv::Kind;
+    use std::time::Instant;
+
+    #[test]
+    #[ignore = "set NAVIGATOR_TEST_LIBMPV to the packaged native library"]
+    fn native_sdr_hdr_sdr_output_round_trip() {
+        let library = std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap();
+        let mut options = vec![
+            ("config", "no"),
+            ("vo", "null"),
+            ("ao", "null"),
+            ("idle", "yes"),
+            ("terminal", "no"),
+        ];
+        options.extend_from_slice(SDR_OUTPUT_OPTIONS);
+        let mpv = Arc::new(Mpv::new(std::path::Path::new(&library), &options).unwrap());
+        let layer = CAOpenGLLayer::layer();
+        let mut state = State {
+            mpv: Some(mpv.clone()),
+            layer: Some(layer.clone()),
+            ..Default::default()
+        };
+        let space_name =
+            || CGColorSpace::name(layer.colorspace().as_deref()).map(|name| name.to_string());
+        state.switch_off();
+        assert_eq!(space_name().as_deref(), Some("kCGColorSpaceSRGB"));
+        assert!(!layer.wantsExtendedDynamicRangeContent());
+
+        for (gamma, primaries) in [("pq", "bt.2020"), ("hlg", "bt.2020"), ("pq", "display-p3")] {
+            let video = Video::from_metadata(Some(gamma), Some(primaries)).unwrap();
+            state.switch_on(Applied { video, peak: 812 });
+            assert!(layer.wantsExtendedDynamicRangeContent());
+            assert_eq!(space_name().as_deref(), Some(video.colorspace));
+            let until = Instant::now() + Duration::from_secs(3);
+            while mpv
+                .get_property("target-trc", Kind::String)
+                .as_ref()
+                .and_then(serde_json::Value::as_str)
+                != Some("pq")
+            {
+                assert!(Instant::now() < until, "HDR must retain PQ output");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            state.switch_off();
+            assert!(!layer.wantsExtendedDynamicRangeContent());
+            assert_eq!(space_name().as_deref(), Some("kCGColorSpaceSRGB"));
+            let until = Instant::now() + Duration::from_secs(3);
+            while mpv
+                .get_property("target-trc", Kind::String)
+                .as_ref()
+                .and_then(serde_json::Value::as_str)
+                != Some("srgb")
+            {
+                assert!(Instant::now() < until, "SDR must restore sRGB output");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert_eq!(
+                mpv.get_property("target-prim", Kind::String)
+                    .as_ref()
+                    .and_then(serde_json::Value::as_str),
+                Some("bt.709")
+            );
+        }
+    }
 }

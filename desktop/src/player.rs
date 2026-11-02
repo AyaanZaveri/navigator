@@ -390,9 +390,28 @@ mod tests {
             );
             std::thread::sleep(Duration::from_millis(10));
         }
-        for name in ["target-prim", "target-trc", "target-peak"] {
-            mpv.set_property_async(name, "auto").unwrap();
+        for &(name, value) in crate::hdr::SDR_OUTPUT_OPTIONS {
+            mpv.set_property_async(name, value).unwrap();
         }
+        let until = Instant::now() + Duration::from_secs(3);
+        while mpv
+            .get_property("target-trc", Kind::String)
+            .as_ref()
+            .and_then(Value::as_str)
+            != Some("srgb")
+        {
+            assert!(
+                Instant::now() < until,
+                "SDR transfer was not restored after HDR"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(
+            mpv.get_property("target-prim", Kind::String)
+                .as_ref()
+                .and_then(Value::as_str),
+            Some("bt.709")
+        );
         player.send(Command::Stop {
             session: "sdr".into(),
         });
