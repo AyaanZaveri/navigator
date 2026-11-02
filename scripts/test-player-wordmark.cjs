@@ -1,16 +1,34 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const { load } = require('./test-support/react-hooks.cjs');
+let failure = null;
 const { PlayerLoadingWordmark } = load('components/player-loading-wordmark.tsx', {
-  react: { useState: initial => [initial, () => {}] },
+  react: { useState: () => [failure, value => { failure = value; }] },
   './player-loading-wordmark.module.css': {},
   '@/lib/artwork': load('lib/artwork.ts', {}, { URLSearchParams }),
 });
 const src = '/api/artwork?id=tt1442437&type=series&kind=logo&v=3';
-const tree = PlayerLoadingWordmark({ src, alt: 'Modern Family logo', loading: true });
-const children = tree.props.children.props.children;
-const image = children[0];
-assert.equal(image.props.src, src, 'Visible wordmark must reuse the same artwork URL as cards, rather than wait on the separate mask proxy');
-assert.equal(image.props.fetchPriority, 'high');
-assert.ok(children[1].props.style.maskImage.includes('sample=1'), 'The shimmer still uses origin-safe mask bytes');
-assert.ok(!PlayerLoadingWordmark({ src, alt: 'Logo', loading: false }).props.children.props.children[1]);
-console.log('PASS: player wordmark reuses cached card artwork at high priority; only the shimmer requests a same-origin sample.');
+const render = (source = src, loading = true) => PlayerLoadingWordmark({ src: source, alt: 'Modern Family logo', loading });
+const children = tree => tree.props.children.props.children;
+let tree = render();
+assert.equal(children(tree)[0].props.src, src);
+assert.equal(children(tree)[0].props.fetchPriority, 'high');
+assert.ok(children(tree)[1].props.style.maskImage.includes('sample=1'));
+children(tree)[0].props.onError();
+tree = render();
+assert.ok(children(tree)[0].props.src.includes('sample=1'), 'A failed CDN redirect retries through the same-origin image endpoint');
+children(tree)[0].props.onError();
+tree = render();
+assert.equal(tree.props['data-state'], 'failed');
+assert.equal(children(tree)[0].props.children, 'Modern Family', 'Image failures never silently remove the entire wordmark region');
+assert.equal(children(tree)[1], false);
+assert.equal(render('/other-logo.svg').props['data-state'], 'image', 'Failure is scoped to one artwork URL');
+assert.equal(children(render('/other-logo.svg', false))[1], false);
+const css = require('postcss').parse(fs.readFileSync('components/player-loading-wordmark.module.css', 'utf8'));
+const value = (selector, prop) => css.nodes.find(node => node.selector === selector).nodes.find(node => node.prop === prop)?.value;
+assert.equal(value('.logo', 'width'), 'min(66vw, 48rem)', 'ViewBox-only SVGs need a definite width inside their flex container');
+assert.equal(value('.logo', 'height'), '18vh');
+assert.equal(value('.image', 'width'), '100%');
+assert.equal(value('.image', 'height'), '100%');
+assert.equal(value('.image', 'object-fit'), 'contain');
+console.log('PASS: definite SVG display size, high-priority image reuse, same-origin retry, nonempty failure fallback, and source changes.');

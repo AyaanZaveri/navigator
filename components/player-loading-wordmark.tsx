@@ -9,26 +9,27 @@ export function PlayerLoadingWordmark({ src, alt, loading }: {
     alt: string;
     loading: boolean;
 }) {
-    const [failedSrc, setFailedSrc] = useState<string | null>(null);
+    const [failure, setFailure] = useState<{ src: string; stage: "proxy" | "failed" } | null>(null);
     // Masks need same-origin image bytes, including when the CDN redirects.
     const maskSrc = artworkSampleUrl(src);
-    if (failedSrc === src) return null;
+    const stage = failure?.src === src ? failure.stage : undefined;
+    const imageSrc = stage === "proxy" ? maskSrc : src;
 
     const maskImage = `url(${JSON.stringify(maskSrc)})`;
 
     return (
-        <div className={styles.root}>
+        <div className={styles.root} data-player-wordmark="" data-state={stage || "image"}>
             <div className={styles.logo} data-loading={loading || undefined}>
-                <img
-                    src={src}
+                {stage === "failed" ? <span className={styles.fallback}>{alt.replace(/ logo$/i, "")}</span> : <img
+                    src={imageSrc}
                     fetchPriority="high"
                     decoding="async"
                     alt={alt}
                     draggable={false}
                     className={styles.image}
-                    onError={() => setFailedSrc(src)}
-                />
-                {loading && (
+                    onError={() => setFailure({ src, stage: !stage && maskSrc !== src ? "proxy" : "failed" })}
+                />}
+                {loading && stage !== "failed" && (
                     <span
                         aria-hidden="true"
                         className={styles.mask}

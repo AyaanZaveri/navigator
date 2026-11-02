@@ -12,6 +12,10 @@
 
 .logo {
     position: relative;
+    /* ViewBox-only SVGs have no intrinsic width. A shrink-wrapped flex child
+       can collapse them to zero; give the artwork a definite display box. */
+    width: min(66vw, 48rem);
+    height: 18vh;
     opacity: .85;
 }
 
@@ -22,13 +26,13 @@
 
 .image {
     display: block;
-    width: auto;
-    height: auto;
-    max-width: 66vw;
-    max-height: 18vh;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     filter: drop-shadow(0 10px 28px rgb(0 0 0 / .85));
 }
+
+.fallback { display: flex; height: 100%; align-items: center; justify-content: center; color: white; font-size: clamp(1.5rem, 4vw, 3rem); font-weight: 600; text-align: center; text-wrap: balance; }
 
 .mask {
     position: absolute;
@@ -76,9 +80,9 @@
 }
 
 @media (min-width: 48rem) {
-    .image {
-        max-width: 52vw;
-        max-height: 22vh;
+    .logo {
+        width: min(52vw, 48rem);
+        height: 22vh;
     }
 }
 
