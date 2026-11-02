@@ -50,6 +50,38 @@ test('A frame becoming ready after seeked completes on canplay', () => {
     assert.ok(results.at(-1)?.[1]);
   } finally { provider.dispose(); }
 });
+test('Paused HDR decoders are primed while waiting for the sought frame', () => {
+  const video = new Video(), results = [];
+  let plays = 0, pauses = 0;
+  video.readyState = 1;
+  video.play = () => { plays++; return Promise.resolve(); };
+  video.pause = () => { pauses++; };
+  const provider = new context.exports.BrowserPreviewFrames(video, (...args) => results.push(args));
+  try {
+    provider.want(20);
+    assert.equal(plays, 1, 'A metadata-only paused decoder must be asked to decode video');
+    video.readyState = 2; video.finish();
+    assert.equal(results.at(-1)?.[0], 20);
+    assert.ok(pauses > 0, 'The preview stops as soon as its frame is decoded');
+  } finally { provider.dispose(); }
+});
+test('Slow HDR frames can complete after the timeout without restarting their seek', () => {
+  const originalSet = context.setTimeout, originalClear = context.clearTimeout;
+  let timer, time = 0, seeks = 0;
+  context.setTimeout = (fn, delay) => { timer = { fn, delay }; return 1; };
+  context.clearTimeout = () => {};
+  const video = new Video(), results = [];
+  video.readyState = 1;
+  Object.defineProperty(video, 'currentTime', { get: () => time, set: value => { time = value; seeks++; } });
+  const provider = new context.exports.BrowserPreviewFrames(video, (...args) => results.push(args));
+  try {
+    provider.want(20); assert.ok(timer.delay >= 30000);
+    timer.fn(); assert.equal(results.at(-1)[3], true, 'A genuinely stalled source leaves the loading skeleton');
+    video.dispatchEvent(new Event('progress')); assert.equal(seeks, 1, 'Progress cannot restart the same slow seek');
+    video.readyState = 2; video.finish();
+    assert.equal(results.at(-1)[0], 20); assert.ok(results.at(-1)[1], 'A late decoded frame recovers the preview');
+  } finally { provider.dispose(); context.setTimeout = originalSet; context.clearTimeout = originalClear; }
+});
 test('Progressive playback can retry without CORS and display a video frame', () => {
   const video = new Video(), results = [];
   const provider = new context.exports.BrowserPreviewFrames(video, (...args) => results.push(args), false, true);
