@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildSeriesPath } from "@/lib/series-route";
 import { getSeriesEpisodeSelectionData } from "../../_shared/series-data";
+import { EpisodeDescription } from "@/components/episode-description";
 import { EpisodeHeroThumbnail } from "@/components/episode-hero-thumbnail";
 import { MediaPlayButton } from "@/components/media-page/play-button";
 
@@ -114,9 +115,7 @@ export default async function EpisodeOnSeriesPage({
             </div>
 
             {selectedEpisode.overview && (
-              <p className="max-w-prose break-words text-base leading-relaxed">
-                {selectedEpisode.overview}
-              </p>
+              <EpisodeDescription key={selectedEpisode.id} text={selectedEpisode.overview} />
             )}
           </div>
         </div>
