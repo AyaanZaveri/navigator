@@ -87,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, windows-2025, ubuntu-24.04]
+        os: [blacksmith-6vcpu-macos-15, blacksmith-4vcpu-windows-2025, blacksmith-4vcpu-ubuntu-2404]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
     if: inputs.windows_artifact_run == ''
     strategy:
       matrix:
-        os: [ubuntu-24.04, macos-15]
+        os: [blacksmith-4vcpu-ubuntu-2404, blacksmith-6vcpu-macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +121,7 @@ jobs:
       - run: bun x tsc --noEmit --incremental false
 
   windows-package:
-    runs-on: windows-2025
+    runs-on: blacksmith-4vcpu-windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
