@@ -74,8 +74,9 @@ export default async function SeriesLayout({
                 <Link
                   href={buildSeriesPath(id)}
                   prefetch={true}
+                  draggable={false}
                   aria-label={`Go to ${show.name} series page`}
-                  className="pointer-events-auto block w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(48rem,75%)] md:[--hero-wordmark-height:7rem] transition-transform duration-500 ease-in-out hover:scale-[1.03] will-change-transform"
+                  className="pointer-events-auto block w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(48rem,75%)] md:[--hero-wordmark-height:7rem] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:hover:scale-[1.01]"
                 >
                   <HeroWordmark
                     src={show.logo}
