@@ -3,6 +3,7 @@
 .menu {
   --surface-raised: var(--popover);
   --surface-muted: var(--muted);
+  --dropdown-opacity: 90%;
   --menu-x: 0px;
   --menu-y: -5px;
   position: relative;
@@ -17,7 +18,9 @@
   padding: 5px;
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: var(--surface-raised);
+  background: color-mix(in oklab, var(--surface-raised) var(--dropdown-opacity), transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   color: var(--foreground);
   box-shadow: var(--shadow-floating);
   transform-origin: var(--radix-dropdown-menu-content-transform-origin);
@@ -45,3 +48,13 @@
 :global(.dark) .flag { outline-color: rgb(255 255 255 / .1); }
 @keyframes menu-exit { to { --menu-exit: 1; } }
 @media (prefers-reduced-motion: reduce) { .menu, .menu[data-state="closed"] { transform: none; transition: opacity var(--duration-instant) linear; } }
+
+:global(html:not(.dark)) .menu { --dropdown-opacity: 98%; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .menu, :global(html:not(.dark)) .menu {
+    --dropdown-opacity: 100%;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
