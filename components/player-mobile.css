@@ -151,6 +151,26 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
   [data-slot="media-player-time"] { max-width: 100%; flex-wrap: wrap; font-size: .875rem; font-weight: 400; line-height: 1.4; white-space: nowrap; }
 }
 
+/* Clip each layer to its own pill instead of stretching the end caps. The
+   9px layout stays fixed; the visible track grows from 6px to 9px on hold. */
+[data-slot="media-player-seek-track"],
+[data-slot="media-player-seek-buffered"],
+[data-slot="media-player-seek-range"],
+[data-slot="media-player-seek-hover-range"] {
+  clip-path: inset(1.5px 0 round 9999px);
+  transition: clip-path 100ms var(--ease-out);
+}
+[data-scrub-mode="bar"] [data-slot="media-player-seek-track"],
+[data-scrub-mode="bar"] [data-slot="media-player-seek-buffered"],
+[data-scrub-mode="bar"] [data-slot="media-player-seek-range"],
+[data-scrub-mode="bar"] [data-slot="media-player-seek-hover-range"] {
+  clip-path: inset(0 round 9999px);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="media-player-seek-track"],
+  [data-slot="media-player-seek-track"] > * { transition: none; }
+}
+
 /* Surface seeking reveals only the existing timeline when chrome is hidden. */
 [data-scrub-mode="surface"]:not([data-controls-visible]) [data-slot="media-player-controls"] {
   opacity: 1 !important; visibility: hidden !important; pointer-events: none !important;

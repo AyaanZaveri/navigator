@@ -2315,22 +2315,21 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         onPointerLeave={onPointerLeave}
         onPointerMove={onPointerMove}
       >
-        <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-white/20 transition-transform duration-100 ease-[var(--ease-out)] group-data-[scrub-mode=bar]:scale-y-[1.5] motion-reduce:transition-none">
+        <SliderPrimitive.Track data-slot="media-player-seek-track" className="relative h-[9px] w-full grow overflow-hidden rounded-full bg-white/20">
           <div
             data-slot="media-player-seek-buffered"
-            className="absolute h-full bg-white/30 will-change-[width]"
+            className="absolute h-full rounded-full bg-white/30 will-change-[width]"
             style={{
               width: `${bufferedProgress * 100}%`,
             }}
           />
-          <SliderPrimitive.Range data-slot="media-player-seek-range" className="absolute h-full bg-white will-change-[width]" />
+          <SliderPrimitive.Range data-slot="media-player-seek-range" className="absolute h-full rounded-full bg-white will-change-[width]" />
           {seekState.isHovering && seekableEnd > 0 && (
             <div
               data-slot="media-player-seek-hover-range"
-              className="absolute h-full bg-white/20 will-change-[width,opacity]"
+              className="absolute h-full rounded-full bg-white/20 will-change-[width,opacity]"
               style={{
                 width: `var(${SEEK_HOVER_PERCENT}, 0%)`,
-                transition: "opacity 150ms ease-out",
               }}
             />
           )}
