@@ -2,7 +2,6 @@
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Button } from "@/components/ui/button";
 import { motionTokens } from "@/components/arc/lib/motion-tokens";
 
 export function EpisodeDescription({ text }: { text: string }) {
@@ -45,20 +44,18 @@ export function EpisodeDescription({ text }: { text: string }) {
             </motion.div>
             {size && size.full > size.collapsed + 1 && (
                 <div className="flex py-1">
-                    <Button
+                    <button
                         type="button"
-                        variant="ghost"
-                        size="sm"
                         aria-expanded={expanded}
                         aria-controls={id}
-                        className="-ms-3"
+                        className="-ms-3 min-h-9 cursor-pointer rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={event => {
                             setInstant(event.detail === 0);
                             setExpanded(value => !value);
                         }}
                     >
                         {expanded ? "Show less" : "Show more"}
-                    </Button>
+                    </button>
                 </div>
             )}
         </div>
