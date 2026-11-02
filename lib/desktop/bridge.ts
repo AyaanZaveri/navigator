@@ -33,6 +33,7 @@ export type NativeMessage =
   | { type: "fullscreen"; value: boolean };
 
 export type NativeRequest =
+  | { type: "app-ready"; dark: boolean }
   | { type: "video-fit"; session: string; mode: "fit" | "crop" | "stretch" }
   | { type: "glass"; session: string; active: boolean }
   | { type: "load"; session: string; url: string; headers?: Record<string, string>; startPosition?: number }

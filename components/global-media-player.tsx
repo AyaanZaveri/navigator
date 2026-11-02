@@ -960,7 +960,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
             <div className="flex items-center gap-2">
               {onToggleAIAsk && (
-                <MediaPlayerTooltip tooltip="Navigator" shortcut="Cmd + K">
+                <MediaPlayerTooltip tooltip="Navigator" shortcut={desktopBridge()?.platform === "windows" ? "Ctrl + K" : "Cmd + K"}>
                   <Button
                     variant="ghost"
                     size="sm"

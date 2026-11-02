@@ -10,6 +10,7 @@ button { padding: 8px 16px; margin-right: 8px; font: inherit; cursor: pointer; }
 <button id="pause">Pause</button><button id="seek">Seek to start</button><button id="fullscreen">Fullscreen</button>
 </div><script>
 const bridge = window.navigatorDesktop;
+if (bridge.platform === 'windows') requestAnimationFrame(() => requestAnimationFrame(() => bridge.send({type: 'app-ready', dark: true})));
 let paused = false;
 bridge.subscribe(message => {
   if (message.type === 'state') {
