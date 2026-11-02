@@ -18,12 +18,14 @@ function isHomeCatalogEntry(value: unknown): value is HomeCatalogEntry {
 }
 
 async function loadCatalogSection(
-  entry: HomeCatalogEntry
+  entry: HomeCatalogEntry,
+  signal: AbortSignal
 ): Promise<HomeCatalogSection | null> {
   const items = await fetchCatalogItems(
     entry.catalogType,
     entry.catalogId,
-    entry.addonTransportUrl
+    entry.addonTransportUrl,
+    signal
   );
 
   const mediaItems = items.slice(0, MAX_ITEMS_PER_SECTION);
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const loadedSections = await Promise.all(
-      validatedEntries.map((entry) => loadCatalogSection(entry))
+      validatedEntries.map((entry) => loadCatalogSection(entry, request.signal))
     );
 
     return NextResponse.json({
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
       ),
     });
   } catch (error) {
+    if (request.signal.aborted) return new Response(null, { status: 499 });
     console.error("Failed to load home catalog batch:", error);
     return NextResponse.json(
       { error: "Failed to load home catalog batch" },

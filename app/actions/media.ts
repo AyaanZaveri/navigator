@@ -48,7 +48,7 @@ function addonSupportsCatalog(addon: StremioAddon): boolean {
 async function fetchAddonResource<T>(
   transportUrl: string,
   path: string,
-  init?: RequestInit
+  init?: Parameters<typeof fetch>[1]
 ): Promise<T | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ADDON_RESOURCE_TIMEOUT_MS);
@@ -163,13 +163,16 @@ function isUsableMediaDetails(item: MediaItem): boolean {
 export async function fetchCatalogItems(
   type: string = "movie",
   catalogId: string = "top",
-  addonTransportUrl?: string
+  addonTransportUrl?: string,
+  signal?: AbortSignal
 ): Promise<MediaItem[]> {
   try {
+    signal?.throwIfAborted();
     if (addonTransportUrl) {
       const data = await fetchAddonResource<StremioCatalogResponse>(
         addonTransportUrl,
-        `catalog/${type}/${catalogId}.json`
+        `catalog/${type}/${catalogId}.json`,
+        { signal }
       );
 
       if (!data?.metas) return [];
@@ -194,7 +197,8 @@ export async function fetchCatalogItems(
 
       const data = await fetchAddonResource<StremioCatalogResponse>(
         addon.transportUrl,
-        `catalog/${type}/${catalog.id}.json`
+        `catalog/${type}/${catalog.id}.json`,
+        { signal }
       );
 
       if (data?.metas) {
@@ -206,6 +210,7 @@ export async function fetchCatalogItems(
 
     return results;
   } catch (error) {
+    signal?.throwIfAborted();
     console.error("Failed to fetch catalog items:", error);
     return [];
   }

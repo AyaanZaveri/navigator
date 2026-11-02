@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { MediaSection } from "@/components/media-section";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,180 +45,139 @@ interface HomeCatalogSectionsLazyProps {
   batchSize: number;
 }
 
-export function HomeCatalogSectionsLazy({
-  initialSections,
-  remainingEntries,
-  batchSize,
-}: HomeCatalogSectionsLazyProps) {
-  const [sections, setSections] = useState<HomeCatalogSection[]>(initialSections);
-  const [nextIndex, setNextIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const cursorRef = useRef(0);
-  const requestRef = useRef<AbortController | null>(null);
-  const autoArmedRef = useRef(true);
-  const failedRef = useRef(false);
-  const hasMore = useMemo(
-    () => nextIndex < remainingEntries.length,
-    [nextIndex, remainingEntries.length]
-  );
+type CatalogState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; section: HomeCatalogSection | null };
 
-  const loadNextBatch = useCallback(async () => {
-    if (requestRef.current) return;
+// Reserve the same minimum space for a skeleton, loaded row, or empty catalog.
+const CATALOG_ROW_HEIGHT = 360;
 
-    const start = cursorRef.current;
-    const entries = remainingEntries.slice(start, start + batchSize);
-    if (entries.length === 0) return;
+export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, batchSize }: HomeCatalogSectionsLazyProps) {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState<number | null>(null);
+  const [catalogs, setCatalogs] = useState<Map<string, CatalogState>>(() => new Map());
+  const requestRef = useRef<{ controller: AbortController; keys: string[] } | null>(null);
+  const initialCount = initialSections.length;
+  const getItemKey = useCallback((index: number) => index < initialCount
+    ? initialSections[index].key : remainingEntries[index - initialCount].key,
+  [initialCount, initialSections, remainingEntries]);
 
+  const virtualizer = useVirtualizer({
+    count: initialCount + remainingEntries.length,
+    getScrollElement: () => listRef.current?.closest<HTMLElement>("main") || null,
+    estimateSize: () => CATALOG_ROW_HEIGHT,
+    getItemKey,
+    overscan: 2,
+    scrollMargin: scrollMargin ?? 0,
+    initialRect: { width: 0, height: Math.max(1, initialCount) * CATALOG_ROW_HEIGHT },
+  });
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const scroller = list?.closest<HTMLElement>("main");
+    if (!list || !scroller) return;
+    const update = () => setScrollMargin(Math.max(0,
+      Math.round(list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop)));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(scroller);
+    observer.observe(list.parentElement || list);
+    return () => observer.disconnect();
+  }, []);
+
+  const loadEntries = useCallback(async (entries: HomeCatalogEntry[]) => {
+    if (requestRef.current || !entries.length) return;
     const controller = new AbortController();
-    requestRef.current = controller;
-    autoArmedRef.current = false;
-    failedRef.current = false;
-    setIsLoading(true);
-    setError(null);
-
+    const keys = entries.map(entry => entry.key);
+    const request = { controller, keys };
+    requestRef.current = request;
+    setCatalogs(previous => {
+      const next = new Map(previous);
+      keys.forEach(key => next.set(key, { status: "loading" }));
+      return next;
+    });
     try {
       const response = await fetch("/api/home/catalogs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entries }),
-        signal: controller.signal,
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }), signal: controller.signal,
       });
-
-      if (!response.ok) {
-        throw new Error(`Request failed: ${response.status}`);
-      }
-
-      const data = (await response.json()) as { sections?: HomeCatalogSection[] };
+      if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+      const data = await response.json() as { sections?: HomeCatalogSection[] };
       if (controller.signal.aborted) return;
-      const nextSections = Array.isArray(data.sections) ? data.sections : [];
-
-      setSections((prev) => [...prev, ...nextSections]);
-      cursorRef.current = start + entries.length;
-      setNextIndex(cursorRef.current);
-    } catch (loadError) {
+      const sections = new Map((Array.isArray(data.sections) ? data.sections : []).map(section => [section.key, section]));
+      setCatalogs(previous => {
+        const next = new Map(previous);
+        keys.forEach(key => next.set(key, { status: "ready", section: sections.get(key) || null }));
+        return next;
+      });
+    } catch (error) {
       if (controller.signal.aborted) return;
-      failedRef.current = true;
-      console.error("Failed to load next home catalog batch:", loadError);
-      setError("Could not load more catalogs. Retry to continue.");
+      console.error("Failed to load home catalogs:", error);
+      setCatalogs(previous => {
+        const next = new Map(previous);
+        keys.forEach(key => next.set(key, { status: "error" }));
+        return next;
+      });
     } finally {
-      if (requestRef.current === controller) requestRef.current = null;
-      if (!controller.signal.aborted) setIsLoading(false);
+      if (requestRef.current === request) requestRef.current = null;
     }
-  }, [batchSize, remainingEntries]);
+  }, []);
 
-  useEffect(() => () => requestRef.current?.abort(), []);
+  const rows = virtualizer.getVirtualItems();
+  const center = (virtualizer.scrollOffset ?? 0) + (virtualizer.scrollRect?.height ?? 0) / 2;
+  const wantedEntries = useMemo(() => [...rows]
+    .sort((a, b) => Math.abs(a.start + a.size / 2 - center) - Math.abs(b.start + b.size / 2 - center))
+    .flatMap(row => remainingEntries[row.index - initialCount] ? [remainingEntries[row.index - initialCount]] : []),
+  [rows, center, remainingEntries, initialCount]);
 
   useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) return;
+    if (scrollMargin === null) return;
+    const wanted = new Set(wantedEntries.map(entry => entry.key));
+    const pending = requestRef.current;
+    if (pending && !pending.keys.some(key => wanted.has(key))) {
+      // A fast flick can jump past whole groups. Cancel obsolete work and load
+      // the landing viewport, rather than downloading every catalog on the way.
+      pending.controller.abort();
+      requestRef.current = null;
+      setCatalogs(previous => {
+        const next = new Map(previous);
+        pending.keys.forEach(key => { if (next.get(key)?.status === "loading") next.delete(key); });
+        return next;
+      });
+    }
+    if (requestRef.current) return;
+    const missing = wantedEntries.filter(entry => !catalogs.has(entry.key));
+    void loadEntries(missing.slice(0, Math.max(1, Math.min(batchSize, 6))));
+  }, [wantedEntries, catalogs, batchSize, loadEntries, scrollMargin]);
 
-    const root = sentinel.closest<HTMLElement>("main");
-    const input = root || window;
-    let nearBottom = false;
-    let active = true;
-    const tryLoad = () => {
-      if (active && nearBottom && autoArmedRef.current && !failedRef.current && !requestRef.current) void loadNextBatch();
-    };
-    const arm = () => {
-      if (requestRef.current || failedRef.current) return;
-      autoArmedRef.current = true;
-      tryLoad();
-    };
-    // One automatic batch per gesture. Layout changes and wheel momentum must
-    // not turn completion/empty results into a chain of additional requests.
-    let wheelGesture = false;
-    let wheelTimer: ReturnType<typeof setTimeout> | undefined;
-    const wheel = (event: Event) => {
-      if ((event as WheelEvent).deltaY <= 0) return;
-      if (!wheelGesture) arm();
-      wheelGesture = true;
-      clearTimeout(wheelTimer);
-      wheelTimer = setTimeout(() => { wheelGesture = false; }, 200);
-    };
-    let touchY = 0, touchConsumed = false;
-    const touchStart = (event: Event) => {
-      touchY = (event as TouchEvent).touches[0]?.clientY ?? 0;
-      touchConsumed = false;
-    };
-    const touchMove = (event: Event) => {
-      const nextY = (event as TouchEvent).touches[0]?.clientY ?? touchY;
-      if (nextY < touchY && !touchConsumed) { touchConsumed = true; arm(); }
-      touchY = nextY;
-    };
-    const key = (event: Event) => {
-      const keyboard = event as KeyboardEvent;
-      if (keyboard.defaultPrevented || keyboard.repeat || keyboard.shiftKey || keyboard.ctrlKey || keyboard.metaKey || keyboard.altKey) return;
-      const target = keyboard.target as Element | null;
-      if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
-      if (keyboard.key === " " && target?.closest?.("button, a")) return;
-      if (["ArrowDown", "PageDown", "End", " "].includes(keyboard.key)) arm();
-    };
-    // Scrollbar drags have scroll events rather than wheel/touch events.
-    let dragging = false, dragConsumed = false, previousTop = root?.scrollTop ?? 0;
-    const pointerDown = () => { dragging = true; dragConsumed = false; };
-    const pointerUp = () => { dragging = false; };
-    const scroll = () => {
-      const top = root?.scrollTop ?? window.scrollY;
-      if (dragging && !dragConsumed && top > previousTop) { dragConsumed = true; arm(); }
-      previousTop = top;
-    };
-    const observer = new IntersectionObserver(entries => {
-      if (!active) return;
-      nearBottom = entries[entries.length - 1]?.isIntersecting ?? false;
-      tryLoad();
-    }, { root, rootMargin: "0px 0px 240px 0px" });
-
-    observer.observe(sentinel);
-    input.addEventListener("wheel", wheel, { passive: true });
-    input.addEventListener("touchstart", touchStart, { passive: true });
-    input.addEventListener("touchmove", touchMove, { passive: true });
-    input.addEventListener("keydown", key);
-    input.addEventListener("pointerdown", pointerDown, { passive: true });
-    input.addEventListener("scroll", scroll, { passive: true });
-    window.addEventListener("pointerup", pointerUp);
-    window.addEventListener("pointercancel", pointerUp);
-    return () => {
-      active = false;
-      observer.disconnect();
-      clearTimeout(wheelTimer);
-      input.removeEventListener("wheel", wheel);
-      input.removeEventListener("touchstart", touchStart);
-      input.removeEventListener("touchmove", touchMove);
-      input.removeEventListener("keydown", key);
-      input.removeEventListener("pointerdown", pointerDown);
-      input.removeEventListener("scroll", scroll);
-      window.removeEventListener("pointerup", pointerUp);
-      window.removeEventListener("pointercancel", pointerUp);
-    };
-  }, [hasMore, loadNextBatch]);
+  useEffect(() => () => requestRef.current?.controller.abort(), []);
 
   return (
-    <>
-      {sections.map((section) => (
-        <MediaSection
-          key={section.key}
-          sectionName={section.sectionName}
-          mediaItems={section.mediaItems}
-        />
-      ))}
-
-      {isLoading &&
-        Array.from({ length: Math.min(batchSize, remainingEntries.length - nextIndex) }).map(
-          (_, index) => <HomeSectionSkeleton key={`home-catalog-batch-loading-${index}`} />
-        )}
-
-      {hasMore ? (
-        <div className="relative z-10 mb-6" style={{ overflowAnchor: "none" }}>
-          {error && <p role="alert" className="mb-3 text-sm text-muted-foreground">{error}</p>}
-          <Button variant="outline" disabled={isLoading} onClick={() => void loadNextBatch()}>
-            {isLoading ? "Loading catalogs…" : error ? "Retry loading catalogs" : "Load more catalogs"}
-          </Button>
-        </div>
-      ) : null}
-
-      {hasMore ? <div ref={sentinelRef} className="h-px w-full" /> : null}
-    </>
+    <div ref={listRef} data-home-catalogs="" className="relative w-full" style={{ height: virtualizer.getTotalSize(), overflowAnchor: "none" }}>
+      {rows.map(row => {
+        const entry = remainingEntries[row.index - initialCount];
+        const state = entry ? catalogs.get(entry.key) : undefined;
+        const section = row.index < initialCount ? initialSections[row.index] : state?.status === "ready" ? state.section : undefined;
+        return (
+          <div key={row.key} data-index={row.index} ref={virtualizer.measureElement}
+            className="absolute left-0 top-0 w-full flow-root"
+            aria-busy={entry && (!state || state.status === "loading") ? true : undefined}
+            style={{ minHeight: CATALOG_ROW_HEIGHT, transform: `translateY(${row.start - (scrollMargin ?? 0)}px)` }}>
+            {section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
+              : state?.status === "error" ? <section className="relative z-10 mb-8">
+                <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h3>
+                <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
+                <Button variant="outline" disabled={Boolean(requestRef.current)} onClick={() => void loadEntries([entry])}>Retry</Button>
+              </section>
+              : state?.status === "ready" ? <section className="relative z-10 mb-8">
+                <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h3>
+                <p className="text-sm text-muted-foreground">No titles available in this catalog.</p>
+              </section>
+              : <HomeSectionSkeleton />}
+          </div>
+        );
+      })}
+    </div>
   );
 }
