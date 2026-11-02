@@ -55,6 +55,11 @@ final class LaunchPlaybackTests: XCTestCase {
       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.38)))
     let slider = app.sliders["native-side-slider"]
     XCTAssertTrue(slider.waitForExistence(timeout: 3), app.debugDescription)
+    // The swipe HUD intentionally dismisses quickly. Open the persistent
+    // panel for a user-driven slider interaction, independently of test speed.
+    app.buttons["native-player-volume"].tap()
+    if !slider.exists { app.buttons["native-player-volume"].tap() }
+    XCTAssertTrue(slider.waitForExistence(timeout: 3))
     slider.adjust(toNormalizedSliderPosition: 0.3)
     XCTAssertTrue(app.staticTexts["Video volume"].exists)
     XCTAssertTrue(app.staticTexts["Device volume"].exists)
@@ -78,26 +83,46 @@ final class LaunchPlaybackTests: XCTestCase {
     }
     let scaleX = CGFloat(image.width) / app.frame.width
     let scaleY = CGFloat(image.height) / app.frame.height
-    let box = CGRect(
-      x: (back.frame.maxX - 12) * scaleX, y: (back.frame.maxY - 12) * scaleY, width: 1, height: 1)
-    guard let sample = image.cropping(to: box) else {
-      return XCTFail("Glass sample outside screen: \(box)")
+    func green(at point: CGPoint) -> Int {
+      let box = CGRect(x: point.x * scaleX, y: point.y * scaleY, width: 1, height: 1)
+      guard let sample = image.cropping(to: box) else {
+        XCTFail("Glass sample outside screen")
+        return 0
+      }
+      var pixel = [UInt8](repeating: 0, count: 4)
+      pixel.withUnsafeMutableBytes { bytes in
+        let context = CGContext(
+          data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+          space: CGColorSpaceCreateDeviceRGB(),
+          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+      }
+      return Int(pixel[1])
     }
-    var pixel = [UInt8](repeating: 0, count: 4)
-    pixel.withUnsafeMutableBytes { bytes in
-      let context = CGContext(
-        data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
-        space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-      context.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+    // The movie has alternating black/green stripes across its top. Glass
+    // must smooth their contrast; a transparent or opaque backing cannot pass.
+    let y = back.frame.maxY - 9
+    let inside = stride(from: 12, through: 32, by: 2).map {
+      green(at: CGPoint(x: back.frame.minX + CGFloat($0), y: y))
     }
-    XCTAssertGreaterThan(
-      Int(pixel[1]), Int(pixel[0]) + 6, "Native glass must sample the green VLC scene: \(pixel)")
-    XCTAssertGreaterThan(Int(pixel[1]), Int(pixel[2]) + 6)
+    let outside = stride(from: 16, through: 80, by: 2).map {
+      green(at: CGPoint(x: back.frame.maxX + CGFloat($0), y: y))
+    }
+    let rawContrast = outside.max()! - outside.min()!
+    let glassContrast = inside.max()! - inside.min()!
+    XCTAssertGreaterThan(rawContrast, 160, "Movie stripe fixture must be visible: \(outside)")
     XCTAssertLessThan(
-      Int(pixel[1]), 250,
-      "The glass material must modify the movie pixels, rather than being a transparent button")
+      Double(glassContrast), Double(rawContrast) * 0.8,
+      "Glass must blur the live VLC stripes: \(inside)")
+    XCTAssertGreaterThan(
+      inside.reduce(0, +) / inside.count, 10,
+      "Glass must transmit video, not be an opaque dark backing")
+    let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    attachment.name = "Native Liquid Glass over VLC"
+    attachment.lifetime = .keepAlways
+    add(attachment)
   }
+
   private func assertResumedSceneIsGreen(_ app: XCUIApplication) {
     guard let image = XCUIScreen.main.screenshot().image.cgImage else {
       XCTFail("No rendered movie frame")

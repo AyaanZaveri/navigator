@@ -133,7 +133,9 @@ the side panel. No repeating screenshots, video capture or JPEG backdrop loop is
 CI uses a local HTTPS fixture trusted only in its iPhone and iPad simulators,
 including a required Authorization header, byte-range playback, saved-position
 startup and native JPEG preview generation. This is not a production TLS bypass.
-The synthetic seven-second fixture has red, green and blue scenes. The test
+The synthetic seven-second fixture has red, green and blue scenes, with narrow
+black stripes along the top to measure native glass smoothing against unblurred
+video. The test
 checks a green rendered frame after resuming at 1.5 seconds, then a blue JPEG
 from the independent preview decoder at 6 seconds while playback stays paused.
 It checks immediate cached reuse, native surface drag/paused-state preservation,

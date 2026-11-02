@@ -97,6 +97,7 @@ import UIKit
   private let deviceLabel = UILabel()
   private let deviceVolume = MPVolumeView()
   var changed: (Double) -> Void = { _ in }
+  var began: () -> Void = {}
   private(set) var isVolume = false
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -141,6 +142,7 @@ import UIKit
     slider.minimumValue = 0
     slider.maximumValue = 1
     slider.addTarget(self, action: #selector(slide), for: .valueChanged)
+    slider.addTarget(self, action: #selector(beginSliding), for: .touchDown)
     slider.accessibilityIdentifier = "native-side-slider"
     deviceVolume.showsRouteButton = false
     isHidden = true
@@ -166,6 +168,7 @@ import UIKit
     material.present(false, animated: false)
     isHidden = true
   }
+  @objc private func beginSliding() { began() }
   @objc private func slide() {
     let value = Double(slider.value)
     update(value)

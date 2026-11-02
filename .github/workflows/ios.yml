@@ -57,6 +57,15 @@ jobs:
             xcodebuild -workspace ios/Navigator.xcworkspace -scheme Navigator -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath "ios/build/$FAMILY.xcresult" test CODE_SIGNING_ALLOWED=NO | tee -a /tmp/navigator-ios-simulator.log
             xcrun simctl shutdown "$DEVICE"
           done
+      - name: Export simulator screenshots
+        if: always()
+        continue-on-error: true
+        run: |
+          for RESULT in ios/build/*.xcresult; do
+            [ -d "$RESULT" ] || continue
+            NAME=$(basename "$RESULT" .xcresult)
+            xcrun xcresulttool export attachments --path "$RESULT" --output-path "ios/build/screenshots/$NAME"
+          done
       - name: Build unsigned device archive
         run: |
           set -o pipefail
@@ -79,6 +88,7 @@ jobs:
             /tmp/navigator-ios-native.log
             /tmp/fixture.log
             ios/build/*.xcresult
+            ios/build/screenshots/**/*.png
             ios/build/build-info.json
           if-no-files-found: ignore
           retention-days: 7

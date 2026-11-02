@@ -98,6 +98,7 @@ import WebKit
     back.addTarget(self, action: #selector(goBack), for: .touchUpInside)
     speaker.addTarget(self, action: #selector(toggleVolume), for: .touchUpInside)
     overlay.addSubview(panel)
+    panel.began = { [weak self] in self?.hideTask?.cancel() }
     panel.changed = { [weak self] value in
       guard let self else { return }
       self.hideTask?.cancel()
