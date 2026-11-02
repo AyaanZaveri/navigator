@@ -1,136 +1,136 @@
 const selector = '[data-player-glass], [data-player-hdr-glass]';
-const properties = ['image', 'x', 'y', 'size', 'half-width', 'height', 'color', 'sheen'];
+const properties = ['x', 'y', 'width', 'height', 'color', 'sheen'];
 const videoEvents = ['loadeddata', 'seeked', 'playing', 'pause'];
+type Surface = { node: HTMLElement; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D };
 
-/** Chromium can composite HDR video outside the pixels available to backdrop-filter.
- * Supply small sRGB samples to the glass only; the playing video stays in HDR. */
+/** Draw the playing frame into small live sRGB canvases. No JPEG encode/decode
+ * round trip, CPU pixel readback, or second video decoder is needed for glass. */
 export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
-    let hdr = false, inspected = false, blocked = false, closed = false;
-    let callback: number | undefined, lastSample = -Infinity, image: string | undefined;
-    let visible: HTMLElement[] = [];
-    const painted = new Set<HTMLElement>();
-    let canvas: HTMLCanvasElement | undefined;
-    let context: CanvasRenderingContext2D | null | undefined;
+    let blocked = false, closed = false, hasFrame = false;
+    let callback: number | undefined;
+    let visible: Surface[] = [];
+    const surfaces = new Map<HTMLElement, Surface>();
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
+    let geometry: { scale: number; left: number; top: number; width: number; height: number; x: number; y: number; drawnWidth: number; drawnHeight: number } | undefined;
     const resized = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => refresh());
     const stop = () => {
         if (callback !== undefined) video.cancelVideoFrameCallback(callback);
         callback = undefined;
     };
-    const clear = () => {
-        for (const node of painted) {
-            node.removeAttribute('data-browser-glass');
-            for (const property of properties) node.style.removeProperty(`--browser-glass-${property}`);
-        }
-        painted.clear();
+    const remove = (surface: Surface) => {
+        surface.canvas.remove();
+        surface.node.removeAttribute('data-browser-glass');
+        for (const property of properties) surface.node.style.removeProperty(`--browser-glass-${property}`);
+        resized?.unobserve(surface.node);
     };
-    const inspect = () => {
-        if (inspected || video.readyState < 2 || typeof VideoFrame === 'undefined') return;
-        let frame: VideoFrame | undefined;
-        try {
-            frame = new VideoFrame(video);
-            // Older DOM typings omit pq/hlg; accept their codec names as well.
-            const transfer = String(frame.colorSpace.transfer);
-            hdr = ['pq', 'hlg', 'smpte2084', 'arib-std-b67'].includes(transfer);
-            inspected = true;
-        } catch { /* A protected/cross-origin frame retains normal CSS glass. */ }
-        finally { frame?.close(); }
+    const clear = () => { for (const surface of surfaces.values()) remove(surface); surfaces.clear(); };
+    const paint = (surface: Surface) => {
+        if (surface.canvas.width !== canvas.width) surface.canvas.width = canvas.width;
+        if (surface.canvas.height !== canvas.height) surface.canvas.height = canvas.height;
+        surface.context.drawImage(canvas, 0, 0);
+        if (!surface.node.hasAttribute('data-browser-glass')) surface.node.setAttribute('data-browser-glass', '');
     };
     const sample = () => {
-        if (blocked || !hdr || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
+        if (blocked || !context || !geometry || video.readyState < 2) return;
         try {
-            canvas ??= document.createElement('canvas');
-            const width = window.innerWidth, height = window.innerHeight;
-            if (!width || !height) return;
-            const scale = Math.min(640 / width, 360 / height, 1);
-            canvas.width = Math.max(1, Math.round(width * scale));
-            canvas.height = Math.max(1, Math.round(height * scale));
-            context ??= canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
-            if (!context) { blocked = true; return; }
-            // Include the same black bars and framing as the playing video.
+            const { scale, left, top, width, height, x, y, drawnWidth, drawnHeight } = geometry;
+            context.filter = 'none';
             context.fillStyle = '#000';
             context.fillRect(0, 0, canvas.width, canvas.height);
-            const rect = video.getBoundingClientRect();
-            const fit = getComputedStyle(video).objectFit;
-            const ratio = (fit === 'cover' ? Math.max : Math.min)(rect.width / video.videoWidth, rect.height / video.videoHeight);
-            const drawnWidth = fit === 'fill' ? rect.width : video.videoWidth * ratio;
-            const drawnHeight = fit === 'fill' ? rect.height : video.videoHeight * ratio;
             context.save();
             context.beginPath();
-            context.rect(rect.left * scale, rect.top * scale, rect.width * scale, rect.height * scale);
+            context.rect(left * scale, top * scale, width * scale, height * scale);
             context.clip();
-            context.drawImage(video, (rect.left + (rect.width - drawnWidth) / 2) * scale,
-                (rect.top + (rect.height - drawnHeight) / 2) * scale, drawnWidth * scale, drawnHeight * scale);
+            // Blur once at thumbnail resolution, before copying to the controls.
+            context.filter = `blur(${12 * scale}px)`;
+            context.drawImage(video, x * scale, y * scale, drawnWidth * scale, drawnHeight * scale);
             context.restore();
-            image = `url("${canvas.toDataURL('image/jpeg', 0.75)}")`;
-            for (const node of visible) {
-                node.style.setProperty('--browser-glass-image', image);
-                node.setAttribute('data-browser-glass', '');
-                painted.add(node);
-            }
+            hasFrame = true;
+            for (const surface of visible) paint(surface);
         } catch {
             blocked = true;
             clear();
             stop();
         }
     };
-    const tick = (now: number) => {
+    const tick = () => {
         callback = undefined;
         if (closed || blocked || document.hidden || !visible.length) return;
-        if (now - lastSample >= 250) { lastSample = now; sample(); }
+        sample();
         if (!blocked) callback = video.requestVideoFrameCallback(tick);
     };
     const refresh = () => {
-        if (closed) return;
-        inspect();
-        visible = hdr && !blocked && !document.hidden
-            ? [...document.querySelectorAll<HTMLElement>(selector)].filter(node => node.getAttribute('aria-hidden') !== 'true'
-                && node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden') : [];
-        if (!visible.length) { stop(); return; }
-        for (const node of visible) {
-            const style = getComputedStyle(node);
-            // Preserve each surface's theme/tint before replacing its background.
-            if (!painted.has(node)) {
-                node.style.setProperty('--browser-glass-color', style.backgroundColor);
-                node.style.setProperty('--browser-glass-sheen', style.backgroundImage);
-                resized?.observe(node);
-            }
-            if (node.getAttribute('data-slot') !== 'media-player-seek-tooltip') {
-                const rect = node.getBoundingClientRect();
-                node.style.setProperty('--browser-glass-x', `${-rect.left}px`);
-                node.style.setProperty('--browser-glass-y', `${-rect.top}px`);
-            }
-            node.style.setProperty('--browser-glass-size', `${window.innerWidth}px ${window.innerHeight}px`);
-            node.style.setProperty('--browser-glass-half-width', `${window.innerWidth / 2}px`);
-            node.style.setProperty('--browser-glass-height', `${window.innerHeight}px`);
-            painted.add(node);
+        if (closed || blocked || !context) return;
+        visible = [];
+        for (const [node, surface] of surfaces) {
+            if (node.isConnected === false) { remove(surface); surfaces.delete(node); }
         }
-        // Also paints paused video, newly opened Navigator and freshly revealed controls.
-        if (!image) sample();
-        else for (const node of visible) {
-            node.style.setProperty('--browser-glass-image', image);
-            node.setAttribute('data-browser-glass', '');
+        if (!document.hidden && video.videoWidth && video.videoHeight) {
+            const width = window.innerWidth, height = window.innerHeight;
+            const scale = Math.min(640 / width, 360 / height, 1);
+            const nextWidth = Math.max(1, Math.round(width * scale)), nextHeight = Math.max(1, Math.round(height * scale));
+            if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+                canvas.width = nextWidth; canvas.height = nextHeight; hasFrame = false;
+            }
+            const rect = video.getBoundingClientRect();
+            const fit = getComputedStyle(video).objectFit;
+            const ratio = (fit === 'cover' ? Math.max : Math.min)(rect.width / video.videoWidth, rect.height / video.videoHeight);
+            const drawnWidth = fit === 'fill' ? rect.width : video.videoWidth * ratio;
+            const drawnHeight = fit === 'fill' ? rect.height : video.videoHeight * ratio;
+            geometry = { scale, left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+                x: rect.left + (rect.width - drawnWidth) / 2, y: rect.top + (rect.height - drawnHeight) / 2, drawnWidth, drawnHeight };
+            for (const node of document.querySelectorAll<HTMLElement>(selector)) {
+                if (node.getAttribute('aria-hidden') === 'true' || !node.getClientRects().length) continue;
+                const style = getComputedStyle(node);
+                if (style.visibility === 'hidden') continue;
+                let surface = surfaces.get(node);
+                if (!surface) {
+                    const layer = document.createElement('canvas');
+                    const output = layer.getContext('2d', { alpha: false, colorSpace: 'srgb' });
+                    if (!output) continue;
+                    layer.setAttribute('data-browser-glass-frame', '');
+                    layer.setAttribute('aria-hidden', 'true');
+                    node.style.setProperty('--browser-glass-color', style.backgroundColor);
+                    node.style.setProperty('--browser-glass-sheen', style.backgroundImage);
+                    node.appendChild(layer);
+                    surface = { node, canvas: layer, context: output };
+                    surfaces.set(node, surface);
+                    resized?.observe(node);
+                }
+                // Tooltip alignment is entirely CSS-driven, including while paused.
+                if (node.getAttribute('data-slot') !== 'media-player-seek-tooltip') {
+                    const bounds = node.getBoundingClientRect();
+                    node.style.setProperty('--browser-glass-x', `${-bounds.left}px`);
+                    node.style.setProperty('--browser-glass-y', `${-bounds.top}px`);
+                }
+                node.style.setProperty('--browser-glass-width', `${width}px`);
+                node.style.setProperty('--browser-glass-height', `${height}px`);
+                visible.push(surface);
+            }
         }
+        if (!visible.length) { stop(); hasFrame = false; return; }
+        if (!hasFrame) sample();
+        else for (const surface of visible) paint(surface);
         if (!blocked && callback === undefined && typeof video.requestVideoFrameCallback === 'function') {
             callback = video.requestVideoFrameCallback(tick);
         }
     };
     const observer = new MutationObserver(records => {
-        if (records.some(record => record.attributeName === 'data-player-video-fit')) image = undefined;
+        if (records.some(record => record.attributeName === 'data-player-video-fit')) hasFrame = false;
         if (!records.length || records.some(record => record.type === 'attributes'
-            || [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1))) refresh();
+            || [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1
+                && !(node instanceof Element && node.hasAttribute('data-browser-glass-frame'))))) refresh();
     });
     observer.observe(document.body, { subtree: true, childList: true, attributes: true,
         attributeFilter: ['data-controls-visible', 'aria-hidden', 'data-player-hdr-glass', 'data-player-video-fit'] });
-    const repaint = () => { image = undefined; refresh(); };
+    const repaint = () => { hasFrame = false; refresh(); };
     for (const event of videoEvents) video.addEventListener(event, repaint);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('resize', repaint);
     refresh();
     return () => {
-        closed = true;
-        stop();
-        observer.disconnect();
-        resized?.disconnect();
+        closed = true; stop(); observer.disconnect(); resized?.disconnect();
         for (const event of videoEvents) video.removeEventListener(event, repaint);
         document.removeEventListener('visibilitychange', refresh);
         window.removeEventListener('resize', repaint);
