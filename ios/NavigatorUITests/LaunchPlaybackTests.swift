@@ -102,6 +102,27 @@ final class LaunchPlaybackTests: XCTestCase {
     back.tap()
     XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
   }
+  func testBackDragOutsideCancelsBeforeAProperTap() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-server", "https://localhost:9443"]
+    app.launch()
+    XCTAssertTrue(app.webViews.buttons["Play fixture"].waitForExistence(timeout: 25))
+    app.webViews.buttons["Play fixture"].tap()
+    XCTAssertTrue(app.webViews.staticTexts["Native playback ready"].waitForExistence(timeout: 20))
+    app.webViews.buttons["Pause fixture"].tap()
+    let back = app.buttons["native-player-back"]
+    XCTAssertTrue(back.waitForExistence(timeout: 5))
+    let start = back.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    let outside = back.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5)).withOffset(
+      CGVector(dx: 8, dy: 0))
+    start.press(forDuration: 0.4, thenDragTo: outside)
+    XCTAssertFalse(
+      app.webViews.staticTexts["Player closed"].exists,
+      "Releasing outside the actual circular button must cancel Back")
+    XCTAssertTrue(back.exists)
+    if back.exists { back.tap() }
+    XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
+  }
   func testMediaCardLongPressDoesNotPreviewOrNavigate() {
     let app = XCUIApplication()
     app.launchArguments = ["-server", "https://localhost:9443"]
