@@ -13,7 +13,7 @@ const context = { exports: {}, require(name) {
         if (!(index in state)) state[index] = initial;
         return [state[index], value => { state[index] = value; }];
     } };
-    if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/backdrop.jpg' }) };
+    if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/backdrop.jpg' }), backdropVariantUrl: (url, width) => `${url}?width=${width}` };
     if (name === '@/components/watched-indicator') return { WatchedIndicator: () => null };
     if (name === '@/lib/series-route') return { buildEpisodePath: () => '/series/fixture/1/1' };
     if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: async item => playback.push(item), setIsPlayerVisible: visible => playback.push(visible) }) };
@@ -30,6 +30,12 @@ function render(continueWatching = false) {
     return context.exports.MediaCard({ continueWatching, item: { id: 'tt123', name: 'Fixture', type: 'movie', resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } });
 }
 assert.equal(render(true).props['data-continue-watching'], true, 'Resume cards opt into stable brightness styling');
+const thumbnail = render(true).props.children[0].props.children[0].props.children;
+assert.equal(thumbnail.props.sizes, '320px');
+assert.equal(thumbnail.props.src, '/backdrop.jpg?width=780');
+assert.equal(thumbnail.props.width, 320);
+assert.equal(thumbnail.props.height, 180);
+assert.ok(thumbnail.props.srcSet.includes('width=1280 1280w'));
 assert.equal(render().props['data-continue-watching'], undefined, 'Regular posters retain normal hover styling');
 function hasSeparateResumeShade(node) {
     if (!node || typeof node !== 'object') return false;

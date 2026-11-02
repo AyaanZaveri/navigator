@@ -6,15 +6,19 @@ export async function GET(request: Request) {
     const id = params.get("id") ?? "";
     const type = params.get("type");
     const kind = params.get("kind") as ArtworkKind;
+    const width = params.get("width");
     const season = params.has("season") ? Number(params.get("season")) : undefined;
     const episode = params.has("episode") ? Number(params.get("episode")) : undefined;
     if ((type !== "movie" && type !== "series")
+    || (width !== null && (kind !== "backdrop" || !["300", "780", "1280"].includes(width)))
     || !["poster", "backdrop", "logo", "still"].includes(kind)
     || !artworkUrl(id, type, kind, season, episode)) {
         return new Response(null, { status: 400 });
     }
-    const image = await getTMDBArtwork(id, type, kind, season, episode);
-    if (!image) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+    const original = await getTMDBArtwork(id, type, kind, season, episode);
+    if (!original) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+    const image = width && /^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(original)
+        ? original.replace(/\/t\/p\/[^/]+\//, `/t/p/w${width}/`) : original;
     if (params.get("sample") === "1") {
     // Returning image bytes keeps the canvas origin-clean even when the CDN
     // redirect does not permit CORS. The upstream URL comes only from TMDB.

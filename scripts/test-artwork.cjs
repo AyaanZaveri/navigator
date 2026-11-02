@@ -15,6 +15,10 @@ function load(file, globals = {}) {
 
 async function run() {
   const urls = load('lib/artwork.ts');
+  const fullBackdrop = urls.artworkUrl('tt123', 'movie', 'backdrop');
+  assert.ok(!fullBackdrop.includes('width='), 'Canonical artwork stays full-resolution');
+  assert.ok(urls.backdropVariantUrl(fullBackdrop, 780).includes('width=780'));
+  assert.equal(urls.backdropVariantUrl('https://image.tmdb.org/t/p/original/art.jpg', 300), 'https://image.tmdb.org/t/p/w300/art.jpg');
   assert.equal(urls.artworkSampleUrl('/api/artwork?id=tt123&kind=backdrop'), '/api/artwork?id=tt123&kind=backdrop&sample=1');
   assert.equal(urls.artworkSampleUrl('/api/artwork?id=tt123&kind=poster&sample=1'), '/api/artwork?id=tt123&kind=poster&sample=1');
   assert.equal(urls.artworkSampleUrl('https://image.tmdb.org/t/p/w1280/art.jpg'), 'https://image.tmdb.org/t/p/w1280/art.jpg');
@@ -127,6 +131,12 @@ async function run() {
   assert.equal(valid.headers.get('location'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
   assert.equal(valid.headers.get('cache-control'), 'private, max-age=86400');
   assert.equal(valid.headers.get('vary'), 'Cookie', 'Artwork credentials must not share a public redirect cache');
+  for (const width of [300, 780, 1280]) {
+    const thumbnail = await GET(new Request(`https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&width=${width}`));
+    assert.equal(thumbnail.headers.get('location'), `https://image.tmdb.org/t/p/w${width}/poster.jpg`);
+  }
+  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&width=9999'))).status, 400);
+  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&width=780'))).status, 400);
   for (const query of ['id=unknown&type=movie&kind=poster', 'id=tt123&type=movie&kind=invalid', 'id=tt123&type=series&kind=still&v=1&season=-1&episode=2']) {
     assert.equal((await GET(new Request(`https://navigator.test/api/artwork?${query}`))).status, 400);
   }

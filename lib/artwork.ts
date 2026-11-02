@@ -1,5 +1,20 @@
 export type ArtworkKind = "poster" | "backdrop" | "logo" | "still";
 
+/** Display variants are separate from canonical high-resolution player art. */
+export function backdropVariantUrl(source: string | undefined, width: 300 | 780 | 1280): string | undefined {
+  if (!source) return undefined;
+  if (source.startsWith("/api/artwork?")) {
+    const params = new URLSearchParams(source.slice(source.indexOf("?") + 1));
+    if (params.get("kind") !== "backdrop") return source;
+    params.set("width", String(width));
+    return `/api/artwork?${params}`;
+  }
+  if (/^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(source)) {
+    return source.replace(/\/t\/p\/[^/]+\//, `/t/p/w${width}/`);
+  }
+  return source;
+}
+
 /** Canvas consumers need image bytes from our origin, rather than a CDN redirect. */
 export function artworkSampleUrl(source: string): string {
   if (!source.startsWith("/api/artwork?")) return source;

@@ -3,7 +3,7 @@
 import { preloadPlayer } from "@/lib/preload-tools";
 
 import React, { useState } from "react";
-import { mediaArtwork } from "@/lib/artwork";
+import { mediaArtwork, backdropVariantUrl } from "@/lib/artwork";
 import Link from "next/link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
@@ -42,7 +42,9 @@ export function MediaCard({
   }
 
   const artwork = mediaArtwork(item.seriesId || item.id, item.type);
-  const imageUrl = continueWatching ? artwork.background : artwork.poster;
+  const imageUrl = continueWatching ? backdropVariantUrl(artwork.background, 780) : artwork.poster;
+  const imageSrcSet = continueWatching && artwork.background
+    ? ([300, 780, 1280] as const).map(width => `${backdropVariantUrl(artwork.background, width)} ${width}w`).join(", ") : undefined;
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const [pressed, setPressed] = useState(false);
@@ -107,6 +109,10 @@ export function MediaCard({
           {imageUrl && failedImage !== imageUrl ? (
             <img
               src={imageUrl}
+              srcSet={imageSrcSet}
+              sizes={continueWatching ? "320px" : undefined}
+              width={continueWatching ? 320 : 144}
+              height={continueWatching ? 180 : 216}
               loading="lazy"
               onError={() => setFailedImage(imageUrl)}
               alt={item.name || ""}
