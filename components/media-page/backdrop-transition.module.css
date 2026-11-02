@@ -1,13 +1,19 @@
 .page {
     --media-content-overlap: 6rem;
     --media-content-top-padding: 1.5rem;
-    /* The backing belongs outside the scrolling page. Cover it under content
-       even when native scrolling gets ahead of the JS visibility listener. */
+    /* The backing belongs outside the scrolling page. The opaque page masks
+       it during normal scrolling, independently of JS event delivery. */
     background: var(--background);
 }
 
 .hero {
     height: 19rem;
+}
+
+.artwork {
+    /* Native bounce moves the hero down; bottom-anchored scaling extends its
+       top back to the viewport edge while its title/content stay unscaled. */
+    transform-origin: 50% 100%;
 }
 
 /* This sits behind the scrollport, so only the native bounce reveals it. */
@@ -20,6 +26,9 @@
 }
 
 .overscrollArtwork {
+    /* The stationary copy starts at the viewport's top; opposite anchors make
+       both copies sample the same pixels along the revealed overscroll gap. */
+    transform-origin: 50% 0%;
     position: absolute;
     inset: 0;
     width: 100%;

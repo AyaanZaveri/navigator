@@ -36,18 +36,22 @@ function overscroll() {
     const children = [];
     const parent = { append(node) { children.push(node); } };
     const scroller = target({ scrollTop: 0, offsetTop: 0, offsetLeft: 0, clientWidth: 1200, clientHeight: 900, parentElement: parent });
-    const image = target({ complete: true, naturalWidth: 1920, naturalHeight: 1080, clientWidth: 1200, clientHeight: 500, closest: () => scroller });
+    const image = target({ style: { transform: '' }, complete: true, naturalWidth: 1920, naturalHeight: 1080, clientWidth: 1200, clientHeight: 500, closest: () => scroller });
     let draws = 0;
+    let canvas;
+    const motionPreference = target({ matches: false });
     const document = { createElement(tag) {
-        return { tag, style: {}, setAttribute() {}, append() {}, remove() { removed = true; },
+        const node = { tag, style: { transform: '' }, setAttribute() {}, append() {}, remove() { removed = true; },
             getContext: () => ({ drawImage() { draws++; } }),
         };
+        if (tag === 'canvas') canvas = node;
+        return node;
     } };
     const { useBackdropOverscroll } = load('components/media-page/use-backdrop-overscroll.ts', name => {
         if (name === 'react') return { useEffect: fn => { effect = fn; } };
-        if (name === '@/lib/logo-contrast') return { getLogoSampleCrop: () => ({ x: 0, y: 0, width: 1920, height: 12 }) };
+        if (name === '@/lib/logo-contrast') return { getLogoSampleCrop: () => ({ x: 0, y: 0, width: 1920, height: 1080 }) };
         return { default: {} };
-    }, { ...clock, document, getComputedStyle: () => ({ objectPosition: '50% 50%' }), ResizeObserver: class {
+    }, { ...clock, document, matchMedia: () => motionPreference, devicePixelRatio: 3, getComputedStyle: () => ({ objectPosition: '50% 50%' }), ResizeObserver: class {
         constructor(fn) { resizeCallback = fn; }
         observe() {}
         disconnect() { disconnected = true; }
@@ -61,10 +65,29 @@ function overscroll() {
     for (const scrollTop of [1, 100, 900, 0, -20, 1, 0, -60, 0]) {
         scroller.scrollTop = scrollTop;
         scroller.dispatch('scroll');
+        clock.flush();
+        const scale = 1 + Math.max(0, -scrollTop) / image.clientHeight;
+        assert.equal(image.style.transform, scale === 1 ? '' : `scale(${scale})`);
+        assert.equal(canvas.style.transform, scale === 1 ? '' : `scale(${scale})`);
+        assert.ok(Math.abs(Math.max(0, -scrollTop) + image.clientHeight * (1 - scale)) < 1e-8,
+            'Bottom-anchored artwork cancels native downward motion at the viewport top');
         assert.equal(surface.style.visibility, 'visible', 'A ready backing must remain painted across scroll/bounce boundaries; native scrolling may outrun JS');
     }
     assert.equal(draws, 1, 'Scrolling must not repaint the backing canvas');
-    assert.equal(scroller.listenerCount, 0, 'Backing visibility must not depend on JS scroll delivery');
+    assert.equal(scroller.listenerCount, 1, 'One passive scroll handler drives transforms; visibility remains independent');
+    assert.ok(canvas.width <= 2048 && canvas.height <= 2048, 'Raster memory stays bounded even on high-DPI screens');
+    assert.equal(canvas.style.height, '500px');
+    scroller.scrollTop = -100;
+    scroller.dispatch('scroll'); clock.flush();
+    assert.equal(image.style.transform, 'scale(1.2)');
+    motionPreference.matches = true;
+    motionPreference.dispatch('change');
+    assert.equal(image.style.transform, '', 'Enabling Reduce Motion immediately removes stretch during a pull');
+    scroller.scrollTop = -150; scroller.dispatch('scroll'); clock.flush();
+    assert.equal(image.style.transform, '');
+    motionPreference.matches = false; motionPreference.dispatch('change');
+    assert.equal(image.style.transform, 'scale(1.3)', 'Turning motion back on resumes at the current native position');
+    assert.equal(draws, 1, 'Neither preference changes nor native bounce redraw the bitmap');
     resizeCallback(); clock.flush();
     assert.equal(draws, 2, 'Geometry changes still refresh the sampled strip');
     image.dispatch('error');
@@ -72,6 +95,9 @@ function overscroll() {
     cleanup();
     assert.ok(disconnected && removed);
     assert.equal(image.listenerCount, 0);
+    assert.equal(scroller.listenerCount, 0);
+    assert.equal(motionPreference.listenerCount, 0);
+    assert.equal(image.style.transform, '', 'Source teardown restores the original artwork transform');
     assert.equal(clock.size, 0);
 }
 function header() {
@@ -114,4 +140,4 @@ function header() {
 }
 overscroll();
 header();
-console.log('PASS: stable overscroll backing and header blur through rapid scroll reversals, with no scroll-driven visibility changes, extra canvas work, or leaked listeners.');
+console.log('PASS: native-distance backdrop stretching, seamless top anchoring, bounded raster size, reduced motion, and stable scroll surfaces without per-scroll canvas work or leaked listeners.');
