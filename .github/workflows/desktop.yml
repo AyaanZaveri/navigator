@@ -271,7 +271,9 @@ jobs:
         shell: pwsh
         run: |
           $uninstall = Start-Process -FilePath "$env:LOCALAPPDATA/Programs/Navigator/Uninstall.exe" -ArgumentList '/S' -PassThru
-          if (-not $uninstall.WaitForExit(30000)) { Stop-Process -Id $uninstall.Id -Force; throw 'Uninstaller timed out' }
+          # Release the launcher handle immediately: retaining the terminated
+          # original process can keep its executable mapped during self-deletion.
+          $uninstall.Dispose()
           # NSIS launches a temporary cleanup process. The original process can
           # exit, and the EXE can disappear, before resources/registry cleanup ends.
           $deadline = [DateTime]::UtcNow.AddSeconds(30)
