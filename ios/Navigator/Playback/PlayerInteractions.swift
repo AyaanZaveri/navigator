@@ -44,8 +44,8 @@ import WebKit
   private let backMaterial = PlayerMaterial(radius: 22, interactive: true)
   private let speaker = UIButton(type: .system)
   private let sun = UIButton(type: .system)
-  private let sunMaterial = PlayerMaterial(radius: 22, interactive: true)
-  private let speakerMaterial = PlayerMaterial(radius: 22, interactive: true)
+  private let sunMaterial = PlayerMaterial(radius: 22, usesMaterial: false)
+  private let speakerMaterial = PlayerMaterial(radius: 22, usesMaterial: false)
   private let preview = PlayerMaterial(radius: 22)
   private let panel = PlayerSidePanel()
   private let brightness = PlaybackBrightness()
@@ -57,6 +57,8 @@ import WebKit
   private var layoutSession = ""
   private var scrubSession: String?
   private var sideInitial = 0.0
+  private var sideDrag: VerticalSliderDrag?
+  var showDeviceVolume: (UIView, CGRect) -> Void = { _, _ in }
   private var endpoints = Set<Int>()
   private var hideTask: Task<Void, Never>?
   private var visible = false
@@ -85,7 +87,7 @@ import WebKit
       button.setImage(
         UIImage(
           systemName: symbol,
-          withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .regular)),
+          withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)),
         for: .normal)
       button.tintColor = .white
       button.accessibilityLabel = label
@@ -98,7 +100,24 @@ import WebKit
     back.addTarget(self, action: #selector(goBack), for: .touchUpInside)
     speaker.addTarget(self, action: #selector(toggleVolume), for: .touchUpInside)
     overlay.addSubview(panel)
-    panel.began = { [weak self] in self?.hideTask?.cancel() }
+    panel.mute = { [weak self] in
+      guard let self else { return }
+      self.playback.toggleInteractionMute()
+      self.panel.update(self.playback.interactionVolume)
+    }
+    panel.deviceVolume = { [weak self] in
+      guard let self else { return }
+      self.hideTask?.cancel()
+      self.showDeviceVolume(
+        self.panel,
+        CGRect(x: 0, y: 0, width: self.panel.bounds.width, height: 44 * self.panel.scale))
+    }
+    panel.released = { [weak self] in self?.dismissPanelLater() }
+    panel.began = { [weak self] in
+      self?.hideTask?.cancel()
+      self?.endpoints.removeAll()
+      self?.feedback.prepare()
+    }
     panel.changed = { [weak self] value in
       guard let self else { return }
       self.hideTask?.cancel()
@@ -266,7 +285,10 @@ import WebKit
           return
         }
         sideInitial = volume ? playback.interactionVolume : brightness.value
-        showPanel(volume: volume, value: sideInitial)
+        let initialValue = model.sideValue(initial: sideInitial, point: sender.point)
+        sideDrag = VerticalSliderDrag(
+          value: initialValue, y: sender.point.y, span: max(200, host.bounds.height * 0.5))
+        showPanel(volume: volume, value: initialValue)
       }
       updateDrag(model, point: sender.point)
     case .changed: updateDrag(model, point: sender.point)
@@ -285,7 +307,7 @@ import WebKit
       guard scrubSession == playback.session else { return }
       latestScrub = (model.target, model.speed, Double(point.x))
     } else {
-      let value = model.sideValue(initial: sideInitial, point: point)
+      guard let value = sideDrag?.move(y: point.y) else { return }
       panel.update(value)
       applySide(value, volume: model.mode == .volume)
     }
@@ -334,19 +356,24 @@ import WebKit
     if let limit, endpoints.insert(limit).inserted { feedback.selectionChanged() }
   }
   private func showPanel(volume: Bool, value: Double) {
-    let available = host.bounds.inset(by: host.safeAreaInsets).insetBy(dx: 16, dy: 16)
-    let width = min(320, available.width)
-    let height = min(available.height, volume ? 280 : 176)
+    let insets = host.safeAreaInsets
+    let metrics = SideControlMetrics(
+      size: host.bounds.size,
+      safeArea: CGSize(width: insets.left + insets.right, height: insets.top + insets.bottom),
+      isPad: host.traitCollection.userInterfaceIdiom == .pad)
+    let width = CGFloat(metrics.width)
+    let height = CGFloat(metrics.height)
+    panel.scale = CGFloat(metrics.scale)
     panel.frame = CGRect(
-      x: volume ? available.maxX - width : available.minX, y: available.midY - height / 2,
-      width: width, height: height)
+      x: volume ? host.bounds.width - max(24, insets.right) - width : max(24, insets.left),
+      y: (host.bounds.height - height) / 2, width: width, height: height)
     panel.show(volume: volume, value: value)
   }
   private func dismissPanelLater() {
     guard !panel.isHidden, !UIAccessibility.isVoiceOverRunning else { return }
     hideTask?.cancel()
     hideTask = Task { [weak self] in
-      try? await Task.sleep(for: .seconds(1.5))
+      try? await Task.sleep(for: .milliseconds(900))
       guard !Task.isCancelled else { return }
       self?.panel.hide()
     }
@@ -381,7 +408,7 @@ import WebKit
     close()
   }
   private func refreshMaterials() {
-    for material in [backMaterial, speakerMaterial, sunMaterial, preview, panel.material] {
+    for material in [backMaterial, speakerMaterial, sunMaterial, preview] {
       if !material.isHidden { material.present(true, animated: false) }
     }
   }

@@ -47,6 +47,7 @@ import WebKit
     previewSurface.isUserInteractionEnabled = false
     view.addSubview(previewSurface)
     web = WKWebView(frame: .zero, configuration: config)
+    web.allowsLinkPreview = false
     web.navigationDelegate = self
     web.uiDelegate = self
     web.allowsBackForwardNavigationGestures = true
@@ -62,6 +63,14 @@ import WebKit
       ])
     }
     interactions = PlayerInteractions(host: view, web: web, playback: playback)
+    interactions.showDeviceVolume = { [weak self] source, rect in
+      guard let self, self.presentedViewController == nil else { return }
+      let volume = DeviceVolumeViewController()
+      volume.modalPresentationStyle = .popover
+      volume.popoverPresentationController?.sourceView = source
+      volume.popoverPresentationController?.sourceRect = rect
+      self.present(volume, animated: true)
+    }
     interactions.close = { [weak self] in self?.send(["type": "close"]) }
     playback.invalidateInteraction = { [weak self] in self?.interactions?.invalidatePlayback() }
     playback.relinquishInteraction = { [weak self] in
@@ -323,6 +332,14 @@ import WebKit
         } catch { self.showFailure("Use an HTTPS origin without a path, query, or credentials.") }
       })
     present(alert, animated: true)
+  }
+  // This installed app owns navigation; Safari link peeks would preview an
+  // unauthenticated destination in a separate WebKit browsing context.
+  func webView(
+    _ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo,
+    completionHandler: @escaping @MainActor @Sendable (UIContextMenuConfiguration?) -> Void
+  ) {
+    completionHandler(nil)
   }
   func webView(
     _ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
