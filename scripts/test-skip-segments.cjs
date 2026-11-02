@@ -41,6 +41,22 @@ async function run() {
     assert.equal(activeSkipSegment(segments, 3500).end, 3600, 'Open-ended credits skip to the end');
     assert.equal(activeSkipSegment(segments, 90), undefined, 'Hide at the exact segment end');
 
+    // Loki S01E02's public data has credits on the primary and opening
+    // segments only on the fallback. Main-story end is not a credits marker.
+    const lokiPrimary = { credits: [{ start_ms: 3072167, end_ms: null }] };
+    const lokiFallback = {
+        intro: { start_ms: 0, end_ms: 114000 },
+        recap: { start_ms: 1000, end_ms: 74000 },
+        outro: { start_ms: 3072170, end_ms: 3195480 },
+    };
+    const loki = await fetchSkipSegments({ ...lookup, id: 'tt9140554', episode: 2, duration: 3195.48 },
+        signal, resolveIMDb, async url => Response.json(url.startsWith('https:') ? lokiPrimary : lokiFallback));
+    assert.equal(activeSkipSegment(loki, 30).kind, 'intro');
+    assert.equal(activeSkipSegment(loki, 30).provider, 'introdb');
+    assert.equal(activeSkipSegment(loki, 48 * 60), undefined, 'Do not guess earlier credits from story length');
+    assert.equal(activeSkipSegment(loki, 51 * 60 + 13).kind, 'credits');
+    assert.equal(activeSkipSegment(loki, 51 * 60 + 13).provider, 'theintrodb');
+
     const recovered = await fetchSkipSegments(lookup, signal, resolveIMDb,
         async url => url.startsWith('https:') ? new Response(null, { status: 404 }) : Response.json(fallback));
     assert.equal(recovered.find(s => s.kind === 'intro').provider, 'introdb');
