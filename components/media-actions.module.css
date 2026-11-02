@@ -170,9 +170,22 @@
 }
 
 @container (max-width: 40rem) {
-  .search {
-    flex-basis: 100%;
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
   }
+
+  .controls { display: contents; }
+
+  .search {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+
+  .facet { grid-column: 1; }
+  .feedback { grid-column: 2; align-self: end; padding-block-end: .375rem; }
+  .loading { white-space: nowrap; }
 }
 
 .streamMetadata {
