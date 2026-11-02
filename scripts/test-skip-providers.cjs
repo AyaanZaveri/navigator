@@ -7,12 +7,31 @@ const context = { exports: {}, URLSearchParams, AbortSignal };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/skip-segments.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
-const { fetchSkipSegments, normalizeSkipSegments } = context.exports;
+const { fetchSkipSegments, normalizeSkipSegments, activeSkipSegment, formatSkipTime } = context.exports;
 const lookup = { id: 'tt1442437', type: 'series', season: 8, episode: 16, duration: 1342.1 };
 const resolveIMDb = async () => 'tt1442437';
 const fetcher = (skipdb = captured.skipdbExact, primary = captured.primary) => async url => Response.json(
     url.startsWith('https://api.theintrodb.org') ? primary : url.startsWith('https://api.skipdb.tv') ? skipdb : captured.introdb);
 (async () => {
+    assert.equal(formatSkipTime(98.8), '1:38.800');
+    assert.equal(formatSkipTime(1329.6), '22:09.600');
+    assert.equal(formatSkipTime(-34.6), '-0:34.600');
+    assert.equal(formatSkipTime(59.9996), '1:00.000');
+    // Public S6E4 responses: only SkipDB has an intro, for a 22:09.600 release.
+    const s6e4 = { ...lookup, season: 6, episode: 4, duration: 1329.6 };
+    const s6e4Provider = offset => async url => Response.json(url.startsWith('https://api.theintrodb.org')
+        ? { group_duration_ms: 1295000, credits: [{ start_ms: 1057738, end_ms: null, confidence: 0 }] }
+        : url.startsWith('https://api.skipdb.tv') ? {
+            imdb_id: 'tt1442437', season: 6, episode: 4, segments: {
+                intro: { start_ms: 98800, end_ms: 111400, offset_ms: offset,
+                    match: offset ? 'out-of-range' : 'exact', confidence: offset ? 0.6 : 0.9 },
+            },
+        } : { intro: null, recap: null, outro: null });
+    const s6e4Exact = await fetchSkipSegments(s6e4, new AbortController().signal, resolveIMDb, s6e4Provider(0));
+    assert.equal(activeSkipSegment(s6e4Exact, 100)?.kind, 'intro', 'S6E4 offers Skip Intro during the verified matching release');
+    assert.equal(activeSkipSegment(s6e4Exact, 111.4), undefined);
+    const s6e4Mismatch = await fetchSkipSegments({ ...s6e4, duration: 1295 }, new AbortController().signal, resolveIMDb, s6e4Provider(-34600));
+    assert.equal(s6e4Mismatch.length, 0, 'S6E4 cannot borrow the intro from a release 34.6 seconds longer');
     const controller = new AbortController();
     const exact = await fetchSkipSegments(lookup, controller.signal, resolveIMDb, fetcher());
     assert.deepEqual(Array.from(exact, s => [s.kind, s.start, s.end, s.provider]), [

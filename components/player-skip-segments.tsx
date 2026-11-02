@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { FastForward } from "lucide-react";
 import { resolveSkipIMDbId } from "@/app/actions/skip-segments";
-import { activeSkipSegment, fetchSkipSegments, type SkipSegment, type SkipLookup } from "@/lib/media/skip-segments";
+import { activeSkipSegment, fetchSkipSegments, formatSkipTime, type SkipSegment, type SkipLookup } from "@/lib/media/skip-segments";
 import styles from "./player-skip-segments.module.css";
 
 const labels = { intro: "Skip Intro", recap: "Skip Recap", credits: "Skip Credits" };
@@ -57,6 +57,16 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, enab
     }, [mediaRef]);
 
     const segment = activeSkipSegment(segments, currentTime, skipped);
+    useEffect(() => {
+        console.log("[Navigator skips] Button state", {
+            id, season, episode, time: formatSkipTime(currentTime), duration: formatSkipTime(duration),
+            enabled, visible: enabled && !!segment,
+            active: segment ? { kind: segment.kind, provider: segment.provider,
+                start: formatSkipTime(segment.start), end: formatSkipTime(segment.end) } : null,
+        });
+        // Log visibility boundaries and fetched results, rather than every video frame.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, season, episode, duration, enabled, segment, segments]);
     return (
         <>
             {(Object.keys(labels) as Array<SkipSegment["kind"]>).map(kind => {

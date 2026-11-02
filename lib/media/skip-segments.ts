@@ -19,6 +19,21 @@ type JsonRecord = Record<string, unknown>;
 const record = (value: unknown): JsonRecord => value && typeof value === "object" && !Array.isArray(value)
     ? value as JsonRecord : {};
 
+export function formatSkipTime(seconds: number): string {
+    if (!Number.isFinite(seconds)) return "unknown";
+    const milliseconds = Math.round(Math.abs(seconds) * 1000);
+    return `${seconds < 0 ? "-" : ""}${Math.floor(milliseconds / 60000)}:${String(Math.floor(milliseconds / 1000) % 60).padStart(2, "0")}.${String(milliseconds % 1000).padStart(3, "0")}`;
+}
+
+/** Keep provider confidence/match fields alongside human-readable timestamps. */
+function providerTimings(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(providerTimings);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value).map(([key, field]) => [key,
+        key.endsWith("_ms") && typeof field === "number" ? formatSkipTime(field / 1000) : providerTimings(field),
+    ]));
+}
+
 /** Use the API's millisecond fields; null boundaries mean start/end of media. */
 export function normalizeSkipSegments(data: unknown, provider: SkipSegment["provider"], duration: number): SkipSegment[] {
     if (!Number.isFinite(duration) || duration <= 0) return [];
@@ -113,7 +128,20 @@ export async function fetchSkipSegments(
     const settle = async (provider: SkipSegment["provider"], request: Promise<unknown>) => {
         data.set(provider, await request);
         // A slow/unavailable fallback must not delay a fast provider's skip button.
-        if (!signal.aborted) onUpdate?.(merge());
+        if (!signal.aborted) {
+            const selected = merge();
+            console.log("[Navigator skips] Provider result", {
+                id, season, episode, provider, duration: formatSkipTime(duration),
+                received: providerTimings(data.get(provider)),
+                accepted: normalizeSkipSegments(data.get(provider), provider, duration).map(segment => ({
+                    ...segment, start: formatSkipTime(segment.start), end: formatSkipTime(segment.end),
+                })),
+                selected: selected.map(segment => ({
+                    ...segment, start: formatSkipTime(segment.start), end: formatSkipTime(segment.end),
+                })),
+            });
+            onUpdate?.(selected);
+        }
     };
     const primary = settle("theintrodb", read(`https://api.theintrodb.org/v4/media?${primaryParams}`));
     const fallbackId = (async () => {
