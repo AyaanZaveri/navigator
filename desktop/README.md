@@ -56,6 +56,9 @@ reserving a scrollbar gutter.
 The first frame is a small native loading view. Backend and mpv initialization
 run on a worker while the window remains responsive. WebView2 starts in parallel
 and paints a bundled startup document that requires no server or network. The
+document shares Android's ship mark and static teal light fields. It shows an
+elapsed timer and actual backend/interface/player stages; it does not simulate
+installation progress or promise that a slow launch happens only once. The
 same WebView navigates as soon as the backend listens, while mpv continues
 initializing. Up to 64 validated playback commands can wait for the player;
 overflow reports a session error. A painted React readiness signal removes the
@@ -74,6 +77,7 @@ $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
 cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
 ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -LaunchApp -StartupDelaySeconds 8
+./scripts/windows-overlay-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 ./scripts/windows-performance.ps1 -AppProcessId <NavigatorPID> -Seconds 30
 ```
 
@@ -85,6 +89,12 @@ It does not establish hardware decoding, HDR accuracy or physical-display behavi
 The installed-app check deliberately blocks Node startup for eight seconds and
 checks a screenshot of the bundled startup screen before the backend is ready.
 It then verifies the hydrated app, caption hit testing and normal shutdown.
+The overlay regression uses the production native-playback and wordmark CSS
+over a local test video. It checks that a descendant with explicit visibility
+cannot leak out of the retained browsing page. Run screenshot checks in the
+signed-in desktop session, not SSH session zero. The Windows page's opacity is
+suppressed during playback, preserving layout/scroll state while hiding the
+entire composed surface, including wordmarks and backdrop effects.
 
 `startup.jsonl` in the local data directory records elapsed milliseconds for
 `window-visible`, `backend-starting`, `backend-ready`, `player-starting`,
@@ -111,6 +121,9 @@ One measured Windows cold launch took 24.6 seconds: the backend listened at
 ready at 24.6 seconds. The player initialized in parallel and was ready at
 9.5 seconds. This remains a startup performance issue; showing the bundled
 startup document quickly does not establish fast application readiness.
+The Zenbook's subsequent log showed a 26.4-second cold launch followed by two
+warm launches at 1.9 and 1.8 seconds. The cold backend took 7.9 seconds and the
+interface another 18.4 seconds. No dependencies are installed at app launch.
 
 Manual Actions builds default to Windows validation plus shared Linux adapter
 checks. Set `validation_platforms=all` for the full macOS/Windows/Linux matrix;

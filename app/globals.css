@@ -1,10 +1,9 @@
 @import "../components/arc/foundation.css" layer(arc);
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../components/desktop/native-playback.css";
 
 @custom-variant dark (&:is(.dark *));
-
-@import "../components/desktop/native-playback.css";
 
 /* The Windows client can snap narrower than the desktop player toolbar.
    Keep all controls reachable in DOM order; wrap groups before they collide. */
