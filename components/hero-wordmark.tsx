@@ -23,6 +23,7 @@ export function HeroWordmark({
     bounds: WordmarkBounds;
     aspect: number;
     dense?: boolean;
+    ready?: boolean;
   } | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -30,13 +31,12 @@ export function HeroWordmark({
     image.crossOrigin = "anonymous";
     image.onload = () => {
       if (cancelled || !image.naturalWidth || !image.naturalHeight) return;
-      // The displayed image may have loaded before hydration attached onLoad.
-      // Record dimensions here even if canvas analysis is unavailable.
-      setAnalysis((previous) => previous?.src === src ? previous : {
+      const measured = {
         src,
         bounds: { left: 0, top: 0, width: 1, height: 1 },
         aspect: image.naturalWidth / image.naturalHeight,
-      });
+        ready: true,
+      };
       const canvas = document.createElement("canvas");
       const scale = Math.min(
         1,
@@ -45,7 +45,10 @@ export function HeroWordmark({
       canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
       canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
       const context = canvas.getContext("2d", { willReadFrequently: true });
-      if (!context) return;
+      if (!context) {
+        setAnalysis(measured);
+        return;
+      }
       try {
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
         const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -54,18 +57,22 @@ export function HeroWordmark({
           canvas.width,
           canvas.height,
         );
-        if (bounds)
+        if (bounds) {
           setAnalysis({
             src,
             bounds,
             dense: getWordmarkDensity(pixels, canvas.width, canvas.height, bounds) > .5,
+            ready: true,
             aspect:
               (image.naturalWidth * bounds.width) /
               (image.naturalHeight * bounds.height),
           });
+          return;
+        }
       } catch {
         /* Keep the original artwork if its pixels cannot be inspected. */
       }
+      setAnalysis(measured);
     };
     image.onerror = () => {
       if (cancelled || !image.crossOrigin) return;
@@ -87,6 +94,7 @@ export function HeroWordmark({
       className={cn(styles.root, className)}
       data-wide={aspect >= 3 || undefined}
       data-dense={current?.dense || undefined}
+      data-ready={current?.ready || undefined}
     >
       <div
         className={styles.artwork}
