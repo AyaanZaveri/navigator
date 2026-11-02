@@ -118,7 +118,7 @@ const declarations = Object.fromEntries(base.nodes.map(node => [node.prop, node.
 assert.equal(declarations['box-shadow'], 'none');
 assert.equal(declarations['backdrop-filter'], 'blur(6px)');
 assert.equal(declarations.transform, 'none');
-assert.equal(declarations.translate, '0 8px');
+css.walkDecls('translate', () => assert.fail('Skip Intro must stay stationary while fading in or out'));
 assert.equal(declarations['transform-origin'], 'center');
 assert.equal(declarations['min-height'], '3rem');
 assert.equal(declarations.border, '0');
@@ -132,11 +132,9 @@ assert.ok(declarations.transition.includes('opacity var(--duration-fast, 160ms) 
 assert.ok(declarations.transition.includes('transform'));
 const visible = css.nodes.find(rule => rule.selector === '.button[data-visible]');
 assert.ok(visible.nodes.some(node => node.prop === 'transition' && node.value.includes('opacity var(--duration-standard, 240ms)')));
-assert.ok(visible.nodes.some(node => node.prop === 'translate' && node.value === '0 0'));
 assert.ok(css.nodes.some(rule => rule.name === 'starting-style'), 'A button first painted visible still gets its entrance');
 const reduced = css.nodes.find(rule => rule.params === '(prefers-reduced-motion: reduce)');
 assert.ok(reduced.nodes[0].nodes.some(node => node.prop === 'transform' && node.value === 'none'));
-assert.ok(reduced.nodes[0].nodes.some(node => node.prop === 'translate' && node.value === 'none'));
 assert.ok(glassCss.nodes.some(rule => rule.params === '(hover: hover) and (pointer: fine)'));
 assert.ok(css.nodes.some(rule => rule.params === '(prefers-reduced-motion: reduce)'));
 console.log('PASS: no skip-button reappearance after delayed seeks; deliberate rewinds, later segments, hidden controls, and restrained motion stay correct.');
