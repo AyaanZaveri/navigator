@@ -9,7 +9,7 @@
   --text-secondary: var(--muted-foreground);
   --text-muted: var(--muted-foreground);
   --border-strong: var(--border);
-  --focus-ring: color-mix(in oklab, var(--ring) 50%, transparent);
+  --focus-ring: color-mix(in oklab, var(--primary) 22%, transparent);
   --icon-color: color-mix(in oklab, var(--foreground) 80%, transparent);
   --font-body: var(--font-sunghyun-sans), sans-serif;
   --text-sm: .875rem;
@@ -35,8 +35,8 @@
 .shell { position: absolute; top: 0; right: 0; height: 100%; overflow: visible; border: 1px solid var(--border); border-radius: calc(var(--control-height-md) / 2 - (var(--control-height-md) / 2 - var(--radius-control)) * var(--es-open, 0)); background: var(--surface); color: var(--text-secondary); pointer-events: auto; transition: border-color var(--duration-standard) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-standard) var(--ease-standard), transform var(--duration-spring) var(--ease-spring); }
 .root[data-anchor="start"] .shell { right: auto; left: 0; }
 .shell[data-expanded] { border-color: var(--border-strong); color: var(--foreground); }
-/* Match the input component with a 3px outward focus ring. */
-.shell:has(> .trigger:focus-visible), .shell:has(> .input:focus-visible) { border-color: var(--ring); color: var(--foreground); box-shadow: 0 0 0 3px var(--focus-ring); }
+/* A thin primary border and restrained halo distinguish focus from expansion. */
+.shell:has(> .trigger:focus-visible), .shell:has(> .input:focus-visible) { border-color: var(--primary); color: var(--foreground); box-shadow: 0 0 0 2px var(--focus-ring); }
 .shortcut { position: absolute; top: 0; right: 12px; display: flex; height: 100%; align-items: center; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
   .shell:not([data-expanded]):hover { background: var(--surface-muted); color: var(--foreground); }
