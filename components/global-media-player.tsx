@@ -42,6 +42,8 @@ import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/
 import type { MediaToPlay } from "@/lib/atoms";
 import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
+import { fetchPlaybackDetails } from "@/lib/media/fetch-playback-details";
+import { initialPlaybackDetails, mergePlaybackDetails } from "@/lib/media/playback-details";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
 import { PlayerVideoFit } from "@/components/player-video-fit";
@@ -51,7 +53,6 @@ import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { ArrowLeft, RotateCcw, RotateCw, Users, Ship, Loader2 } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
-  fetchMediaDetails,
   reportPlaybackStart,
   reportPlaybackProgress,
   reportPlaybackStopped,
@@ -563,14 +564,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setVideoReady(false);
     setPlaybackError(null);
     setStreamUrl(null);
-    setMediaDetails(null);
+    const initialDetails = initialPlaybackDetails(request);
+    setMediaDetails(initialDetails);
     setSubtitleTracks([]);
     setSubtitleData([]);
     setCurrentSubtitle(null);
     setPlaybackPhase(request.streamUrl ? "loading-stream" : "fetching-streams");
 
     let activeMedia = request;
-    let latestDetails: MediaItem | null = null;
+    let latestDetails: MediaItem | null = initialDetails;
     let sourceReady = false;
     let resolvedEpisodeTitle: string | undefined;
     let episodeLookupKey: string | undefined;
@@ -615,9 +617,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     };
     // Neither episode names nor show metadata wait on stream resolution or each other.
     resolveEpisodeTitle();
-    void fetchMediaDetails(request.seriesId || request.id, request.type).then(details => {
+    void fetchPlaybackDetails(request, metadataAbort.signal).then(details => {
       if (!isCurrent()) return;
-      latestDetails = details || null;
+      latestDetails = mergePlaybackDetails(initialDetails, details);
       setMediaDetails(latestDetails);
       publishTitle();
     }).catch(() => {});
@@ -1017,6 +1019,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 <span>{formatRuntime(mediaDetails.runtime)}</span>
               )}
               {mediaDetails?.year && <span>{mediaDetails.year}</span>}
+              {mediaDetails?.imdbRating && <span>IMDb {mediaDetails.imdbRating}</span>}
             </div>
           </div>
 

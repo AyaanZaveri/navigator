@@ -2,6 +2,7 @@ import "server-only";
 
 import { getTMDBToken } from "@/lib/tmdb-credentials";
 import { parseSeriesRouteId } from "@/lib/series-route";
+import { artworkUrl } from "@/lib/artwork";
 import type { MediaItem } from "@/types/stremio";
 
 export type TMDBMediaType = "movie" | "series";
@@ -276,6 +277,7 @@ export async function tmdbMediaItem(id: string, type: TMDBMediaType, signal?: Ab
     return {
         id: title.id, type, name: title.name, description: title.overview, year: title.year,
         releaseInfo: title.releaseInfo, poster: title.poster, background: title.background,
+        logo: artworkUrl(id, type, "logo"),
         genres: title.genres, cast: title.cast, director: title.director, writer: title.writer,
         runtime: title.runtime ? `${title.runtime} min` : undefined,
         seasons: type === "series" ? title.seasons.filter(season => season.episodeCount > 0)

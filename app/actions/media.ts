@@ -15,6 +15,7 @@ import type {
 } from "@/types/stremio";
 import { getAuthData, getInstalledAddons } from "./auth";
 import { completeMediaDescription } from "@/lib/media-description";
+import { mergePlaybackDetails } from "@/lib/media/playback-details";
 import { markVideoWatched, orderedEpisodeIds } from "@/lib/stremio-watched";
 import { fetchEpisodes } from "./tv-shows";
 
@@ -231,12 +232,22 @@ export async function fetchTVShows(limit: number = 20): Promise<MediaItem[]> {
 export async function fetchMediaDetails(
   mediaItemId: string,
   type: string = "movie",
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: { playback?: boolean },
 ): Promise<MediaItem | null> {
   try {
     if (/^tmdb:[1-9]\d*$/.test(mediaItemId) && (type === "movie" || type === "series")) {
       await getAuthData();
-      const { tmdbMediaItem } = await import("@/lib/tmdb-discovery");
+      const { tmdbMediaItem, resolveTMDBPlaybackId } = await import("@/lib/tmdb-discovery");
+      if (options?.playback) {
+        try {
+          const resolved = await resolveTMDBPlaybackId(mediaItemId, type, signal);
+          if (resolved !== mediaItemId) {
+            const addonDetails = await fetchMediaDetails(resolved, type, signal, options);
+            if (addonDetails) return addonDetails;
+          }
+        } catch { signal?.throwIfAborted(); }
+      }
       return await tmdbMediaItem(mediaItemId, type, signal);
     }
     const addons = await getInstalledAddons();
@@ -259,6 +270,27 @@ export async function fetchMediaDetails(
 
       return fullMetaToMediaItem(data.meta, addon.transportUrl);
     });
+
+    if (options?.playback) {
+      let merged: MediaItem | null = null;
+      const arrivals = metaRequests.map(async pending => {
+        const item = await pending;
+        merged = merged ? mergePlaybackDetails(item, merged) : mergePlaybackDetails(item);
+        return merged;
+      });
+      // Return as soon as the player's core fields are complete, or all bounded
+      // provider requests settle. Synopsis repair must never delay the player.
+      const complete = Promise.any(arrivals.map(async pending => {
+        const item = await pending;
+        if (!item.name || !item.year || !item.runtime || !item.imdbRating || !item.cast?.length) throw new Error("Partial player metadata");
+        return item;
+      })).catch(() => null);
+      const settled = Promise.allSettled(arrivals).then(() => merged);
+      const result = await Promise.race([complete.then(async item => item || await settled), settled]);
+      if (result || (type !== "movie" && type !== "series")) return result;
+      const { tmdbMediaItem } = await import("@/lib/tmdb-discovery");
+      return await tmdbMediaItem(mediaItemId, type, signal);
+    }
 
     const withCompleteDescription = (item: MediaItem) =>
       completeMediaDescription(

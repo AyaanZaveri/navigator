@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function languageRequire(name) {
+    if (name === '@/lib/artwork') return utility('lib/artwork.ts');
+    if (name === '@/lib/series-route') return utility('lib/series-route.ts');
     if (name !== '@/lib/media/audio-language') return require(name);
     const context = { exports: {}, require: languageRequire };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/audio-language.ts', 'utf8'), {
@@ -53,7 +55,9 @@ const context = { exports: {}, AbortController, console, require(name) {
     if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
     if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
     if (name === '@/lib/media/fetch-playback-streams') return { fetchPlaybackStreams() { requests.push('streams'); return streams; } };
-    if (name === '@/app/actions') return { fetchMediaDetails() { requests.push('details'); return details; } };
+    if (name === '@/app/actions') return { fetchMediaDetails() { throw Error('Player metadata must not queue a Server Action'); } };
+    if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails(_media, signal) { assert.ok(signal); requests.push('details'); return details; } };
+    if (name === '@/lib/media/playback-details') return utility('lib/media/playback-details.ts');
     if (name === '@/lib/media/fetch-playback-episode') return { fetchPlaybackEpisode: async (id, season, episode) => {
         assert.equal(provided, false, 'Known episode-page titles need no extra lookup');
         assert.equal(id, 'show');
@@ -75,9 +79,10 @@ assert.ok(load, 'Exercise the actual player loading callback');
     const pending = load(request);
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(requests, provided ? ['details', 'streams'] : ordinarySeries ? ['details', 'episode-http', 'streams'] : ['episode-http', 'details', 'streams'], 'Only the selected episode is fetched, independently of pending stream and show requests');
-    if (!canonical) finishDetails({ id: 'show', type: 'series', name: 'Show', videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
+    finishDetails({ id: 'show', type: 'series', name: 'Show', year: 2009, runtime: '21 min', imdbRating: '8.5', logo: '/logo.svg', poster: '/poster.jpg', background: '/backdrop.jpg', cast: ['Actor'], videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
     await new Promise(resolve => setImmediate(resolve));
     assert.ok(changes.some(value => value?.media?.episodeTitle === expectedTitle), 'Episode title must publish while stream discovery is still pending');
+    assert.ok(changes.some(value => value?.year === 2009 && value?.imdbRating === '8.5' && value?.logo === '/logo.svg'), 'All player metadata must publish while streams remain pending');
     finishStreams([{ url: 'https://example.test/top.mp4' }]);
     await pending;
     const lastPrepared = changes.filter(value => value?.media).at(-1);

@@ -96,6 +96,7 @@ function harness({ native = false, automatic = false, streams: customStreams } =
             if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
             if (name === '@/lib/media/fetch-playback-streams') return { async fetchPlaybackStreams() { streamFetches++; return streams; } };
+            if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails: async () => null };
             if (name === '@/app/actions') return { fetchMediaDetails: async () => null, reportPlaybackStart: noOp, reportPlaybackProgress: noOp, reportPlaybackStopped: noOp };
             if (name === '@/app/actions/utils') return { getSubtitleTracks: async () => [] };
             if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
