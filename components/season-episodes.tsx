@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import React, {
   useState,
   useEffect,
@@ -625,9 +627,10 @@ const EpisodeCard = React.memo(function EpisodeCard({
                 {formattedReleaseDate ? `on ${formattedReleaseDate}` : "soon"}.
               </div>
             ) : hasUsableThumbnail ? (
-              <img
+              <ArtworkImage
                 draggable={false}
                 src={imageSrc}
+                loading="lazy"
                 alt={episode.title || "Episode thumbnail"}
                 className={cardStyles.artwork + " absolute inset-0 block w-full h-full object-contain"}
                 onError={() => setImageFailure({ source: thumbnail, attempts: failedAttempts + 1 })}

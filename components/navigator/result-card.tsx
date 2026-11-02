@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import { useContext, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight } from "lucide-react";
@@ -68,7 +70,7 @@ export function ResultCard({
   const content = (
     <>
       {image && image !== failedImage ? (
-        <img
+        <ArtworkImage
           draggable={false}
           src={image}
           alt=""

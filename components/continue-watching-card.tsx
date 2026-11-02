@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import React from "react";
 import type { MediaItem } from "@/types/stremio";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
@@ -43,12 +45,11 @@ export function ContinueWatchingCard({ item }: ContinueWatchingCardProps) {
       <div className="relative w-full aspect-video">
         <WatchedIndicator id={item.seriesId || item.id} type={item.type} videoId={item.mediaSourceId} />
         {imageUrl ? (
-          <img
+          <ArtworkImage
             src={imageUrl}
+            alt={item.name}
+            loading="lazy"
             className="w-full h-full object-cover transition duration-200 shadow-lg hover:brightness-85 rounded-md border shadow-sm group-hover:shadow-md active:scale-[0.98]"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
             draggable="false"
           />
         ) : (

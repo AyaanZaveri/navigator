@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import { preloadPlayer } from "@/lib/preload-tools";
 
 import React from "react";
@@ -53,12 +55,10 @@ export function EpisodeCard({
         onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)} onPointerCancel={() => setPressed(false)}>
         <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
           {imageUrl ? (
-            <img
+            <ArtworkImage
               src={imageUrl}
+              loading="lazy"
               className={styles.artwork + " absolute inset-0 block w-full h-full object-contain"}
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
               draggable="false"
               alt={episode.title || "Episode"}
             />

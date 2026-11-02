@@ -178,7 +178,7 @@ async function run() {
   const { renderToStaticMarkup } = require('react-dom/server');
   const { EpisodeHeroThumbnail } = load('components/episode-hero-thumbnail.tsx', {
     React,
-    require: name => name === 'react' ? {
+    require: name => name === '@/components/artwork-image' ? { ArtworkImage: props => React.createElement('img', props) } : name === 'react' ? {
       useMemo: fn => fn(),
       useState: () => ['/failed-episode.jpg', () => {}],
     } : {},

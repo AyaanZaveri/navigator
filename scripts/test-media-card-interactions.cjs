@@ -12,6 +12,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/series-route.ts', 'ut
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, routeContext);
 const context = { exports: {}, require(name) {
+    if (name === '@/components/artwork-image') return { ArtworkImage: 'img' };
     if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
     if (name === 'react') return { ...React, useState(initial) {
         const index = stateIndex++;

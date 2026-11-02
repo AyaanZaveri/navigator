@@ -1,0 +1,16 @@
+/* Visible from the server's first paint, including for offscreen lazy images.
+   Keep it static so loading dozens of cards adds no continuous animation work. */
+.pending {
+  background-color: var(--accent);
+  color: transparent;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background-color: var(--accent);
+  color: var(--muted-foreground);
+  font-size: .75rem;
+  text-align: center;
+}

@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import { preloadPlayer } from "@/lib/preload-tools";
 
 import React, { useState } from "react";
@@ -109,7 +111,7 @@ export function MediaCard({
         {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
         <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
           {imageUrl && failedImage !== imageUrl ? (
-            <img
+            <ArtworkImage
               src={imageUrl}
               srcSet={imageSrcSet}
               sizes={continueWatching ? "320px" : undefined}

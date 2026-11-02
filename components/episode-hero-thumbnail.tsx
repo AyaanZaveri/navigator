@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import { useMemo, useState } from "react";
 
 interface EpisodeHeroThumbnailProps {
@@ -45,7 +47,7 @@ export function EpisodeHeroThumbnail({
   }
 
   return (
-    <img
+    <ArtworkImage
       draggable={false}
       src={thumbnail}
       alt={title}

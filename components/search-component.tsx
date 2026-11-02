@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Film, Star, Tv } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -245,7 +247,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
                 </span>}
             </span> : undefined,
             icon: item.poster
-                ? <img src={item.poster} alt="" draggable={false} loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />
+                ? <ArtworkImage src={item.poster} alt="" draggable={false} loading="lazy" width={30} height={44} className="h-11 w-[30px] rounded object-cover" fallbackText="" />
                 : item.type === "movie" ? <Film size={18} /> : <Tv size={18} />,
         };
     }), [suggestions]);

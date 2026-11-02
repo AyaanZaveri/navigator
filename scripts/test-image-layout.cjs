@@ -32,6 +32,8 @@ async function run() {
             if (name === '@/lib/series-route') return { buildEpisodePath: () => '/series/fixture/1/1' };
             if (name === './ui/scroll-area') return { ScrollArea: passthrough, ScrollBar: () => null };
             if (name.startsWith('@/app/actions')) return {};
+            if (name === '@/components/artwork-image') return load('components/artwork-image.tsx');
+            if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
             if (name.startsWith('@/components/')) return new Proxy({}, { get: () => passthrough });
             return require(name);
         }};

@@ -1,5 +1,7 @@
 "use client";
 
+import { ArtworkImage } from "@/components/artwork-image";
+
 import { useState } from "react";
 import type { MediaItem } from "@/types/stremio";
 
@@ -40,7 +42,7 @@ export function PosterImage({
   }
 
   return (
-    <img
+    <ArtworkImage
       draggable={false}
       className={className}
       src={resolvedPosterImage}
