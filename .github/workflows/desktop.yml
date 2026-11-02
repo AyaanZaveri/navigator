@@ -95,7 +95,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.validation_platforms != 'all' && '["blacksmith-4vcpu-windows-2025"]' || '["blacksmith-6vcpu-macos-15","blacksmith-4vcpu-windows-2025","blacksmith-4vcpu-ubuntu-2404"]') }}
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.validation_platforms != 'all' && '["windows-2025"]' || '["macos-15","windows-2025","ubuntu-24.04"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -110,7 +110,7 @@ jobs:
     if: inputs.windows_artifact_run == ''
     strategy:
       matrix:
-        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.validation_platforms != 'all' && '["blacksmith-4vcpu-ubuntu-2404"]' || '["blacksmith-4vcpu-ubuntu-2404","blacksmith-6vcpu-macos-15"]') }}
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.validation_platforms != 'all' && '["ubuntu-24.04"]' || '["ubuntu-24.04","macos-15"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -130,7 +130,7 @@ jobs:
       - run: bun x tsc --noEmit --incremental false
 
   windows-package:
-    runs-on: blacksmith-4vcpu-windows-2025
+    runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
