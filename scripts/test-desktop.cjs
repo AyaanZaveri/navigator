@@ -216,7 +216,8 @@ function testBridge() {
 
 function testAskPlayback() {
     const { createStore } = require("jotai/vanilla");
-    const atoms = load("lib/atoms.ts", { require });
+    const artwork = load("lib/artwork.ts");
+    const atoms = load("lib/atoms.ts", { require: name => name === "@/lib/artwork" ? artwork : require(name) });
     const store = createStore();
     store.set(atoms.isAIAskOpenAtom, true);
     const item = { id: "tt123", name: "Fixture", type: "movie" };
