@@ -1,10 +1,10 @@
 name: iOS IPA
 on:
   pull_request:
-    paths: ['ios/**', 'lib/desktop/**', 'components/desktop/**', 'components/global-media-player.tsx', 'components/ui/media-player.tsx', 'components/seek-preview.tsx', 'scripts/*ios*', '.github/workflows/ios.yml']
+    paths: ['ios/**', 'lib/desktop/**', 'components/desktop/**', 'components/global-media-player.tsx', 'components/ui/media-player.tsx', 'components/seek-preview.tsx', 'scripts/*ios*', 'scripts/fixtures/ios-*', '.github/workflows/ios.yml']
   push:
     branches: [main, codex/ios-ipados]
-    paths: ['ios/**', 'lib/desktop/**', 'components/desktop/**', 'components/global-media-player.tsx', 'components/ui/media-player.tsx', 'components/seek-preview.tsx', 'scripts/*ios*', '.github/workflows/ios.yml']
+    paths: ['ios/**', 'lib/desktop/**', 'components/desktop/**', 'components/global-media-player.tsx', 'components/ui/media-player.tsx', 'components/seek-preview.tsx', 'scripts/*ios*', 'scripts/fixtures/ios-*', '.github/workflows/ios.yml']
   workflow_dispatch:
 permissions:
   contents: read
