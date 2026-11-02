@@ -97,7 +97,7 @@ import UIKit
 
 /// The same transparent bar, track, Lucide icons, and relative drag as Android.
 /// Only its geometry grows on a roomy iPad; there is no panel or material.
-@MainActor final class PlayerSidePanel: UIControl, UIContextMenuInteractionDelegate {
+@MainActor final class PlayerSidePanel: UIControl {
   private let track = CALayer()
   private let fill = CALayer()
   private let icon = UIImageView()
@@ -127,7 +127,7 @@ import UIKit
     isAccessibilityElement = true
     accessibilityTraits = .adjustable
     accessibilityIdentifier = "native-side-slider"
-    addInteraction(UIContextMenuInteraction(delegate: self))
+    isContextMenuInteractionEnabled = true
     isHidden = true
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -265,7 +265,7 @@ import UIKit
     deviceVolume()
     return true
   }
-  func contextMenuInteraction(
+  override func contextMenuInteraction(
     _ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
     guard isVolume, location.y < 44 * scale else { return nil }
