@@ -41,6 +41,17 @@ async function run() {
     assert.equal(activeSkipSegment(segments, 3500).end, 3600, 'Open-ended credits skip to the end');
     assert.equal(activeSkipSegment(segments, 90), undefined, 'Hide at the exact segment end');
 
+    // Captured public response for Modern Family S08E19, runtime 21:32.
+    // A zero-to-end credits range would offer to skip the entire story.
+    const modernFamily = { intro: [{ start_ms: 76618, end_ms: 89131 }], credits: [{ start_ms: 0, end_ms: null }] };
+    const modernFamilySegments = await fetchSkipSegments({ ...lookup, id: 'tt1442437', season: 8, episode: 19, duration: 1292 },
+        signal, resolveIMDb, async url => Response.json(url.startsWith('https:') ? modernFamily : { outro: null }));
+    assert.equal(activeSkipSegment(modernFamilySegments, 15 * 60 + 50), undefined, 'Modern Family must not offer Skip Credits during the story');
+    assert.equal(activeSkipSegment(modernFamilySegments, 80).kind, 'intro', 'Valid intro timing survives invalid credits');
+    const modernFamilyFallback = await fetchSkipSegments({ ...lookup, id: 'tt1442437', season: 8, episode: 19, duration: 1292 },
+        signal, resolveIMDb, async url => Response.json(url.startsWith('https:') ? modernFamily : { outro: { start_ms: 1260000, end_ms: null } }));
+    assert.equal(activeSkipSegment(modernFamilyFallback, 1265).provider, 'introdb', 'Invalid primary credits must allow a valid fallback');
+
     // Loki S01E02's public data has credits on the primary and opening
     // segments only on the fallback. Main-story end is not a credits marker.
     const lokiPrimary = { credits: [{ start_ms: 3072167, end_ms: null }] };

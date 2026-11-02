@@ -37,6 +37,9 @@ export function normalizeSkipSegments(data: unknown, provider: SkipSegment["prov
             const end = endMs === null ? duration : (endMs as number) / 1000;
             // Never silently clamp a timestamp from a different/longer release.
             if (start < 0 || end > duration || end <= start) continue;
+            // A provider can return 0/null for credits, marking the entire story
+            // as skippable. Opening titles are not a closing-credits segment.
+            if (kind === "credits" && start === 0) continue;
             result.push({ kind, start, end, provider });
         }
     }
