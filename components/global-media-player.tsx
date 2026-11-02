@@ -40,7 +40,7 @@ import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
 import type { MediaToPlay } from "@/lib/atoms";
-import { getNextEpisodeForSeries, fetchEpisodeDetails } from "@/app/actions/tv-shows";
+import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
 import { PlayerVideoFit } from "@/components/player-video-fit";
@@ -570,6 +570,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     let sourceReady = false;
     let resolvedEpisodeTitle: string | undefined;
     let episodeLookupKey: string | undefined;
+    const episodeRequests = new Map<string, ReturnType<typeof fetchPlaybackEpisode>>();
+    const loadEpisode = (id: string, season: number, episode: number) => {
+      const key = `${id}:${season}:${episode}`;
+      let pending = episodeRequests.get(key);
+      if (!pending) {
+        pending = fetchPlaybackEpisode(id, season, episode, metadataAbort.signal);
+        episodeRequests.set(key, pending);
+      }
+      return pending;
+    };
     const publishTitle = () => {
       const titles = getPlaybackTitles(activeMedia, latestDetails);
       const title = resolvedEpisodeTitle || titles.episodeTitle;
@@ -588,11 +598,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const resolveEpisodeTitle = () => {
       const titles = getPlaybackTitles(activeMedia, latestDetails);
       if (!titles.isEpisode || titles.season === undefined || titles.episodeNumber === undefined) return;
+      if (isMeaningfulEpisodeTitle(activeMedia.episodeTitle) && activeMedia.episodeTitle !== titles.showTitle) return;
       const seriesId = activeMedia.seriesId || activeMedia.id;
       const key = `${seriesId}:${titles.season}:${titles.episodeNumber}`;
       if (episodeLookupKey === key) return;
       episodeLookupKey = key;
-      void fetchEpisodeDetails(seriesId, titles.season, titles.episodeNumber).then(episode => {
+      void loadEpisode(seriesId, titles.season, titles.episodeNumber).then(episode => {
         if (!isCurrent() || !episode || !isMeaningfulEpisodeTitle(episode.title) || episodeLookupKey !== key) return;
         resolvedEpisodeTitle = episode.title;
         publishTitle();
@@ -612,7 +623,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const media = await resolvePlayback(request, {
         fetchStreams: fallback && webStreamsRef.current.length
           ? async () => webStreamsRef.current : fetchPlaybackStreams,
-        getNextEpisodeForSeries,
+        getNextEpisodeForSeries: id => loadEpisode(id, 1, 1),
         environment: nativePlayback ? "native" : "web",
         canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
         inspectStream: probe ? candidate => probeStreamMetadata(candidate, { signal: metadataAbort.signal }) : undefined,

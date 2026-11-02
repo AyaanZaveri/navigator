@@ -24,11 +24,16 @@ function utility(file) {
     return context.exports;
 }
 const callbacks = [], changes = [], requests = [];
-const canonical = process.argv.includes("--canonical");
+const ordinarySeries = process.argv.includes("--series");
+const provided = process.argv.includes("--provided");
+const canonical = process.argv.includes("--canonical") || ordinarySeries || provided;
+const expectedTitle = provided ? 'Provided episode title' : canonical ? 'Canonical episode title' : 'Early episode title';
 let finishDetails, finishStreams;
 const details = new Promise(resolve => { finishDetails = resolve; });
 const streams = new Promise(resolve => { finishStreams = resolve; });
 const request = { id: 'show', type: 'series', name: canonical ? 'Episode 3' : 'Show', episodeTitle: canonical ? 'Episode 3' : undefined, showName: 'Show', mediaSourceId: 'show:1:3', seasonNumber: 1, episodeNumber: 3 };
+if (ordinarySeries) { delete request.mediaSourceId; delete request.seasonNumber; delete request.episodeNumber; delete request.episodeTitle; request.name = 'Show'; }
+if (provided) request.episodeTitle = 'Provided episode title';
 const noOp = () => {};
 const hooks = {
     ...React,
@@ -49,7 +54,15 @@ const context = { exports: {}, AbortController, console, require(name) {
     if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
     if (name === '@/lib/media/fetch-playback-streams') return { fetchPlaybackStreams() { requests.push('streams'); return streams; } };
     if (name === '@/app/actions') return { fetchMediaDetails() { requests.push('details'); return details; } };
-    if (name === '@/app/actions/tv-shows') return { fetchEpisodeDetails: async () => canonical ? { title: 'Canonical episode title' } : null };
+    if (name === '@/lib/media/fetch-playback-episode') return { fetchPlaybackEpisode: async (id, season, episode) => {
+        assert.equal(provided, false, 'Known episode-page titles need no extra lookup');
+        assert.equal(id, 'show');
+        assert.equal(season, 1);
+        assert.equal(episode, ordinarySeries ? 1 : 3);
+        requests.push('episode-http');
+        return canonical ? { id: ordinarySeries ? 'show:1:1' : 'show:1:3', title: 'Canonical episode title', season: 1, episode: ordinarySeries ? 1 : 3 } : null;
+    } };
+    if (name === '@/app/actions/tv-shows') return { fetchEpisodeDetails: () => { throw new Error('Client must not queue episode Server Actions'); } };
     if (name === '@/app/actions/utils') return { getSubtitleTracks: async () => [] };
     if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
     return require(name);
@@ -60,14 +73,15 @@ const load = callbacks.find(callback => callback.toString().includes('fetchPlayb
 assert.ok(load, 'Exercise the actual player loading callback');
 (async () => {
     const pending = load(request);
-    assert.deepEqual(requests, ['details', 'streams'], 'Both requests start before either resolves');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(requests, provided ? ['details', 'streams'] : ordinarySeries ? ['details', 'episode-http', 'streams'] : ['episode-http', 'details', 'streams'], 'Only the selected episode is fetched, independently of pending stream and show requests');
     if (!canonical) finishDetails({ id: 'show', type: 'series', name: 'Show', videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
     await new Promise(resolve => setImmediate(resolve));
-    assert.ok(changes.some(value => value?.media?.episodeTitle === (canonical ? 'Canonical episode title' : 'Early episode title')), 'Episode title must publish while stream discovery is still pending');
+    assert.ok(changes.some(value => value?.media?.episodeTitle === expectedTitle), 'Episode title must publish while stream discovery is still pending');
     finishStreams([{ url: 'https://example.test/top.mp4' }]);
     await pending;
     const lastPrepared = changes.filter(value => value?.media).at(-1);
-    assert.equal(lastPrepared.media.episodeTitle, canonical ? 'Canonical episode title' : 'Early episode title', 'Source completion must preserve the early title');
+    assert.equal(lastPrepared.media.episodeTitle, expectedTitle, 'Source completion must preserve the early title');
     assert.equal(lastPrepared.media.streamUrl, 'https://example.test/top.mp4');
     console.log('PASS: actual player requests metadata and streams concurrently, publishes the episode title first, and preserves it when playback becomes ready.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
