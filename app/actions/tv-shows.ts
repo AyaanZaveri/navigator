@@ -238,6 +238,30 @@ export async function fetchEpisodeDetails(
 
 // ─── Next Episode ────────────────────────────────────────────────
 
+/** Advance through regular seasons only, preserving explicit episode playback. */
+export async function getFollowingEpisodeForSeries(
+  seriesId: string,
+  season: number,
+  episode: number,
+): Promise<Episode | null> {
+  if (!Number.isSafeInteger(season) || season < 0 || !Number.isSafeInteger(episode) || episode < 1) return null;
+  if (season === 0) return getNextEpisodeForSeries(seriesId);
+  const episodes = await fetchEpisodes(seriesId, season);
+  const following = episodes.filter(item => item.season === season && item.episode > episode)
+    .sort((a, b) => a.episode - b.episode)[0];
+  if (following) return following;
+  const seasons = (await fetchSeasons(seriesId))
+    .filter(item => item.number > season && item.episodeCount > 0)
+    .sort((a, b) => a.number - b.number);
+  for (const next of seasons) {
+    const first = (await fetchEpisodes(seriesId, next.number))
+      .filter(item => item.season === next.number && item.episode > 0)
+      .sort((a, b) => a.episode - b.episode)[0];
+    if (first) return first;
+  }
+  return null;
+}
+
 export async function getNextEpisodeForSeries(
   seriesId: string
 ): Promise<Episode | null> {

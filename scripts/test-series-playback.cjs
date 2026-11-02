@@ -35,6 +35,10 @@ async function run() {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText, context);
     assert.equal((await context.exports.getNextEpisodeForSeries('tt123')).id, 'tt123:1:1');
+    assert.equal((await context.exports.getFollowingEpisodeForSeries('tt123', 1, 1)).id, 'tt123:1:2');
+    assert.equal((await context.exports.getFollowingEpisodeForSeries('tt123', 1, 2)).id, 'tt123:2:1', 'Advance across seasons');
+    assert.equal(await context.exports.getFollowingEpisodeForSeries('tt123', 2, 1), null, 'Last episode has no next button');
+    assert.equal((await context.exports.getFollowingEpisodeForSeries('tt123', 0, 1)).id, 'tt123:1:1', 'Specials advance to regular seasons');
     videos = [videos[0]];
     assert.equal(await context.exports.getNextEpisodeForSeries('tt123'), null, 'Never auto-start a special');
     assert.equal((await context.exports.getNextEpisodeForSeries('tmdb:123')).id, 'tmdb:123:1:1');
@@ -49,6 +53,28 @@ async function run() {
     assert.equal(episode.mediaSourceId, 'tt123:0:1', 'Explicitly selected specials remain playable');
     play({ id: 'movie', type: 'movie', backdropUrl: '/movie.jpg' });
     assert.equal(updates.get(atoms.currentMediaAtom).backdropUrl, '/movie.jpg');
+    let played, stopped = false, slot = 0;
+    const { PlayerNextEpisode } = load('components/player-next-episode.tsx', name => {
+        if (name === 'react') return {
+            useEffect() {},
+            useState: () => [slot++ === 0 ? { id: 'tt123:2:1', title: 'Next season', season: 2, episode: 1 } : false, () => {}],
+        };
+        if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
+        if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ playMedia: media => {
+            assert.ok(stopped, 'Report previous playback before starting the next episode');
+            played = media;
+        } }) };
+        return new Proxy({}, { get: (_, key) => key });
+    });
+    const nextButton = PlayerNextEpisode({
+        media: { id: 'tt123', type: 'series', showName: 'Show', streamUrl: 'https://old-stream.test', resumePositionTicks: 40 },
+        season: 1, episode: 2, onAdvance: () => { stopped = true; },
+    }).props.children;
+    nextButton.props.onClick();
+    assert.equal(played.mediaSourceId, 'tt123:2:1');
+    assert.equal(played.showName, 'Show');
+    assert.equal(played.streamUrl, undefined, 'Fetch a new stream for the next episode');
+    assert.equal(played.resumePositionTicks, undefined, 'Do not carry the previous episode position');
     console.log('PASS: series Play starts S1E1, skips specials, and episode playback uses the show backdrop.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

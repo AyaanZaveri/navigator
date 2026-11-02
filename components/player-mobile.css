@@ -109,6 +109,10 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   }
 }
 [data-player-title] { min-width: 0; line-height: 1.3; letter-spacing: -.01em; }
+[data-player-skip] { bottom: max(6rem, env(safe-area-inset-bottom)); }
+[data-controls-visible] [data-player-skip] {
+  bottom: max(calc(var(--player-controls-height, 12rem) + 1rem), env(safe-area-inset-bottom));
+}
 [data-player-toolbar] button { color: var(--foreground); }
 /* Android already exposes system volume through its native side control. */
 html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"] { display: none; }
