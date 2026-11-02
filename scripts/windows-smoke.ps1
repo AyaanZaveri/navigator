@@ -11,6 +11,7 @@ public static class NavigatorSmokeWindow {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr hwnd, int x, int y, int width, int height, bool repaint);
 }
 '@
 function Save-NavigatorScreenshot($app, $Output, [switch]$CheckBars) {
@@ -36,7 +37,7 @@ $app = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList '--smoke
 try {
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
   $log = Join-Path $env:LOCALAPPDATA 'Navigator Desktop\smoke\startup.jsonl'
-  $played = $false; $ready = $false
+  $played = $false; $ready = $false; $probe = $false
   while ([DateTime]::UtcNow -lt $deadline) {
     $app.Refresh()
     if ($app.HasExited) { throw "Native smoke exited early: $($app.ExitCode)" }
@@ -45,6 +46,13 @@ try {
       $played = @($events | Where-Object stage -eq 'smoke-playing').Count -gt 0
       $ready = @($events | Where-Object stage -eq 'app-ready').Count -gt 0
       if ($played -and $ready -and $app.MainWindowHandle -ne 0) { break }
+      if ($played -and -not $ready -and -not $probe) {
+        $probe = $true
+        $bounds = New-Object NavigatorSmokeWindow+Rect
+        [void][NavigatorSmokeWindow]::GetWindowRect($app.MainWindowHandle, [ref]$bounds)
+        Write-Host '[DEBUG-zorder] Resizing root window to place native video beneath the WebView'
+        [void][NavigatorSmokeWindow]::MoveWindow($app.MainWindowHandle, $bounds.Left, $bounds.Top, $bounds.Right-$bounds.Left-1, $bounds.Bottom-$bounds.Top, $true)
+      }
     }
     Start-Sleep -Milliseconds 200
   }
