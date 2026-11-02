@@ -3,7 +3,7 @@
 import { artworkFromPath } from "@/lib/artwork";
 
 import { Film, Tv } from "lucide-react";
-import { ResultCard, ResultBadge } from "./result-card";
+import { ResultCard, ResultMeta } from "./result-card";
 
 interface NavigationCardProps {
   result: {
@@ -29,6 +29,9 @@ export function NavigationCard({
   className,
   index = 0,
 }: NavigationCardProps) {
+  const episode = result.mediaType?.toLowerCase() === "episode" ||
+    result.episodeNumber != null ||
+    /(?:\/\d+\/\d+(?:[?#]|$)|[?&]episode=\d+)/.test(result.url || "");
   return (
     <ResultCard
       className={className}
@@ -39,7 +42,8 @@ export function NavigationCard({
           : "Navigation failed"
       }
       icon={result.mediaType?.toLowerCase() === "movie" ? Film : Tv}
-      image={artworkFromPath(result.url)}
+      image={(episode ? result.thumbnail : result.poster) || artworkFromPath(result.url)}
+      imageAspect={episode ? "landscape" : "portrait"}
       href={
         result.success &&
         result.url?.startsWith("/") &&
@@ -49,11 +53,11 @@ export function NavigationCard({
       }
       metadata={
         <>
-          {result.mediaType && <ResultBadge>{result.mediaType}</ResultBadge>}
+          {result.mediaType && <ResultMeta>{result.mediaType}</ResultMeta>}
           {result.seasonNumber != null && result.episodeNumber != null && (
-            <ResultBadge>
+            <ResultMeta>
               S{result.seasonNumber} · E{result.episodeNumber}
-            </ResultBadge>
+            </ResultMeta>
           )}
         </>
       }

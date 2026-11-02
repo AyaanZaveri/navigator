@@ -4,7 +4,7 @@ import { artworkFromPath } from "@/lib/artwork";
 
 import { Tv } from "lucide-react";
 import { buildEpisodePath, toEpisodeNavigationPath } from "@/lib/series-route";
-import { ResultCard, ResultBadge, formatCardRuntime } from "./result-card";
+import { ResultCard, ResultMeta, formatCardRuntime } from "./result-card";
 
 interface EpisodeCardProps {
   episode: {
@@ -15,6 +15,8 @@ interface EpisodeCardProps {
     overview?: string;
     runtime?: number;
     seriesId?: string;
+    seriesName?: string;
+    showName?: string;
     thumbnail?: string;
   };
   className?: string;
@@ -43,20 +45,22 @@ export function EpisodeCard({
       className={className}
       index={index}
       title={episode.name}
+      subtitle={episode.seriesName || episode.showName}
       icon={Tv}
-      image={artworkFromPath(href)}
+      image={episode.thumbnail || artworkFromPath(href)}
+      imageAspect="landscape"
       href={onClick ? undefined : href}
       onClick={onClick}
       metadata={
         <>
-          <ResultBadge>Episode</ResultBadge>
+          <ResultMeta>Episode</ResultMeta>
           {episode.seasonNumber != null && episode.episodeNumber != null && (
-            <ResultBadge>
+            <ResultMeta>
               S{episode.seasonNumber} · E{episode.episodeNumber}
-            </ResultBadge>
+            </ResultMeta>
           )}
           {episode.runtime ? (
-            <ResultBadge>{formatCardRuntime(episode.runtime)}</ResultBadge>
+            <ResultMeta>{formatCardRuntime(episode.runtime)}</ResultMeta>
           ) : null}
         </>
       }

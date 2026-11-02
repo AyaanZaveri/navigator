@@ -26,7 +26,7 @@ export function SubtitleSkipCard({
     <ResultCard
       className={className}
       index={index}
-      title={result.success ? "Skipping to scene" : "Subtitle search failed"}
+      title={result.success ? "Matching scene" : "Subtitle search failed"}
       icon={Subtitles}
       metadata={
         result.timestampFormatted && (

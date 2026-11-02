@@ -2,8 +2,9 @@
 
 import { Film, Tv, Star } from "lucide-react";
 import { RottenTomatoesIcon } from "../icons/rotten-tomatoes";
-import { toEpisodeNavigationPath } from "@/lib/series-route";
-import { ResultCard, ResultBadge, formatCardRuntime } from "./result-card";
+import { navigatorTitlePath } from "@/lib/navigator-title-path";
+import { artworkFromPath } from "@/lib/artwork";
+import { ResultCard, ResultMeta, formatCardRuntime } from "./result-card";
 
 interface MediaDetailsCardProps {
   media: {
@@ -13,11 +14,18 @@ interface MediaDetailsCardProps {
     year?: number;
     overview?: string;
     rating?: string;
+    ratingSource?: string;
     runtime?: number;
     genres?: string[];
     cast?: string[];
     communityRating?: number;
     criticRating?: number;
+    poster?: string;
+    thumbnail?: string;
+    seriesName?: string;
+    showName?: string;
+    seasonNumber?: number;
+    episodeNumber?: number;
   };
   className?: string;
   index?: number;
@@ -30,42 +38,43 @@ export function MediaDetailsCard({
   index = 0,
   onClick,
 }: MediaDetailsCardProps) {
-  const href =
-    media.type === "Movie"
-      ? `/movie/${media.id}`
-      : media.type === "Episode"
-        ? toEpisodeNavigationPath(media.id)
-        : `/series/${media.id}`;
+  const href = navigatorTitlePath(media.id, media.type);
   return (
     <ResultCard
       className={className}
       index={index}
       title={media.name}
+      subtitle={media.type === "Episode" ? media.seriesName || media.showName : undefined}
       icon={media.type === "Movie" ? Film : Tv}
+      image={(media.type === "Episode" ? media.thumbnail : media.poster) || artworkFromPath(href)}
+      imageAspect={media.type === "Episode" ? "landscape" : "portrait"}
       href={onClick ? undefined : href}
       onClick={onClick}
       metadata={
         <>
-          <ResultBadge>{media.type}</ResultBadge>
-          {media.year && <ResultBadge>{media.year}</ResultBadge>}
+          <ResultMeta>{media.type}</ResultMeta>
+          {media.type === "Episode" && media.seasonNumber != null && media.episodeNumber != null && (
+            <ResultMeta>S{media.seasonNumber} · E{media.episodeNumber}</ResultMeta>
+          )}
+          {media.year && <ResultMeta>{media.year}</ResultMeta>}
           {media.communityRating != null && (
-            <ResultBadge>
+            <ResultMeta>
               <Star className="fill-yellow-400 text-yellow-400" />
               {media.communityRating.toFixed(1)}
-            </ResultBadge>
+            </ResultMeta>
           )}
           {media.criticRating != null && (
-            <ResultBadge>
+            <ResultMeta>
               <RottenTomatoesIcon size={12} />
               {media.criticRating}%
-            </ResultBadge>
+            </ResultMeta>
           )}
-          {media.rating && <ResultBadge>{media.rating}</ResultBadge>}
+          {media.ratingSource !== "TMDB" && media.rating && <ResultMeta>{media.rating}</ResultMeta>}
           {media.runtime ? (
-            <ResultBadge>{formatCardRuntime(media.runtime)}</ResultBadge>
+            <ResultMeta>{formatCardRuntime(media.runtime)}</ResultMeta>
           ) : null}
           {media.genres?.slice(0, 3).map((genre) => (
-            <ResultBadge key={genre}>{genre}</ResultBadge>
+            <ResultMeta key={genre}>{genre}</ResultMeta>
           ))}
         </>
       }

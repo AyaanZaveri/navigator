@@ -4,426 +4,399 @@ import { useChat } from "@ai-sdk/react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { DefaultChatTransport } from "ai";
+import { useRouter, usePathname } from "next/navigation";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
+import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, readNavigatorHistory, record } from "@/lib/navigator-chat";
+import { acknowledgePlayback, type ActionOutcome } from "@/lib/navigator-playback-ack";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { useTheme } from "next-themes";
 import { isAIAskOpenAtom } from "@/lib/atoms";
 import { useSettings } from "@/contexts/settings-context";
-import type { NavigateMediaTool, PlayMediaTool } from "@/app/tools/media";
-import type { SkipToSubtitleContent } from "@/app/tools/subtitles";
-import type { ThemeToggle } from "@/app/tools/theme";
 import { NavigatorFocus } from "./focus";
+import { isNavigatorRequestComplete, navigatorResponseDurations } from "@/lib/navigator-timing";
 
-const AIAsk = () => {
-  const [isAskOpen, setIsAskOpen] = useAtom(isAIAskOpenAtom);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [input, setInput] = useState("");
-  const [requestDurationsMs, setRequestDurationsMs] = useState<
+const AIAsk = ({ userId }: { userId: string }) => {
+    const [isAskOpen, setIsAskOpen] = useAtom(isAIAskOpenAtom);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [input, setInput] = useState("");
+    const [isApplyingAction, setIsApplyingAction] = useState(false);
+    const [requestDurationsMs, setRequestDurationsMs] = useState<
     Record<string, number>
   >({});
-  const handledToolOutputsRef = useRef<Set<string>>(new Set());
-  const taskStartTimeRef = useRef<number | null>(null);
-  const activeTaskUserMessageIdRef = useRef<string | null>(null);
-  const awaitingTaskUserMessageRef = useRef(false);
-  const messagesRef = useRef<any[]>([]);
-  const opencodeSessionIdRef = useRef<string | null>(null);
-  const {
-    aiProvider,
-    openaiBaseUrl,
-    openaiModel,
-    geminiModel,
-    ollamaBaseUrl,
-    ollamaModel,
-    groqModel,
-    openrouterModel,
-    openrouterReasoningEffort,
-    cerebrasModel,
-    cerebrasReasoningEffort,
-    opencodeModel,
-    openaiApiKey,
-    googleApiKey,
-    groqApiKey,
-    openrouterApiKey,
-    cerebrasApiKey,
-    opencodeApiKey,
-  } = useSettings();
+    const actionResultsRef = useRef(new Map<string, Promise<ActionOutcome>>());
+    const actionAbortRef = useRef(new AbortController());
+    const requestBodyRef = useRef<Record<string, unknown>>({});
+    const continuationCountRef = useRef(0);
+    const [loadedHistoryKey, setLoadedHistoryKey] = useState<string | null>(null);
+    const historyKey = userId ? `navigator-chat-v2:${userId}` : null;
+    const pathname = usePathname();
+    const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat", body: () => requestBodyRef.current }), []);
+    const taskStartTimeRef = useRef<number | null>(null);
+    const activeTaskUserMessageIdRef = useRef<string | null>(null);
+    const awaitingTaskUserMessageRef = useRef(false);
+    const messagesRef = useRef<UIMessage[]>([]);
+    const opencodeSessionIdRef = useRef<string | null>(null);
+    const {
+        aiProvider,
+        analysisModel,
+        openaiBaseUrl,
+        openaiModel,
+        geminiModel,
+        ollamaBaseUrl,
+        ollamaModel,
+        groqModel,
+        openrouterModel,
+        openrouterReasoningEffort,
+        cerebrasModel,
+        cerebrasReasoningEffort,
+        opencodeModel,
+        openaiApiKey,
+        googleApiKey,
+        groqApiKey,
+        openrouterApiKey,
+        cerebrasApiKey,
+        opencodeApiKey,
+    } = useSettings();
 
-  const getStableMessageId = (message: any, fallbackIndex: number) =>
-    String(
-      message?.id ||
+    const getStableMessageId = (message: any, fallbackIndex: number) =>
+        String(
+            message?.id ||
         message?.message?.id ||
         `${message?.role || "msg"}-${fallbackIndex}`,
+        );
+
+    const finalizeRequestDuration = (completed = true, taskMessages = messagesRef.current) => {
+        if (taskStartTimeRef.current == null) return;
+        if (!completed) {
+            taskStartTimeRef.current = null;
+            return;
+        }
+
+        const durationMs = Math.max(0, Date.now() - taskStartTimeRef.current);
+        const userIndex = taskMessages.findLastIndex(message => message.role === "user");
+        const userMessageId = activeTaskUserMessageIdRef.current
+            || (userIndex >= 0 ? getStableMessageId(taskMessages[userIndex], userIndex) : null);
+        setRequestDurationsMs((prev) => {
+            if (!userMessageId) return prev;
+            return {
+                ...prev,
+                [userMessageId]: durationMs,
+            };
+        });
+
+        taskStartTimeRef.current = null;
+    };
+
+    // Function to handle opening AI Ask, with fullscreen exit if needed
+    const handleOpenAsk = async () => {
+        if (isFullscreen) {
+            // Exit fullscreen first
+            try {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                } else if ((document as any).webkitExitFullscreen) {
+                    await (document as any).webkitExitFullscreen();
+                } else if ((document as any).mozCancelFullScreen) {
+                    await (document as any).mozCancelFullScreen();
+                } else if ((document as any).msExitFullscreen) {
+                    await (document as any).msExitFullscreen();
+                }
+                // Wait a bit for fullscreen to exit, then open AI Ask
+                setTimeout(() => {
+                    setIsAskOpen(true);
+                }, 100);
+            } catch (error) {
+                console.warn("Failed to exit fullscreen:", error);
+                // Still try to open AI Ask even if fullscreen exit fails
+                setIsAskOpen(true);
+            }
+        } else {
+            setIsAskOpen(!isAskOpen);
+        }
+    };
+
+    const router = useRouter();
+    const { setTheme, resolvedTheme } = useTheme();
+
+    // Track fullscreen state
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+        document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+        document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
+        // Set initial state
+        setIsFullscreen(!!document.fullscreenElement);
+
+        return () => {
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
+            document.removeEventListener(
+                "webkitfullscreenchange",
+                handleFullscreenChange,
+            );
+            document.removeEventListener(
+                "mozfullscreenchange",
+                handleFullscreenChange,
+            );
+            document.removeEventListener(
+                "MSFullscreenChange",
+                handleFullscreenChange,
+            );
+        };
+    }, []);
+
+    const {
+        playMedia,
+        isPlayerVisible,
+        skipToTimestamp,
+        currentMediaWithSource,
+        currentTimestamp,
+    } = useMediaPlayer();
+
+    const {
+        messages,
+        sendMessage,
+        stop,
+        status,
+        error: askError,
+        setMessages,
+        clearError,
+        addToolOutput,
+    } = useChat({
+        transport,
+        sendAutomaticallyWhen: ({ messages: nextMessages }) => {
+            return !actionAbortRef.current.signal.aborted && continuationCountRef.current < 8
+                && shouldContinueAfterNavigatorAction(nextMessages)
+                && lastAssistantMessageIsCompleteWithToolCalls({ messages: nextMessages });
+        },
+        onFinish: ({ messages: nextMessages, isAbort, isError }) => {
+            if (!isAbort && !isError) {
+                const actions = preparedNavigatorActions(nextMessages);
+                if (actions.length) {
+                    const signal = actionAbortRef.current.signal;
+                    setIsApplyingAction(true);
+                    // Let the SDK close its request before updating tool output and continuing.
+                    setTimeout(() => { void applyPreparedActions(actions, signal); }, 0);
+                    return;
+                }
+                if (shouldContinueAfterNavigatorAction(nextMessages)
+                    && lastAssistantMessageIsCompleteWithToolCalls({ messages: nextMessages }) && continuationCountRef.current < 8) return;
+            }
+            finalizeRequestDuration(!isAbort && !isError && isNavigatorRequestComplete(nextMessages), nextMessages);
+            activeTaskUserMessageIdRef.current = null;
+            awaitingTaskUserMessageRef.current = false;
+        },
+        onError: () => {
+            finalizeRequestDuration(false);
+            activeTaskUserMessageIdRef.current = null;
+            awaitingTaskUserMessageRef.current = false;
+        },
+    });
+
+    async function applyPreparedActions(actions: ReturnType<typeof preparedNavigatorActions>, signal: AbortSignal) {
+        try {
+            for (const action of actions) {
+                if (signal.aborted) return;
+                continuationCountRef.current += 1;
+                let task = actionResultsRef.current.get(action.toolCallId);
+                if (!task) {
+                    task = executePreparedAction(action.toolCallId, action.output, signal);
+                    actionResultsRef.current.set(action.toolCallId, task);
+                }
+                const result = await task;
+                if (signal.aborted) return;
+                // Updating the original tool result gives the model the actual browser outcome.
+                void addToolOutput({ tool: action.toolName, toolCallId: action.toolCallId,
+                    output: { ...action.output, ...result, execution: "completed" } });
+                if (!result.success && result.status !== "cancelled") {
+                    setIsAskOpen(true);
+                    toast.error(result.message);
+                }
+            }
+        } finally { setIsApplyingAction(false); }
+    }
+
+    async function executePreparedAction(preparedToolCallId: string, output: unknown, signal: AbortSignal): Promise<ActionOutcome> {
+        if (signal.aborted) return { success: false, status: "cancelled", message: "Action cancelled." };
+        const action = record(output);
+        try {
+            switch (action.action) {
+            case "navigate": {
+                if (typeof action.url !== "string" || !/^\/(movie|series)\/[^?#]+$/.test(action.url)) throw new Error("Invalid title destination.");
+                router.push(action.url);
+                setIsAskOpen(false);
+                return { success: true, status: "requested", message: "Navigation to the selected title was requested." };
+            }
+            case "play": {
+                if (!action.mediaId || !action.mediaName || !["Movie", "Series", "Episode"].includes(action.mediaType)) throw new Error("Missing playback details.");
+                const isEpisode = action.mediaType === "Episode";
+                return await acknowledgePlayback(document, preparedToolCallId, () => playMedia({
+                    navigatorActionId: preparedToolCallId,
+                    id: isEpisode && action.seriesId ? action.seriesId : action.mediaId,
+                    name: action.mediaName,
+                    type: action.mediaType === "Movie" ? "movie" : "series",
+                    streamUrl: action.streamUrl,
+                    mediaSourceId: action.mediaSourceId || (isEpisode ? action.mediaId : undefined),
+                    seriesId: action.seriesId, showName: action.showName, episodeTitle: action.episodeTitle,
+                    seasonNumber: action.seasonNumber, episodeNumber: action.episodeNumber,
+                    subtitleFilename: action.subtitleFilename, subtitleVideoSize: action.subtitleVideoSize,
+                }), signal);
+            }
+            case "skipTo": {
+                if (!isPlayerVisible || !Number.isFinite(action.timestamp) || action.timestamp < 0) throw new Error("There is no active player to seek.");
+                skipToTimestamp(action.timestamp);
+                setIsAskOpen(false);
+                return { success: true, status: "requested", message: `Requested a seek to ${action.timestampFormatted}.` };
+            }
+            case "setTheme": {
+                const nextTheme = action.theme === "toggle" ? (resolvedTheme === "dark" ? "light" : "dark") : action.theme;
+                if (!["dark", "light", "system"].includes(nextTheme)) throw new Error("Invalid theme.");
+                setTheme(nextTheme);
+                return { success: true, status: "completed", message: `Theme changed to ${nextTheme}.` };
+            }
+            default: throw new Error("Unknown app action.");
+            }
+        } catch (error) {
+            return { success: false, status: "failed", message: error instanceof Error ? error.message : "The app action failed." };
+        }
+    }
+
+    const handleResetChat = () => {
+        if (isBusy) return;
+        clearError();
+        setInput("");
+        setMessages([]);
+        setRequestDurationsMs({});
+        actionAbortRef.current.abort();
+        actionAbortRef.current = new AbortController();
+        actionResultsRef.current.clear();
+        if (historyKey) { try { localStorage.removeItem(historyKey); } catch { /* Storage may be unavailable; keep the live chat usable. */ } }
+        taskStartTimeRef.current = null;
+        activeTaskUserMessageIdRef.current = null;
+        awaitingTaskUserMessageRef.current = false;
+        messagesRef.current = [];
+        opencodeSessionIdRef.current = null;
+    };
+
+    const isBusy = status === "submitted" || status === "streaming" || isApplyingAction;
+
+    useEffect(() => {
+        messagesRef.current = messages as any[];
+    }, [messages]);
+
+    useEffect(() => {
+        if (!awaitingTaskUserMessageRef.current) return;
+        if (activeTaskUserMessageIdRef.current) return;
+
+        for (let i = messages.length - 1; i >= 0; i -= 1) {
+            const message = messages[i] as any;
+            if (message?.role !== "user") continue;
+            const messageId = getStableMessageId(message, i);
+            activeTaskUserMessageIdRef.current = messageId;
+            awaitingTaskUserMessageRef.current = false;
+            break;
+        }
+    }, [messages]);
+
+    useEffect(() => {
+        actionAbortRef.current.abort();
+        stop();
+        actionAbortRef.current = new AbortController();
+        actionResultsRef.current.clear();
+        requestBodyRef.current = {};
+        opencodeSessionIdRef.current = null;
+        setRequestDurationsMs({});
+        let saved: UIMessage[] = [];
+        try { saved = historyKey ? readNavigatorHistory(localStorage.getItem(historyKey)) : []; } catch { /* Storage may be unavailable; keep the live chat usable. */ }
+        setMessages(saved);
+        setLoadedHistoryKey(historyKey);
+        return () => { actionAbortRef.current.abort(); stop(); };
+    }, [historyKey, setMessages, stop]);
+
+    useEffect(() => {
+        if (!historyKey || loadedHistoryKey !== historyKey || isBusy) return;
+        try { localStorage.setItem(historyKey, JSON.stringify(messages.slice(-80))); } catch { /* Storage may be unavailable; keep the live chat usable. */ }
+    }, [messages, historyKey, loadedHistoryKey, isBusy]);
+
+    const prepareRequest = () => {
+        actionAbortRef.current = new AbortController();
+        continuationCountRef.current = 0;
+        const opencodeSessionId = opencodeSessionIdRef.current ?? crypto.randomUUID();
+        opencodeSessionIdRef.current = opencodeSessionId;
+        requestBodyRef.current = {
+            currentMedia: isPlayerVisible ? currentMediaWithSource : null, currentTimestamp, pathname,
+            aiProvider, analysisModel, openaiBaseUrl, openaiModel, geminiModel, ollamaBaseUrl, ollamaModel,
+            groqModel, openrouterModel, openrouterReasoningEffort, cerebrasModel, cerebrasReasoningEffort,
+            opencodeModel, openaiApiKey, googleApiKey, groqApiKey, openrouterApiKey, cerebrasApiKey,
+            opencodeApiKey, opencodeSessionId,
+        };
+        taskStartTimeRef.current = Date.now();
+        activeTaskUserMessageIdRef.current = null;
+        awaitingTaskUserMessageRef.current = true;
+        clearError();
+    };
+
+    const handleSubmitQuestion = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!input.trim() || isBusy) {
+            console.log("No input provided");
+            return;
+        }
+
+        try {
+            const question = input.trim();
+            prepareRequest();
+            setInput("");
+            await sendMessage({ text: question });
+        } catch (error) {
+            console.error("Error asking question:", error);
+        }
+    };
+
+    const handleStopGeneration = () => {
+        actionAbortRef.current.abort();
+        setIsApplyingAction(false);
+        finalizeRequestDuration(false);
+        stop();
+    };
+
+    const responseDurations = useMemo(
+        () => navigatorResponseDurations(messages, requestDurationsMs),
+        [messages, requestDurationsMs],
     );
 
-  const finalizeRequestDuration = () => {
-    if (taskStartTimeRef.current == null) return;
+    if (isPlayerVisible && !isAskOpen) return null;
 
-    const durationMs = Math.max(0, Date.now() - taskStartTimeRef.current);
-    setRequestDurationsMs((prev) => {
-      let userMessageId = activeTaskUserMessageIdRef.current;
-
-      if (!userMessageId) {
-        for (let i = messagesRef.current.length - 1; i >= 0; i -= 1) {
-          const message = messagesRef.current[i];
-          if (message?.role !== "user") continue;
-          const candidateId = getStableMessageId(message, i);
-          if (prev[candidateId] == null) {
-            userMessageId = candidateId;
-            break;
-          }
-        }
-      }
-
-      if (!userMessageId) return prev;
-      return {
-        ...prev,
-        [userMessageId]: durationMs,
-      };
-    });
-
-    taskStartTimeRef.current = null;
-  };
-
-  // Function to handle opening AI Ask, with fullscreen exit if needed
-  const handleOpenAsk = async () => {
-    if (isFullscreen) {
-      // Exit fullscreen first
-      try {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          await (document as any).webkitExitFullscreen();
-        } else if ((document as any).mozCancelFullScreen) {
-          await (document as any).mozCancelFullScreen();
-        } else if ((document as any).msExitFullscreen) {
-          await (document as any).msExitFullscreen();
-        }
-        // Wait a bit for fullscreen to exit, then open AI Ask
-        setTimeout(() => {
-          setIsAskOpen(true);
-        }, 100);
-      } catch (error) {
-        console.warn("Failed to exit fullscreen:", error);
-        // Still try to open AI Ask even if fullscreen exit fails
-        setIsAskOpen(true);
-      }
-    } else {
-      setIsAskOpen(!isAskOpen);
-    }
-  };
-
-  const router = useRouter();
-  const { setTheme, theme } = useTheme();
-
-  // Track fullscreen state
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
-    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
-    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
-
-    // Set initial state
-    setIsFullscreen(!!document.fullscreenElement);
-
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener(
-        "webkitfullscreenchange",
-        handleFullscreenChange,
-      );
-      document.removeEventListener(
-        "mozfullscreenchange",
-        handleFullscreenChange,
-      );
-      document.removeEventListener(
-        "MSFullscreenChange",
-        handleFullscreenChange,
-      );
-    };
-  }, []);
-
-  const {
-    playMedia,
-    isPlayerVisible,
-    skipToTimestamp,
-    currentMediaWithSource,
-    currentTimestamp,
-  } = useMediaPlayer();
-
-  const {
-    messages,
-    sendMessage,
-    stop,
-    status,
-    error: askError,
-    setMessages,
-    clearError,
-  } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-    }),
-    onToolCall: ({ toolCall }) => {
-      console.log("🔧 Tool call received:", toolCall);
-    },
-    onFinish: () => {
-      finalizeRequestDuration();
-      activeTaskUserMessageIdRef.current = null;
-      awaitingTaskUserMessageRef.current = false;
-    },
-    onError: () => {
-      finalizeRequestDuration();
-      activeTaskUserMessageIdRef.current = null;
-      awaitingTaskUserMessageRef.current = false;
-    },
-  });
-
-  const finalizeToolAction = () => {
-    finalizeRequestDuration();
-    stop();
-  };
-
-  const navigateToMedia = (toolPart: NavigateMediaTool) => {
-    if (toolPart.success && toolPart.action === "navigate" && toolPart.url) {
-      finalizeToolAction();
-      router.push(toolPart.url);
-      setIsAskOpen(false);
-    }
-  };
-
-  const handlePlayMedia = (toolPart: PlayMediaTool) => {
-    if (
-      toolPart.success &&
-      toolPart.action === "play" &&
-      toolPart.mediaId &&
-      toolPart.mediaName &&
-      toolPart.mediaType
-    ) {
-      finalizeToolAction();
-      const isEpisode = toolPart.mediaType === "Episode";
-      playMedia({
-        id:
-          isEpisode && toolPart.seriesId ? toolPart.seriesId : toolPart.mediaId,
-        name: toolPart.mediaName,
-        type: toolPart.mediaType === "Movie" ? "movie" : "series",
-        streamUrl: toolPart.streamUrl,
-        mediaSourceId:
-          toolPart.mediaSourceId || (isEpisode ? toolPart.mediaId : undefined),
-        seriesId: toolPart.seriesId,
-        showName: toolPart.showName,
-        episodeTitle: toolPart.episodeTitle,
-        seasonNumber: toolPart.seasonNumber,
-        episodeNumber: toolPart.episodeNumber,
-        subtitleFilename: toolPart.subtitleFilename,
-        subtitleVideoSize: toolPart.subtitleVideoSize,
-      });
-      setIsAskOpen(false);
-    }
-  };
-
-  const handleSkipToTimestamp = (toolPart: SkipToSubtitleContent) => {
-    if (
-      toolPart.success &&
-      toolPart.action === "skipTo" &&
-      typeof toolPart.timestamp === "number"
-    ) {
-      finalizeToolAction();
-      skipToTimestamp(toolPart.timestamp);
-      toast.success(
-        `Skipped to ${toolPart.timestampFormatted}: "${toolPart.text}"`,
-      );
-      // Hide the AI Ask component after successfully skipping
-      setIsAskOpen(false);
-    } else if (!toolPart.success && toolPart.error) {
-      toast.error(toolPart.error);
-    }
-  };
-
-  const handleThemeToggle = (toolPart: ThemeToggle) => {
-    if (toolPart.success && toolPart.action === "setTheme" && toolPart.theme) {
-      if (toolPart.theme === "toggle") {
-        // Toggle between light and dark (ignore system)
-        const currentTheme = theme === "system" ? "light" : theme;
-        const newTheme = currentTheme === "light" ? "dark" : "light";
-        setTheme(newTheme);
-        toast.success(`Theme switched to ${newTheme} mode`);
-      } else {
-        // Set specific theme
-        setTheme(toolPart.theme);
-        const themeLabel =
-          toolPart.theme === "system"
-            ? "system (follows device preference)"
-            : `${toolPart.theme} mode`;
-        toast.success(`Theme switched to ${themeLabel}`);
-      }
-
-      // Don't auto-close for theme changes as they're quick and users might want to keep chatting
-    } else if (!toolPart.success) {
-      toast.error("Failed to change theme");
-    }
-  };
-
-  const handleResetChat = () => {
-    if (isBusy) return;
-    clearError();
-    setInput("");
-    setMessages([]);
-    setRequestDurationsMs({});
-    handledToolOutputsRef.current.clear();
-    taskStartTimeRef.current = null;
-    activeTaskUserMessageIdRef.current = null;
-    awaitingTaskUserMessageRef.current = false;
-    messagesRef.current = [];
-    opencodeSessionIdRef.current = null;
-  };
-
-  const isBusy = status === "submitted" || status === "streaming";
-
-  useEffect(() => {
-    messagesRef.current = messages as any[];
-  }, [messages]);
-
-  useEffect(() => {
-    if (!awaitingTaskUserMessageRef.current) return;
-    if (activeTaskUserMessageIdRef.current) return;
-
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const message = messages[i] as any;
-      if (message?.role !== "user") continue;
-      const messageId = getStableMessageId(message, i);
-      activeTaskUserMessageIdRef.current = messageId;
-      awaitingTaskUserMessageRef.current = false;
-      break;
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    messages.forEach((message: any) => {
-      if (message.role !== "assistant" || !message.parts) return;
-
-      message.parts.forEach((part: any, partIndex: number) => {
-        if (part.state !== "output-available" || !part.output) return;
-
-        const stableId =
-          part.toolCallId ||
-          part.id ||
-          `${message.id || "assistant"}:${part.type || "tool"}:${partIndex}`;
-
-        if (handledToolOutputsRef.current.has(stableId)) return;
-        handledToolOutputsRef.current.add(stableId);
-
-        switch (part.type) {
-          case "tool-navigateToMedia":
-          case "tool-navigateToEpisode":
-          case "tool-navigateToMediaByQuery":
-            navigateToMedia(part.output as NavigateMediaTool);
-            break;
-          case "tool-playMedia":
-            handlePlayMedia(part.output as PlayMediaTool);
-            break;
-          case "tool-skipToSubtitleContent":
-            handleSkipToTimestamp(part.output as SkipToSubtitleContent);
-            break;
-          case "tool-themeToggle":
-            handleThemeToggle(part.output as ThemeToggle);
-            break;
-        }
-      });
-    });
-  }, [messages]);
-
-  const handleSubmitQuestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!input.trim() || isBusy) {
-      console.log("No input provided");
-      return;
-    }
-
-    try {
-      const opencodeSessionId =
-        opencodeSessionIdRef.current ?? crypto.randomUUID();
-      opencodeSessionIdRef.current = opencodeSessionId;
-      sendMessage(
-        { text: input.trim() },
-        {
-          body: {
-            currentMedia: currentMediaWithSource,
-            currentTimestamp,
-            aiProvider,
-            openaiBaseUrl,
-            openaiModel,
-            geminiModel,
-            ollamaBaseUrl,
-            ollamaModel,
-            groqModel,
-            openrouterModel,
-            openrouterReasoningEffort,
-            cerebrasModel,
-            cerebrasReasoningEffort,
-            opencodeModel,
-            openaiApiKey,
-            googleApiKey,
-            groqApiKey,
-            openrouterApiKey,
-            cerebrasApiKey,
-            opencodeApiKey,
-            opencodeSessionId,
-          },
-        },
-      );
-      setInput("");
-      taskStartTimeRef.current = Date.now();
-      activeTaskUserMessageIdRef.current = null;
-      awaitingTaskUserMessageRef.current = true;
-    } catch (error) {
-      console.error("Error asking question:", error);
-    }
-  };
-
-  const handleStopGeneration = () => {
-    finalizeRequestDuration();
-    stop();
-  };
-
-  const responseDurations = useMemo(() => {
-    const durations: Record<string, number> = {};
-    let userId: string | null = null;
-    messages.forEach((message, index) => {
-      if (message.role === "user") userId = getStableMessageId(message, index);
-      else if (
-        message.role === "assistant" &&
-        userId &&
-        requestDurationsMs[userId] !== undefined
-      )
-        durations[message.id] = requestDurationsMs[userId] / 1000;
-    });
-    return durations;
-  }, [messages, requestDurationsMs]);
-
-  if (isPlayerVisible && !isAskOpen) return null;
-
-  return (
-    <NavigatorFocus
-      open={isAskOpen}
-      showLauncher={!isPlayerVisible}
-      onOpen={handleOpenAsk}
-      onOpenChange={setIsAskOpen}
-      messages={messages}
-      input={input}
-      onInputChange={setInput}
-      onSubmit={handleSubmitQuestion}
-      onStop={handleStopGeneration}
-      onNewChat={handleResetChat}
-      isBusy={isBusy}
-      error={askError}
-      responseDurations={responseDurations}
-    />
-  );
+    return (
+        <NavigatorFocus
+            open={isAskOpen}
+            showLauncher={!isPlayerVisible}
+            onOpen={handleOpenAsk}
+            onOpenChange={setIsAskOpen}
+            messages={messages}
+            input={input}
+            onInputChange={setInput}
+            onSubmit={handleSubmitQuestion}
+            onStop={handleStopGeneration}
+            onNewChat={handleResetChat}
+            onRetry={() => {
+                prepareRequest();
+                const actions = preparedNavigatorActions(messages);
+                if (actions.length) {
+                    setIsApplyingAction(true);
+                    void applyPreparedActions(actions, actionAbortRef.current.signal);
+                } else void sendMessage();
+            }}
+            isBusy={isBusy}
+            error={askError}
+            responseDurations={responseDurations}
+        />
+    );
 };
 
 export default AIAsk;

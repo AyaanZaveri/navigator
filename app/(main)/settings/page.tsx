@@ -205,7 +205,7 @@ function ArtworkSettings() {
             if (!result.success) { setError(result.error); return; }
             setState({ configured: result.configured, personal: result.personal });
             setToken("");
-            setStatus(operation === "save" ? "Token saved. Artwork is ready." : "Token removed.");
+            setStatus(operation === "save" ? "Token saved. TMDB search and artwork are ready." : "Token removed.");
         } catch {
             setError("Couldn’t update artwork settings. Check your connection and try again.");
         } finally { setPending(null); }
@@ -214,8 +214,8 @@ function ArtworkSettings() {
     return (
         <section aria-labelledby="artwork-settings-title" className={styles.section}>
             <div className="flex flex-col gap-2">
-                <h2 id="artwork-settings-title" className="text-lg font-medium">Artwork</h2>
-                <p className={styles.description}>Posters, backdrops, logos, and cast photos from TMDB.</p>
+                <h2 id="artwork-settings-title" className="text-lg font-medium">TMDB</h2>
+                <p className={styles.description}>Search, movie and show details, people, filmographies, and artwork from TMDB.</p>
             </div>
             <form className="min-w-0" aria-busy={loading || !!pending} onSubmit={(event) => { event.preventDefault(); if (!pending && token.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
@@ -227,10 +227,10 @@ function ArtworkSettings() {
                         keyUrl="https://www.themoviedb.org/settings/api"
                         keyLinkLabel="Get a TMDB token"
                         placeholder={state.personal ? "Enter a replacement token" : "Enter your read access token"}
-                        description={loading ? "Loading artwork settings…" : state.personal
+                        description={loading ? "Loading TMDB settings…" : state.personal
                             ? "Your token is saved on this device. Enter a new token to replace it."
-                            : state.configured ? "Your server provides artwork access. You can save a different token for this device."
-                                : "Use the API Read Access Token from your TMDB settings. Save it to enable artwork on this device."}
+                            : state.configured ? "Your server provides TMDB access. You can save a different token for this device."
+                                : "Use the API Read Access Token from your TMDB settings. Save it to enable TMDB search and artwork on this device."}
                         disabled={loading || !!pending}
                         error={error}
                     />
@@ -364,6 +364,8 @@ export default function SettingsPage() {
         setCerebrasApiKey,
         opencodeApiKey,
         setOpencodeApiKey,
+        analysisModel,
+        setAnalysisModel,
     } = useSettings();
 
     const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
@@ -778,6 +780,15 @@ export default function SettingsPage() {
                                         description={currentModel.description}
                                     />
                                 )}
+
+                                <SettingsInput
+                                    id="navigator-analysis-model"
+                                    label="Scene analysis model"
+                                    value={analysisModel}
+                                    onValueChange={setAnalysisModel}
+                                    placeholder="Same as response model"
+                                    description="Optional model ID from this provider for scene explanations and subtitle search. Leave blank to use your response model."
+                                />
 
                                 {aiProvider === "openrouter" && (
                                     <SettingsSelect

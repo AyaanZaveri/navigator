@@ -18,7 +18,8 @@ const QUICK_SEARCH_RESPONSE_MS = 1_500;
 async function fetchAddonResource<T>(
   transportUrl: string,
   path: string,
-  timeoutMs = ADDON_CATALOG_TIMEOUT_MS
+  timeoutMs = ADDON_CATALOG_TIMEOUT_MS,
+  signal?: AbortSignal
 ): Promise<T | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -28,7 +29,7 @@ async function fetchAddonResource<T>(
     const url = `${base}/${path}`;
     const response = await fetch(url, {
       next: { revalidate: 60 },
-      signal: controller.signal,
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
     });
     if (!response.ok) return null;
     return response.json();
@@ -97,7 +98,7 @@ function sortSearchResults(results: SearchResult[]): SearchResult[] {
 
 async function collectSearchResults(
   query: string,
-  options: { returnEarlyWithResults?: boolean } = {}
+  options: { returnEarlyWithResults?: boolean; signal?: AbortSignal } = {}
 ): Promise<SearchResult[]> {
   const addons = await getInstalledAddonsCached();
   const results: SearchResult[] = [];
@@ -123,7 +124,8 @@ async function collectSearchResults(
     getSearchableCatalogs(addon).map(async (catalog) => {
       const data = await fetchAddonResource<StremioCatalogResponse>(
         addon.transportUrl,
-        `catalog/${catalog.type}/${catalog.id}/search=${encodedQuery}.json`
+        `catalog/${catalog.type}/${catalog.id}/search=${encodedQuery}.json`,
+        undefined, options.signal
       );
       addMetas(data?.metas, addon.manifest.name, catalog.id, catalog.id);
     })
@@ -161,17 +163,19 @@ async function collectSearchResults(
     });
   });
 
+  options.signal?.throwIfAborted();
   return sortSearchResults(results);
 }
 
 // ─── Search ──────────────────────────────────────────────────────
 
-export async function searchItems(query: string): Promise<SearchResult[]> {
+export async function searchItems(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   if (!query.trim()) return [];
 
   try {
-    return collectSearchResults(query, { returnEarlyWithResults: true });
+    return await collectSearchResults(query, { returnEarlyWithResults: true, signal });
   } catch (error) {
+    signal?.throwIfAborted();
     console.error("Failed to search items:", error);
     return [];
   }

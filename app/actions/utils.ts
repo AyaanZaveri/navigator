@@ -62,6 +62,7 @@ export async function getSubtitleTracks(
   options?: {
     filename?: string;
     videoSize?: number;
+    signal?: AbortSignal;
   }
 ): Promise<
   Array<{
@@ -119,12 +120,14 @@ export async function getSubtitleTracks(
         const base = addon.transportUrl.replace(/\/manifest\.json$/, "");
         const hintedPath = buildSubtitlePath();
         let response = await fetch(`${base}/${hintedPath}`, {
+          signal: options?.signal,
           headers: subtitleRequestHeaders,
           cache: "no-store",
         });
         if (!response.ok && hintedPath.includes("/filename=")) {
           response = await fetch(`${base}/subtitles/${type}/${itemId}.json`, {
-            headers: subtitleRequestHeaders,
+            signal: options?.signal,
+          headers: subtitleRequestHeaders,
             cache: "no-store",
           });
         }
@@ -144,12 +147,14 @@ export async function getSubtitleTracks(
           }
         }
       } catch {
+        options?.signal?.throwIfAborted();
         continue;
       }
     }
 
     return tracks;
   } catch (error) {
+    options?.signal?.throwIfAborted();
     console.error("Failed to fetch subtitle tracks:", error);
     return [];
   }

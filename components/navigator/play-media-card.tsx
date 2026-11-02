@@ -1,18 +1,24 @@
 "use client";
 
 import { Play } from "lucide-react";
-import { ResultCard, ResultBadge } from "./result-card";
+import { artworkUrl } from "@/lib/artwork";
+import { parseSeriesRouteId } from "@/lib/series-route";
+import { navigatorTitlePath } from "@/lib/navigator-title-path";
+import { ResultCard, ResultMeta } from "./result-card";
 
 interface PlayMediaCardProps {
   result: {
     success: boolean;
     action?: string;
     mediaId?: string;
+    mediaSourceId?: string;
+    seriesId?: string;
     mediaName?: string;
     mediaType?: "Movie" | "Series" | "Episode";
     streamUrl?: string;
     showName?: string;
     episodeTitle?: string;
+    thumbnail?: string;
     seasonNumber?: number;
     episodeNumber?: number;
     message?: string;
@@ -27,29 +33,47 @@ export function PlayMediaCard({
   index = 0,
 }: PlayMediaCardProps) {
   const episode = result.mediaType === "Episode";
+  const target = parseSeriesRouteId(result.mediaSourceId || result.mediaId || result.seriesId || "");
+  const season = result.seasonNumber ?? target.season;
+  const episodeNumber = result.episodeNumber ?? target.episode;
+  const image = result.thumbnail || artworkUrl(
+    episode ? result.seriesId || target.seriesId : result.mediaId || "",
+    result.mediaType === "Movie" ? "movie" : "series",
+    episode ? "still" : "poster",
+    season,
+    episodeNumber,
+  );
   const title = episode
-    ? result.episodeTitle || result.mediaName || "Episode"
+    ? result.episodeTitle || (episodeNumber != null ? `Episode ${episodeNumber}` : "Episode")
     : result.mediaName || "Media";
+  const showName = result.showName || result.mediaName;
+  const titleId = episode ? result.seriesId || target.seriesId : result.mediaId;
+  const href = result.success && titleId && result.mediaType
+    ? navigatorTitlePath(titleId, result.mediaType, season, episodeNumber)
+    : undefined;
   return (
     <ResultCard
       className={className}
       index={index}
       title={title}
+      subtitle={episode && showName !== title ? showName : undefined}
       icon={Play}
+      image={image}
+      imageAspect={episode ? "landscape" : "portrait"}
+      href={href}
       metadata={
         <>
-          <ResultBadge>{result.mediaType || "Media"}</ResultBadge>
+          <ResultMeta>{result.mediaType || "Media"}</ResultMeta>
           {episode &&
-            result.seasonNumber != null &&
-            result.episodeNumber != null && (
-              <ResultBadge>
-                S{result.seasonNumber} · E{result.episodeNumber}
-              </ResultBadge>
+            season != null &&
+            episodeNumber != null && (
+              <ResultMeta>
+                S{season} · E{episodeNumber}
+              </ResultMeta>
             )}
-          {result.streamUrl && <ResultBadge>Stream ready</ResultBadge>}
+          {result.streamUrl && <ResultMeta>Stream ready</ResultMeta>}
         </>
       }
-      description={episode ? result.showName : undefined}
     />
   );
 }

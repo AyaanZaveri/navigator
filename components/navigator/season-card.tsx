@@ -1,8 +1,8 @@
 "use client";
 
 import { Layers } from "lucide-react";
-import { buildEpisodePath } from "@/lib/series-route";
-import { ResultCard, ResultBadge } from "./result-card";
+import { navigatorTitlePath } from "@/lib/navigator-title-path";
+import { ResultCard, ResultMeta } from "./result-card";
 
 interface SeasonCardProps {
   season: {
@@ -11,6 +11,7 @@ interface SeasonCardProps {
     seasonNumber?: number;
     episodeCount?: number;
     overview?: string;
+    poster?: string;
     year?: number;
   };
   seriesId?: string;
@@ -38,15 +39,16 @@ export function SeasonCard({
       index={index}
       title={season.name}
       icon={Layers}
-      href={onClick ? undefined : buildEpisodePath(targetSeries, number, 1)}
+      image={season.poster}
+      href={onClick ? undefined : navigatorTitlePath(targetSeries, "episode", number, 1)}
       onClick={onClick}
       metadata={
         <>
-          <ResultBadge>Season {number}</ResultBadge>
+          <ResultMeta>Season {number}</ResultMeta>
           {season.episodeCount != null && (
-            <ResultBadge>{season.episodeCount} episodes</ResultBadge>
+            <ResultMeta>{season.episodeCount} episodes</ResultMeta>
           )}
-          {season.year && <ResultBadge>{season.year}</ResultBadge>}
+          {season.year && <ResultMeta>{season.year}</ResultMeta>}
         </>
       }
       description={

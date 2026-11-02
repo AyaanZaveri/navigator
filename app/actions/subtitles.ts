@@ -106,7 +106,8 @@ export async function getSubtitleContent(
 }
 
 export async function fetchSubtitleFileContent(
-  subtitleUrl: string
+  subtitleUrl: string,
+  signal?: AbortSignal
 ): Promise<{ success: boolean; content: string; error?: string }> {
   try {
     if (!subtitleUrl) {
@@ -114,6 +115,7 @@ export async function fetchSubtitleFileContent(
     }
 
     const response = await fetch(subtitleUrl, {
+      signal,
       headers: {
         Accept: "*/*",
         Referer: "https://web.stremio.com/",
@@ -134,6 +136,7 @@ export async function fetchSubtitleFileContent(
 
     return { success: true, content: await response.text() };
   } catch (error) {
+    signal?.throwIfAborted();
     console.error("Failed to fetch subtitle file:", error);
     return {
       success: false,

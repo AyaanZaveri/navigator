@@ -17,7 +17,7 @@ export default async function MainLayout({
         <JotaiProvider>
             <FullscreenDetector />
             <KeyboardShortcuts />
-            <LayoutContent email={user?.email ?? ""}>{children}</LayoutContent>
+            <LayoutContent email={user?.email ?? ""} userId={user?._id ?? ""}>{children}</LayoutContent>
         </JotaiProvider>
     );
 }

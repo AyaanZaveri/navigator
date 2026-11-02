@@ -80,6 +80,9 @@ function activeToolLabel(part: Record<string, unknown>) {
       ? String(part.toolName)
       : String(part.type).replace(/^tool-/, "");
   const taskLabels: Record<string, string> = {
+    searchPeople: "Finding people on TMDB",
+    getPersonDetails: "Reading person details",
+    getFilmography: "Exploring their filmography",
     searchMedia: "Finding something to watch",
     getMediaDetails: "Exploring the title",
     getSeasons: "Exploring the series",
@@ -90,6 +93,7 @@ function activeToolLabel(part: Record<string, unknown>) {
     navigateToEpisode: "Opening your selection",
     navigateToMediaByQuery: "Opening your selection",
     playMedia: "Getting playback ready",
+    completeAction: "Applying your request",
     skipToSubtitleContent: "Finding that moment",
     explainScene: "Making sense of the scene",
     analyzeMedia: "Exploring the story",
@@ -141,6 +145,7 @@ export function getNavigatorActivityLabel(
       ) {
         return activeToolLabel(part);
       }
+      if (part.state === "output-available" && record(part.output).execution === "prepared") return activeToolLabel(part);
       if (part.state === "output-available" || part.state === "output-error") {
         return phrases.results[phraseIndex];
       }

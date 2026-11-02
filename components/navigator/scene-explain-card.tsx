@@ -2,10 +2,14 @@
 
 import { BookOpen } from "lucide-react";
 import { ResultCard, ResultBadge } from "./result-card";
+import { SubtitleEvidenceLinks } from "./subtitle-evidence";
+import type { SubtitleEvidence } from "@/lib/navigator-subtitles";
 
 interface SceneExplainCardProps {
   result: {
     success: boolean;
+    evidence?: SubtitleEvidence[];
+    sourceId?: string;
     explanation?: string;
     currentTime?: {
       timestamp: number;
@@ -52,6 +56,6 @@ export function SceneExplainCard({
         </>
       }
       error={!result.success ? result.error : undefined}
-    />
+    ><SubtitleEvidenceLinks evidence={result.evidence} sourceId={result.sourceId} /></ResultCard>
   );
 }
