@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, type RefObject } from "react";
+import { attachBackdropStretch } from "@/lib/media/backdrop-stretch";
 import { getLogoSampleCrop } from "@/lib/logo-contrast";
 import styles from "./backdrop-transition.module.css";
 
-/** Extend the hero through native overscroll, tracking its stretch without changing scroll physics. */
+/** Stretch one continuous artwork surface across browser and webview top-edge gestures. */
 export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | null>, source: string) {
     useEffect(() => {
         const image = imageRef.current;
         const scroller = image?.closest("main");
-        const parent = scroller?.parentElement;
-        if (!source || !image || !scroller || !parent) return;
+        const page = image?.closest<HTMLElement>(`.${styles.page}`);
+        if (!source || !image || !scroller || !page) return;
 
         const surface = document.createElement("div");
         surface.className = styles.overscroll;
@@ -20,7 +21,7 @@ export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | nul
         const canvas = document.createElement("canvas");
         canvas.className = styles.overscrollArtwork;
         surface.append(canvas);
-        parent.append(surface);
+        page.prepend(surface);
         const context = canvas.getContext("2d");
         if (!context) {
             surface.remove();
@@ -29,30 +30,31 @@ export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | nul
 
         let ready = false;
         let frame = 0;
-        let stretchFrame = 0;
         let visible = false;
-        let lastScale = 1;
         const originalTransform = image.style.transform;
+        // Keep the viewport and its fixed aurora stationary. Translating the
+        // scrollport changes fixed-position containment and clips that overlay.
+        const originalTransforms = new Map<HTMLElement, string>();
         const reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
-        const updateStretch = () => {
-            // WebKit reports the actual rubber-banded position. It already
-            // includes resistance and the release spring: do not ease it twice.
-            const pull = Number.isFinite(scroller.scrollTop) ? Math.max(0, -scroller.scrollTop) : 0;
-            const scale = ready && !reducedMotion?.matches && image.clientHeight > 0 ? 1 + pull / image.clientHeight : 1;
-            if (scale === lastScale) return;
-            lastScale = scale;
-            image.style.transform = scale === 1 ? originalTransform : `scale(${scale})`;
-            canvas.style.transform = scale === 1 ? "" : `scale(${scale})`;
-        };
-        const onScroll = () => {
-            // Chromium/Firefox clamp to zero; retain the stationary backing
-            // there instead of intercepting wheel/touch or faking momentum.
-            if (scroller.scrollTop >= 0 && lastScale === 1) return;
-            if (!stretchFrame) stretchFrame = requestAnimationFrame(() => {
-                stretchFrame = 0;
-                updateStretch();
-            });
-        };
+        const stretch = attachBackdropStretch(scroller, {
+            enabled: () => ready && !reducedMotion?.matches,
+            height: () => image.clientHeight,
+            render: pull => {
+                const scale = 1 + pull / Math.max(1, image.clientHeight);
+                for (const child of Array.from(page.children)) {
+                    if (child === surface || !(child instanceof HTMLElement)) continue;
+                    if (!originalTransforms.has(child)) originalTransforms.set(child, child.style.transform);
+                    const original = originalTransforms.get(child)!;
+                    child.style.transform = pull ? `${original} translateY(${pull}px)`.trim() : original;
+                }
+                // Reveal only the gap, never a second full backdrop underneath
+                // the hero's fade or behind its body text.
+                surface.style.clipPath = `inset(0px 0px ${Math.max(0, scroller.clientHeight - pull)}px 0px)`;
+                image.style.transform = pull ? `scale(${scale})` : originalTransform;
+                canvas.style.transform = pull ? `scale(${scale})` : "";
+            },
+        });
+        const updateStretch = () => stretch.refresh();
         const updateVisibility = () => {
             // The opaque media page masks this stationary backing during normal
             // scrolling. Keep it painted so native bounce never waits on JS.
@@ -82,8 +84,8 @@ export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | nul
                     context.imageSmoothingQuality = "high";
                     context.drawImage(image, crop.x, crop.y, crop.width, crop.height,
                         0, 0, canvas.width, canvas.height);
-                    surface.style.left = `${scroller.offsetLeft}px`;
-                    surface.style.top = `${scroller.offsetTop}px`;
+                    surface.style.left = "0px";
+                    surface.style.top = "0px";
                     surface.style.width = `${scroller.clientWidth}px`;
                     surface.style.height = `${scroller.clientHeight}px`;
                     canvas.style.height = `${image.clientHeight}px`;
@@ -106,19 +108,18 @@ export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | nul
         resize.observe(scroller);
         image.addEventListener("load", scheduleDraw);
         image.addEventListener("error", hide);
-        scroller.addEventListener("scroll", onScroll, { passive: true });
         reducedMotion?.addEventListener("change", updateStretch);
         scheduleDraw();
 
         return () => {
             cancelAnimationFrame(frame);
-            cancelAnimationFrame(stretchFrame);
             resize.disconnect();
             image.removeEventListener("load", scheduleDraw);
             image.removeEventListener("error", hide);
-            scroller.removeEventListener("scroll", onScroll);
+            stretch.destroy();
             reducedMotion?.removeEventListener("change", updateStretch);
             image.style.transform = originalTransform;
+            for (const [child, transform] of originalTransforms) child.style.transform = transform;
             surface.remove();
         };
     }, [imageRef, source]);

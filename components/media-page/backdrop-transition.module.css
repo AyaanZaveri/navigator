@@ -11,12 +11,12 @@
 }
 
 .artwork {
-    /* Native bounce moves the hero down; bottom-anchored scaling extends its
+    /* The controlled pull moves the hero down; bottom-anchored scaling extends its
        top back to the viewport edge while its title/content stay unscaled. */
     transform-origin: 50% 100%;
 }
 
-/* This sits behind the scrollport, so only the native bounce reveals it. */
+/* Only the pull gap is revealed. The scrollport/aurora remain stationary. */
 .overscroll {
     position: absolute;
     z-index: 0;
@@ -27,7 +27,7 @@
 
 .overscrollArtwork {
     /* The stationary copy starts at the viewport's top; opposite anchors make
-       both copies sample the same pixels along the revealed overscroll gap. */
+       both copies sample the same pixels along the revealed pull gap. */
     transform-origin: 50% 0%;
     position: absolute;
     inset: 0;
