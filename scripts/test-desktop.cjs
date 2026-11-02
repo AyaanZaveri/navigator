@@ -14,12 +14,12 @@ function load(file, globals = {}) {
     return context.exports;
 }
 
-async function testController() {
+async function testController(platform) {
     const { MpvController } = load("lib/desktop/mpv-controller.ts");
     const sent = [];
     const listeners = new Set();
     const bridge = {
-        platform: "android",
+        platform,
         send: (message) => sent.push(message),
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     };
@@ -31,7 +31,7 @@ async function testController() {
     assert.equal(sent.length, 0, "Preference restoration before load must not send commands without a session");
     const headers = { Referer: "https://example.test", "X-Test": "a,b" };
     media.load("https://example.test/video.mkv", headers, 123.4);
-    assert.equal(sent.find(m => m.type === 'load').startPosition, 123.4, 'Android must receive resume time before it prepares its first frame');
+    assert.equal(sent.find(m => m.type === 'load').startPosition, 123.4, `${platform} must receive resume time before it prepares its first frame`);
     const first = sent.find((m) => m.type === "load").session;
     const frames = [];
     media.addEventListener("previewframe", event => frames.push(event.detail));
@@ -217,7 +217,7 @@ function testAskPlayback() {
     assert.equal(store.get(atoms.currentMediaAtom), item);
 }
 
-testController().then(() => {
+Promise.all([testController("android"), testController("ios")]).then(() => {
     testBridge();
     testAskPlayback();
     console.log("Desktop playback adapter and bridge tests passed.");

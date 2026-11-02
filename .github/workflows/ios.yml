@@ -53,7 +53,7 @@ jobs:
             xcrun simctl boot "$DEVICE" || true
             xcrun simctl bootstatus "$DEVICE" -b
             xcrun simctl keychain "$DEVICE" add-root-cert /tmp/fixture.crt
-            xcrun simctl spawn "$DEVICE" log stream --style compact --level debug --predicate 'process == "Navigator"' >> /tmp/navigator-ios-native.log 2>&1 &
+            xcrun simctl spawn "$DEVICE" log stream --style compact --level info --predicate 'process == "Navigator"' >> /tmp/navigator-ios-native.log 2>&1 &
             xcodebuild -workspace ios/Navigator.xcworkspace -scheme Navigator -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -resultBundlePath "ios/build/$FAMILY.xcresult" test CODE_SIGNING_ALLOWED=NO | tee -a /tmp/navigator-ios-simulator.log
             xcrun simctl shutdown "$DEVICE"
           done

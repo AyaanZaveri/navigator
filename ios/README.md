@@ -51,6 +51,13 @@ reveal the opening frame first. Native previews are capability selected, not
 hard-coded to Android. PiP, AirPlay, native glass and background playback are
 not advertised in this first version.
 
+Precise resume uses VLC's value-less `no-input-fast-seek` switch. Its cached
+clock may report preroll while the first sought frames are already presenting;
+the startup cover follows decoder readiness, and the initial UI cursor stays at
+the requested position until that clock catches up. Fit changes are idempotent
+to avoid resize feedback. Read terminal events in their delegate callback before
+a subsequent Stopped event replaces the SDK's cached Ended state.
+
 The default server is `https://navigator-strm.vercel.app`. Change it through the
 app's existing native-settings action or the native connection failure screen.
 Login persists in `WKWebsiteDataStore.default()` and remains isolated by origin.

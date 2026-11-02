@@ -32,12 +32,14 @@
     root.dataset.desktop='mpv';root.dataset.nativeEngine='vlc';root.dataset.nativePlatform='ios';
     const style=document.createElement('style');style.textContent=__NAVIGATOR_STYLES__;
     (document.head||root).appendChild(style);
-    let visible;
+    let visible,theme;
     const update=()=>{
       const next=root.hasAttribute('data-native-playing');
       if(visible!==next){visible=next;send({type:'visible',value:next});}
+      const appearance=root.classList.contains('dark')?'dark':'light';
+      if(theme!==appearance){theme=appearance;send({type:'appearance',theme});}
     };
-    new MutationObserver(update).observe(root,{attributes:true,attributeFilter:['data-native-playing']});update();
+    new MutationObserver(update).observe(root,{attributes:true,attributeFilter:['data-native-playing','class']});update();
     return true;
   }
   if(!install()){

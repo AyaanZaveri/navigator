@@ -15,6 +15,7 @@ import WebKit
   private var web: WKWebView!
   private var origin: TrustedOrigin!
   private var visible = false, fullscreen = false, closed = false
+  private var appearanceDark = true
   private var backGesture: UIScreenEdgePanGestureRecognizer?
   private var previousOrientation: UIInterfaceOrientationMask = .portrait
   private var loading: UIView?
@@ -22,6 +23,9 @@ import WebKit
   private var observations: [NSObjectProtocol] = []
   private var pageGeneration = UUID()
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .all }
+  override var preferredStatusBarStyle: UIStatusBarStyle {
+    loading != nil || appearanceDark ? .lightContent : .darkContent
+  }
   override var prefersStatusBarHidden: Bool { fullscreen }
   override var prefersHomeIndicatorAutoHidden: Bool { fullscreen }
   override func viewDidLoad() {
@@ -136,10 +140,13 @@ import WebKit
     else { return }
     do {
       let command = try BridgeCommand(message.body)
-      #if DEBUG
-        if command.type == "load" { NSLog("[DEBUG-IOS] accepted load") }
-      #endif
+
       switch command.type {
+      case "appearance":
+        if let theme = command.body["theme"] as? String, ["dark", "light"].contains(theme) {
+          appearanceDark = theme == "dark"
+          setNeedsStatusBarAppearanceUpdate()
+        }
       case "hello": send(["type": "fullscreen", "value": fullscreen])
       case "visible": if let value = command.body["value"] as? Bool { setVisible(value) }
       case "fullscreen": if let value = command.body["value"] as? Bool { setFullscreen(value) }
@@ -164,13 +171,7 @@ import WebKit
     web.callAsyncJavaScript(
       "if (!window.NavigatorIOS) throw new Error('Bridge missing'); window.NavigatorIOS.receive(message); return true;",
       arguments: ["message": message], in: nil, in: .page,
-      completionHandler: { result in
-        #if DEBUG
-          if case .failure(let error) = result {
-            NSLog("[DEBUG-IOS] event delivery failed: %@", String(describing: error))
-          }
-        #endif
-      })
+      completionHandler: nil)
   }
   private func setVisible(_ value: Bool) {
     if value && !visible {
@@ -236,6 +237,7 @@ import WebKit
       stack.centerYAnchor.constraint(equalTo: pane.centerYAnchor),
     ])
     loading = pane
+    setNeedsStatusBarAppearanceUpdate()
   }
   private func showFailure(_ message: String) {
     playback.stop()
@@ -260,9 +262,11 @@ import WebKit
     label.textAlignment = .center
     let retry = UIButton(type: .system)
     retry.setTitle("Retry", for: .normal)
+    retry.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
     retry.addAction(UIAction { [weak self] _ in self?.loadServer() }, for: .touchUpInside)
     let settings = UIButton(type: .system)
     settings.setTitle("Server settings", for: .normal)
+    settings.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
     settings.addAction(UIAction { [weak self] _ in self?.settings() }, for: .touchUpInside)
     [label, retry, settings].forEach(stack.addArrangedSubview)
     pane.addSubview(stack)
@@ -333,11 +337,28 @@ import WebKit
     }
     return nil
   }
+  func webView(
+    _ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
+    decisionHandler: @escaping @MainActor @Sendable (WKNavigationResponsePolicy) -> Void
+  ) {
+    if response.isForMainFrame, let http = response.response as? HTTPURLResponse,
+      http.statusCode >= 400
+    {
+      decisionHandler(.cancel)
+      if let url = http.url, origin.matches(url) {
+        showFailure(
+          "The server returned HTTP \(http.statusCode). Check the server address or retry.")
+      }
+      return
+    }
+    decisionHandler(.allow)
+  }
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     guard webView.url.map(origin.matches) == true else { return }
     timeout?.cancel()
     loading?.removeFromSuperview()
     loading = nil
+    setNeedsStatusBarAppearanceUpdate()
   }
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
     if (error as NSError).code != NSURLErrorCancelled {

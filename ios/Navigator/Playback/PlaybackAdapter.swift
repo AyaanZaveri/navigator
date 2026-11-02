@@ -62,9 +62,7 @@ import UIKit
             let gateway = MediaGateway(source: url, headers: headers)
             self.gateway = gateway
             playable = try await gateway.start()
-            #if DEBUG
-              NSLog("[DEBUG-IOS] gateway listening")
-            #endif
+
           }
           guard !Task.isCancelled, self.generation == owner else { return }
           self.effectiveURL = playable
@@ -150,25 +148,14 @@ import UIKit
     try audio.setActive(true)
   }
   private func beginPlayback(_ url: URL) throws {
-    #if DEBUG
-      NSLog("[DEBUG-IOS] begin playback foreground=%d wantsPlay=%d", foreground, wantsPlay)
-    #endif
+
     try activate()
     pendingStart = false
     engine.setVolume(volume, muted: muted)
     engine.setRate(rate)
     engine.load(url, start: initialPosition, silent: false)
     started = true
-    #if DEBUG
-      Task { [weak self] in
-        try? await Task.sleep(for: .seconds(3))
-        guard let self else { return }
-        NSLog(
-          "[DEBUG-IOS] engine time=%.3f duration=%.3f playing=%d buffering=%d failed=%d ended=%d foreground=%d wantsPlay=%d",
-          engine.position, engine.duration, engine.playing, engine.buffering, engine.failed,
-          engine.ended, foreground, wantsPlay)
-      }
-    #endif
+
     if !wantsPlay { engine.pause() }
   }
   func pause() {
