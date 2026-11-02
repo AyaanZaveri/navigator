@@ -4,12 +4,20 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const run = (program, args, env = {}) => new Promise((resolve, reject) => {
-  const child = spawn(program, args, { stdio: "inherit", env: { ...process.env, ...env } });
+const run = (program, args, env = process.env) => new Promise((resolve, reject) => {
+  const child = spawn(program, args, { stdio: "inherit", env });
   child.on("error", reject);
   child.on("exit", code => code === 0 ? resolve() : reject(new Error(`${program} exited ${code}`)));
 });
-const powershell = (script, env) => run("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(`$ErrorActionPreference = 'Stop'\n${script}`, "utf16le").toString("base64")], env);
+// GitHub runs steps in PowerShell 7. Its PSModulePath points at modules that
+// Windows PowerShell 5.1 cannot load (including the signature-verification
+// module). Let Windows PowerShell construct its own default module path.
+export function windowsPowerShellEnvironment(environment) {
+  const result = { ...environment };
+  for (const key of Object.keys(result)) if (key.toLowerCase() === "psmodulepath") delete result[key];
+  return result;
+}
+const powershell = (script, env) => run("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(`$ErrorActionPreference = 'Stop'\n${script}`, "utf16le").toString("base64")], windowsPowerShellEnvironment({ ...process.env, ...env }));
 
 export async function packageWindows(output, version) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("The private Windows release must be packaged on Windows x64");

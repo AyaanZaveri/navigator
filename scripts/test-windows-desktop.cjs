@@ -12,6 +12,15 @@ function load(file, extra = {}) {
 }
 
 (async () => {
+  const { windowsPowerShellEnvironment } = await import("./package-windows.mjs");
+  const environment = { PSModulePath: "PowerShell 7 modules", Path: "Windows", NAVIGATOR_BOOTSTRAPPER: "test with spaces/setup.exe" };
+  const child = windowsPowerShellEnvironment(environment);
+  assert.equal(child.PSModulePath, undefined, "Windows PowerShell must not inherit incompatible PowerShell 7 modules");
+  assert.equal(child.Path, environment.Path);
+  assert.equal(child.NAVIGATOR_BOOTSTRAPPER, environment.NAVIGATOR_BOOTSTRAPPER);
+  assert.equal(environment.PSModulePath, "PowerShell 7 modules", "The caller's environment remains unchanged");
+  assert.equal(windowsPowerShellEnvironment({ PSMODULEPATH: "wrong modules" }).PSMODULEPATH, undefined);
+
   let clock = 1000;
   let listener;
   const sent = [];

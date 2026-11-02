@@ -126,6 +126,15 @@ jobs:
           choco install nsis --yes --no-progress
           "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
       - run: node scripts/fetch-desktop-libs.mjs
+      - name: Restore Windows native build cache
+        id: windows-native-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            desktop/target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: windows-desktop-rust-1.92-${{ hashFiles('desktop/Cargo.lock', 'desktop/Cargo.toml', 'desktop/build.rs', 'desktop/src/**/*.rs') }}
       - name: Check Windows backend process ownership
         shell: pwsh
         run: |
@@ -164,3 +173,12 @@ jobs:
           path: |
             dist/windows-smoke.png
             ~/AppData/Local/Navigator Desktop/smoke/startup*.jsonl
+      - name: Save Windows native build cache
+        if: always() && steps.windows-native-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            desktop/target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ steps.windows-native-cache.outputs.cache-primary-key }}
