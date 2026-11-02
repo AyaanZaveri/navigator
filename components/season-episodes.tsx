@@ -7,7 +7,9 @@ import React, {
   useRef,
   useMemo,
 } from "react";
+import { acquireSeriesSeason } from "@/lib/media/series-season";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CarouselAction } from "@/components/carousel-action";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +34,7 @@ import { WatchedIndicator } from "@/components/watched-indicator";
 interface SeasonEpisodesProps {
   showId: string;
   prefetchedVideos?: StremioVideo[];
+  initialSeasons?: Season[];
   currentSeasonNumber?: number;
   currentEpisodeNumber?: number;
 }
@@ -125,6 +128,7 @@ function episodesToSeasons(episodes: Episode[]): Season[] {
 export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   showId,
   prefetchedVideos,
+  initialSeasons,
   currentSeasonNumber,
   currentEpisodeNumber,
 }: SeasonEpisodesProps) {
@@ -134,11 +138,14 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   );
   const hasPrefetchedEpisodes = prefetchedEpisodes.length > 0;
   const prefetchedSeasons = useMemo(
-    () => episodesToSeasons(prefetchedEpisodes),
-    [prefetchedEpisodes]
+    () => initialSeasons?.length ? [...initialSeasons].sort((a, b) =>
+      a.number === b.number ? 0 : a.number === 0 ? 1 : b.number === 0 ? -1 : a.number - b.number
+    ) : episodesToSeasons(prefetchedEpisodes),
+    [prefetchedEpisodes, initialSeasons]
   );
 
-  const initialSeasonState = hasPrefetchedEpisodes
+  const hasPrefetchedSeasons = prefetchedSeasons.length > 0;
+  const initialSeasonState = hasPrefetchedSeasons
     ? {
         seasons: prefetchedSeasons,
         selectedSeason:
@@ -162,7 +169,9 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   );
   const [loading, setLoading] = useState(initialSeasonState.loading);
   const [episodes, setEpisodes] = useState<Episode[]>(initialEpisodes);
-  const [episodesLoading, setEpisodesLoading] = useState(false);
+  const [episodesLoading, setEpisodesLoading] = useState(!hasPrefetchedEpisodes && initialSeasonState.selectedSeason !== null && initialEpisodes.length === 0);
+  const [episodeError, setEpisodeError] = useState<string | null>(null);
+  const [episodeRetry, setEpisodeRetry] = useState(0);
   const [playbackProgressByEpisodeId, setPlaybackProgressByEpisodeId] =
     useState<Record<string, { progressPercent?: number; resumePositionTicks?: number }>>({});
   const episodesBottomSpacingClass = currentEpisodeNumber ? "mb-4" : "mb-8";
@@ -171,7 +180,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (hasPrefetchedEpisodes) {
+    if (hasPrefetchedSeasons) {
       setLoading(false);
       setSeasons(prefetchedSeasons);
       const initial =
@@ -221,10 +230,10 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     return () => {
       cancelled = true;
     };
-  }, [showId, currentSeasonNumber, hasPrefetchedEpisodes, prefetchedSeasons]);
+  }, [showId, currentSeasonNumber, hasPrefetchedSeasons, prefetchedSeasons]);
 
   useEffect(() => {
-    if (!currentSeasonNumber) {
+    if (currentSeasonNumber === undefined) {
       return;
     }
 
@@ -251,6 +260,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     }
 
     let cancelled = false;
+    let request: ReturnType<typeof acquireSeriesSeason> | undefined;
     const cacheKey = `${showId}:${selectedSeason}`;
     if (episodesCache.has(cacheKey)) {
       setEpisodes(episodesCache.get(cacheKey)!);
@@ -261,12 +271,21 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     const loadEpisodes = async () => {
       setEpisodesLoading(true);
       try {
-        const episodesData = await fetchEpisodes(showId, selectedSeason);
+        request = /^tmdb:[1-9]\d*$/.test(showId) ? acquireSeriesSeason(showId, selectedSeason) : undefined;
+        const episodesData = request ? await request.promise : await fetchEpisodes(showId, selectedSeason);
         if (cancelled) return;
-        episodesCache.set(cacheKey, episodesData);
+        setEpisodeError(null);
+        if (!/^tmdb:/.test(showId)) {
+          episodesCache.set(cacheKey, episodesData);
+          if (episodesCache.size > 48) episodesCache.delete(episodesCache.keys().next().value!);
+        }
         setEpisodes(episodesData);
       } catch (error) {
-        console.error("Failed to fetch episodes:", error);
+        if (!cancelled) {
+          setEpisodes([]);
+          setEpisodeError(`${showId}:${selectedSeason}`);
+          console.error("Failed to fetch episodes:", error);
+        }
       } finally {
         if (!cancelled) {
           setEpisodesLoading(false);
@@ -278,8 +297,9 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
 
     return () => {
       cancelled = true;
+      request?.release();
     };
-  }, [showId, selectedSeason, hasPrefetchedEpisodes, prefetchedEpisodes]);
+  }, [showId, selectedSeason, hasPrefetchedEpisodes, prefetchedEpisodes, episodeRetry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -331,7 +351,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   useEffect(() => {
     if (
       episodesLoading ||
-      !currentSeasonNumber ||
+      currentSeasonNumber === undefined ||
       !currentEpisodeNumber ||
       selectedSeason !== currentSeasonNumber
     ) {
@@ -454,6 +474,9 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
         </div>
       </div>
 
+      {!episodesLoading && !episodes.length && episodeError === `${showId}:${selectedSeason}` && <div role="alert" className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
+        <span>Couldn’t load this season.</span><Button variant="secondary" size="sm" onClick={() => setEpisodeRetry(value => value + 1)}>Retry</Button>
+      </div>}
       {episodesLoading ? (
         <LoadingPlaceholder>
           <ScrollArea className="w-full whitespace-nowrap -ml-3">

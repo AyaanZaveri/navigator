@@ -1,19 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { MediaActions } from "@/components/media-actions";
+import { Button } from "@/components/ui/button";
 import type { MediaItem, StremioVideo } from "@/types/stremio";
+import { acquireSeriesSeason } from "@/lib/media/series-season";
 
 interface EpisodeStreamsRouteAwareProps {
   show: MediaItem;
   prefetchedVideos?: StremioVideo[];
 }
 
-function toPositiveInt(value: string | undefined): number | undefined {
+function toPositiveInt(value: string | undefined, minimum = 1): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  return Number.isInteger(parsed) && parsed >= minimum ? parsed : undefined;
 }
 
 export function EpisodeStreamsRouteAware({
@@ -22,7 +24,7 @@ export function EpisodeStreamsRouteAware({
 }: EpisodeStreamsRouteAwareProps) {
   const params = useParams<{ season?: string; episode?: string }>();
   const seasonNumber = useMemo(
-    () => toPositiveInt(params?.season),
+    () => toPositiveInt(params?.season, 0),
     [params?.season]
   );
   const episodeNumber = useMemo(
@@ -30,12 +32,27 @@ export function EpisodeStreamsRouteAware({
     [params?.episode]
   );
 
+  const key = `${show.id}:${seasonNumber}`;
+  const [loaded, setLoaded] = useState<{ key: string; episodes: StremioVideo[] } | null>(null);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (prefetchedVideos || !/^tmdb:[1-9]\d*$/.test(show.id) || seasonNumber === undefined) return;
+    let cancelled = false;
+    const request = acquireSeriesSeason(show.id, seasonNumber);
+    void request.promise.then(episodes => {
+      if (!cancelled) { setLoaded({ key, episodes }); setFailedKey(null); }
+    }).catch(() => { if (!cancelled) setFailedKey(key); });
+    return () => { cancelled = true; request.release(); };
+  }, [key, show.id, seasonNumber, prefetchedVideos, retry]);
+  const videos = prefetchedVideos ?? (loaded?.key === key ? loaded.episodes : undefined);
+
   const episodeMedia = useMemo(() => {
-    if (!seasonNumber || !episodeNumber || !prefetchedVideos?.length) {
+    if (seasonNumber === undefined || !episodeNumber || !videos?.length) {
       return null;
     }
 
-    const selectedEpisode = prefetchedVideos.find(
+    const selectedEpisode = videos.find(
       (video) =>
         video.season === seasonNumber && video.episode === episodeNumber
     );
@@ -63,10 +80,12 @@ export function EpisodeStreamsRouteAware({
       description: selectedEpisode.overview || show.description,
       poster: selectedEpisode.thumbnail || show.poster,
     } satisfies MediaItem;
-  }, [seasonNumber, episodeNumber, prefetchedVideos, show]);
+  }, [seasonNumber, episodeNumber, videos, show]);
 
   if (!episodeMedia) {
-    return null;
+    return failedKey === key ? <div role="alert" className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
+      <span>Couldn’t load stream options.</span><Button variant="secondary" size="sm" onClick={() => { setFailedKey(null); setRetry(value => value + 1); }}>Retry</Button>
+    </div> : null;
   }
 
   return (

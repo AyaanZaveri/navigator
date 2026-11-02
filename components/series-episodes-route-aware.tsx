@@ -3,28 +3,30 @@
 import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { SeasonEpisodes } from "@/components/season-episodes";
-import type { StremioVideo } from "@/types/stremio";
+import type { StremioVideo, MediaItem } from "@/types/stremio";
 
 interface SeriesEpisodesRouteAwareProps {
   showId: string;
   prefetchedVideos?: StremioVideo[];
+  prefetchedSeasons?: MediaItem["seasons"];
 }
 
-function toPositiveInt(value: string | undefined): number | undefined {
+function toPositiveInt(value: string | undefined, minimum = 1): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) return undefined;
+  if (!Number.isInteger(parsed) || parsed < minimum) return undefined;
   return parsed;
 }
 
 export function SeriesEpisodesRouteAware({
   showId,
   prefetchedVideos,
+  prefetchedSeasons,
 }: SeriesEpisodesRouteAwareProps) {
   const params = useParams<{ season?: string; episode?: string }>();
 
   const currentSeasonNumber = useMemo(
-    () => toPositiveInt(params?.season),
+    () => toPositiveInt(params?.season, 0),
     [params?.season]
   );
   const currentEpisodeNumber = useMemo(
@@ -36,6 +38,7 @@ export function SeriesEpisodesRouteAware({
     <SeasonEpisodes
       showId={showId}
       prefetchedVideos={prefetchedVideos}
+      initialSeasons={prefetchedSeasons}
       currentSeasonNumber={currentSeasonNumber}
       currentEpisodeNumber={currentEpisodeNumber}
     />

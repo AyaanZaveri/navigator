@@ -240,6 +240,8 @@ export interface MediaItem {
   writer?: string[];
   progressPercent?: number;
   progressLabel?: string;
+  /** Lightweight season summaries; episodes can be loaded independently. */
+  seasons?: { number: number; name: string; episodeCount: number }[];
   videos?: StremioVideo[];
   links?: StremioMetaLink[];
   trailers?: StremioMetaTrailer[];

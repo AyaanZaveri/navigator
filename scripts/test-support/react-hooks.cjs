@@ -43,6 +43,12 @@ function hooks() {
       if (!old || deps.some((dep, i) => !Object.is(dep, old.deps[i]))) slots[index] = { callback, deps };
       return slots[index].callback;
     },
+    useMemo(calculate, deps) {
+      const index = cursor++;
+      const old = slots[index];
+      if (!old || deps.some((dep, i) => !Object.is(dep, old.deps[i]))) slots[index] = { value: calculate(), deps };
+      return slots[index].value;
+    },
     createContext(value) { const context = { current: value }; context.Provider = { context }; return context; },
     useContext(context) { return context.current; },
   };

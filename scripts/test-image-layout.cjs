@@ -26,6 +26,7 @@ async function run() {
             if (name === 'next/link') return ({ children, prefetch, scroll, ...props }) => React.createElement('a', props, children);
             if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({}) };
             if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
+            if (name === '@/lib/media/series-season') return {};
             if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: image, background: image }), episodeThumbnailUrl: value => value, backdropVariantUrl: value => value };
             if (name === '@/lib/series-route') return { buildEpisodePath: () => '/series/fixture/1/1' };
             if (name === './ui/scroll-area') return { ScrollArea: passthrough, ScrollBar: () => null };

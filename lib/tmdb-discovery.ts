@@ -265,14 +265,12 @@ export async function getTMDBFilmography(personId: number, options: {
 /** Native TMDB-only titles remain viewable even when no IMDb mapping exists. */
 export async function tmdbMediaItem(id: string, type: TMDBMediaType, signal?: AbortSignal): Promise<MediaItem> {
     const title = await getTMDBTitle(id, type, signal);
-    const episodes = type === "series" ? (await mapTMDBSeasons(title.seasons.filter(season => season.episodeCount > 0).map(season => season.number),
-        season => getTMDBEpisodes(title.id, season, signal), signal)).flat() : [];
     return {
         id: title.id, type, name: title.name, description: title.overview, year: title.year,
         releaseInfo: title.releaseInfo, poster: title.poster, background: title.background,
         genres: title.genres, cast: title.cast, director: title.director, writer: title.writer,
         runtime: title.runtime ? `${title.runtime} min` : undefined,
-        videos: episodes.map(episode => ({ id: episode.id, title: episode.title, season: episode.season,
-            episode: episode.episode, overview: episode.overview, thumbnail: episode.thumbnail, released: episode.released || "" })),
+        seasons: type === "series" ? title.seasons.filter(season => season.episodeCount > 0)
+            .map(({ number, name, episodeCount }) => ({ number, name, episodeCount })) : undefined,
     };
 }

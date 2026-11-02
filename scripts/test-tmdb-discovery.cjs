@@ -122,9 +122,12 @@ async function main() {
     assert.equal(await tmdb.resolveTMDBPlaybackId('tt123', 'movie'), 'tt123');
     assert.equal(requests.length, beforeIMDb, 'Known playback IDs need no further lookup');
     assert.equal((await tmdb.tmdbMediaItem('tmdb:30', 'movie')).name, 'No IMDb mapping');
+    const beforeOverview = requests.length;
     const nativeShow = await tmdb.tmdbMediaItem('tmdb:20', 'series');
-    assert.equal(nativeShow.videos.length, 46);
-    assert.equal(nativeShow.videos[0].season, 0);
+    assert.equal(nativeShow.videos, undefined, 'Title metadata cannot wait for every season');
+    assert.equal(nativeShow.seasons.length, 2);
+    assert.equal(nativeShow.seasons[0].number, 0);
+    assert.equal(requests.length - beforeOverview, 1, 'Opening a TMDB show needs only its title request');
     const seasons = await tmdb.getTMDBSeasons('tmdb:20');
     assert.equal(seasons[1].id, 'tmdb:20:1');
     const episodes = await tmdb.getTMDBEpisodes('tmdb:20', 1);

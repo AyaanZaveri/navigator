@@ -1,0 +1,126 @@
+const assert = require('node:assert/strict');
+const { load, hooks } = require('./test-support/react-hooks.cjs');
+const tick = () => new Promise(resolve => setImmediate(resolve));
+const seasonList = [{ number: 0, name: 'Specials', episodeCount: 1 }, { number: 1, name: 'Season 1', episodeCount: 2 }, { number: 20, name: 'Season 20', episodeCount: 2 }];
+const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, title: `Title ${season}/${number}`, season, episode: number, overview: 'Overview' });
+(async () => {
+  const selectedSeasons = [];
+  const { getSeriesLayoutData, getSeriesEpisodeSelectionData } = load('app/(main)/series/[id]/_shared/series-data.ts', {
+    react: { cache: fn => { const values = new Map(); return (...args) => { const key = JSON.stringify(args); if (!values.has(key)) values.set(key, fn(...args)); return values.get(key); }; } },
+    '@/app/actions': { fetchMediaDetails: async () => ({ id: 'tmdb:20', type: 'series', name: 'Show', seasons: seasonList }) },
+    '@/app/actions/tv-shows': { fetchEpisodes: async (_id, season) => { selectedSeasons.push(season); return [episode(season)]; } },
+  });
+  const overview = await getSeriesLayoutData('tmdb:20');
+  assert.equal(overview.regularSeasonCount, 2);
+  assert.deepEqual(selectedSeasons, [], 'Overview requires no episode requests');
+  const detail = await getSeriesEpisodeSelectionData('tmdb:20', '20', '1');
+  assert.deepEqual(selectedSeasons, [20], 'A direct episode route requests only its selected season');
+  assert.equal(detail.selectedEpisodeTitle, 'Title 20/1');
+  assert.equal(detail.episodeMedia.mediaSourceId, undefined);
+  assert.equal(detail.episodeMedia.id, 'tmdb:20:20:1');
+  assert.equal((await getSeriesEpisodeSelectionData('tmdb:20', '0', '1')).selectedEpisode.season, 0);
+  assert.equal(await getSeriesEpisodeSelectionData('tmdb:20', '-1', '1'), null);
+
+  let reads = 0;
+  const pending = [];
+  const client = load('lib/media/series-season.ts', {}, {
+    URLSearchParams, AbortController,
+    fetch: (url, options) => { reads++; return new Promise((resolve, reject) => {
+      pending.push({ url, signal: options.signal, finish: value => resolve({ ok: true, json: async () => value }) });
+      options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+    }); },
+  });
+  const a = client.acquireSeriesSeason('tmdb:20', 20), b = client.acquireSeriesSeason('tmdb:20', 20);
+  assert.equal(a.promise, b.promise);
+  assert.equal(reads, 1, 'Cards and streams share one metadata request');
+  a.release(); assert.equal(pending[0].signal.aborted, false, 'One consumer cannot cancel another');
+  const aborted = assert.rejects(a.promise); b.release(); await aborted;
+  assert.equal(pending[0].signal.aborted, true);
+  const replay = client.acquireSeriesSeason('tmdb:20', 20);
+  assert.equal(reads, 2, 'Strict Mode or later navigation retries an aborted request');
+  pending[1].finish([episode(20)]); await replay.promise; replay.release();
+  const cached = client.acquireSeriesSeason('tmdb:20', 20);
+  assert.equal((await cached.promise)[0].id, 'tmdb:20:20:1');
+  assert.equal(reads, 2, 'Revisiting a completed season reuses cached metadata');
+  cached.release();
+
+  const streamHooks = hooks();
+  let routeParams = { season: '20', episode: '1' };
+  const { EpisodeStreamsRouteAware } = load('components/episode-streams-route-aware.tsx', {
+    react: streamHooks.react, 'react/jsx-runtime': streamHooks.jsx,
+    'next/navigation': { useParams: () => routeParams },
+    '@/components/media-actions': { MediaActions: 'MediaActions' },
+    '@/components/ui/button': { Button: 'Button' },
+    '@/lib/media/series-season': client,
+  });
+  const show = { id: 'tmdb:20', type: 'series', name: 'Show', seasons: seasonList };
+  const renderStreams = () => { const tree = streamHooks.render(EpisodeStreamsRouteAware, { show }); streamHooks.flush(); return tree; };
+  renderStreams(); await tick();
+  assert.equal(renderStreams().props.children.props.media.id, 'tmdb:20:20:1', 'Manual streams use the selected episode after lazy loading');
+  assert.equal(reads, 2, 'Manual streams reuse the same completed season read');
+  routeParams = { season: '0', episode: '1' };
+  renderStreams();
+  pending[2].finish([episode(0)]); await tick();
+  assert.equal(renderStreams().props.children.props.media.id, 'tmdb:20:0:1', 'Manual streams remain available for explicit specials');
+  streamHooks.unmount();
+
+  const shuffleSeasons = [];
+  const shuffle = load('lib/media/shuffle-episode.ts');
+  const nativeActions = load('app/actions/tv-shows.ts', {
+    '@/lib/artwork': {}, '@/lib/media/shuffle-episode': shuffle,
+    './auth': { getAuthData: async () => ({}) },
+    '@/lib/tmdb-discovery': {
+      getTMDBSeasons: async () => seasonList,
+      getTMDBEpisodes: async (_id, season) => { shuffleSeasons.push(season); return [episode(season)]; },
+      mapTMDBSeasons: async (values, read) => Promise.all(values.map(read)),
+    },
+  });
+  const chosen = await nativeActions.getRandomEpisodeForSeries('tmdb:20');
+  assert.deepEqual(shuffleSeasons, [1, 20], 'Whole-show shuffle still loads its complete regular-episode pool on demand');
+  assert.ok(chosen.season === 1 || chosen.season === 20);
+
+  let authorized = false, serverCalls = 0;
+  const api = load('app/api/series/episodes/route.ts', {
+    '@/app/actions/auth': { getAuthData: async () => { if (!authorized) throw Error('auth'); } },
+    '@/lib/tmdb-discovery': { getTMDBEpisodes: async (id, season, signal) => { serverCalls++; assert.equal(id, 'tmdb:20'); assert.ok(signal); return [episode(season)]; } },
+  }, { Request, Response, URL });
+  assert.equal((await api.GET(new Request('http://app/api/series/episodes?id=unknown&season=1'))).status, 400);
+  assert.equal((await api.GET(new Request('http://app/api/series/episodes?id=tmdb:20&season=1'))).status, 401);
+  assert.equal(serverCalls, 0);
+  authorized = true;
+  const response = await api.GET(new Request('http://app/api/series/episodes?id=tmdb:20&season=0'));
+  assert.equal(response.headers.get('vary'), 'Cookie');
+  assert.equal((await response.json())[0].season, 0, 'Explicit specials remain accessible');
+
+  const h = hooks(), uiRequests = [];
+  let failedSeason = 1;
+  const modules = new Proxy({
+    react: { ...require('react'), ...h.react }, 'react/jsx-runtime': h.jsx,
+    '@/lib/artwork': { episodeThumbnailUrl: url => url },
+    '@/lib/media/series-season': { acquireSeriesSeason: (id, season) => {
+      const record = { id, season, released: false };
+      uiRequests.push(record);
+      return { promise: season === failedSeason ? Promise.reject(Error('offline')) : Promise.resolve([episode(season)]), release: () => { record.released = true; } };
+    } },
+    '@/app/actions': { fetchPlaybackProgress: async () => null },
+    '@/app/actions/tv-shows': { fetchSeasons: () => { throw Error('Known seasons cannot be fetched again'); }, fetchEpisodes: () => { throw Error('TMDB reads must avoid the client action queue'); } },
+  }, { has: () => true, get: (object, name) => name in object ? object[name] : new Proxy({}, { get: (_, key) => key }) });
+  const { SeasonEpisodes } = load('components/season-episodes.tsx', modules, { document: { querySelector: () => null }, console: { error() {} } });
+  const render = () => { const tree = h.render(SeasonEpisodes.type, { showId: 'tmdb:20', initialSeasons: seasonList, currentSeasonNumber: 20, currentEpisodeNumber: 1 }); h.flush(); return tree; };
+  const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [...(predicate(node) ? [node] : []), ...[].concat(node.props?.children ?? []).flatMap(child => find(child, predicate))];
+  render(); await tick(); let tree = render();
+  assert.deepEqual(uiRequests.map(row => row.season), [20]);
+  const select = find(tree, node => node.type === 'Select')[0];
+  assert.deepEqual(Array.from(select.props.options, option => option.value), ['1', '20', '0'], 'Regular seasons precede explicit specials');
+  select.props.onValueChange('0'); render(); await tick(); tree = render();
+  assert.deepEqual(uiRequests.map(row => row.season), [20, 0], 'Only the selected dropdown season is requested');
+  assert.equal(uiRequests[0].released, true);
+  find(tree, node => node.type === 'Select')[0].props.onValueChange('1'); render(); await tick(); tree = render();
+  const retryButton = find(tree, node => node.type === 'Button' && node.props.children === 'Retry')[0];
+  assert.ok(retryButton, 'Season failures expose recovery rather than old-season cards');
+  failedSeason = -1; retryButton.props.onClick(); render(); await tick(); tree = render();
+  assert.equal(find(tree, node => node.type === 'Button' && node.props.children === 'Retry').length, 0);
+  assert.equal(uiRequests.at(-1).season, 1);
+  h.unmount();
+  console.log('PASS: lightweight overview/counts, one-season episode routes, explicit specials, shared/retryable reads, auth, cancellation and on-demand season browsing.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

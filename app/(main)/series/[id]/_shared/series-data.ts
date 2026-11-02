@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { fetchMediaDetails } from "@/app/actions";
+import { fetchEpisodes } from "@/app/actions/tv-shows";
 import type { MediaItem, StremioVideo } from "@/types/stremio";
 
 export interface SeriesLayoutData {
@@ -27,7 +28,7 @@ export const getSeriesLayoutData = cache(
       return null;
     }
 
-    const seasonNumbers = new Set(
+    const seasonNumbers = show.seasons ? new Set(show.seasons.filter(season => season.number > 0).map(season => season.number)) : new Set(
       (show.videos ?? [])
         .map((video) => video.season)
         .filter(
@@ -68,7 +69,8 @@ export const getSeriesEpisodeSelectionData = cache(
       return null;
     }
 
-    const selectedEpisode = layoutData.show.videos?.find(
+    const videos: StremioVideo[] = layoutData.show.videos ?? await getSeriesSeasonEpisodes(id, seasonNumber);
+    const selectedEpisode = videos.find(
       (video) =>
         video.season === seasonNumber && video.episode === episodeNumber
     );
@@ -107,3 +109,5 @@ export const getSeriesEpisodeSelectionData = cache(
     };
   }
 );
+
+const getSeriesSeasonEpisodes = cache((id: string, season: number) => fetchEpisodes(id, season));
