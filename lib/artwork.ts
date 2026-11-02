@@ -24,6 +24,8 @@ export function artworkUrl(
     ?? /^(tmdb:\d+)(?::\d+:\d+)?$/.exec(normalizedId)?.[1];
   if (!mediaId) return undefined;
   const params = new URLSearchParams({ id: mediaId, type, kind });
+  // Refresh redirects that previously served 1280px backdrops.
+  if (kind === "backdrop") params.set("v", "1");
   // Invalidate cached logo redirects from before SVG support.
   if (kind === "logo") params.set("v", "3");
   if (kind === "still") {

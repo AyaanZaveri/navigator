@@ -73,7 +73,7 @@ async function run() {
     { file_path: '//untrusted.example/test.png', iso_639_1: 'en', vote_average: 10 },
   ];
   assert.equal(artwork.selectArtwork(candidates, 'logo'), 'https://image.tmdb.org/t/p/original/english.png');
-  assert.equal(artwork.selectArtwork(candidates, 'backdrop'), 'https://image.tmdb.org/t/p/w1280/neutral.png');
+  assert.equal(artwork.selectArtwork(candidates, 'backdrop'), 'https://image.tmdb.org/t/p/original/neutral.png');
   assert.equal(candidates[0].file_path, '/french.png', 'Selection must not reorder the cached response');
   assert.equal(artwork.selectArtwork([], 'logo'), undefined);
   const rehearsalLogos = [

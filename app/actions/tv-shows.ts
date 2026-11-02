@@ -242,14 +242,9 @@ export async function getNextEpisodeForSeries(
   seriesId: string
 ): Promise<Episode | null> {
   try {
-    if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
-      const seasons = await fetchSeasons(seriesId);
-      const first = seasons.find(season => season.number > 0 && season.episodeCount > 0);
-      return first ? (await fetchEpisodes(seriesId, first.number))[0] || null : null;
-    }
-    const episodes = await fetchEpisodes(seriesId);
-    // Return the first episode as a starting point
-    return episodes[0] || null;
+    const episodes = await fetchEpisodes(seriesId, 1);
+    // Provider order can put specials or later episodes first.
+    return episodes.find(episode => episode.season === 1 && episode.episode === 1) || null;
   } catch (error) {
     console.error("Failed to get next episode:", error);
     return null;

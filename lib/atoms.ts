@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import { artworkUrl } from "@/lib/artwork";
 
 // AI Ask state
 export const isAIAskOpenAtom = atom(false);
@@ -65,7 +66,10 @@ export const currentTimestampAtom = atom(0);
 // Derived atom for playing media
 export const playMediaAtom = atom(null, (get, set, media: MediaToPlay) => {
   set(isAIAskOpenAtom, false);
-  set(currentMediaAtom, media);
+  set(currentMediaAtom, media.type === "series" ? {
+    ...media,
+    backdropUrl: artworkUrl(media.seriesId || media.id, "series", "backdrop") || media.backdropUrl,
+  } : media);
   set(isPlayerVisibleAtom, true);
 });
 
