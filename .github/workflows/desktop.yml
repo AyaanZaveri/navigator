@@ -266,11 +266,22 @@ jobs:
         shell: pwsh
         run: |
           $uninstall = Start-Process -FilePath "$env:LOCALAPPDATA/Programs/Navigator/Uninstall.exe" -ArgumentList '/S' -PassThru
-          if (-not $uninstall.WaitForExit(30000)) { Stop-Process -Id $uninstall.Id -Force; throw 'Uninstaller timed out' }
-          $deadline = [DateTime]::UtcNow.AddSeconds(15)
-          while ((Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe") -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
-          if (Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe") { throw 'Uninstaller left the executable behind' }
-          if (Test-Path 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/NavigatorDesktop') { throw 'Uninstaller left its registration behind' }
+          # Release the launcher handle immediately: retaining the terminated
+          # original process can keep its executable mapped during self-deletion.
+          $uninstall.Dispose()
+          # NSIS launches a temporary cleanup process. The original process can
+          # exit, and the EXE can disappear, before resources/registry cleanup ends.
+          $deadline = [DateTime]::UtcNow.AddSeconds(30)
+          $paths = @("$env:LOCALAPPDATA/Programs/Navigator", 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/NavigatorDesktop', "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Navigator.lnk")
+          do {
+            $remaining = @($paths | Where-Object { Test-Path $_ })
+            if ($remaining.Count -eq 0) { break }
+            if ([DateTime]::UtcNow -ge $deadline) {
+              Get-ChildItem "$env:LOCALAPPDATA/Programs/Navigator" -Recurse -Force -ErrorAction SilentlyContinue | Select-Object -First 30 FullName,Length,Attributes | Format-List
+              throw "Uninstaller did not finish cleanup: $($remaining -join ', ')"
+            }
+            Start-Sleep -Milliseconds 200
+          } while ($true)
           if (-not (Test-Path "$env:LOCALAPPDATA/Navigator Desktop/startup.jsonl")) { throw 'User profile was removed' }
       - name: Upload Windows installer
         if: ${{ !cancelled() && (steps.package.outcome == 'success' || steps.repackage.outcome == 'success') }}
