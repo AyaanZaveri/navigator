@@ -22,10 +22,17 @@ async function run() {
         return buffer;
     }
     assert.equal(chooseLogoTreatment(background([30, 30, 30]), logos), 'light');
-    assert.equal(chooseLogoTreatment(background([125, 133, 130]), logos), 'deep');
+    assert.equal(chooseLogoTreatment(background([125, 133, 130]), logos), 'neutral');
+    // Texture sampled beside the logo in the supplied mustard backdrop screenshot.
+    const mustard = await sharp('scripts/fixtures/header-logo-mustard.png').ensureAlpha().raw().toBuffer();
+    assert.equal(chooseLogoTreatment(mustard, logos, 'deep'), 'neutral', 'Muddy teal must switch to near-white on textured mustard artwork');
+    assert.ok(minimumLogoContrast(mustard, logos.neutral) >= 3, 'The neutral strokes clear the contrast target on the mustard patch');
+    assert.ok(minimumLogoContrast(mustard, logos.deep) < 3, 'The prior deep teal fails the same target');
+    assert.equal(chooseLogoTreatment(background([30, 30, 30]), logos, 'neutral'), 'light', 'Readable mint returns on dark artwork');
+    assert.equal(chooseLogoTreatment(bright, logos, 'neutral'), 'deep', 'Readable deep teal returns on bright artwork');
     const split = background([16, 29, 26]);
     for (let y = 0; y < 64; y++) for (let x = 0; x < 32; x++) split.set([226, 238, 233, 255], (y * 64 + x) * 4);
     assert.equal(chooseLogoTreatment(split, logos), 'dark', 'Mixed backgrounds still select the most readable of the three bare marks');
-    console.log('PASS: three real SVG variants over the supplied backdrop, dark, midtone and split surfaces.');
+    console.log('PASS: real SVG variants with a contrast-gated neutral fallback over the supplied backdrop, dark, midtone and split surfaces.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

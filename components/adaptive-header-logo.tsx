@@ -68,7 +68,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         function inspect() {
             frame = 0;
             if (stopped || !logo || !scope || !context) return;
-            if (!logoPixels.light || !logoPixels.dark || !logoPixels.deep) return;
+            if (!logoPixels.light || !logoPixels.dark || !logoPixels.deep || !logoPixels.neutral) return;
             const bounds = logo.getBoundingClientRect();
             const backdrop = Array.from(scope.querySelectorAll<HTMLImageElement>("img[data-header-backdrop]"))
                 .find((image) => {
@@ -153,6 +153,8 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
                 className={cn(styles.mark, tone === "light" ? "opacity-100" : tone ? "opacity-0" : "opacity-0 dark:opacity-100")} />
             <Image src={HEADER_LOGO_SOURCES.deep} alt="" width={32} height={32} draggable={false}
                 className={cn(styles.mark, tone === "deep" ? "opacity-100" : "opacity-0")} />
+            <Image src={HEADER_LOGO_SOURCES.neutral} alt="" width={32} height={32} draggable={false}
+                className={cn(styles.mark, tone === "neutral" ? "opacity-100" : "opacity-0")} />
         </span>
     );
 }

@@ -1,8 +1,9 @@
-export type LogoTone = "light" | "dark" | "deep";
+export type LogoTone = "light" | "dark" | "deep" | "neutral";
 export const HEADER_LOGO_SOURCES: Record<LogoTone, string> = {
     dark: "/logo/navigator-header-light.svg?v=3",
     light: "/logo/navigator-header-dark.svg?v=2",
     deep: "/logo/navigator-header-high-contrast.svg?v=1",
+    neutral: "/logo/navigator-header-neutral.svg?v=1",
 };
 export type LogoPixels = Record<LogoTone, ArrayLike<number>>;
 type Rectangle = { left: number; top: number; width: number; height: number };
@@ -31,11 +32,19 @@ export function minimumLogoContrast(background: ArrayLike<number>, logo: ArrayLi
 }
 
 export function chooseLogoTreatment(background: ArrayLike<number>, logos: LogoPixels, current: LogoTone | null = null): LogoTone {
-    const tones: LogoTone[] = ["light", "dark", "deep"];
+    const tones: LogoTone[] = ["light", "dark", "deep", "neutral"];
     const scores = Object.fromEntries(tones.map(tone => [tone, minimumLogoContrast(background, logos[tone])])) as Record<LogoTone, number>;
-    const best = tones.reduce((a, b) => scores[a] >= scores[b] ? a : b);
-    // Avoid flickering between similarly readable variants during scroll/blur changes.
-    if (current && scores[best] < scores[current] + .3) return current;
+    const branded: LogoTone[] = ["light", "dark", "deep"];
+    let best = branded.reduce((a, b) => scores[a] >= scores[b] ? a : b);
+    // Preserve the brand when readable. On muddy midtones, use near-white only
+    // when it improves contrast. Leave a small exit band to prevent toggling.
+    const brandTarget = current === "neutral" ? 3.3 : 3;
+    if (scores[best] < brandTarget && scores.neutral > scores[best]) best = "neutral";
+    // Never let hysteresis keep a failing teal when a readable variant exists,
+    // or retain neutral once the brand has cleared its exit threshold.
+    if (current && (current === "neutral") === (best === "neutral")
+        && (scores[current] >= 3 || scores[best] < 3)
+        && scores[best] < scores[current] + .3) return current;
     return best;
 }
 

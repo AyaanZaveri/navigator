@@ -59,7 +59,7 @@ function reading({ top = 0, background = 255, fade = false, imageOpacity = 1, ti
         image: { naturalWidth: 100, naturalHeight: 100, color: [30,30,30,1] }, rect, opacity: imageOpacity, objectPosition: '50% 50%',
     }, overlays);
     return contrast.chooseLogoTreatment(new Uint8ClampedArray([...pixel,255]), {
-        light: [54,204,176,255], dark: [17,135,119,255], deep: [7,84,73,255],
+        light: [54,204,176,255], dark: [17,135,119,255], deep: [7,84,73,255], neutral: [244,251,249,255],
     });
 }
 assert.equal(reading(), 'light', 'Dark artwork selects the bright logo in light mode');

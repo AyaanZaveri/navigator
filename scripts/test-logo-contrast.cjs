@@ -10,7 +10,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/logo-contrast.ts', 'u
 const { minimumLogoContrast, chooseLogoTreatment, getLogoSampleCrop } = context.exports;
 
 const solid = (value) => new Uint8ClampedArray([value, value, value, 255]);
-const colors = { light: [54, 204, 176, 255], dark: [17, 135, 119, 255], deep: [7, 84, 73, 255] };
+const colors = { light: [54, 204, 176, 255], dark: [17, 135, 119, 255], deep: [7, 84, 73, 255], neutral: [244, 251, 249, 255] };
 function paletteFor(background) {
     return Object.fromEntries(Object.entries(colors).map(([tone, color]) => {
         const pixels = new Uint8ClampedArray(background.length);
@@ -21,15 +21,20 @@ function paletteFor(background) {
 const treatment = (pixels, current) => chooseLogoTreatment(pixels, paletteFor(pixels), current);
 assert.equal(treatment(solid(255)), 'deep', 'Bright artwork needs the high-contrast deep teal variant');
 assert.equal(treatment(solid(0)), 'light', 'Dark artwork needs the light mint variant');
-assert.equal(treatment(solid(128)), 'deep', 'Midtone surfaces choose the highest-contrast bare variant');
+assert.equal(treatment(solid(128)), 'neutral', 'Midtone surfaces use the near-white fallback when teal is muddy');
 assert.equal(minimumLogoContrast([], []), 0);
 assert.equal(minimumLogoContrast(solid(255), [0, 0, 0, 0]), 0, 'Transparent gaps must not influence contrast');
 assert.equal(minimumLogoContrast(solid(255), solid(0)), 21);
-const nearlyEqual = { light: solid(240), dark: solid(239), deep: solid(0) };
+const nearlyEqual = { light: solid(240), dark: solid(239), deep: solid(0), neutral: solid(255) };
 assert.equal(chooseLogoTreatment(solid(0), nearlyEqual, 'dark'), 'dark', 'Small score differences must not flicker');
 assert.equal(chooseLogoTreatment(solid(255), nearlyEqual, 'dark'), 'deep', 'Hysteresis must never retain an unreadable bare mark');
+const boundary = { light: solid(0), dark: solid(0), deep: solid(0), neutral: solid(255) };
+assert.equal(chooseLogoTreatment(solid(85), boundary, 'deep'), 'neutral', 'Switch away from failing teal without waiting for a larger difference');
+assert.equal(chooseLogoTreatment(solid(90), boundary), 'light', 'Prefer readable branding over a higher-scoring neutral');
+assert.equal(chooseLogoTreatment(solid(90), boundary, 'neutral'), 'neutral', 'Small changes around the target must not toggle the fallback');
+assert.equal(chooseLogoTreatment(solid(100), boundary, 'neutral'), 'light', 'Return to branding once contrast clears the exit band');
 for (let value = 0; value <= 255; value++) {
-    assert.ok(['light', 'dark', 'deep'].includes(treatment(solid(value))), 'Every surface must select one of the three bare marks');
+    assert.ok(['light', 'dark', 'deep', 'neutral'].includes(treatment(solid(value))), 'Every surface must select an available bare mark');
 }
 
 function approximately(actual, expected) {
@@ -74,4 +79,4 @@ for (let y = localCrop.y; y < localCrop.y + localCrop.height; y++) {
 assert.equal(treatment(image), 'dark');
 assert.equal(treatment(new Uint8ClampedArray(patch)), 'deep', 'The pixels immediately beneath the logo determine its treatment');
 
-console.log('PASS: exactly three bare logo variants, stroke contrast, hysteresis, localized crops, object-position, and resize geometry');
+console.log('PASS: branded logos with neutral fallback, stroke contrast, hysteresis, localized crops, object-position, and resize geometry');
