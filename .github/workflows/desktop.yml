@@ -287,7 +287,7 @@ jobs:
           name: Windows-compositor-diagnostics
           path: dist/windows-diagnostics
       - name: Save Windows native build cache
-        if: always() && inputs.windows_artifact_run == '' && steps.windows-native-cache.outputs.cache-primary-key != '' && steps.windows-native-cache.outputs.cache-hit != 'true'
+        if: always() && (inputs.windows_artifact_run == '' || inputs.windows_rebuild_native) && steps.windows-native-cache.outputs.cache-primary-key != '' && steps.windows-native-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
