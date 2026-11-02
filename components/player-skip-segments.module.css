@@ -13,7 +13,7 @@
   padding: 0.75rem 1.25rem;
   border: 0;
   border-radius: var(--radius, 0.625rem);
-  background: var(--player-glass-color);
+  background: var(--player-glass-interaction-color, var(--player-glass-color));
   color: white;
   font-size: 1rem;
   font-weight: 500;
@@ -49,10 +49,6 @@
   outline-offset: 3px;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .button[data-visible]:enabled:hover { --player-glass-color: rgb(32 32 32 / 60%); }
-}
-
 .button[data-visible]:enabled:active {
   transform: scale(0.97);
 }
@@ -68,11 +64,8 @@
 @media (prefers-reduced-transparency: reduce) {
   .button {
     --player-glass-color: rgb(0 0 0 / 90%);
-    background: rgb(0 0 0 / 90%);
+    --player-glass-hover-opacity: 90%;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .button[data-visible]:enabled:hover { --player-glass-color: rgb(32 32 32 / 90%); background: rgb(32 32 32 / 90%); }
   }
 }

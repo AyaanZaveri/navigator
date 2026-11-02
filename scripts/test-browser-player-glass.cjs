@@ -67,6 +67,13 @@ assert.equal(callbacks.size, 0); cleanup(); assert.equal(props.size, 0); assert.
 console.log('PASS: SDR/HDR live canvas glass, presentation-rate updates without JPEG/readback/layout, demand cancellation and cleanup');
 const postcss = require('postcss');
 const css = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
+const glassTint = css.nodes.find(rule => rule.selector === '[data-browser-glass]::after');
+assert.equal(glassTint.nodes.find(node => node.prop === 'background-color').value,
+  'var(--player-glass-interaction-color, var(--browser-glass-color))',
+  'Live hover tint must reach the displayed canvas overlay instead of being trapped behind its captured initial color');
+const nativeTint = css.nodes.find(rule => rule.selector === '[data-native-glass]::after');
+assert.equal(nativeTint.nodes.find(node => node.prop === 'background-color').value,
+  'var(--player-glass-interaction-color, var(--player-glass-color))', 'Native glass uses the same live interaction tint');
 let alignment;
 css.walkRules(rule => { if (rule.selector === '[data-slot="media-player-seek-tooltip"][data-browser-glass] > [data-browser-glass-frame]') alignment = rule; });
 assert.ok(alignment);

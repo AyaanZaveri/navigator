@@ -112,7 +112,9 @@ assert.equal(declarations.transform, 'none');
 assert.equal(declarations['transform-origin'], 'center');
 assert.equal(declarations['min-height'], '3rem');
 assert.equal(declarations.border, '0');
-const hover = css.nodes.find(rule => rule.params === '(hover: hover) and (pointer: fine)').nodes[0];
+const glassCss = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
+const hover = glassCss.nodes.find(rule => rule.params === '(hover: hover) and (pointer: fine)').nodes[0];
+assert.ok(hover.selector.includes('[data-player-skip][data-visible]:enabled:hover'));
 assert.ok(!hover.nodes.some(node => node.prop === 'transform'), 'Hover only lightens the glass; it never scales');
 const press = css.nodes.find(rule => rule.selector === '.button[data-visible]:enabled:active');
 assert.ok(press.nodes.some(node => node.prop === 'transform' && node.value === 'scale(0.97)'), 'Press matches the normal button scale on mouse, touch, and keyboard');
@@ -120,6 +122,6 @@ assert.ok(declarations.transition.includes('opacity var(--duration-fast, 160ms) 
 assert.ok(declarations.transition.includes('transform'));
 const reduced = css.nodes.find(rule => rule.params === '(prefers-reduced-motion: reduce)');
 assert.ok(reduced.nodes[0].nodes.some(node => node.prop === 'transform' && node.value === 'none'));
-assert.ok(css.nodes.some(rule => rule.params === '(hover: hover) and (pointer: fine)'));
+assert.ok(glassCss.nodes.some(rule => rule.params === '(hover: hover) and (pointer: fine)'));
 assert.ok(css.nodes.some(rule => rule.params === '(prefers-reduced-motion: reduce)'));
 console.log('PASS: no skip-button reappearance after delayed seeks; deliberate rewinds, later segments, hidden controls, and restrained motion stay correct.');
