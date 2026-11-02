@@ -1,5 +1,3 @@
-"use client";
-
 import { ProgressiveBlur } from "@/components/motion-primitives/progressive-blur";
 import styles from "./backdrop-transition.module.css";
 

@@ -66,11 +66,16 @@ export function AppHeader({ email, overlay = false }: { email: string; overlay?:
             const progress = Math.min(1, Math.max(0, (scroller?.scrollTop ?? 0) / 192));
             const opacity = progress * progress * (3 - 2 * progress);
             if (opacity !== previousOpacity) {
-                surfaceLayers?.forEach(layer => { layer.style.opacity = String(opacity); });
+                surfaceLayers?.forEach(layer => {
+                    layer.style.opacity = String(opacity);
+                    layer.style.visibility = opacity > 0 ? "visible" : "hidden";
+                });
                 previousOpacity = opacity;
             }
         };
         const onScroll = () => {
+            const top = scroller?.scrollTop ?? 0;
+            if ((previousOpacity === 1 && top >= 192) || (previousOpacity === 0 && top <= 0)) return;
             if (!frame) frame = requestAnimationFrame(updateSurface);
         };
         updateSurface();

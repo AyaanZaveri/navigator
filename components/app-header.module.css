@@ -18,7 +18,10 @@
 .blur > div,
 .tint {
     opacity: 0;
-    transition: opacity 180ms linear;
+    visibility: hidden;
+    /* Hide after the opacity fade completes; show at the start of its fade-in.
+       Apply this to each leaf, preserving the page as the backdrop source. */
+    transition: opacity 180ms linear, visibility 180ms linear;
 }
 
 /* The shared blur's masks soften the entire height, rather than applying
@@ -37,6 +40,7 @@
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .blur { display: none; }
     .tint {
         background: linear-gradient(to bottom,
             color-mix(in oklab, var(--background) 50%, transparent), transparent);
