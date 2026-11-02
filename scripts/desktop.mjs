@@ -30,11 +30,13 @@ try {
     } else if (command === "package") {
         // Explicit packaging command, never run as a side effect of next dev/build.
         const nativeName = process.platform === "win32" ? "navigator-desktop.exe" : "navigator-desktop";
-        const native = join(desktop, "target", "release", nativeName);
+        const windows = process.platform === "win32" ? await import("./build-windows-native.mjs") : null;
+        const native = windows ? windows.windowsNativeExecutable : join(desktop, "target", "release", nativeName);
         const standalone = join(root, ".next", "standalone");
         if (!extra.includes("--skip-build")) {
             await run(process.execPath, [join(root, "node_modules", "next", "dist", "bin", "next"), "build"], { NAVIGATOR_DESKTOP: "1" });
-            await run("cargo", ["build", "--manifest-path", manifest, "--release", "--locked"]);
+            if (windows) await windows.buildWindowsNative();
+            else await run("cargo", ["build", "--manifest-path", manifest, "--release", "--locked"]);
         }
         if (!await exists(native) || !await exists(join(standalone, "server.js"))) throw new Error("Build the native shell and Next standalone output before packaging with --skip-build.");
         const output = join(root, "dist", `desktop-${process.platform}-${process.arch}`);
