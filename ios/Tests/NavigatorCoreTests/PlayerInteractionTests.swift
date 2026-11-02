@@ -102,3 +102,29 @@ import Testing
   #expect(drag.move(y: 1000) == 0)
   #expect(abs(drag.move(y: 990) - 0.1) < 0.001)
 }
+
+@Test func backPressCancelsOutsideTheCircleAndDoesNotRearm() {
+  let bounds = CGRect(x: 0, y: 0, width: 44, height: 44)
+  var press = CircularButtonPress()
+  press.begin(CGPoint(x: 22, y: 22), in: bounds)
+  press.move(CGPoint(x: 45, y: 22), in: bounds)
+  #expect(!press.finish(CGPoint(x: 45, y: 22), in: bounds))
+  press.begin(CGPoint(x: 22, y: 22), in: bounds)
+  press.move(CGPoint(x: 0, y: 0), in: bounds)
+  press.move(CGPoint(x: 22, y: 22), in: bounds)
+  #expect(!press.finish(CGPoint(x: 22, y: 22), in: bounds))
+  press.begin(CGPoint(x: 22, y: 22), in: bounds)
+  #expect(press.finish(CGPoint(x: 22, y: 22), in: bounds))
+  press.begin(CGPoint(x: 22, y: 22), in: bounds)
+  press.cancel()
+  #expect(!press.finish(CGPoint(x: 22, y: 22), in: bounds))
+}
+@Test func deviceMuteRestoresTheLastAudibleSystemLevel() {
+  var level = DeviceMuteLevel(current: 0.35)
+  #expect(level.target(muted: true, current: 0.35) == 0)
+  level.observe(0)
+  #expect(level.target(muted: false, current: 0) == 0.35)
+  level.observe(0.7)
+  #expect(level.target(muted: true, current: 0.7) == 0)
+  #expect(level.target(muted: false, current: 0) == 0.7)
+}

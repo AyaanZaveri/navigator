@@ -28,6 +28,7 @@
 }
 - (double)position { return MAX(0,self.player.time.intValue)/1000.0; }
 - (double)duration { return MAX(0,self.player.media.length.intValue)/1000.0; }
+- (double)audioGain { return self.player.audio.muted ? 0 : self.player.audio.volume / 100.0; }
 - (BOOL)playing { return self.player.isPlaying; }
 - (BOOL)buffering {
     // VLCKit caches even the final 100% buffering event as StateBuffering.

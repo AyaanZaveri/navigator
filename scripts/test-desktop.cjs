@@ -20,6 +20,7 @@ async function testController(platform) {
     const listeners = new Set();
     const bridge = {
         platform,
+        capabilities: platform === "ios" ? { systemVolume: true } : undefined,
         send: (message) => sent.push(message),
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     };
@@ -52,8 +53,16 @@ async function testController(platform) {
     assert.equal(media.subtitleText, "", "Turning subtitles off must clear the overlay immediately");
     receive({ type: "subtitle", session: first, text: "Current cue" });
     assert.equal(sent[0].headers, headers);
-    assert.equal(sent.find((m) => m.type === "volume").volume, 0.6);
-    assert.equal(sent.find((m) => m.type === "muted").muted, true);
+    if (platform === "ios") {
+        assert.equal(sent.some(m => m.type === "volume" || m.type === "muted"), false, "Starting iOS playback must preserve the current hardware volume");
+        media.volume = 0.45;
+        media.muted = true;
+        assert.equal(sent.find(m => m.type === "volume").volume, 0.45, "Explicit UI volume commands still reach the native device-volume controller");
+        assert.equal(sent.find(m => m.type === "muted").muted, true);
+    } else {
+        assert.equal(sent.find((m) => m.type === "volume").volume, 0.6);
+        assert.equal(sent.find((m) => m.type === "muted").muted, true);
+    }
     assert.equal(sent.find((m) => m.type === "rate").rate, 1.5);
     let ended = 0;
     media.addEventListener("ended", () => ended++);

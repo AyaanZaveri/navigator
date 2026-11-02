@@ -31,10 +31,11 @@ import UIKit
     started && ready && foreground && !errorSent && engine.seekable && engine.duration > 0
   }
   var interactionPosition: Double { max(engine.position, positionFloor ?? 0) }
-  var interactionVolume: Double { muted ? 0 : volume }
-  private var initialPosition = 0.0, volume = 1.0, muted = false, rate = 1.0, fit = "fit"
+  private var initialPosition = 0.0, rate = 1.0, fit = "fit"
   private var lastTracks = Data()
-  private var lastAudibleVolume = 1.0
+  var readDeviceVolume: () -> Double = { Double(AVAudioSession.sharedInstance().outputVolume) }
+  var requestDeviceVolume: (Double) -> Void = { _ in }
+  var requestDeviceMute: (Bool) -> Void = { _ in }
   init() {
     engine.changed = { [weak self] in
       // VLCKit delivers delegates on main. Read terminal state in this callback
@@ -112,16 +113,11 @@ import UIKit
         engine.seek(engine.duration > 0 ? min(at, engine.duration) : at)
       }
     case "volume":
-      if let v = command.number("volume", range: 0...1) {
-        volume = v
-        if v > 0 { lastAudibleVolume = v }
-        engine.setVolume(v, muted: muted)
-      }
+      // Older hosted clients replay their saved media gain immediately after
+      // load. Ignore that bootstrap; it must never reset the device's volume.
+      if ready, let value = command.number("volume", range: 0...1) { requestDeviceVolume(value) }
     case "muted":
-      if let v = command.body["muted"] as? Bool {
-        muted = v
-        engine.setVolume(volume, muted: v)
-      }
+      if ready, let value = command.body["muted"] as? Bool { requestDeviceMute(value) }
     case "rate":
       if let v = command.number("rate", range: 0.25...4) {
         rate = v
@@ -166,7 +162,7 @@ import UIKit
 
     try activate()
     pendingStart = false
-    engine.setVolume(volume, muted: muted)
+    engine.setVolume(1, muted: false)
     engine.setRate(rate)
     engine.load(url, start: initialPosition, silent: false)
     started = true
@@ -240,23 +236,7 @@ import UIKit
     if wantsPlay { engine.play() }
     update()
   }
-  func setInteractionVolume(_ value: Double) {
-    volume = max(0, min(1, value))
-    if volume > 0 { lastAudibleVolume = volume }
-    muted = volume == 0
-    engine.setVolume(volume, muted: muted)
-    update()
-  }
-  func toggleInteractionMute() {
-    if muted || volume == 0 {
-      muted = false
-      if volume == 0 { volume = lastAudibleVolume }
-    } else {
-      muted = true
-    }
-    engine.setVolume(volume, muted: muted)
-    update()
-  }
+  func deviceVolumeChanged() { update() }
   func layout() {
     engine.setFit(
       fit, width: Int(engine.surface.bounds.width), height: Int(engine.surface.bounds.height))
@@ -275,11 +255,13 @@ import UIKit
     let at = max(rawPosition, positionFloor ?? 0)
     if let floor = positionFloor, rawPosition >= floor { positionFloor = nil }
     let duration = engine.duration
+    let outputVolume = max(0, min(1, readDeviceVolume()))
     emit([
       "type": "state", "session": session,
       "state": [
         "position": at, "duration": duration,
-        "paused": !wantsPlay, "volume": volume, "muted": muted, "rate": rate,
+        "paused": !wantsPlay, "volume": outputVolume, "muted": outputVolume == 0, "rate": rate,
+        "mediaGain": engine.audioGain,
         "buffering": scrubOwner == nil && engine.buffering, "seeking": seeking, "buffered": 0,
         "width": size.width,
         "height": size.height,
@@ -293,7 +275,7 @@ import UIKit
       engine.hasVideo || !engine.hasVideoTrack
     {
       ready = true
-      engine.setVolume(volume, muted: muted)
+      engine.setVolume(1, muted: false)
       engine.setRate(rate)
       layout()
       startupCover.isHidden = true

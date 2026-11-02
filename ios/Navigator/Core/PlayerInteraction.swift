@@ -2,6 +2,42 @@ import CoreFoundation
 import CoreGraphics
 import Foundation
 
+/// A press belongs to the visible circle, not UIKit's expanded release region.
+public struct CircularButtonPress {
+  public private(set) var armed = false
+  public init() {}
+  public static func contains(_ point: CGPoint, in bounds: CGRect) -> Bool {
+    let radius = min(bounds.width, bounds.height) / 2
+    let dx = point.x - bounds.midX
+    let dy = point.y - bounds.midY
+    return radius > 0 && dx * dx + dy * dy <= radius * radius
+  }
+  public mutating func begin(_ point: CGPoint, in bounds: CGRect) {
+    armed = Self.contains(point, in: bounds)
+  }
+  public mutating func move(_ point: CGPoint, in bounds: CGRect) {
+    armed = armed && Self.contains(point, in: bounds)
+  }
+  public mutating func finish(_ point: CGPoint, in bounds: CGRect) -> Bool {
+    let activate = armed && Self.contains(point, in: bounds)
+    armed = false
+    return activate
+  }
+  public mutating func cancel() { armed = false }
+}
+
+public struct DeviceMuteLevel {
+  private var audible = 0.5
+  public init(current: Double) { observe(current) }
+  public mutating func observe(_ value: Double) {
+    if value.isFinite && value > 0 { audible = min(1, value) }
+  }
+  public mutating func target(muted: Bool, current: Double) -> Double {
+    observe(current)
+    return muted ? 0 : current > 0 ? current : audible
+  }
+}
+
 /// Native and Android scrubbing use incremental movement, so changing height
 /// changes sensitivity without moving the target by itself.
 public struct PlayerGesture: Sendable {

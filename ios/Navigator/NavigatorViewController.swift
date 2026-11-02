@@ -63,14 +63,12 @@ import WebKit
       ])
     }
     interactions = PlayerInteractions(host: view, web: web, playback: playback)
-    interactions.showDeviceVolume = { [weak self] source, rect in
-      guard let self, self.presentedViewController == nil else { return }
-      let volume = DeviceVolumeViewController()
-      volume.modalPresentationStyle = .popover
-      volume.popoverPresentationController?.sourceView = source
-      volume.popoverPresentationController?.sourceRect = rect
-      self.present(volume, animated: true)
+    playback.readDeviceVolume = { [weak self] in
+      self?.interactions?.deviceVolumeValue ?? Double(AVAudioSession.sharedInstance().outputVolume)
     }
+    playback.requestDeviceVolume = { [weak self] value in self?.interactions?.setDeviceVolume(value)
+    }
+    playback.requestDeviceMute = { [weak self] muted in self?.interactions?.setDeviceMuted(muted) }
     interactions.close = { [weak self] in self?.send(["type": "close"]) }
     playback.invalidateInteraction = { [weak self] in self?.interactions?.invalidatePlayback() }
     playback.relinquishInteraction = { [weak self] in
@@ -205,6 +203,7 @@ import WebKit
     }
     visible = value
     interactions?.setVisible(value)
+    send(["type": "chrome-session", "session": interactions?.chromeSession ?? ""])
     backGesture?.isEnabled = value
     web.isOpaque = !value
     web.backgroundColor = value ? .clear : UIColor(white: 0.04, alpha: 1)
@@ -428,6 +427,9 @@ import WebKit
     interactions?.dispose()
     playback.invalidateInteraction = {}
     playback.relinquishInteraction = {}
+    playback.readDeviceVolume = { 1 }
+    playback.requestDeviceVolume = { _ in }
+    playback.requestDeviceMute = { _ in }
     playback.close()
     web?.configuration.userContentController.removeScriptMessageHandler(forName: "navigator")
     web?.stopLoading()
