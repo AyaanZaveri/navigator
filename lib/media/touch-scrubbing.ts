@@ -37,7 +37,7 @@ export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingO
         const target = event.target as Element;
         const onBar = options.timeline.contains(target);
         if (!onBar && options.surfaceEnabled?.() === false) return;
-        if (!onBar && target.closest('button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"]')) return;
+        if (!onBar && target.closest('button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]')) return;
         const rect = options.timeline.getBoundingClientRect();
         if (rect.width <= 0 || !Number.isFinite(options.end) || options.end <= options.start) return;
         gesture = {

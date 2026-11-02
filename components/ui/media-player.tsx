@@ -1,17 +1,11 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select } from "@/components/arc/select/select";
+import { PlayerSettingsPanel } from "@/components/player-settings-panel";
+import playerSettingsStyles from "@/components/player-settings-panel.module.css";
+import { trackOptions } from "@/lib/media/track-label";
 import {
   Tooltip,
   TooltipContent,
@@ -21,11 +15,9 @@ import { useComposedRefs } from "@/lib/compose-refs";
 import { cn } from "@/lib/utils";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { Slot } from "@radix-ui/react-slot";
-import { useSettings, BITRATE_OPTIONS } from "@/contexts/settings-context";
 import {
   AlertTriangleIcon,
   CaptionsOffIcon,
-  CheckIcon,
   DownloadIcon,
   FastForwardIcon,
   Loader2Icon,
@@ -205,6 +197,9 @@ function useMediaPlayerContext(consumerName: string) {
 }
 
 interface CustomSubtitleTrack {
+  id?: string;
+  filename?: string;
+  provider?: string;
   src: string;
   label: string;
   language: string;
@@ -434,7 +429,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     // Keyboard/assistive activation and mouse clicks retain play/pause.
     if (event.detail === 0 || pointerTypeRef.current === "mouse") return;
     if ((event.target as Element).closest(
-      '[data-slot="media-player-controls"], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"]'
+      '[data-slot="media-player-controls"], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]'
     )) return;
     event.preventDefault();
     event.stopPropagation();
@@ -514,6 +509,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       rootImplProps.onKeyDown?.(event);
 
       if (event.defaultPrevented) return;
+      if (event.target instanceof Element && event.target.closest('[role="combobox"], [role="listbox"], [role="option"], [role="dialog"]')) return;
 
       const mediaElement = mediaRef.current;
       if (!mediaElement) return;
@@ -2645,12 +2641,13 @@ function MediaPlayerTime(props: MediaPlayerTimeProps) {
   );
 }
 
-interface MediaPlayerPlaybackSpeedProps
-  extends React.ComponentProps<typeof DropdownMenuTrigger>,
-    React.ComponentProps<typeof Button>,
-    Omit<React.ComponentProps<typeof DropdownMenu>, "dir">,
-    Pick<React.ComponentProps<typeof DropdownMenuContent>, "sideOffset"> {
+interface MediaPlayerPlaybackSpeedProps extends React.ComponentProps<typeof Button> {
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  sideOffset?: number;
   speeds?: number[];
+  modal?: boolean;
 }
 
 function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
@@ -2660,11 +2657,8 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
     onOpenChange: onOpenChangeProp,
     sideOffset = FLOATING_MENU_SIDE_OFFSET,
     speeds = SPEEDS,
-    asChild,
-    modal = false,
     className,
     disabled,
-    ...playbackSpeedProps
   } = props;
 
   const context = useMediaPlayerContext(PLAYBACK_SPEED_NAME);
@@ -2694,49 +2688,14 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
     [store.setState, onOpenChangeProp]
   );
 
-  return (
-    <DropdownMenu
-      modal={modal}
-      open={open}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}
-    >
-      <MediaPlayerTooltip tooltip="Playback speed" shortcut={["<", ">"]}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            aria-controls={context.mediaId}
-            disabled={isDisabled}
-            {...playbackSpeedProps}
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "h-8 w-16 aria-[expanded=true]:bg-accent/50",
-              className
-            )}
-          >
-            {mediaPlaybackRate}x
-          </Button>
-        </DropdownMenuTrigger>
-      </MediaPlayerTooltip>
-      <DropdownMenuContent
-        container={context.portalContainer}
-        sideOffset={sideOffset}
-        align="center"
-        className="min-w-[var(--radix-dropdown-menu-trigger-width)] data-[side=top]:mb-3.5"
-      >
-        {speeds.map((speed) => (
-          <DropdownMenuItem
-            key={speed}
-            className="justify-between"
-            onSelect={() => onPlaybackRateChange(speed)}
-          >
-            {speed}x{mediaPlaybackRate === speed && <CheckIcon />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+  return <Select label="Playback speed" hideLabel
+    value={String(mediaPlaybackRate)} onValueChange={value => onPlaybackRateChange(Number(value))}
+    open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange}
+    side="top" sideOffset={sideOffset} disabled={isDisabled}
+    className={cn(playerSettingsStyles.speedTrigger, className)} contentClassName={playerSettingsStyles.options}
+    portalContainer={context.rootRef.current ?? context.portalContainer}
+    options={speeds.map(speed => ({ value: String(speed), label: `${speed}×` }))} />;
+
 }
 
 interface MediaPlayerLoopProps extends React.ComponentProps<typeof Button> {}
@@ -3057,7 +3016,6 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const context = useMediaPlayerContext(SETTINGS_NAME);
   const store = useStoreContext(SETTINGS_NAME);
   const dispatch = useMediaDispatch();
-  const { videoBitrate, setVideoBitrate } = useSettings();
 
   const mediaPlaybackRate = useMediaSelector(
     (state) => state.mediaPlaybackRate ?? 1
@@ -3076,7 +3034,6 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   );
 
   const isDisabled = disabled || context.disabled;
-  const isSubtitlesActive = mediaSubtitlesShowing.length > 0;
 
   const onPlaybackRateChange = React.useCallback(
     (rate: number) => {
@@ -3119,26 +3076,11 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
     [dispatch]
   );
 
-  const selectedSubtitleLabel = React.useMemo(() => {
-    if (!isSubtitlesActive) return "Off";
-    if (mediaSubtitlesShowing.length > 0) {
-      return mediaSubtitlesShowing[0]?.label ?? "On";
-    }
-    return "Off";
-  }, [isSubtitlesActive, mediaSubtitlesShowing]);
-
-  const selectedRenditionLabel = React.useMemo(() => {
-    if (!selectedRenditionId) return "Auto";
-
-    const currentRendition = mediaRenditionList?.find(
-      (rendition) => rendition.id === selectedRenditionId
-    );
-    if (!currentRendition) return "Auto";
-
-    if (currentRendition.height) return `${currentRendition.height}p`;
-    if (currentRendition.width) return `${currentRendition.width}p`;
-    return currentRendition.id ?? "Auto";
-  }, [selectedRenditionId, mediaRenditionList]);
+  const subtitleTracks = context.customSubtitlesEnabled ? context.customSubtitleTracks ?? [] : mediaSubtitlesList;
+  const selectedSubtitleIndex = context.customSubtitlesEnabled
+    ? context.customSubtitleTracks?.findIndex(track => track.active) ?? -1
+    : mediaSubtitlesList.findIndex(track => mediaSubtitlesShowing.some(showing =>
+      showing.kind === track.kind && showing.language === track.language && showing.label === track.label));
 
   const onOpenChange = React.useCallback(
     (open: boolean) => {
@@ -3149,202 +3091,52 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   );
 
   return (
-    <DropdownMenu
-      modal={modal}
-      open={open}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}
-    >
+    <Popover modal={modal} open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
       <MediaPlayerTooltip tooltip="Settings">
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            aria-controls={context.mediaId}
-            aria-label="Settings"
-            data-disabled={isDisabled ? "" : undefined}
-            data-slot="media-player-settings"
-            disabled={isDisabled}
-            {...settingsProps}
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "size-8 aria-[expanded=true]:bg-accent/50",
-              className
-            )}
-          >
+        <PopoverTrigger asChild>
+          <Button type="button" aria-controls={context.mediaId} aria-label="Settings"
+            data-disabled={isDisabled ? "" : undefined} data-slot="media-player-settings"
+            disabled={isDisabled} {...settingsProps} variant="ghost" size="icon"
+            className={cn("size-8 aria-[expanded=true]:bg-accent/50", className)}>
             <SettingsIcon />
           </Button>
-        </DropdownMenuTrigger>
+        </PopoverTrigger>
       </MediaPlayerTooltip>
-      <DropdownMenuContent
-        align="end"
-        side="top"
-        sideOffset={sideOffset}
-        container={context.portalContainer}
-        className="w-56 data-[side=top]:mb-3.5"
-      >
-        <DropdownMenuLabel className="sr-only">Settings</DropdownMenuLabel>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <span className="flex-1">Speed</span>
-            <Badge variant="outline" className="rounded-sm">
-              {mediaPlaybackRate}x
-            </Badge>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {speeds.map((speed) => (
-              <DropdownMenuItem
-                key={speed}
-                className="justify-between"
-                onSelect={() => onPlaybackRateChange(speed)}
-              >
-                {speed}x{mediaPlaybackRate === speed && <CheckIcon />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        {context.isVideo && mediaRenditionList.length > 0 && (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <span className="flex-1">Quality</span>
-              <Badge variant="outline" className="rounded-sm">
-                {selectedRenditionLabel}
-              </Badge>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem
-                className="justify-between"
-                onSelect={() => onRenditionChange("auto")}
-              >
-                Auto
-                {!selectedRenditionId && <CheckIcon />}
-              </DropdownMenuItem>
-              {mediaRenditionList
-                .slice()
-                .sort((a, b) => {
-                  const aHeight = a.height ?? 0;
-                  const bHeight = b.height ?? 0;
-                  return bHeight - aHeight;
-                })
-                .map((rendition) => {
-                  const label = rendition.height
-                    ? `${rendition.height}p`
-                    : rendition.width
-                      ? `${rendition.width}p`
-                      : (rendition.id ?? "Unknown");
-
-                  const selected = rendition.id === selectedRenditionId;
-
-                  return (
-                    <DropdownMenuItem
-                      key={rendition.id}
-                      className="justify-between"
-                      onSelect={() => onRenditionChange(rendition.id ?? "")}
-                    >
-                      {label}
-                      {selected && <CheckIcon />}
-                    </DropdownMenuItem>
-                  );
-                })}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        )}
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <span className="flex-1">Bitrate</span>
-            <Badge variant="outline" className="rounded-sm">
-              {BITRATE_OPTIONS.find((option) => option.value === videoBitrate)
-                ?.label ?? "Auto"}
-            </Badge>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {BITRATE_OPTIONS.map((option) => (
-              <DropdownMenuItem
-                key={option.value}
-                className="justify-between"
-                onSelect={() => setVideoBitrate(option.value)}
-              >
-                {option.label}
-                {videoBitrate === option.value && <CheckIcon />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <span className="flex-1">Captions</span>
-            <Badge variant="outline" className="rounded-sm">
-              {context.customSubtitlesEnabled
-                ? context.customSubtitleTracks &&
-                  context.customSubtitleTracks.length > 0
-                  ? context.customSubtitleTracks
-                      .find((track) => track.active)
-                      ?.label?.split(" ")[0] || "On"
-                  : "Off"
-                : selectedSubtitleLabel.split(" ")[0]}
-            </Badge>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="max-h-64 overflow-y-auto">
-            <DropdownMenuItem
-              className="justify-between"
-              onSelect={() => {
-                if (context.customSubtitlesEnabled) {
-                  context.onCustomSubtitleChange?.(null);
-                } else {
-                  onSubtitlesToggle();
-                }
-              }}
-            >
-              Off
-              {context.customSubtitlesEnabled
-                ? !context.customSubtitleTracks?.some((track) => track.active)
-                : !isSubtitlesActive && <CheckIcon />}
-            </DropdownMenuItem>
-            {context.customSubtitlesEnabled
-              ? context.customSubtitleTracks?.map((subtitleTrack) => {
-                  return (
-                    <DropdownMenuItem
-                      key={`${subtitleTrack.kind}-${subtitleTrack.label}-${subtitleTrack.language}`}
-                      className="justify-between"
-                      onSelect={() =>
-                        context.onCustomSubtitleChange?.(subtitleTrack)
-                      }
-                    >
-                      {subtitleTrack.label}
-                      {subtitleTrack.active && <CheckIcon />}
-                    </DropdownMenuItem>
-                  );
-                })
-              : mediaSubtitlesList.map((subtitleTrack) => {
-                  const isSelected = mediaSubtitlesShowing.some(
-                    (showingSubtitle) =>
-                      showingSubtitle.label === subtitleTrack.label
-                  );
-                  return (
-                    <DropdownMenuItem
-                      key={`${subtitleTrack.kind}-${subtitleTrack.label}-${subtitleTrack.language}-${crypto.randomUUID()}`}
-                      className="justify-between"
-                      onSelect={() => onShowSubtitleTrack(subtitleTrack)}
-                    >
-                      {subtitleTrack.label}
-                      {isSelected && <CheckIcon />}
-                    </DropdownMenuItem>
-                  );
-                })}
-            {(context.customSubtitlesEnabled
-              ? !context.customSubtitleTracks ||
-                context.customSubtitleTracks.length === 0
-              : mediaSubtitlesList.length === 0) && (
-              <DropdownMenuItem disabled>
-                No captions available
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      <PopoverContent align="end" side="top" sideOffset={sideOffset}
+        container={context.rootRef.current ?? context.portalContainer}
+        aria-label="Playback settings"
+        className="w-96 max-w-[calc(100vw-24px)] max-h-[min(80dvh,var(--radix-popover-content-available-height))] overflow-y-auto">
+        <PlayerSettingsPanel speed={mediaPlaybackRate} speeds={speeds} onSpeedChange={onPlaybackRateChange}
+          disabled={isDisabled} portalContainer={context.rootRef.current ?? context.portalContainer}
+          quality={context.isVideo && mediaRenditionList.length > 0 ? {
+            value: selectedRenditionId || "auto",
+            onChange: onRenditionChange,
+            options: [{ value: "auto", label: "Auto" }, ...mediaRenditionList.slice()
+              .sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
+              .flatMap(rendition => rendition.id ? [{ value: rendition.id, label: rendition.height
+                ? `${rendition.height}p` : rendition.width ? `${rendition.width}p` : rendition.id }] : [])],
+          } : undefined}
+          subtitles={{
+            value: selectedSubtitleIndex >= 0 ? String(selectedSubtitleIndex) : "off",
+            options: [{ value: "off", label: "Off" }, ...trackOptions(subtitleTracks)],
+            onChange: value => {
+              if (value === "off") {
+                if (context.customSubtitlesEnabled) context.onCustomSubtitleChange?.(null);
+                else onSubtitlesToggle();
+                return;
+              }
+              const index = Number(value);
+              if (!Number.isInteger(index) || index < 0) return;
+              if (context.customSubtitlesEnabled) {
+                const track = context.customSubtitleTracks?.[index];
+                if (track) context.onCustomSubtitleChange?.(track);
+              } else if (mediaSubtitlesList[index]) onShowSubtitleTrack(mediaSubtitlesList[index]);
+            },
+          }} />
+      </PopoverContent>
+    </Popover>
   );
+
 }
 
 interface MediaPlayerPortalProps {

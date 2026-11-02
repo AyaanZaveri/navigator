@@ -72,6 +72,16 @@ assert.equal(tap.previews.length, 0);
 assert.equal(tap.send('click', 201, 200).prevented, false, 'An ordinary tap retains its existing behavior');
 tap.send('pointerdown', 200, 200, tap.button); tap.send('pointermove', 300, 200, tap.button);
 assert.equal(tap.previews.length, 0, 'Playback controls retain their own gestures');
+for (const role of ['combobox', 'listbox', 'option']) {
+    const select = fixture();
+    const target = { closest: selector => selector.includes(`[role="${role}"]`) ? {} : null };
+    select.send('pointerdown', 200, 200, target);
+    select.send('pointermove', 300, 200, target);
+    select.send('pointerup', 300, 200, target);
+    assert.equal(select.previews.length, 0, `${role}: choosing or scrolling tracks must not start a seek`);
+    assert.equal(select.commits.length, 0);
+    select.dispose();
+}
 const mouse = fixture();
 mouse.send('pointerdown', 200, 200, mouse.bar, { pointerType: 'mouse' });
 assert.equal(mouse.previews.length, 0, 'Mouse handling stays with the existing slider');

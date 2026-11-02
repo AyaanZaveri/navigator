@@ -119,6 +119,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [mediaDetails, setMediaDetails] = useState<MediaItem | null>(null);
   const [subtitleTracks, setSubtitleTracks] = useState<
     Array<{
+      id?: string;
+      filename?: string;
+      provider?: string;
       kind: string;
       label: string;
       language: string;
@@ -757,7 +760,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             (videoRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("subtitle", "no");
           }
           const trackIndex = subtitleTracks.findIndex(
-            (track) => track.label === subtitleTrack.label
+            (track) => track.src === subtitleTrack.src
           );
           if (trackIndex !== -1) {
             setFetchingSubtitles(true);

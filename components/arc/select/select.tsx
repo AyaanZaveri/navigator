@@ -6,8 +6,18 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { Variants } from "motion/react";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./select.module.css";
+
+export interface SelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+  icon?: ReactNode;
+  badge?: string;
+  description?: string;
+}
 
 export interface SelectProps extends Omit<ComponentPropsWithoutRef<typeof SelectPrimitive.Root>, "children"> {
   "aria-describedby"?: string;
@@ -18,7 +28,13 @@ export interface SelectProps extends Omit<ComponentPropsWithoutRef<typeof Select
   placeholder?: string;
   id?: string;
   className?: string;
-  options: { value: string; label: string; disabled?: boolean; icon?: ReactNode }[];
+  options: SelectOption[];
+  portalContainer?: ComponentPropsWithoutRef<typeof SelectPrimitive.Portal>["container"];
+  contentClassName?: string;
+  triggerContent?: ReactNode;
+  showChevron?: boolean;
+  side?: ComponentPropsWithoutRef<typeof SelectPrimitive.Content>["side"];
+  sideOffset?: number;
 }
 
 /** The shown value rolls in the direction of the list: a later option rises from below, an earlier one drops from above. */
@@ -31,7 +47,8 @@ const valueRoll: Variants = {
 const valueFade: Variants = { enter: { opacity: 0 }, center: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: motionTokens.duration.instant } }, exit: { opacity: 0, transition: { duration: motionTokens.duration.instant } } };
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select(
-    { "aria-describedby": describedBy, "aria-busy": busy, label, hideLabel = false, description, placeholder = "Select an option", options, id, className, disabled, onValueChange, ...rootProps },
+    { "aria-describedby": describedBy, "aria-busy": busy, label, hideLabel = false, description, placeholder = "Select an option", options, id, className, disabled, onValueChange,
+        portalContainer, contentClassName, triggerContent, showChevron = true, side, sideOffset = 4, ...rootProps },
     ref,
 ) {
     const generatedId = useId();
@@ -53,32 +70,48 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                 <SelectPrimitive.Trigger
                     ref={ref}
                     id={controlId}
+                    data-icon-trigger={triggerContent != null ? "" : undefined}
                     aria-describedby={[hintId, describedBy].filter(Boolean).join(" ") || undefined}
                     aria-busy={busy}
                     className={[styles.trigger, className].filter(Boolean).join(" ")}
                 >
                     {/* Radix keeps the real value for assistive tech; the visible copy below animates between values. */}
                     <span className={styles.srOnly}><SelectPrimitive.Value placeholder={placeholder} /></span>
-                    {options[index]?.icon && <span className={styles.optionIcon} aria-hidden="true">{options[index].icon}</span>}
-                    <span className={styles.valueText} aria-hidden="true">
-                        <AnimatePresence initial={false} custom={direction}>
-                            <motion.span key={currentValue ? `value-${currentValue}` : "placeholder"} data-placeholder={currentValue ? undefined : ""} custom={direction} variants={reduceMotion ? valueFade : valueRoll} initial="enter" animate="center" exit="exit">{shown}</motion.span>
-                        </AnimatePresence>
-                    </span>
-                    <SelectPrimitive.Icon className={styles.chevron}>
+                    {triggerContent ?? <>
+                        {options[index]?.icon && <span className={styles.optionIcon} aria-hidden="true">{options[index].icon}</span>}
+                        <span className={styles.valueCopy} aria-hidden="true">
+                            <span className={styles.optionHeading}>
+                                <span className={styles.valueText}>
+                                    <AnimatePresence initial={false} custom={direction}>
+                                        <motion.span key={currentValue ? `value-${currentValue}` : "placeholder"} data-placeholder={currentValue ? undefined : ""} custom={direction} variants={reduceMotion ? valueFade : valueRoll} initial="enter" animate="center" exit="exit">{shown}</motion.span>
+                                    </AnimatePresence>
+                                </span>
+                                {options[index]?.badge && <Badge variant="outline" className={styles.badge}>{options[index].badge}</Badge>}
+                            </span>
+                            {options[index]?.description && <span className={styles.selectedDescription} title={options[index].description}>{options[index].description}</span>}
+                        </span>
+                    </>}
+                    {showChevron && <SelectPrimitive.Icon className={styles.chevron}>
                         <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
-                    </SelectPrimitive.Icon>
+                    </SelectPrimitive.Icon>}
                 </SelectPrimitive.Trigger>
-                <SelectPrimitive.Portal>
-                    <SelectPrimitive.Content className={styles.content} position="popper" sideOffset={4} collisionPadding={12}>
+                <SelectPrimitive.Portal container={portalContainer}>
+                    <SelectPrimitive.Content className={[styles.content, contentClassName].filter(Boolean).join(" ")} position="popper" side={side} sideOffset={sideOffset} collisionPadding={12}>
                         <SelectPrimitive.ScrollUpButton className={styles.scrollButton}>
                             <ChevronUp size={16} strokeWidth={1.75} aria-hidden="true" />
                         </SelectPrimitive.ScrollUpButton>
                         <SelectPrimitive.Viewport className={styles.viewport}>
-                            {options.map((option) => (
-                                <SelectPrimitive.Item key={option.value} value={option.value} disabled={option.disabled} className={styles.item}>
+                            {options.map((option, optionIndex) => (
+                                <SelectPrimitive.Item key={option.value} value={option.value} disabled={option.disabled} className={styles.item}
+                                    textValue={option.label} aria-describedby={option.description ? `${controlId}-option-${optionIndex}` : undefined}>
                                     {option.icon && <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span>}
-                                    <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                                    <span className={styles.optionCopy}>
+                                        <span className={styles.optionHeading}>
+                                            <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                                            {option.badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{option.badge}</Badge>}
+                                        </span>
+                                        {option.description && <span id={`${controlId}-option-${optionIndex}`} className={styles.optionDescription} title={option.description}>{option.description}</span>}
+                                    </span>
                                     <SelectPrimitive.ItemIndicator className={styles.indicator}>
                                         <Check size={16} strokeWidth={1.75} aria-hidden="true" />
                                     </SelectPrimitive.ItemIndicator>

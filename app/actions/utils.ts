@@ -69,6 +69,8 @@ export async function getSubtitleTracks(
 ): Promise<
   Array<{
     id?: string;
+    filename?: string;
+    provider?: string;
     kind: string;
     label: string;
     language: string;
@@ -114,6 +116,8 @@ export async function getSubtitleTracks(
 
     const tracks: Array<{
       id?: string;
+      filename?: string;
+      provider?: string;
       kind: string;
       label: string;
       language: string;
@@ -147,8 +151,10 @@ export async function getSubtitleTracks(
           for (const sub of data.subtitles) {
             addonTracks.push({
               id: sub.id,
+              filename: typeof sub.filename === "string" ? sub.filename : undefined,
+              provider: addon.manifest.name,
               kind: "subtitles",
-              label: sub.label || sub.lang || "Unknown",
+              label: sub.label || sub.name || sub.lang || "Unknown",
               language: sub.lang || "unknown",
               src: sub.url,
               default: false,
