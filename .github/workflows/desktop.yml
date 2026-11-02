@@ -56,9 +56,21 @@ on:
       - "lib/cookie-policy.ts"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
+    inputs:
+      windows_rebuild_native:
+        description: Rebuild the native executable and installer using the existing portable server
+        required: false
+        type: boolean
+        default: false
+      windows_artifact_run:
+        description: Existing run whose portable Windows artifact should be smoke-tested without rebuilding
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: desktop-${{ github.ref }}
@@ -66,6 +78,7 @@ concurrency:
 
 jobs:
   native:
+    if: inputs.windows_artifact_run == ''
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +94,7 @@ jobs:
       - run: cargo fmt --manifest-path desktop/Cargo.toml --all -- --check
       - run: cargo test --manifest-path desktop/Cargo.toml --locked
   adapter:
+    if: inputs.windows_artifact_run == ''
     strategy:
       matrix:
         os: [ubuntu-24.04, macos-15]
@@ -111,9 +125,13 @@ jobs:
       - name: Check Windows ZIP compatibility
         run: node scripts/test-windows-package.mjs
       - uses: oven-sh/setup-bun@v2
+        if: inputs.windows_artifact_run == ''
       - uses: dtolnay/rust-toolchain@1.92.0
+        if: inputs.windows_artifact_run == '' || inputs.windows_rebuild_native
       - run: bun install --frozen-lockfile
+        if: inputs.windows_artifact_run == ''
       - run: node scripts/test-windows-desktop.cjs
+        if: inputs.windows_artifact_run == ''
       - name: Parse Windows scripts
         shell: pwsh
         run: |
@@ -123,12 +141,15 @@ jobs:
             if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
           }
       - name: Install NSIS
+        if: inputs.windows_artifact_run == '' || inputs.windows_rebuild_native
         shell: pwsh
         run: |
           choco install nsis --yes --no-progress
           "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
       - run: node scripts/fetch-desktop-libs.mjs
+        if: inputs.windows_artifact_run == ''
       - name: Restore Windows native build cache
+        if: inputs.windows_artifact_run == '' || inputs.windows_rebuild_native
         id: windows-native-cache
         uses: actions/cache/restore@v4
         with:
@@ -136,16 +157,22 @@ jobs:
             desktop/target
             ~/.cargo/registry
             ~/.cargo/git
-          key: windows-desktop-rust-1.92-${{ hashFiles('desktop/Cargo.lock', 'desktop/Cargo.toml', 'desktop/build.rs', 'desktop/src/**/*.rs') }}
+          key: windows-desktop-rust-1.92-${{ hashFiles('desktop/Cargo.lock', 'desktop/Cargo.toml', 'desktop/build.rs', 'desktop/src/**/*.rs', 'scripts/build-windows-native.mjs') }}
           restore-keys: windows-desktop-rust-1.92-
       - name: Check Windows backend process ownership
+        if: inputs.windows_artifact_run == ''
         shell: pwsh
         run: |
           $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
           cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
+      - name: Build standalone native release
+        if: inputs.windows_artifact_run != '' && inputs.windows_rebuild_native
+        run: node scripts/build-windows-native.mjs
       - run: node scripts/desktop.mjs package
+        if: inputs.windows_artifact_run == ''
         id: package
       - name: Verify portable archive includes Next assets
+        if: inputs.windows_artifact_run == ''
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -155,6 +182,59 @@ jobs:
             if (-not ($entries -match 'resources/server/\.next/static/')) { $entries | Select-Object -First 25; throw 'Portable ZIP is missing Next static assets' }
             if (-not ($entries -contains 'resources/server/server.js')) { throw 'Portable ZIP is missing the server' }
           } finally { $zip.Dispose() }
+      - name: Wait for the existing build artifacts
+        if: inputs.windows_artifact_run != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN: ${{ inputs.windows_artifact_run }}
+        run: |
+          if ($env:ARTIFACT_RUN -notmatch '^\d+$') { throw 'Invalid artifact run ID' }
+          $deadline = [DateTime]::UtcNow.AddMinutes(5)
+          do {
+            $names = @(gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:ARTIFACT_RUN/artifacts" --jq '.artifacts[].name')
+            if (($names -contains 'Navigator-Windows-x64-Portable') -and ($names -contains 'Navigator-Windows-x64-Installer')) { break }
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'The source build did not produce its Windows artifacts' }
+            Start-Sleep -Seconds 10
+          } while ($true)
+      - name: Download existing portable build
+        if: inputs.windows_artifact_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Navigator-Windows-x64-*
+          merge-multiple: true
+          run-id: ${{ inputs.windows_artifact_run }}
+          github-token: ${{ github.token }}
+          path: dist/reused
+      - name: Extract existing portable build
+        if: inputs.windows_artifact_run != ''
+        shell: pwsh
+        run: |
+          Expand-Archive -LiteralPath (Get-ChildItem dist/reused/*-portable.zip).FullName -DestinationPath dist/desktop-win32-x64
+          Copy-Item dist/reused/*-setup.exe dist/
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile dist/MicrosoftEdgeWebview2Setup.exe
+          $signature = Get-AuthenticodeSignature dist/MicrosoftEdgeWebview2Setup.exe
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation(?:,|$)') { throw 'Invalid Microsoft WebView2 bootstrapper signature' }
+      - name: Replace native executable in the existing server bundle
+        if: inputs.windows_artifact_run != '' && inputs.windows_rebuild_native
+        run: Copy-Item desktop/target/x86_64-pc-windows-msvc/release/navigator-desktop.exe dist/desktop-win32-x64/navigator-desktop.exe -Force
+      - name: Package rebuilt Windows application
+        id: repackage
+        if: inputs.windows_artifact_run != '' && inputs.windows_rebuild_native
+        shell: pwsh
+        run: |
+          Remove-Item dist/*-setup.exe
+          node --input-type=module -e "import { packageWindows } from './scripts/package-windows.mjs'; import { resolve } from 'node:path'; await packageWindows(resolve('dist/desktop-win32-x64'), '0.1.0');"
+      - name: Verify executable needs no Visual C++ Redistributable
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $dumpbin = & $vswhere -latest -products '*' -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          if (-not $dumpbin) { throw 'MSVC import inspection tool is missing' }
+          $imports = & $dumpbin /dependents dist/desktop-win32-x64/navigator-desktop.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the Windows executable' }
+          $imports | Write-Host
+          if ($imports -match '(?i)(?:vcruntime|msvcp|msvcr)\d+.*\.dll') { throw 'Release executable depends on an unbundled Visual C++ runtime' }
       - name: Ensure WebView2 runtime for the Windows Server runner
         shell: pwsh
         run: |
@@ -163,32 +243,69 @@ jobs:
           $versions = @($keys | ForEach-Object { (Get-ItemProperty -Path $_ -Name pv -ErrorAction SilentlyContinue).pv } | Where-Object { $_ -and $_ -ne '0.0.0.0' })
           if ($versions.Count -eq 0) { throw "WebView2 runtime is unavailable (setup exit code $($setup.ExitCode))" }
       - name: Check native video and transparent WebView2
+        id: video-smoke
         shell: pwsh
         run: ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+      - name: Install the per-user application
+        id: install
+        if: ${{ !cancelled() && (steps.video-smoke.outcome == 'success' || steps.video-smoke.outcome == 'failure') }}
+        shell: pwsh
+        run: |
+          $setup = Start-Process -FilePath (Get-ChildItem dist/*-setup.exe).FullName -ArgumentList '/S' -PassThru
+          if (-not $setup.WaitForExit(90000)) { Stop-Process -Id $setup.Id -Force; throw 'Installer timed out' }
+          if ($setup.ExitCode -ne 0) { throw "Installer exited $($setup.ExitCode)" }
+          if (-not (Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe")) { throw 'Installed executable is missing' }
+          if (-not (Test-Path "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Navigator.lnk")) { throw 'Start menu shortcut is missing' }
+          if (-not (Test-Path 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/NavigatorDesktop')) { throw 'Uninstall registration is missing' }
+      - name: Check installed application startup and shutdown
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: pwsh
+        run: ./scripts/windows-smoke.ps1 -Executable "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe" -LaunchApp -Output dist/windows-app.png
+      - name: Verify uninstall and profile retention
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $uninstall = Start-Process -FilePath "$env:LOCALAPPDATA/Programs/Navigator/Uninstall.exe" -ArgumentList '/S' -PassThru
+          if (-not $uninstall.WaitForExit(30000)) { Stop-Process -Id $uninstall.Id -Force; throw 'Uninstaller timed out' }
+          $deadline = [DateTime]::UtcNow.AddSeconds(15)
+          while ((Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe") -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 200 }
+          if (Test-Path "$env:LOCALAPPDATA/Programs/Navigator/navigator-desktop.exe") { throw 'Uninstaller left the executable behind' }
+          if (Test-Path 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/NavigatorDesktop') { throw 'Uninstaller left its registration behind' }
+          if (-not (Test-Path "$env:LOCALAPPDATA/Navigator Desktop/startup.jsonl")) { throw 'User profile was removed' }
       - name: Upload Windows installer
-        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.package.outcome == 'success' || steps.repackage.outcome == 'success') }}
         uses: actions/upload-artifact@v4
         with:
           name: Navigator-Windows-x64-Installer
           path: dist/*-setup.exe
           if-no-files-found: error
       - name: Upload Windows portable build
-        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.package.outcome == 'success' || steps.repackage.outcome == 'success') }}
         uses: actions/upload-artifact@v4
         with:
           name: Navigator-Windows-x64-Portable
           path: dist/*-portable.zip
           if-no-files-found: error
+      - name: Collect compositor diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/windows-diagnostics | Out-Null
+          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/smoke/startup.jsonl" dist/windows-diagnostics/smoke-startup.jsonl -ErrorAction SilentlyContinue
+          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/startup.jsonl" dist/windows-diagnostics/app-startup.jsonl -ErrorAction SilentlyContinue
+          foreach ($file in @('windows-smoke.png', 'windows-app.png')) {
+            if (Test-Path "dist/$file") { Copy-Item "dist/$file" dist/windows-diagnostics }
+          }
+          Get-Content dist/windows-diagnostics/*startup.jsonl -ErrorAction SilentlyContinue
+          exit 0
       - name: Upload compositor diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Windows-compositor-diagnostics
-          path: |
-            dist/windows-smoke.png
-            ~/AppData/Local/Navigator Desktop/smoke/startup*.jsonl
+          path: dist/windows-diagnostics
       - name: Save Windows native build cache
-        if: always() && steps.windows-native-cache.outputs.cache-hit != 'true'
+        if: always() && (inputs.windows_artifact_run == '' || inputs.windows_rebuild_native) && steps.windows-native-cache.outputs.cache-primary-key != '' && steps.windows-native-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
