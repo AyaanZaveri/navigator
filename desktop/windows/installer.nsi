@@ -113,8 +113,19 @@ Section "Uninstall"
   Delete "$INSTDIR\navigator-desktop.exe"
   Delete "$INSTDIR\Navigator.ico"
   Delete "$INSTDIR\WINDOWS-README.txt"
-  Delete "$INSTDIR\Uninstall.exe"
   RMDir /r "$INSTDIR\resources"
+  ; The launch stub starts this temporary uninstaller before its own process
+  ; finishes exiting. Delete it last, with bounded retries for that image lock.
+  StrCpy $R0 50
+  uninstall_self_retry:
+    ClearErrors
+    Delete "$INSTDIR\Uninstall.exe"
+    IfErrors 0 uninstall_self_done
+    IntOp $R0 $R0 - 1
+    IntCmp $R0 0 uninstall_self_done uninstall_self_done
+    Sleep 100
+    Goto uninstall_self_retry
+  uninstall_self_done:
   RMDir "$INSTDIR"
   DeleteRegKey HKCU "Software\Navigator Desktop"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\NavigatorDesktop"
