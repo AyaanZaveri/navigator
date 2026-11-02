@@ -1,5 +1,7 @@
 "use client";
 
+import artworkStyles from "./media-page/detail-artwork.module.css";
+
 import { ArtworkImage } from "@/components/artwork-image";
 
 import React, {
@@ -491,7 +493,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="shrink-0 w-72">
                   <div className="space-y-3 py-2">
-                    <div className="relative aspect-video rounded-lg overflow-hidden bg-muted shadow-lg">
+                    <div className={`${artworkStyles.surface} relative aspect-video rounded-lg overflow-hidden bg-muted`}>
                       <Skeleton className="w-full h-full" />
                     </div>
                     <div className="space-y-2">
@@ -619,7 +621,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
           <div
             data-episode-artwork=""
             data-pressed={pressed || undefined}
-            className={`${cardStyles.frame} relative aspect-video overflow-hidden ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70 border border-border/70 shadow-xs" : "bg-muted shadow-lg group-hover:shadow-xl"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background shadow-xl shadow-primary/25" : ""}`}
+            className={`${artworkStyles.surface} ${cardStyles.frame} relative aspect-video overflow-hidden ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70 border border-border/70" : "bg-muted"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background" : ""}`}
           >
             {isUpcoming ? (
               <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-medium text-foreground/85">

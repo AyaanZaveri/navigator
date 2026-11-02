@@ -1,3 +1,4 @@
+import artworkStyles from "./detail-artwork.module.css";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Star, TvIcon } from "lucide-react";
@@ -25,12 +26,12 @@ export function EpisodeDetailsView({
       aria-labelledby={titleId}
       className="@container"
     >
-      <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-start @4xl:gap-8">
-        <div className="relative mx-auto aspect-video w-full max-w-xl overflow-hidden rounded-lg bg-muted shadow-lg @4xl:mx-0 @4xl:max-w-none">
+      <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-center @4xl:gap-8">
+        <div className={`${artworkStyles.surface} relative mx-auto aspect-video w-full max-w-xl overflow-hidden rounded-lg bg-muted @4xl:mx-0 @4xl:max-w-none`}>
           {thumbnail}
         </div>
 
-        <div className="flex min-w-0 flex-col gap-6 text-start @4xl:pt-3">
+        <div className="flex min-w-0 flex-col gap-6 text-start">
           <div className="flex min-w-0 flex-col items-center gap-3 text-center @4xl:items-start @4xl:text-start">
             <nav
               aria-label="Episode context"

@@ -2,6 +2,8 @@
 
 import { ArtworkImage } from "@/components/artwork-image";
 
+import styles from "./detail-artwork.module.css";
+
 import { useState } from "react";
 import type { MediaItem } from "@/types/stremio";
 
@@ -18,7 +20,7 @@ export function PosterImage({
   name,
   movie,
   posterImage,
-  className = "w-full h-auto rounded-lg shadow-2xl",
+  className = "w-full h-auto rounded-lg",
   width = 500,
   height = 750,
 }: PosterImageProps) {
@@ -33,7 +35,7 @@ export function PosterImage({
       <div
         role="img"
         aria-label={`${mediaName} poster unavailable`}
-        className={`${className} flex items-center justify-center bg-muted text-sm text-muted-foreground`}
+        className={`${styles.surface} ${className} flex items-center justify-center bg-muted text-sm text-muted-foreground`}
         style={{ aspectRatio: `${width} / ${height}` }}
       >
         Poster unavailable
@@ -44,7 +46,7 @@ export function PosterImage({
   return (
     <ArtworkImage
       draggable={false}
-      className={className}
+      className={`${styles.surface} ${className}`}
       src={resolvedPosterImage}
       alt={`${mediaName} poster`}
       width={width}

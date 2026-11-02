@@ -7,6 +7,7 @@ const { load } = require('./test-support/react-hooks.cjs');
 const native = tag => ({ children, ...props }) => React.createElement(tag, props, children);
 const shared = {
   react: React,
+  './detail-artwork.module.css': { surface: 'detail-artwork' },
   'react/jsx-runtime': require('react/jsx-runtime'),
   'lucide-react': require('lucide-react'),
   'next/link': ({ prefetch, ...props }) => native('a')(props),

@@ -39,7 +39,7 @@ export function EpisodeHeroThumbnail({
 
   if (shouldShowUnavailable) {
     return (
-      <div className="flex h-full w-full items-center justify-center border border-border/70 bg-gradient-to-br from-accent via-accent to-accent/70 px-6 text-center text-sm font-medium text-foreground/85 shadow-xs">
+      <div className="flex h-full w-full items-center justify-center border border-border/70 bg-gradient-to-br from-accent via-accent to-accent/70 px-6 text-center text-sm font-medium text-foreground/85">
         This episode is still in the oven. Serving starts{" "}
         {formattedReleaseDate ? `on ${formattedReleaseDate}` : "soon"}.
       </div>

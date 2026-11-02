@@ -28,7 +28,7 @@ export default async function SeriesOverviewPage({
             <PosterImage
               movie={show}
               posterImage={show.poster || ""}
-              className="w-full h-auto rounded-lg shadow-lg"
+              className="w-full h-auto rounded-lg"
               width={500}
               height={750}
             />

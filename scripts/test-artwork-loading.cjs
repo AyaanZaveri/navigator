@@ -8,6 +8,7 @@ const dependencies = {
   'react/jsx-runtime': require('react/jsx-runtime'),
   'next/link': ({ prefetch, ...props }) => React.createElement('a', props),
   '@/lib/preload-tools': { preloadPlayer() {} },
+  '@/lib/media/playback-details': require('./test-support/playback-context.cjs').details,
   '@/lib/artwork': { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/still.jpg' }), backdropVariantUrl: url => url },
   '@/lib/series-route': { buildEpisodePath: () => '/series/test/1/1' },
   '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },

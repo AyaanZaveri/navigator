@@ -11,6 +11,7 @@ import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import type { Episode } from "@/app/actions/tv-shows";
 import { buildEpisodePath } from "@/lib/series-route";
 import styles from "./media-card.module.css";
+import artworkStyles from "./media-page/detail-artwork.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
 
 export function EpisodeCard({
@@ -49,7 +50,7 @@ export function EpisodeCard({
 
   return (
     <div className={styles.card + " cursor-pointer select-none w-64"}>
-      <div className={styles.frame + " relative w-full border overflow-hidden aspect-video"}
+      <div className={artworkStyles.surface + " " + styles.frame + " relative w-full border overflow-hidden aspect-video"}
         data-pressed={pressed || undefined}
         onPointerDown={event => { if (event.button === 0) setPressed(true); }}
         onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)} onPointerCancel={() => setPressed(false)}>
@@ -63,7 +64,7 @@ export function EpisodeCard({
               alt={episode.title || "Episode"}
             />
           ) : (
-            <div className="w-full h-full bg-gray-800 flex items-center justify-center rounded-lg shadow-lg">
+            <div className="w-full h-full bg-gray-800 flex items-center justify-center rounded-lg">
               <div className="text-white/60 text-sm">No Image</div>
             </div>
           )}

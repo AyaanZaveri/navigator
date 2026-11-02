@@ -119,7 +119,7 @@ export default async function Movie({
                 <PosterImage
                   movie={movie}
                   posterImage={movie.poster || ""}
-                  className="w-full h-auto rounded-lg shadow-lg"
+                  className="w-full h-auto rounded-lg"
                   width={500}
                   height={750}
                 />

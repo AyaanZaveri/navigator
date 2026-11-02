@@ -1,0 +1,13 @@
+/* Artwork rests on the page; reserve raised/floating shadows for overlays. */
+.surface {
+  --detail-artwork-shadow: var(--shadow-resting, 0 1px 2px rgb(0 0 0 / .035));
+  outline: 1px solid rgb(0 0 0 / .1);
+  outline-offset: -1px;
+  /* Preserve Tailwind's selected-episode ring independently of the shadow. */
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--detail-artwork-shadow);
+}
+
+:global(.dark) .surface {
+  --detail-artwork-shadow: 0 0 #0000;
+  outline-color: rgb(255 255 255 / .1);
+}
