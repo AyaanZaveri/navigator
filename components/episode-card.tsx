@@ -32,6 +32,7 @@ export function EpisodeCard({
 
     router.push(linkHref, { scroll: false });
     await playMedia({
+      animateEntrance: e.detail > 0,
       id: seriesId,
       name: episode.title || `Episode ${episode.episode}`,
       type: "series",

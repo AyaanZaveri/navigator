@@ -68,6 +68,7 @@ export function MediaCard({
     if (item) {
       router.push(linkHref, { scroll: false });
       await playMedia({
+        animateEntrance: e.detail > 0,
         id: item.id,
         name: item.episodeTitle || item.name,
         type: item.type,

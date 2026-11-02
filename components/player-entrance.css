@@ -1,0 +1,18 @@
+/* Pointer-triggered card playback: soften the fullscreen switch without moving
+   the picture. Native video is a separate surface and must open without fading
+   a DOM ancestor. The transition leaves no persistent opacity layer afterward. */
+[data-player-enter]:not([data-native-player-shell]) {
+  transition: opacity var(--duration-standard) var(--ease-out);
+}
+
+@starting-style {
+  [data-player-enter]:not([data-native-player-shell]) {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-player-enter]:not([data-native-player-shell]) {
+    transition-duration: var(--duration-instant);
+  }
+}

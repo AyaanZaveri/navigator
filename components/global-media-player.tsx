@@ -1,6 +1,7 @@
 "use client";
 
 import "@/components/player-mobile.css";
+import "@/components/player-entrance.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
 import { PlayerSkipSegments } from "@/components/player-skip-segments";
@@ -694,7 +695,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       ? MuxVideo
       : "video";
   return (
-    <div data-native-player-shell={nativePlayback ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
+    <div data-native-player-shell={nativePlayback ? "" : undefined} data-player-enter={playbackRequest?.animateEntrance ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
         autoHide
         onEnded={handleVideoEnded}
