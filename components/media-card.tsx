@@ -118,6 +118,7 @@ export function MediaCard({
               width={continueWatching ? 320 : 144}
               height={continueWatching ? 180 : 216}
               loading="lazy"
+              data-prefetch-artwork={continueWatching ? "" : undefined}
               onError={() => setFailedImage(imageUrl)}
               alt={item.name || ""}
               className={`${styles.artwork} block w-full h-full object-cover`}
@@ -163,9 +164,12 @@ export function MediaCard({
         ) : null}
 
         {continueWatching && artwork.logo && failedLogo !== artwork.logo ? (
-          <div className="absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6">
+          <div className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
             <img
               src={artwork.logo}
+              loading="lazy"
+              decoding="async"
+              fetchPriority="low"
               onError={() => setFailedLogo(artwork.logo!)}
               alt={`${item.name} logo`}
               className="max-h-[36%] max-w-[78%] w-auto object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]"

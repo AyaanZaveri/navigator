@@ -7,7 +7,13 @@
 .frame {
   isolation: isolate;
   border-radius: var(--media-card-radius);
+  contain: paint;
+  background-color: var(--accent);
 }
+
+/* Don't float a decoded logo over artwork that is still downloading. */
+.wordmark { visibility: hidden; }
+.frame:has(.artwork[data-artwork-state="ready"]) .wordmark { visibility: visible; }
 
 .playOverlay {
   pointer-events: none;

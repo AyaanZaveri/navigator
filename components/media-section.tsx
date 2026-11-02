@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CarouselAction } from "@/components/carousel-action";
 import { MediaCard } from "@/components/media-card";
 import { Play, ChevronLeft, ChevronRight } from "lucide-react";
-import { ScrollArea, ScrollBar } from "./ui/scroll-area";
+import { warmCarouselArtwork } from "@/lib/media/carousel-artwork";
+import styles from "./media-section.module.css";
 import type { MediaItem } from "@/types/stremio";
 
 interface MediaSectionProps {
@@ -23,21 +24,13 @@ export function MediaSection({
   continueWatching = false,
   cardSubtitles,
 }: MediaSectionProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const hasItems = mediaItems.length > 0;
 
   useEffect(() => {
-    if (scrollRef.current) {
-      const viewport = scrollRef.current
-        .closest('[data-slot="scroll-area"]')
-        ?.querySelector(
-          '[data-slot="scroll-area-viewport"]'
-        ) as HTMLDivElement;
-      if (viewport) {
-        viewportRef.current = viewport;
-      }
-    }
-  }, []);
+    const viewport = viewportRef.current;
+    if (continueWatching && viewport) return warmCarouselArtwork(viewport);
+  }, [continueWatching, hasItems]);
 
   const scrollLeft = () => {
     if (viewportRef.current) {
@@ -76,9 +69,10 @@ export function MediaSection({
           </CarouselAction>
         </div>
       </div>
-      {mediaItems.length > 0 ? (
-        <ScrollArea className="w-full">
-          <div className="flex gap-4 w-max" ref={scrollRef}>
+      {hasItems ? (
+        <div ref={viewportRef} data-media-row-viewport="" className={styles.viewport}
+          role="region" aria-label={`${sectionName} titles`} tabIndex={0}>
+          <div className={styles.track}>
             {mediaItems.map((item, index) => (
               <div
                 key={`${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
@@ -92,8 +86,7 @@ export function MediaSection({
               </div>
             ))}
           </div>
-          <ScrollBar orientation="horizontal" className="opacity-0" />
-        </ScrollArea>
+        </div>
       ) : (
         <Card className="bg-card border-border text-foreground">
           <CardContent className="p-8 text-center">
