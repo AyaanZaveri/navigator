@@ -1,0 +1,45 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+let hovered = null, menu = null, focused = null;
+class Element { closest() { return this.control; } matches() { return this.visibleFocus; } }
+const root = { querySelector(selector) { assert.ok(selector.includes('[data-player-close]:hover')); return hovered; }, contains: node => node.inPlayer };
+const context = { exports: {}, Element, document: { get activeElement() { return focused; }, querySelector: () => menu } };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/control-activity.ts', 'utf8'), {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+}).outputText, context);
+const active = () => context.exports.playerControlsActive(root);
+assert.equal(active(), false);
+hovered = {}; for (let idle = 0; idle < 10; idle++) assert.equal(active(), true, 'Stationary mouse keeps timeline/buttons/Back visible indefinitely');
+hovered = null; assert.equal(active(), false, 'Leaving the controls releases the idle hold');
+menu = {}; assert.equal(active(), true, 'Portalled menus stay interactive when the pointer leaves the player'); menu = null;
+focused = new Element(); Object.assign(focused, { inPlayer: true, control: true, visibleFocus: true });
+assert.equal(active(), true, 'Keyboard-focused controls stay visible'); focused.visibleFocus = false; assert.equal(active(), false);
+const source = fs.readFileSync('components/ui/media-player.tsx', 'utf8');
+assert.match(source, /const busy = [\s\S]*?playerControlsActive\(root\)/, 'The real idle timeout consults control hover state');
+assert.match(source, /!dragging && !playerControlsActive\(rootRef.current\)/, 'Leaving the player must preserve portalled control activity');
+// Execute the real timer callback from the component with a stationary pointer.
+const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+let callback;
+function walk(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(parsed) === 'onControlsShow') callback = node.initializer.arguments[0].getText(parsed);
+  ts.forEachChild(node, walk);
+}
+walk(parsed); assert.ok(callback);
+let now = 0, id = 0;
+const timers = new Map(), state = { controlsVisible: true, seekPreviewTime: null };
+Object.assign(context, { playerControlsActive: context.exports.playerControlsActive, rootRef: { current: root },
+  hideControlsTimeoutRef: { current: null }, controlPointerHeldRef: { current: false },
+  autoHide: true, mediaPaused: false, menuOpen: false, dragging: false,
+  store: { setState: (key, value) => state[key] = value, getState: () => state },
+  setTimeout: (fn, delay) => { timers.set(++id, { fn, at: now + delay }); return id; }, clearTimeout: id => timers.delete(id),
+});
+vm.runInNewContext(ts.transpileModule(`exports.show = ${callback}`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, context);
+const advance = ms => { now += ms; for (const [key, timer] of [...timers]) if (timer.at <= now) { timers.delete(key); timer.fn(); } };
+focused = null; hovered = {}; context.exports.show();
+for (let second = 0; second < 20; second++) { advance(1000); assert.equal(state.controlsVisible, true); }
+hovered = null; advance(1000); assert.equal(state.controlsVisible, false, 'The actual timer hides only after the pointer leaves controls');
+context.controlPointerHeldRef.current = true; context.exports.show(); advance(3000); assert.equal(state.controlsVisible, true);
+context.controlPointerHeldRef.current = false; advance(1000); assert.equal(state.controlsVisible, false);
+console.log('PASS: stationary timeline/button/Back hover, portalled menus, keyboard focus and release after leaving controls');
