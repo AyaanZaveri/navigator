@@ -3,6 +3,8 @@ import { cp, mkdir, access, writeFile, chmod } from "node:fs/promises";
 import { resolve, dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchNodeRuntime } from "./desktop-runtime.mjs";
+import { packageWindows } from "./package-windows.mjs";
+import { readFile } from "node:fs/promises";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const desktop = join(root, "desktop");
@@ -80,6 +82,11 @@ try {
             await chmod(join(bin, nativeName), 0o755);
             // Development bundle. Developer ID signing/notarization is a separate release step.
             await run("codesign", ["--force", "--deep", "--sign", "-", join(output, "Navigator.app")]);
+        }
+        if (process.platform === "win32") {
+            const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+            const artifacts = await packageWindows(output, version);
+            console.log(`Windows installer: ${artifacts.installer}\nPortable ZIP: ${artifacts.portable}`);
         }
         console.log(`Packaged desktop app: ${output}`);
     } else {

@@ -4,6 +4,103 @@ Navigator's existing Next.js/React UI above native **libmpv** playback. Video
 frames stay in the native GPU surface; a small JSON bridge carries commands and
 state. Browser playback continues to use the current Mux/HTML media player.
 
+## Windows private build
+
+The **Desktop playback** GitHub workflow produces separate installer and portable
+artifacts (`Navigator-Windows-x64-Installer` and
+`Navigator-Windows-x64-Portable`) containing `Navigator-<version>-windows-x64-setup.exe`
+and `Navigator-<version>-windows-x64-portable.zip`. Download the desired artifact
+from a successful workflow run. Builds target Intel/AMD Windows 11 PCs; 25H2 and 26H2
+are the initial manual validation targets. They are unsigned private builds,
+with manual upgrades and no automatic updater.
+
+The installer runs per user, adds a Start menu shortcut and uninstall entry,
+and installs Microsoft Edge WebView2 Evergreen if missing. The downloaded
+bootstrapper must have a valid Microsoft Authenticode signature before it can
+be included. The portable ZIP must be extracted in full and needs an installed
+WebView2 runtime. Both variants retain sign-in/settings in
+`%LOCALAPPDATA%\Navigator Desktop`; uninstalling keeps that profile.
+
+To package on Windows x64, install Rust 1.92+, MSVC C++ build tools/Windows SDK,
+Node 26.7.0 and NSIS (`makensis.exe` on PATH, or `NAVIGATOR_MAKENSIS` set to its
+absolute path), install the web dependencies, then run:
+
+```powershell
+npm run desktop:fetch-libs
+npm run desktop:package
+```
+
+Packaging builds the native EXE with the existing multi-size Windows icon,
+version resources and a Per-Monitor V2 manifest. It also includes the standalone
+Next server, pinned Node runtime and native libraries. The ZIP explicitly keeps
+`.next/static`; no user credentials are bundled. Build on Windows for release
+artifacts; cross-target `cargo check` skips Windows resource compilation.
+
+Windows retains system caption buttons, window menus, Alt+F4, Snap and native
+fullscreen. Its minimum client size is 480×360 logical pixels; player controls
+wrap in narrow windows. Normal window size/position and maximized state persist,
+and saved placement is clamped onto an available display. A second launch
+restores/activates the running window.
+
+The first frame is a small native loading view. Backend and mpv initialization
+run on a worker while the window remains responsive; WebView2 is created after
+the backend is ready. A painted React readiness signal removes the loading
+view and synchronizes the caption theme. Closing during startup cancels the
+backend wait. The backend is assigned to a kill-on-close Windows Job Object
+atomically at creation, then resumes without a console; its descendants cannot
+outlive Navigator. Playback frames stay native, and progress stays throttled
+while control-state changes are delivered immediately.
+
+### Windows verification and performance
+
+```powershell
+npm run test:windows-desktop
+npm run desktop:check
+$env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
+cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
+./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+./scripts/windows-performance.ps1 -AppProcessId <NavigatorPID> -Seconds 30
+```
+
+The smoke check starts no server, uses generated color bars and a separate
+`Navigator Desktop\smoke` profile, verifies native playback progress and the
+WebView bridge, captures the compositor output, checks visible bars, and closes
+normally. CI uploads the screenshot and timing log as compositor diagnostics.
+It does not establish hardware decoding, HDR accuracy or physical-display behavior.
+
+`startup.jsonl` in the local data directory records elapsed milliseconds for
+`window-visible`, `backend-ready`, `player-ready`, `webview-created`, `page-loaded`
+and `app-ready`. The visibility mark records the native show call, not a measured
+display scanout; readiness records the painted hydrated shell, not completion
+of remote catalog requests. Logs rotate at 1 MiB and contain no media URLs or
+credentials. First-window and interactive-startup goals are 300 ms and
+1 second warm / 2.5 seconds cold respectively; these are goals until measured
+on the target PC. Compare repeated cold and warm Release launches separately.
+
+The performance script records the complete Navigator/Node/WebView2 process
+tree's summed working sets, private bytes, CPU and available GPU engine counters.
+Working-set sums may count shared pages more than once. GPU columns sum the
+matching engines and remain blank when counters are unavailable/localized.
+Use WebView2 DevTools' Performance panel (`--devtools`) for long tasks and frame
+stalls, and Windows Performance Recorder/Analyzer for native scheduling and GPU
+investigation. Measure idle browsing and playback separately.
+
+Before accepting a private build on physical Windows hardware, check:
+
+- Installation, upgrade and uninstall on a PC without Node or developer tools;
+  sign-in survives upgrade and uninstall leaves settings intact.
+- Snapping, 480×360 controls, keyboard focus, second-launch activation,
+  maximize/fullscreen restoration and moving between 100/150/200% DPI displays.
+- Transparent controls, subtitles, pause/seek/volume feedback, expired streams,
+  rapid replacements, minimize/restore, sleep/resume and audio-device changes.
+- Closing during backend startup and playback leaves no owned Node process.
+- SDR playback and HDR-to-SDR fallback. Validate HDR on a physical HDR display,
+  including SDR→HDR→SDR, Windows HDR toggles and moving between SDR/HDR monitors,
+  before making HDR claims.
+
+ARM64 release artifacts, a custom integrated title bar, OS media controls,
+public signing, Store distribution and automatic updates remain later milestones.
+
 The renderer is adapted from AIOStreams; see [THIRD-PARTY.md](THIRD-PARTY.md)
 for exact provenance and the AGPL license.
 
