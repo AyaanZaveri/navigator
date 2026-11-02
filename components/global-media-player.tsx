@@ -82,7 +82,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     ? preparedPlayback.media : playbackRequest;
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
-  const [nativePlayback, setNativePlayback] = useState(false);
+  const [nativePlayback] = useState(() => Boolean(desktopBridge()));
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
   const reportNavigatorPlayback = useCallback((state: "playing" | "error" | "closed", message?: string) => {
@@ -92,7 +92,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     }));
   }, [playbackRequest]);
   const [requestHeaders, setRequestHeaders] = useState<Record<string, string>>({});
-  useEffect(() => { setNativePlayback(!!desktopBridge()); }, []);
   useLayoutEffect(() => {
     if (!nativePlayback || !isPlayerVisible || !currentMedia) return;
     document.documentElement.dataset.nativePlaying = "";

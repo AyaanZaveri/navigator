@@ -54,31 +54,3 @@
     color: var(--muted-foreground);
   }
 }
-
-/* Keep the compact launcher easy to tap, just above the phone's safe area. */
-@media (width < 40rem) {
-  [data-navigator-focus-ui]:has([data-navigator-launcher]) {
-    bottom: calc(.5rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  [data-navigator-launcher] {
-    position: relative;
-    height: 2.25rem;
-    gap: .5rem;
-    padding-inline: .875rem;
-    font-size: .875rem;
-    line-height: 1.25rem;
-  }
-
-  /* Preserve a 44px touch target around the smaller visible pill. */
-  [data-navigator-launcher]::before {
-    content: "";
-    position: absolute;
-    inset: -4px 0;
-  }
-
-  [data-navigator-launcher] > svg {
-    width: 1rem;
-    height: 1rem;
-  }
-}

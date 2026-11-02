@@ -3,8 +3,7 @@
 import { useAtom } from "jotai";
 import { usePathname } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
-import AIAsk from "@/components/navigator/ai-ask";
-import { GlobalMediaPlayer } from "@/components/global-media-player";
+import { DeferredTools } from "@/components/deferred-tools";
 import {
     isAIAskOpenAtom,
     isFullscreenAtom,
@@ -76,8 +75,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
                         {children}
                     </main>
                 </div>
-                {navigatorEnabled && <AIAsk userId={userId || email} />}
-                <GlobalMediaPlayer onToggleAIAsk={navigatorEnabled ? handleToggleAIAsk : undefined} />
+                <DeferredTools userId={userId || email} navigatorEnabled={navigatorEnabled} onToggleAIAsk={handleToggleAIAsk} />
             </div>
         </AuroraProvider>
     );

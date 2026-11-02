@@ -7,6 +7,7 @@ const state = [];
 let stateIndex = 0;
 const playback = [];
 const context = { exports: {}, require(name) {
+    if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
     if (name === 'react') return { ...React, useState(initial) {
         const index = stateIndex++;
         if (!(index in state)) state[index] = initial;

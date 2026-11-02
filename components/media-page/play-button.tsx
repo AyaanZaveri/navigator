@@ -1,5 +1,7 @@
 "use client";
 
+import { preloadPlayer } from "@/lib/preload-tools";
+
 import { useEffect, useState } from "react";
 import { Play, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,7 +60,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             <Button
                 type="button"
                 variant="default"
-                size="lg"
+                size="lg" onPointerEnter={preloadPlayer} onFocus={preloadPlayer}
                 className="min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5 hover:bg-foreground/90 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
                 disabled={checkingProgress}
                 aria-busy={checkingProgress || undefined}

@@ -1,5 +1,7 @@
 "use client";
 
+import { preloadPlayer } from "@/lib/preload-tools";
+
 import React from "react";
 import Link from "next/link";
 import { Play } from "lucide-react";
@@ -73,6 +75,8 @@ export function EpisodeCard({
               type="button"
               aria-label={"Play " + (episode.title || "Episode " + episode.episode)}
               onClick={handlePlayClick}
+            onPointerEnter={preloadPlayer}
+            onFocus={preloadPlayer}
               className={styles.playButton + " rounded-full p-3"}
             >
               <Play className="h-6 w-6 text-white fill-white" />

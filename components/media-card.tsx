@@ -1,5 +1,7 @@
 "use client";
 
+import { preloadPlayer } from "@/lib/preload-tools";
+
 import React, { useState } from "react";
 import { mediaArtwork } from "@/lib/artwork";
 import Link from "next/link";
@@ -124,6 +126,8 @@ export function MediaCard({
             type="button"
             aria-label={`Play ${item.episodeTitle || item.name}`}
             onClick={handlePlayClick}
+            onPointerEnter={preloadPlayer}
+            onFocus={preloadPlayer}
             className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
           >
             <Play className="h-6 w-6 text-white fill-white" />
