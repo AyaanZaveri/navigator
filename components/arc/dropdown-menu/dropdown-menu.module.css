@@ -36,7 +36,10 @@
 .copy { display: grid; min-width: 0; flex: 1; gap: 3px; }
 .heading { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: .75rem; line-height: 1.4; }
+.copy:has(.flag) .description { padding-inline-start: 24px; }
 .indicator { position: absolute; inset-inline-end: 10px; display: inline-flex; }
 .badge { padding: 1px 5px; border-radius: 4px; font-size: .625rem; letter-spacing: .04em; }
+.flag { display: block; flex: none; width: 16px; height: 16px; border-radius: 50%; outline: 1px solid rgb(0 0 0 / .1); outline-offset: -1px; }
+:global(.dark) .flag { outline-color: rgb(255 255 255 / .1); }
 @keyframes menu-exit { to { --menu-exit: 1; } }
 @media (prefers-reduced-motion: reduce) { .menu, .menu[data-state="closed"] { transform: none; transition: opacity var(--duration-instant) linear; } }

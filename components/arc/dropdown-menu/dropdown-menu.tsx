@@ -42,13 +42,15 @@ export function DropdownMenuSubContent({ container, className, sideOffset = 14, 
   </Primitive.Portal>;
 }
 
-export function DropdownMenuRadioItem({ children, badge, description, className, ...props }:
-  ComponentProps<typeof Primitive.RadioItem> & { badge?: string; description?: string }) {
+export function DropdownMenuRadioItem({ children, badge, description, flag, className, ...props }:
+  ComponentProps<typeof Primitive.RadioItem> & { badge?: string; description?: string; flag?: string }) {
   const descriptionId = useId();
   return <Primitive.RadioItem {...props} aria-describedby={description ? descriptionId : undefined}
     className={cn(styles.item, styles.radio, className)}>
     <span className={styles.copy}>
-      <span className={styles.heading}>{children}
+      <span className={styles.heading}>
+        {flag && <img src={flag} width={16} height={16} alt="" aria-hidden="true" draggable={false} decoding="async" className={styles.flag} />}
+        {children}
         {badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{badge}</Badge>}
       </span>
       {description && <span id={descriptionId} className={styles.description} title={description}>{description}</span>}
@@ -62,6 +64,7 @@ export interface DropdownOption {
   label: string;
   description?: string;
   badge?: string;
+  flag?: string;
   disabled?: boolean;
 }
 
@@ -72,7 +75,7 @@ export function DropdownMenuOptions({ value, options, onValueChange } : {
 }) {
   return <DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>
     {options.map(option => <DropdownMenuRadioItem key={option.value} value={option.value}
-      textValue={option.label} disabled={option.disabled} description={option.description} badge={option.badge}>
+      textValue={option.label} disabled={option.disabled} description={option.description} badge={option.badge} flag={option.flag}>
       {option.label}
     </DropdownMenuRadioItem>)}
   </DropdownMenuRadioGroup>;

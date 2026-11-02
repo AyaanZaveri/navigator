@@ -1,3 +1,5 @@
+import { trackFlagPath } from "./track-flags";
+
 export interface TrackDetails {
   language?: string;
   label?: string;
@@ -9,13 +11,13 @@ export interface TrackDetails {
 const names = new Intl.DisplayNames(["en"], { type: "language", fallback: "none" });
 const aliases: Record<string, string> = { pob: "pt-BR", pb: "pt-BR", scc: "sr", scr: "hr" };
 
-export function trackLanguage(language?: string): { label: string; badge?: string } {
+export function trackLanguage(language?: string): { label: string; badge?: string; flag?: string } {
   const raw = language?.trim().replaceAll("_", "-").toLowerCase();
   if (!raw || ["unknown", "und", "mul", "zxx"].includes(raw)) return { label: "Unknown language" };
   try {
     const canonical = Intl.getCanonicalLocales(aliases[raw] ?? raw)[0];
     const label = names.of(canonical);
-    if (label) return { label, badge: canonical.toUpperCase() };
+    if (label) return { label, badge: canonical.toUpperCase(), flag: trackFlagPath(canonical) };
   } catch { /* Malformed add-on language codes must not break the player menu. */ }
   return { label: "Unknown language" };
 }
