@@ -2,9 +2,10 @@
 
 import { useEffect, useState, type RefObject } from "react";
 import { AudioLines, Captions } from "lucide-react";
-import { Select } from "@/components/arc/select/select";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuOptions } from "@/components/arc/dropdown-menu/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { trackOptions } from "@/lib/media/track-label";
-import styles from "@/components/player-settings-panel.module.css";
+import styles from "@/components/player-settings-menu.module.css";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import type { NativeTrack } from "@/lib/desktop/bridge";
 
@@ -31,15 +32,18 @@ export function DesktopTracks({ mediaRef, sourceKey, onNativeSubtitle }: {
       language: track.lang, label: track.title,
       provider: kind === "audio" ? "Embedded audio" : "Embedded subtitles",
     }))).map(option => ({ ...option, value: String(choices[Number(option.value)].id) }));
-    return <Select key={kind} label={label} hideLabel
-      triggerContent={<Icon aria-hidden="true" />} showChevron={false}
-      className={styles.trackTrigger} contentClassName={styles.trackOptions}
-      portalContainer={container} side="top" sideOffset={10}
-      value={String(choices.find(track => track.selected)?.id ?? "no")}
-      options={kind === "sub" ? [{ value: "no", label: "Off" }, ...options] : options}
-      onValueChange={id => {
-        if (kind === "sub") onNativeSubtitle();
-        (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack(kind === "audio" ? "audio" : "subtitle", id);
-      }} />;
+    return <DropdownMenu key={kind} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={label} className="text-white hover:text-white hover:bg-white/20"><Icon aria-hidden="true" /></Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent container={container} side="top" sideOffset={10} align="end" aria-label={label} className={styles.trackMenu}>
+        <DropdownMenuOptions value={String(choices.find(track => track.selected)?.id ?? "no")}
+          options={kind === "sub" ? [{ value: "no", label: "Off" }, ...options] : options}
+          onValueChange={id => {
+            if (kind === "sub") onNativeSubtitle();
+            (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack(kind === "audio" ? "audio" : "subtitle", id);
+          }} />
+      </DropdownMenuContent>
+    </DropdownMenu>;
   })}</>;
 }

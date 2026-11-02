@@ -1,10 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select } from "@/components/arc/select/select";
-import { PlayerSettingsPanel } from "@/components/player-settings-panel";
-import playerSettingsStyles from "@/components/player-settings-panel.module.css";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
+  DropdownMenuGroup, DropdownMenuLabel, DropdownMenuOptions,
+} from "@/components/arc/dropdown-menu/dropdown-menu";
+import { PlayerSettingsMenu } from "@/components/player-settings-menu";
+import playerSettingsStyles from "@/components/player-settings-menu.module.css";
 import { trackOptions } from "@/lib/media/track-label";
 import {
   Tooltip,
@@ -509,7 +511,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       rootImplProps.onKeyDown?.(event);
 
       if (event.defaultPrevented) return;
-      if (event.target instanceof Element && event.target.closest('[role="combobox"], [role="listbox"], [role="option"], [role="dialog"]')) return;
+      if (event.target instanceof Element && event.target.closest('[role="combobox"], [role="listbox"], [role="option"], [role="dialog"], [role="menu"]')) return;
 
       const mediaElement = mediaRef.current;
       if (!mediaElement) return;
@@ -2688,13 +2690,20 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
     [store.setState, onOpenChangeProp]
   );
 
-  return <Select label="Playback speed" hideLabel
-    value={String(mediaPlaybackRate)} onValueChange={value => onPlaybackRateChange(Number(value))}
-    open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange}
-    side="top" sideOffset={sideOffset} disabled={isDisabled}
-    className={cn(playerSettingsStyles.speedTrigger, className)} contentClassName={playerSettingsStyles.options}
-    portalContainer={context.rootRef.current ?? context.portalContainer}
-    options={speeds.map(speed => ({ value: String(speed), label: `${speed}×` }))} />;
+  return <DropdownMenu open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange} modal={false}>
+    <MediaPlayerTooltip tooltip="Playback speed" shortcut={["<", ">"]}>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" disabled={isDisabled}
+          aria-label="Playback speed" className={cn("h-8 w-16 aria-[expanded=true]:bg-accent/50", className)}>
+          {mediaPlaybackRate}×
+        </Button>
+      </DropdownMenuTrigger>
+    </MediaPlayerTooltip>
+    <DropdownMenuContent container={context.rootRef.current ?? context.portalContainer} side="top" sideOffset={sideOffset}>
+      <DropdownMenuOptions value={String(mediaPlaybackRate)} onValueChange={value => onPlaybackRateChange(Number(value))}
+        options={speeds.map(speed => ({ value: String(speed), label: `${speed}×` }))} />
+    </DropdownMenuContent>
+  </DropdownMenu>;
 
 }
 
@@ -3091,50 +3100,53 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   );
 
   return (
-    <Popover modal={modal} open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
+    <DropdownMenu modal={modal} open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
       <MediaPlayerTooltip tooltip="Settings">
-        <PopoverTrigger asChild>
+        <DropdownMenuTrigger asChild>
           <Button type="button" aria-controls={context.mediaId} aria-label="Settings"
             data-disabled={isDisabled ? "" : undefined} data-slot="media-player-settings"
             disabled={isDisabled} {...settingsProps} variant="ghost" size="icon"
             className={cn("size-8 aria-[expanded=true]:bg-accent/50", className)}>
             <SettingsIcon />
           </Button>
-        </PopoverTrigger>
+        </DropdownMenuTrigger>
       </MediaPlayerTooltip>
-      <PopoverContent align="end" side="top" sideOffset={sideOffset}
+      <DropdownMenuContent align="end" side="top" sideOffset={sideOffset}
         container={context.rootRef.current ?? context.portalContainer}
         aria-label="Playback settings"
-        className="w-96 max-w-[calc(100vw-24px)] max-h-[min(80dvh,var(--radix-popover-content-available-height))] overflow-y-auto">
-        <PlayerSettingsPanel speed={mediaPlaybackRate} speeds={speeds} onSpeedChange={onPlaybackRateChange}
-          disabled={isDisabled} portalContainer={context.rootRef.current ?? context.portalContainer}
-          quality={context.isVideo && mediaRenditionList.length > 0 ? {
-            value: selectedRenditionId || "auto",
-            onChange: onRenditionChange,
-            options: [{ value: "auto", label: "Auto" }, ...mediaRenditionList.slice()
-              .sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
-              .flatMap(rendition => rendition.id ? [{ value: rendition.id, label: rendition.height
-                ? `${rendition.height}p` : rendition.width ? `${rendition.width}p` : rendition.id }] : [])],
-          } : undefined}
-          subtitles={{
-            value: selectedSubtitleIndex >= 0 ? String(selectedSubtitleIndex) : "off",
-            options: [{ value: "off", label: "Off" }, ...trackOptions(subtitleTracks)],
-            onChange: value => {
-              if (value === "off") {
-                if (context.customSubtitlesEnabled) context.onCustomSubtitleChange?.(null);
-                else onSubtitlesToggle();
-                return;
-              }
-              const index = Number(value);
-              if (!Number.isInteger(index) || index < 0) return;
-              if (context.customSubtitlesEnabled) {
-                const track = context.customSubtitleTracks?.[index];
-                if (track) context.onCustomSubtitleChange?.(track);
-              } else if (mediaSubtitlesList[index]) onShowSubtitleTrack(mediaSubtitlesList[index]);
-            },
-          }} />
-      </PopoverContent>
-    </Popover>
+        className={playerSettingsStyles.settingsMenu}>
+        <DropdownMenuLabel className="sr-only">Playback settings</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <PlayerSettingsMenu speed={mediaPlaybackRate} speeds={speeds} onSpeedChange={onPlaybackRateChange}
+            disabled={isDisabled} portalContainer={context.rootRef.current ?? context.portalContainer}
+            quality={context.isVideo && mediaRenditionList.length > 0 ? {
+              value: selectedRenditionId || "auto",
+              onChange: onRenditionChange,
+              options: [{ value: "auto", label: "Auto" }, ...mediaRenditionList.slice()
+                .sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
+                .flatMap(rendition => rendition.id ? [{ value: rendition.id, label: rendition.height
+                  ? `${rendition.height}p` : rendition.width ? `${rendition.width}p` : rendition.id }] : [])],
+            } : undefined}
+            subtitles={{
+              value: selectedSubtitleIndex >= 0 ? String(selectedSubtitleIndex) : "off",
+              options: [{ value: "off", label: "Off" }, ...trackOptions(subtitleTracks)],
+              onChange: value => {
+                if (value === "off") {
+                  if (context.customSubtitlesEnabled) context.onCustomSubtitleChange?.(null);
+                  else onSubtitlesToggle();
+                  return;
+                }
+                const index = Number(value);
+                if (!Number.isInteger(index) || index < 0) return;
+                if (context.customSubtitlesEnabled) {
+                  const track = context.customSubtitleTracks?.[index];
+                  if (track) context.onCustomSubtitleChange?.(track);
+                } else if (mediaSubtitlesList[index]) onShowSubtitleTrack(mediaSubtitlesList[index]);
+              },
+            }} />
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
 }

@@ -1,0 +1,5 @@
+.rowLabel { flex: 1; }
+.summary { max-width: 7.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: .75rem; }
+.settingsMenu { --dropdown-width: 14rem; }
+.subtitleMenu, .trackMenu { --dropdown-width: 24rem; }
+.empty { margin: 0; padding: 8px 11px; color: var(--muted-foreground); font-size: .75rem; line-height: 1.5; }

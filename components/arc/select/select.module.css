@@ -2,7 +2,7 @@
 .field { display: grid; gap: var(--space-2); min-width: 0; }
 .field label { font-size: var(--text-sm); font-weight: 500; }
 /* The trigger anchors the floating menu. Radix opens on pointerdown and measures this box, so it never scales: press feedback is color only. */
-.trigger { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: var(--select-trigger-width, 100%); min-height: var(--select-trigger-height, var(--control-height-md)); border: 1px solid var(--border); border-radius: var(--radius-control); padding: var(--select-trigger-padding, 0 var(--space-3)); background: var(--select-trigger-surface, color-mix(in oklab, var(--surface) var(--select-opacity), transparent)); color: var(--foreground); font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard); }
+.trigger { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; min-height: var(--control-height-md); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 var(--space-3); background: var(--select-trigger-surface, color-mix(in oklab, var(--surface) var(--select-opacity), transparent)); color: var(--foreground); font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard); }
 @media (hover: hover) and (pointer: fine) { .trigger:hover:not([data-disabled]) { border-color: color-mix(in oklab, var(--border), var(--foreground) var(--select-border-emphasis)); background: var(--select-trigger-surface, color-mix(in oklab, color-mix(in oklab, var(--surface) 96%, var(--foreground) 4%) var(--select-opacity), transparent)); } }
 .trigger:active:not([data-disabled]), .trigger[data-state="open"] { border-color: color-mix(in oklab, var(--border), var(--foreground) var(--select-border-emphasis)); background: var(--select-trigger-surface, color-mix(in oklab, color-mix(in oklab, var(--surface) 96%, var(--foreground) 4%) var(--select-opacity), transparent)); }
 .trigger:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent); }
@@ -15,7 +15,7 @@
 .trigger[data-state="open"] .chevron { transform: rotate(180deg); }
 .hint { color: var(--text-muted); font-size: var(--text-xs); }
 /* Radix holds the animation until the menu is positioned, so it always grows from the trigger edge. */
-.content { --select-opacity: 90%; --menu-x: 0px; --menu-y: -6px; box-sizing: border-box; z-index: var(--layer-overlay); width: var(--select-content-width, var(--radix-select-trigger-width)); min-width: var(--radix-select-trigger-width); max-width: min(24rem, calc(100vw - 20px)); max-height: min(var(--select-max-height, 320px), var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius-control) + 2px); padding: 6px; background: color-mix(in oklab, var(--surface-raised) var(--select-opacity), transparent); color: var(--foreground); box-shadow: var(--shadow-floating); transform-origin: var(--radix-select-content-transform-origin); animation: select-in var(--duration-standard) var(--ease-enter) both; }
+.content { --select-opacity: 90%; --menu-x: 0px; --menu-y: -6px; box-sizing: border-box; z-index: var(--layer-overlay); width: var(--radix-select-trigger-width); min-width: var(--radix-select-trigger-width); max-width: min(24rem, calc(100vw - 20px)); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius-control) + 2px); padding: 6px; background: color-mix(in oklab, var(--surface-raised) var(--select-opacity), transparent); color: var(--foreground); box-shadow: var(--shadow-floating); transform-origin: var(--radix-select-content-transform-origin); animation: select-in var(--duration-standard) var(--ease-enter) both; }
 .content[data-side="top"] { --menu-y: 6px; }
 .content[data-side="left"] { --menu-x: 6px; --menu-y: 0px; }
 .content[data-side="right"] { --menu-x: -6px; --menu-y: 0px; }
@@ -39,13 +39,6 @@
 
 .optionIcon { display: inline-flex; flex: 0 0 auto; width: 16px; height: 16px; align-items: center; justify-content: center; }
 .optionIcon > svg { width: 16px; height: 16px; }
-.optionCopy { display: grid; min-width: 0; flex: 1; padding-block: 8px; gap: 3px; }
-.valueCopy { display: grid; min-width: 0; flex: 1; gap: 3px; }
-.selectedDescription { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.4; }
-.trigger:has(.selectedDescription) { padding-block: 8px; }
-.optionHeading { display: flex; min-width: 0; align-items: center; gap: 8px; }
-.optionDescription { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.4; }
-.badge { font-size: .625rem; line-height: 1.4; padding: 1px 5px; border-radius: 4px; letter-spacing: .04em; }
 
 :global(html:not(.dark)) .trigger,
 :global(html:not(.dark)) .content { --select-opacity: 98%; --select-border-emphasis: 2%; }
@@ -54,6 +47,3 @@
   :global(html:not(.dark)) .trigger,
   :global(html:not(.dark)) .content { --select-opacity: 100%; }
 }
-
-.trigger[data-icon-trigger] { display: grid; place-items: center; width: 2rem; min-height: 2rem; padding: 0; border-color: transparent; background: transparent; }
-.trigger[data-icon-trigger] > svg { width: 1rem; height: 1rem; }

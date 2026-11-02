@@ -33,9 +33,10 @@ function component(name, context, state, sent) {
     SETTINGS_NAME: 'Settings', PLAYBACK_SPEED_NAME: 'Speed', FLOATING_MENU_SIDE_OFFSET: 10,
     SPEEDS: [0.5, 1, 1.5, 2], trackOptions: labels.trackOptions,
     cn: (...values) => values.filter(Boolean).join(' '),
-    playerSettingsStyles: { speedTrigger: 'speed' },
-    Select: 'Select', PlayerSettingsPanel: 'PlayerSettingsPanel', Popover: 'Popover',
-    PopoverContent: 'PopoverContent', PopoverTrigger: 'PopoverTrigger',
+    playerSettingsStyles: { settingsMenu: 'settingsMenu' },
+    PlayerSettingsMenu: 'PlayerSettingsMenu', DropdownMenu: 'DropdownMenu',
+    DropdownMenuContent: 'DropdownMenuContent', DropdownMenuTrigger: 'DropdownMenuTrigger',
+    DropdownMenuOptions: 'DropdownMenuOptions', DropdownMenuGroup: 'Group', DropdownMenuLabel: 'Label',
     MediaPlayerTooltip: 'Tooltip', SettingsIcon: 'svg', Button: 'Button',
   };
   vm.runInNewContext(ts.transpileModule(`export ${node.getText(parsed)}`, {
@@ -56,14 +57,14 @@ const selected = [], sent = [], root = {};
 const context = { rootRef: { current: root }, customSubtitlesEnabled: true, customSubtitleTracks: tracks, onCustomSubtitleChange: track => selected.push(track), isVideo: true };
 const state = { mediaPlaybackRate: 1, mediaRenditionList: [{ id: '720', height: 720 }, { id: '1080', height: 1080 }] };
 const tree = component('MediaPlayerSettings', context, state, sent);
-assert.equal(tree.type, 'Popover', 'Settings use a form panel instead of nested selection submenus');
+assert.equal(tree.type, 'DropdownMenu', 'Settings retain the compact dropdown instead of a form panel');
 tree.props.onOpenChange(true);
 assert.equal(sent[0][0], 'menuOpen');
 assert.equal(sent[0][1], true);
-const content = find(tree, 'PopoverContent')[0];
+const content = find(tree, 'DropdownMenuContent')[0];
 assert.equal(content.props.container, root, 'Settings inherit player theme and remain visible in fullscreen');
-assert.match(content.props.className, /w-96/);
-const panel = find(tree, 'PlayerSettingsPanel')[0];
+assert.equal(content.props.className, 'settingsMenu');
+const panel = find(tree, 'PlayerSettingsMenu')[0];
 assert.equal(panel.props.subtitles.value, '2');
 assert.equal(panel.props.subtitles.options[1].label, 'English', 'English options are first without changing track indices');
 panel.props.subtitles.onChange('2');
@@ -81,52 +82,63 @@ const native = { kind: 'captions', language: 'en', label: 'English SDH' };
 const nativeTree = component('MediaPlayerSettings', { ...context, customSubtitlesEnabled: false }, {
   mediaSubtitlesList: [native], mediaSubtitlesShowing: [native],
 }, sent);
-const nativePanel = find(nativeTree, 'PlayerSettingsPanel')[0];
+const nativePanel = find(nativeTree, 'PlayerSettingsMenu')[0];
 assert.equal(nativePanel.props.subtitles.value, '0');
 nativePanel.props.subtitles.onChange('0');
 assert.equal(sent.at(-1).detail, native);
 nativePanel.props.subtitles.onChange('off');
 assert.equal(sent.at(-1).detail, false);
 assert.equal(nativePanel.props.quality, undefined, 'A direct stream has no fabricated quality options');
-assert.equal(component('MediaPlayerPlaybackSpeed', context, {}, sent).type, 'Select');
+assert.equal(component('MediaPlayerPlaybackSpeed', context, {}, sent).type, 'DropdownMenu');
 let keyboardHandler;
 function findKeyboard(node) {
   if (!keyboardHandler && ts.isVariableDeclaration(node) && node.name.getText(parsed) === 'onKeyDown') keyboardHandler = node.initializer.arguments[0].getText(parsed);
   ts.forEachChild(node, findKeyboard);
 }
 findKeyboard(parsed);
-class SelectElement { closest(selector) { assert.ok(selector.includes('[role="listbox"]')); return this; } }
-const keyboard = { exports: {}, disabled: false, rootImplProps: {}, Element: SelectElement,
-  mediaRef: { get current() { throw Error('Select typeahead must not reach playback shortcuts'); } } };
+class MenuElement { closest(selector) { assert.ok(selector.includes('[role="menu"]')); return this; } }
+const keyboard = { exports: {}, disabled: false, rootImplProps: {}, Element: MenuElement,
+  mediaRef: { get current() { throw Error('Menu typeahead must not reach playback shortcuts'); } } };
 vm.runInNewContext(ts.transpileModule(`exports.handle = ${keyboardHandler};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, keyboard);
-keyboard.exports.handle({ target: new SelectElement(), key: 'f', defaultPrevented: false });
+keyboard.exports.handle({ target: new MenuElement(), key: 'f', defaultPrevented: false });
 const activity = load('lib/media/control-activity.ts', {}, {
-  Element: SelectElement, document: { activeElement: null, querySelector: selector => selector.includes('[role="listbox"]') ? {} : null },
+  Element: MenuElement, document: { activeElement: null, querySelector: selector => selector.includes('[role="menu"]') ? {} : null },
 });
 assert.equal(activity.playerControlsActive({ querySelector: () => null }), true, 'An open native track list holds player controls visible');
 
-const { PlayerSettingsPanel } = load('components/player-settings-panel.tsx', {
-  'react/jsx-runtime': require('react/jsx-runtime'), '@/components/arc/select/select': { Select: 'UIRCSelect' },
-  './player-settings-panel.module.css': {},
+const menuMocks = {
+  DropdownMenu: 'Menu', DropdownMenuTrigger: 'Trigger', DropdownMenuContent: 'Content',
+  DropdownMenuSub: 'Sub', DropdownMenuSubTrigger: 'SubTrigger', DropdownMenuSubContent: 'SubContent',
+  DropdownMenuOptions: 'Options',
+};
+const { PlayerSettingsMenu } = load('components/player-settings-menu.tsx', {
+  'react/jsx-runtime': require('react/jsx-runtime'),
+  '@/components/arc/dropdown-menu/dropdown-menu': menuMocks,
+  './player-settings-menu.module.css': { subtitleMenu: 'subtitleMenu' },
 });
-assert.deepEqual(find(PlayerSettingsPanel(panel.props), 'UIRCSelect').map(node => node.props.label), ['Speed', 'Quality', 'Subtitles']);
-
-// The shared select must keep rich details separate from the typeahead label.
-const h = hooks();
-const primitive = new Proxy({}, { get: (_, key) => key === '__esModule' ? true : `Select${key}` });
-const { Select } = load('components/arc/select/select.tsx', {
-  react: { ...React, ...h.react, useId: () => 'subtitle' }, 'react/jsx-runtime': h.jsx,
-  '@radix-ui/react-select': primitive,
-  'motion/react': { AnimatePresence: 'Presence', motion: { span: 'MotionSpan' }, useReducedMotion: () => true },
-  '@/components/ui/badge': { Badge: 'Badge' },
-  '../lib/motion-tokens': load('components/arc/motion-tokens.ts'),
-  './select.module.css': new Proxy({}, { get: (_, key) => key === '__esModule' ? false : key }),
+const settingsMenu = PlayerSettingsMenu(panel.props);
+assert.deepEqual(find(settingsMenu, 'SubTrigger').map(node => node.props.children[0].props.children), ['Speed', 'Quality', 'Subtitles']);
+assert.equal(find(settingsMenu, 'SubContent').length, 3, 'Every setting opens a side submenu');
+assert.equal(find(settingsMenu, 'SubContent')[2].props.className, 'subtitleMenu', 'Only the subtitle submenu needs the wider surface');
+assert.ok(find(settingsMenu, 'SubContent').every(node => node.props.container === root), 'Nested windows remain in the fullscreen player');
+const primitive = new Proxy({}, { get: (_, key) => key === '__esModule' ? true : `Primitive${key}` });
+const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {
+  react: { ...React, useId: () => 'track-description' }, 'react/jsx-runtime': require('react/jsx-runtime'),
+  '@radix-ui/react-dropdown-menu': primitive,
+  '@/components/ui/badge': { Badge: 'Badge' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+  './dropdown-menu.module.css': {},
 });
-const select = h.render(Select.render, { label: 'Subtitles', value: '2', portalContainer: root, options: panel.props.subtitles.options });
-assert.equal(find(select, 'SelectPortal')[0].props.container, root);
-assert.equal(find(select, 'SelectItem')[1].props.textValue, 'English');
-assert.ok(find(select, 'SelectItem')[1].props['aria-describedby']);
-assert.ok(find(select, 'Badge').some(node => node.props.children === 'EN'));
+const choices = dropdown.DropdownMenuOptions({ value: '2', options: panel.props.subtitles.options, onValueChange() {} });
+assert.equal(choices.props.value, '2');
+const english = choices.props.children[1];
+assert.equal(english.props.textValue, 'English');
+const option = dropdown.DropdownMenuRadioItem(english.props);
+assert.equal(option.props['aria-describedby'], 'track-description');
+assert.ok(find(option, 'Badge').some(node => node.props.children === 'EN'));
+const submenu = dropdown.DropdownMenuSubContent({ container: root });
+assert.equal(submenu.props.container, root);
+assert.equal(submenu.props.children.props.collisionPadding, 12);
+assert.equal(submenu.props.children.props.loop, true);
 
 // Native audio/subtitle controls preserve decoder IDs after language sorting.
 const nativeHooks = hooks(), nativeCalls = [], events = new Map();
@@ -138,13 +150,13 @@ const mediaRef = { current: { controller, closest: () => root,
   addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) } };
 const { DesktopTracks } = load('components/desktop/tracks.tsx', {
   react: { ...React, ...nativeHooks.react }, 'react/jsx-runtime': nativeHooks.jsx,
-  '@/components/arc/select/select': { Select: 'UIRCSelect' }, '@/lib/media/track-label': labels,
-  '@/components/player-settings-panel.module.css': {},
+  '@/components/arc/dropdown-menu/dropdown-menu': menuMocks, '@/lib/media/track-label': labels,
+  '@/components/ui/button': { Button: 'Button' }, '@/components/player-settings-menu.module.css': {},
 });
 let cleared = 0;
 const nativeProps = { mediaRef, sourceKey: 'fixture', onNativeSubtitle() { cleared++; } };
 nativeHooks.render(DesktopTracks, nativeProps); nativeHooks.flush();
-const nativeControls = find(nativeHooks.render(DesktopTracks, nativeProps), 'UIRCSelect');
+const nativeControls = find(nativeHooks.render(DesktopTracks, nativeProps), 'Options');
 assert.equal(nativeControls[0].props.options[0].value, '75');
 nativeControls[0].props.onValueChange('75');
 nativeControls[1].props.onValueChange('91');
@@ -182,5 +194,5 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   const discovered = await utils.getSubtitleTracks('tt123', 'movie');
   assert.equal(discovered[0].filename, 'Actual.release.srt');
   assert.equal(discovered[0].provider, 'Subtitle provider');
-  console.log('PASS: language names/codes, safe filenames, original track indices, distinct English files, Off, speed/quality actions, player portals and UIRC speed selection.');
+  console.log('PASS: language names/codes, safe filenames, original track indices, distinct English files, Off, speed/quality actions, fullscreen submenu portals and UIArc dropdown choices.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
