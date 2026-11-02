@@ -34,12 +34,14 @@
 .chevron { flex: none; margin-inline-start: auto; color: var(--muted-foreground); }
 .radio { padding-inline-end: 34px; }
 .copy { display: grid; min-width: 0; flex: 1; gap: 3px; }
-.heading { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.heading { display: flex; min-width: 0; align-items: center; gap: 8px; font-weight: 500; line-height: 1.5; }
 .description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: .75rem; line-height: 1.4; }
-.copy:has(.flag) .description { padding-inline-start: 24px; }
+.copy:has(.leading) .description { padding-inline-start: 24px; }
 .indicator { position: absolute; inset-inline-end: 10px; display: inline-flex; }
 .badge { padding: 1px 5px; border-radius: 4px; font-size: .625rem; letter-spacing: .04em; }
-.flag { display: block; flex: none; width: 16px; height: 16px; border-radius: 50%; outline: 1px solid rgb(0 0 0 / .1); outline-offset: -1px; }
+.leading { display: inline-flex; flex: 0 0 16px; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; color: var(--muted-foreground); }
+.flag { display: block; flex: none; width: 14px; height: 14px; border-radius: 50%; outline: 1px solid rgb(0 0 0 / .1); outline-offset: -1px; }
+.separator { height: 1px; margin: 5px 6px; background: var(--border); }
 :global(.dark) .flag { outline-color: rgb(255 255 255 / .1); }
 @keyframes menu-exit { to { --menu-exit: 1; } }
 @media (prefers-reduced-motion: reduce) { .menu, .menu[data-state="closed"] { transform: none; transition: opacity var(--duration-instant) linear; } }

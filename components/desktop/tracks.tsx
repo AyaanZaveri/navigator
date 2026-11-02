@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type RefObject } from "react";
-import { AudioLines, Captions } from "lucide-react";
+import { AudioLines, Captions, CaptionsOff } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuOptions } from "@/components/arc/dropdown-menu/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { trackOptions } from "@/lib/media/track-label";
@@ -38,7 +38,8 @@ export function DesktopTracks({ mediaRef, sourceKey, onNativeSubtitle }: {
       </DropdownMenuTrigger>
       <DropdownMenuContent container={container} side="top" sideOffset={10} align="end" aria-label={label} className={styles.trackMenu}>
         <DropdownMenuOptions value={String(choices.find(track => track.selected)?.id ?? "no")}
-          options={kind === "sub" ? [{ value: "no", label: "Off" }, ...options] : options}
+          separateFirst={kind === "sub"}
+          options={kind === "sub" ? [{ value: "no", label: "Off", icon: <CaptionsOff size={14} strokeWidth={1.75} /> }, ...options] : options}
           onValueChange={id => {
             if (kind === "sub") onNativeSubtitle();
             (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack(kind === "audio" ? "audio" : "subtitle", id);

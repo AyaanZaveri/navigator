@@ -17,6 +17,12 @@ assert.equal(labels.trackLanguage('pob').label, 'Brazilian Portuguese');
 assert.equal(labels.trackLanguage('pob').badge, 'PT-BR');
 assert.equal(labels.trackLanguage('tur').label, 'Turkish');
 assert.equal(labels.trackLanguage('bad/code').label, 'Unknown language');
+assert.equal(labels.trackLanguage('bos').label, 'Bosnian');
+assert.equal(labels.trackLanguage('bos').flag, '/flags/circle/language/bs.svg');
+assert.match(fs.readFileSync('public' + labels.trackLanguage('bos').flag, 'utf8'), /<svg/);
+const sortedLanguages = labels.trackOptions([{ language: 'und' }, { language: 'eng' }, { language: 'bos' }, { language: 'zu' }, { language: 'xxx' }]);
+assert.deepEqual(Array.from(sortedLanguages, option => option.label), ['English', 'Bosnian', 'Zulu', 'Unknown language', 'Unknown language']);
+assert.deepEqual(Array.from(sortedLanguages.slice(-2), option => option.value), ['0', '4'], 'Sorting unknown tracks last must preserve original selection indices');
 const described = labels.describeTrack({ language: 'eng', label: 'eng', src: 'https://example.test/Movie.1080p.srt?token=secret', provider: 'OpenSubtitles' }, 1);
 assert.equal(described.description, 'Movie.1080p.srt · OpenSubtitles');
 assert.ok(!described.description.includes('secret'));
@@ -43,7 +49,7 @@ function component(name, context, state, sent) {
     PlayerSettingsMenu: 'PlayerSettingsMenu', DropdownMenu: 'DropdownMenu',
     DropdownMenuContent: 'DropdownMenuContent', DropdownMenuTrigger: 'DropdownMenuTrigger',
     DropdownMenuOptions: 'DropdownMenuOptions', DropdownMenuGroup: 'Group', DropdownMenuLabel: 'Label',
-    MediaPlayerTooltip: 'Tooltip', SettingsIcon: 'svg', Button: 'Button',
+    MediaPlayerTooltip: 'Tooltip', SettingsIcon: 'svg', CaptionsOffIcon: 'CaptionsOff', Button: 'Button',
   };
   vm.runInNewContext(ts.transpileModule(`export ${node.getText(parsed)}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
@@ -72,6 +78,7 @@ assert.equal(content.props.container, root, 'Settings inherit player theme and r
 assert.equal(content.props.className, 'settingsMenu');
 const panel = find(tree, 'PlayerSettingsMenu')[0];
 assert.equal(panel.props.subtitles.value, '2');
+assert.equal(panel.props.subtitles.options[0].icon.type, 'CaptionsOff');
 assert.equal(panel.props.subtitles.options[1].label, 'English', 'English options are first without changing track indices');
 panel.props.subtitles.onChange('2');
 assert.equal(selected[0], tracks[2], 'Same-label English options must select the original distinct track');
@@ -136,17 +143,22 @@ const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {
 });
 const choices = dropdown.DropdownMenuOptions({ value: '2', options: panel.props.subtitles.options, onValueChange() {} });
 assert.equal(choices.props.value, '2');
-const english = choices.props.children[1];
+const english = find(choices, dropdown.DropdownMenuRadioItem)[1];
 assert.equal(english.props.textValue, 'English');
 const option = dropdown.DropdownMenuRadioItem(english.props);
 assert.equal(option.props['aria-describedby'], 'track-description');
 assert.ok(find(option, 'Badge').some(node => node.props.children === 'EN'));
+const unknown = dropdown.DropdownMenuRadioItem({ ...labels.describeTrack({ language: 'und' }, 0), children: 'Unknown language', value: '0' });
+assert.equal(find(unknown, require('lucide-react').CircleHelp).length, 1, 'Unknown tracks use a circular Lucide fallback');
+const divided = dropdown.DropdownMenuOptions({ value: 'off', options: panel.props.subtitles.options, separateFirst: true, onValueChange() {} });
+assert.equal(find(divided, 'PrimitiveSeparator').length, 1, 'Off is separated from the language tracks once');
+assert.equal(find(choices, 'PrimitiveSeparator').length, 0, 'Speed and other choice menus do not gain a divider');
 const flag = find(option, 'img')[0];
 assert.equal(flag.props.src, '/flags/circle/language/en.svg');
-assert.equal(flag.props.width, 16);
-assert.equal(flag.props.height, 16);
+assert.equal(flag.props.width, 14);
+assert.equal(flag.props.height, 14);
 assert.equal(flag.props.alt, '');
-assert.equal(flag.props['aria-hidden'], 'true', 'Flags supplement the readable label without extra screen-reader noise');
+assert.ok(find(option, 'span').some(node => node.props['aria-hidden'] === 'true' && find(node, 'img').length), 'The icon slot is decorative');
 assert.equal(fs.existsSync('public' + flag.props.src), true);
 for (const language of ['en', 'es', 'fr', 'de', 'pt', 'tr', 'ru', 'ja', 'ko', 'zh', 'ar', 'hi', 'en-US', 'en-GB', 'pob', 'pt-BR']) {
   const path = labels.trackLanguage(language).flag;
@@ -177,6 +189,8 @@ let cleared = 0;
 const nativeProps = { mediaRef, sourceKey: 'fixture', onNativeSubtitle() { cleared++; } };
 nativeHooks.render(DesktopTracks, nativeProps); nativeHooks.flush();
 const nativeControls = find(nativeHooks.render(DesktopTracks, nativeProps), 'Options');
+assert.equal(nativeControls[0].props.separateFirst, false);
+assert.equal(nativeControls[1].props.separateFirst, true);
 assert.equal(nativeControls[0].props.options[0].value, '75');
 nativeControls[0].props.onValueChange('75');
 nativeControls[1].props.onValueChange('91');

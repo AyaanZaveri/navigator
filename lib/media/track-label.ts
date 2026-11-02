@@ -38,12 +38,13 @@ export function describeTrack(track: TrackDetails, index: number) {
     .some(value => value?.toLowerCase() === label.toLowerCase());
   const filename = track.filename?.split(/[\\/]/).pop()?.trim() || subtitleFilename(track.src);
   const detail = filename || (!isLanguageOnly ? label : undefined) || `Track ${index + 1}`;
-  return { ...language, description: [detail, track.provider?.trim()].filter(Boolean).join(" · ") };
+  return { ...language, isLanguage: true, description: [detail, track.provider?.trim()].filter(Boolean).join(" · ") };
 }
 
 /** Values refer to original track indices even when the visible options are sorted. */
 export function trackOptions(tracks: TrackDetails[]) {
   return tracks.map((track, index) => ({ value: String(index), ...describeTrack(track, index) }))
-    .sort((a, b) => Number(!!b.badge?.startsWith("EN")) - Number(!!a.badge?.startsWith("EN"))
+    .sort((a, b) => Number(!a.badge) - Number(!b.badge)
+      || Number(!!b.badge?.startsWith("EN")) - Number(!!a.badge?.startsWith("EN"))
       || a.label.localeCompare(b.label, "en") || Number(a.value) - Number(b.value));
 }

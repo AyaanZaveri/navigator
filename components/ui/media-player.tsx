@@ -3129,7 +3129,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
             } : undefined}
             subtitles={{
               value: selectedSubtitleIndex >= 0 ? String(selectedSubtitleIndex) : "off",
-              options: [{ value: "off", label: "Off" }, ...trackOptions(subtitleTracks)],
+              options: [{ value: "off", label: "Off", icon: <CaptionsOffIcon size={14} strokeWidth={1.75} /> }, ...trackOptions(subtitleTracks)],
               onChange: value => {
                 if (value === "off") {
                   if (context.customSubtitlesEnabled) context.onCustomSubtitleChange?.(null);
