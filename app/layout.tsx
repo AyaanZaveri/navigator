@@ -8,6 +8,7 @@ import { SettingsProvider } from "@/contexts/settings-context";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { DesktopWindowControls } from "@/components/desktop/window-controls";
 import { DesktopAppReady } from "@/components/desktop/app-ready";
 
 const sunghyunSans = localFont({
@@ -71,6 +72,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <DesktopAppReady />
+          <DesktopWindowControls />
           <SettingsProvider>{children}</SettingsProvider>
           <Toaster />
         </ThemeProvider>

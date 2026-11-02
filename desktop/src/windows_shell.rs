@@ -31,6 +31,7 @@ enum UserEvent {
     Emit(Value),
     Fullscreen(bool),
     Drag,
+    WindowControl(protocol::WindowAction),
     Ready(bool),
     PageLoaded,
 }
@@ -111,6 +112,8 @@ fn make_view(
     let requests = player.sender();
     let ipc = proxy.clone();
     let nav_origin = origin.clone();
+    let nav_log = app.data.join("startup.jsonl");
+    let nav_started = app.started;
     let page = proxy.clone();
     let builder = WebViewBuilder::new_with_web_context(context)
         .with_bounds(bounds(window.inner_size()))
@@ -130,6 +133,9 @@ fn make_view(
                 Ok(protocol::Command::Fullscreen { value }) => {
                     let _ = ipc.send_event(UserEvent::Fullscreen(value));
                 }
+                Ok(protocol::Command::WindowControl { action }) => {
+                    let _ = ipc.send_event(UserEvent::WindowControl(action));
+                }
                 Ok(protocol::Command::WindowDrag {}) => {
                     let _ = ipc.send_event(UserEvent::Drag);
                 }
@@ -147,6 +153,9 @@ fn make_view(
             }
         })
         .with_navigation_handler(move |url| {
+            if smoke {
+                record(&nav_log, nav_started, &format!("smoke-navigation:{url}"));
+            }
             let allowed = (smoke && url == "about:blank")
                 || protocol::origin(&url).as_deref() == Some(&nav_origin);
             if !allowed && protocol::media_url(&url).is_ok() {
@@ -204,6 +213,8 @@ pub fn run(app: App) -> Result<(), String> {
     let icon = Icon::from_resource(1, None).ok();
     let mut builder = WindowBuilder::new()
         .with_title("Navigator")
+        .with_decorations(false)
+        .with_undecorated_shadow(true)
         .with_window_classname(platform::window_class(app.smoke))
         .with_window_icon(icon.clone())
         .with_taskbar_icon(icon)
@@ -222,6 +233,7 @@ pub fn run(app: App) -> Result<(), String> {
     }
     let window = builder.build(&event_loop).map_err(|e| e.to_string())?;
     let mut normal = restored.or_else(|| placement(&window));
+    platform::install_chrome(&window);
     let surface = platform::VideoSurface::new(&window)?;
     let mut loading = Some(platform::LoadingView::new(&window)?);
     window.set_visible(true);
@@ -321,9 +333,14 @@ pub fn run(app: App) -> Result<(), String> {
             }
             Event::UserEvent(UserEvent::PageLoaded) => {
                 loaded = true;
+                platform::install_chrome(&window);
                 record(&log, started, "page-loaded");
                 if let Some((app, player, smoke)) = &running {
                     if app.smoke {
+                        if let Some(view) = &view {
+                            let probe_log = log.clone();
+                            let _ = view.evaluate_script_with_callback("JSON.stringify({url:location.href,origin:location.origin,html:document.documentElement.outerHTML,bridge:typeof window.navigatorDesktop,visibility:document.visibilityState})", move |result| record(&probe_log, started, &format!("smoke-document:{result}")));
+                        }
                         loading.take(); ready_deadline = None;
                         if let Some(path) = smoke { player.send(protocol::Command::Load { session:"native-smoke".into(), url:path.to_string_lossy().into_owned(), headers:Default::default() }); }
                     }
@@ -339,6 +356,11 @@ pub fn run(app: App) -> Result<(), String> {
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&value)); }
             }
             Event::UserEvent(UserEvent::Fullscreen(value)) => { window.set_fullscreen(value.then_some(Fullscreen::Borderless(None))); }
+            Event::UserEvent(UserEvent::WindowControl(action)) => match action {
+                protocol::WindowAction::Minimize => window.set_minimized(true),
+                protocol::WindowAction::ToggleMaximize => window.set_maximized(!window.is_maximized()),
+                protocol::WindowAction::Close => platform::request_close(&window),
+            },
             Event::UserEvent(UserEvent::Drag) => { if !fullscreen { let _ = window.drag_window(); } }
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 if let Some(normal) = &mut normal {
@@ -353,6 +375,7 @@ pub fn run(app: App) -> Result<(), String> {
             }
             Event::WindowEvent { event: WindowEvent::Resized(size), .. } => {
                 resize_views(&surface, view.as_ref(), loading.as_ref(), size);
+                if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"window-state","maximized":window.is_maximized()}))); }
                 remember_placement(&window, &mut normal);
             }
             Event::WindowEvent { event: WindowEvent::ScaleFactorChanged { new_inner_size, .. }, .. } => {
@@ -365,6 +388,7 @@ pub fn run(app: App) -> Result<(), String> {
             _ => {}
         }
         let actual = window.fullscreen().is_some();
+        platform::set_chrome_fullscreen(actual);
         if actual != fullscreen {
             fullscreen = actual;
             if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":actual}))); }
