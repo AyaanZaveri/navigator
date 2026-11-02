@@ -13,6 +13,7 @@ export interface ResumeEpisode {
     episode?: number;
     title?: string;
     name?: string;
+    released?: string;
 }
 
 export function formatResumePosition(seconds: number): string {

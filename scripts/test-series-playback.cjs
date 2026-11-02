@@ -21,7 +21,7 @@ async function run() {
     ];
     const context = { exports: {}, URLSearchParams, AbortSignal, console,
         fetch: async () => ({ ok: true, json: async () => ({ meta: { videos } }) }),
-        require: name => name === '@/lib/artwork' ? artwork : name === '@/lib/tmdb-discovery' ? {
+        require: name => name === '@/lib/artwork' ? artwork : name === '@/lib/media/shuffle-episode' ? load('lib/media/shuffle-episode.ts') : name === '@/lib/tmdb-discovery' ? {
             getTMDBEpisodes: async (id, season) => {
                 assert.equal(season, 1);
                 return [{ id: `${id}:1:2`, season: 1, episode: 2 }, { id: `${id}:1:1`, season: 1, episode: 1 }];
@@ -39,8 +39,10 @@ async function run() {
     assert.equal((await context.exports.getFollowingEpisodeForSeries('tt123', 1, 2)).id, 'tt123:2:1', 'Advance across seasons');
     assert.equal(await context.exports.getFollowingEpisodeForSeries('tt123', 2, 1), null, 'Last episode has no next button');
     assert.equal((await context.exports.getFollowingEpisodeForSeries('tt123', 0, 1)).id, 'tt123:1:1', 'Specials advance to regular seasons');
+    assert.ok((await context.exports.getRandomEpisodeForSeries('tt123')).season > 0, 'Server shuffle also excludes specials');
     videos = [videos[0]];
     assert.equal(await context.exports.getNextEpisodeForSeries('tt123'), null, 'Never auto-start a special');
+    assert.equal(await context.exports.getRandomEpisodeForSeries('tt123'), null, 'Shuffle cannot substitute a special when no regular episodes exist');
     assert.equal((await context.exports.getNextEpisodeForSeries('tmdb:123')).id, 'tmdb:123:1:1');
 
     const atoms = load('lib/atoms.ts', name => name === 'jotai'

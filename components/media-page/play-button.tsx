@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatResumePosition, resumePlaybackTarget, type ResumeEpisode, type ResumeProgress } from "@/lib/media/resume-playback";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 import { WatchToggleButton } from "@/components/media-page/watch-toggle-button";
+import { ShuffleEpisodeButton } from "@/components/media-page/shuffle-episode-button";
 
 export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episodes?: ResumeEpisode[] }) {
     const { playMedia } = useMediaPlayer();
@@ -91,6 +92,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             {(media.type === "movie" || (media.type === "series" && sourceId)) && (
                 <WatchToggleButton key={key} media={media} />
             )}
+            {overview && <ShuffleEpisodeButton key={id} media={media} episodes={episodes} />}
         </div>
     );
 }

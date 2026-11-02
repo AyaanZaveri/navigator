@@ -1,6 +1,7 @@
 "use server";
 
 import { artworkUrl, mediaArtwork } from "@/lib/artwork";
+import { pickRandomEpisode } from "@/lib/media/shuffle-episode";
 
 import type { MediaItem, StremioMeta, StremioMetaResponse
 } from "@/types/stremio";
@@ -237,6 +238,10 @@ export async function fetchEpisodeDetails(
 }
 
 // ─── Next Episode ────────────────────────────────────────────────
+
+export async function getRandomEpisodeForSeries(seriesId: string): Promise<Episode | null> {
+  return pickRandomEpisode(await fetchEpisodes(seriesId));
+}
 
 /** Advance through regular seasons only, preserving explicit episode playback. */
 export async function getFollowingEpisodeForSeries(
