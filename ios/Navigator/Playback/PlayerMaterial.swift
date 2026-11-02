@@ -73,8 +73,8 @@ import UIKit
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
     CircularButtonPress.contains(point, in: bounds)
   }
-  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
-    guard event.allTouches?.count == 1, let touch = touches.first else {
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard event?.allTouches?.count == 1, let touch = touches.first else {
       press.cancel()
       super.touchesCancelled(touches, with: event)
       return
@@ -82,7 +82,7 @@ import UIKit
     press.begin(touch.location(in: self), in: bounds)
     super.touchesBegan(touches, with: event)
   }
-  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
     guard let touch = touches.first else { return }
     press.move(touch.location(in: self), in: bounds)
     if press.armed {
@@ -91,14 +91,14 @@ import UIKit
       super.touchesCancelled(touches, with: event)
     }
   }
-  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
     guard let touch = touches.first, press.finish(touch.location(in: self), in: bounds) else {
       super.touchesCancelled(touches, with: event)
       return
     }
     super.touchesEnded(touches, with: event)
   }
-  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
     press.cancel()
     super.touchesCancelled(touches, with: event)
   }
