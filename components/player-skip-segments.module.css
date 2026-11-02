@@ -1,4 +1,7 @@
 .button {
+  --player-glass-color: rgb(0 0 0 / 60%);
+  --player-glass-sheen: none;
+  --player-glass-blur: 6px;
   position: fixed;
   right: max(1.5rem, env(safe-area-inset-right));
   z-index: 30;

@@ -37,7 +37,7 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   background-size: var(--native-glass-size);
   background-position: calc(var(--native-glass-x) + 12px) calc(var(--native-glass-y) + 12px);
   background-repeat: no-repeat;
-  filter: blur(12px);
+  filter: blur(var(--player-glass-blur, 12px));
 }
 /* Follow the same CSS coordinates as the moving tooltip, without waiting for
    another video sample or DOM measurement. Percentages account for the panel's

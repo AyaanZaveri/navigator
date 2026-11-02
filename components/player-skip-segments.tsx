@@ -63,6 +63,7 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek }: {
                     key={kind}
                     type="button"
                     data-player-skip=""
+                    data-player-glass=""
                     data-visible={visible ? "" : undefined}
                     aria-hidden={!visible}
                     tabIndex={visible ? 0 : -1}

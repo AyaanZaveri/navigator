@@ -72,6 +72,8 @@ function harness() {
 }
 
 const player = harness();
+assert.equal(player.render(45)('Skip Intro').props['data-player-glass'], '',
+    'Skip actions must register for native video glass; CSS backdrop-filter cannot sample a SurfaceView');
 player.render(45)('Skip Intro').props.onClick({ stopPropagation() {} });
 assert.equal(player.element.currentTime, 90);
 assert.equal(player.render(90)('Skip Intro'), null);
