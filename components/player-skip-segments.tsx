@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { FastForward } from "lucide-react";
 import { resolveSkipIMDbId } from "@/app/actions/skip-segments";
 import { activeSkipSegment, fetchSkipSegments, type SkipSegment, type SkipLookup } from "@/lib/media/skip-segments";
@@ -15,6 +15,8 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek }: {
     onSeek: (_time: number) => void;
 }) {
     const [segments, setSegments] = useState<SkipSegment[]>([]);
+    const [skipped, setSkipped] = useState<SkipSegment[]>([]);
+    const pendingSkip = useRef(false);
     const { id, type, season, episode, duration } = lookup;
     useEffect(() => {
         const root = mediaRef.current?.closest<HTMLElement>('[data-slot="media-player"]');
@@ -33,7 +35,26 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek }: {
         return () => controller.abort();
     }, [id, type, season, episode, duration]);
 
-    const segment = activeSkipSegment(segments, currentTime);
+    useEffect(() => {
+        const media = mediaRef.current;
+        if (!media) return;
+        // Only a new seek initiated after ours completes can re-arm a skipped
+        // segment. Delayed native position snapshots are not user rewinds.
+        const seeking = () => {
+            if (pendingSkip.current) return;
+            const time = media.currentTime;
+            setSkipped(previous => previous.filter(segment => time >= segment.end));
+        };
+        const seeked = () => { pendingSkip.current = false; };
+        media.addEventListener("seeking", seeking);
+        media.addEventListener("seeked", seeked);
+        return () => {
+            media.removeEventListener("seeking", seeking);
+            media.removeEventListener("seeked", seeked);
+        };
+    }, [mediaRef]);
+
+    const segment = activeSkipSegment(segments, currentTime, skipped);
     return (
         <>
             {(Object.keys(labels) as Array<SkipSegment["kind"]>).map(kind => {
@@ -50,7 +71,17 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek }: {
                     onClick={event => {
                         event.stopPropagation();
                         if (!segment || !mediaRef.current) return;
-                        mediaRef.current.currentTime = segment.end;
+                        pendingSkip.current = true;
+                        // Dismiss before seeking: native time updates can arrive
+                        // later, or land a few frames before the requested end.
+                        setSkipped(previous => [...previous, segment]);
+                        try {
+                            mediaRef.current.currentTime = segment.end;
+                        } catch {
+                            pendingSkip.current = false;
+                            setSkipped(previous => previous.filter(item => item !== segment));
+                            return;
+                        }
                         onSeek(segment.end);
                     }}
                 >

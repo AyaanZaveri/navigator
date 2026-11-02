@@ -92,6 +92,8 @@ export async function fetchSkipSegments(
     return [...preferred, ...missing].sort((a, b) => a.start - b.start);
 }
 
-export function activeSkipSegment(segments: SkipSegment[], time: number): SkipSegment | undefined {
-    return segments.find(segment => time >= segment.start && time < segment.end);
+export function activeSkipSegment(segments: SkipSegment[], time: number, skipped: SkipSegment[] = []): SkipSegment | undefined {
+    return segments.find(segment => time >= segment.start && time < segment.end
+        && !skipped.some(previous => previous.kind === segment.kind
+            && previous.start < segment.end && segment.start < previous.end));
 }
