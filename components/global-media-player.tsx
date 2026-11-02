@@ -11,6 +11,7 @@ import { PlayerNextEpisode } from "@/components/player-next-episode";
 import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import { preload } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
@@ -565,6 +566,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setPlaybackError(null);
     setStreamUrl(null);
     const initialDetails = initialPlaybackDetails(request);
+    if (initialDetails.logo) preload(initialDetails.logo, { as: "image", fetchPriority: "high" });
     setMediaDetails(initialDetails);
     setSubtitleTracks([]);
     setSubtitleData([]);
@@ -728,7 +730,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
   const fallbackBackdrop =
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
-  const loadingLogo = mediaDetails?.logo;
+  const loadingLogo = mediaDetails?.logo || initialPlaybackDetails(currentMedia).logo;
   const videoGeneration = loadGenerationRef.current;
 
   const Video = nativePlayback
