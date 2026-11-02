@@ -106,9 +106,9 @@ settings UI remain available if the hosted website fails.
 CI uses a local HTTPS fixture trusted only in its iPhone and iPad simulators,
 including a required Authorization header, byte-range playback, saved-position
 startup and native JPEG preview generation. This is not a production TLS bypass.
-The synthetic three-second fixture has red, green and blue scenes. The test
+The synthetic seven-second fixture has red, green and blue scenes. The test
 checks a green rendered frame after resuming at 1.5 seconds, then a blue JPEG
-from the independent preview decoder at 2 seconds while playback stays paused.
+from the independent preview decoder at 6 seconds while playback stays paused.
 Pure native tests cover URL/header validation, origin scoping, cache limits,
 request parsing, HLS/DASH rewriting, real loopback range delivery and CDN scoping.
 

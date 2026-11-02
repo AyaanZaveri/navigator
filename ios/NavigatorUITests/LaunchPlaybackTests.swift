@@ -18,6 +18,7 @@ final class LaunchPlaybackTests: XCTestCase {
     let resumed = app.webViews.staticTexts["Resume position verified"]
     XCTAssertTrue(resumed.waitForExistence(timeout: 5))
     assertResumedSceneIsGreen(app)
+    app.webViews.buttons["Pause fixture"].tap()
     app.webViews.buttons["Preview fixture"].tap()
     XCTAssertTrue(app.webViews.staticTexts["Native preview verified"].waitForExistence(timeout: 15))
     let close = app.webViews.buttons["Close fixture"]
@@ -26,7 +27,7 @@ final class LaunchPlaybackTests: XCTestCase {
     XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
   }
   private func assertResumedSceneIsGreen(_ app: XCUIApplication) {
-    guard let image = app.screenshot().image.cgImage else {
+    guard let image = XCUIScreen.main.screenshot().image.cgImage else {
       XCTFail("No rendered movie frame")
       return
     }
