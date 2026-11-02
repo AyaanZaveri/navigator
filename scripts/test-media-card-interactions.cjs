@@ -16,7 +16,7 @@ const context = { exports: {}, require(name) {
     if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/backdrop.jpg' }) };
     if (name === '@/components/watched-indicator') return { WatchedIndicator: () => null };
     if (name === '@/lib/series-route') return { buildEpisodePath: () => '/series/fixture/1/1' };
-    if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ playMedia: async item => playback.push(item), setIsPlayerVisible: visible => playback.push(visible) }) };
+    if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: async item => playback.push(item), setIsPlayerVisible: visible => playback.push(visible) }) };
     if (name === 'next/link') return ({ children }) => children;
     if (name.endsWith('.module.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
     return require(name);

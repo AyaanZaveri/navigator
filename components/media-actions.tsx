@@ -12,7 +12,7 @@ import {
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, SearchX } from "lucide-react";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { SearchField } from "@/components/arc/search-field/search-field";
 import { ChipGroup } from "@/components/arc/chip-group/chip-group";
@@ -38,7 +38,7 @@ const RESOLUTION_FILTERS = ["2160p", "1080p", "720p", "480p"] as const;
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const activeMedia = media ?? movie;
-  const { setIsPlayerVisible, playMedia } = useMediaPlayer();
+  const { setIsPlayerVisible, playMedia } = usePlaybackActions();
   const [streams, setStreams] = useState<StreamWithAddon[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasCheckedStreams, setHasCheckedStreams] = useState(false);

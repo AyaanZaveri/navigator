@@ -60,7 +60,7 @@ const element = { closest: () => layout, getBoundingClientRect: () => ({ height 
 const { AppHeader } = load('components/app-header.tsx', name => {
   if (name === 'react') return { ...React, useRef: () => ({ current: element }), useLayoutEffect: effect => effects.push(effect) };
   if (name === 'react/jsx-runtime') return require(name);
-  if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ isPlayerVisible: false }) };
+  if (name === '@/contexts/MediaPlayerContext') return { useIsPlayerVisible: () => false };
   return new Proxy({}, { get: (_, key) => key });
 }, { cancelAnimationFrame() {}, ResizeObserver: class {
   constructor(callback) { resized = callback; }

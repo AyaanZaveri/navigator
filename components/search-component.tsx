@@ -5,7 +5,7 @@ import { Film, Tv } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { fetchSearchSuggestions } from "@/lib/search-catalog-stream";
 import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expanding-search/expanding-search";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import type { SearchResult } from "@/types/stremio";
 
 const normalizeText = (value: string): string =>
@@ -59,7 +59,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    const { isPlayerVisible } = useMediaPlayer();
+    const isPlayerVisible = useIsPlayerVisible();
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchRequestIdRef = useRef(0);
     const skipNextSuggestSearchRef = useRef(false);

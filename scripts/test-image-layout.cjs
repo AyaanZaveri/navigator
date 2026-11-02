@@ -24,7 +24,8 @@ async function run() {
         const context = { exports: {}, URL, URLSearchParams, require(name) {
             if (name.endsWith('.module.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
             if (name === 'next/link') return ({ children, prefetch, scroll, ...props }) => React.createElement('a', props, children);
-            if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({}) };
+            if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({}) };
+            if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
             if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: image, background: image }), episodeThumbnailUrl: value => value };
             if (name === '@/lib/series-route') return { buildEpisodePath: () => '/series/fixture/1/1' };
             if (name === './ui/scroll-area') return { ScrollArea: passthrough, ScrollBar: () => null };

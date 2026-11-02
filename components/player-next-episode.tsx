@@ -5,7 +5,7 @@ import { SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import { getFollowingEpisodeForSeries, type Episode } from "@/app/actions/tv-shows";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import type { MediaToPlay } from "@/lib/atoms";
 
 export function PlayerNextEpisode({ media, season, episode, onAdvance }: {
@@ -14,7 +14,7 @@ export function PlayerNextEpisode({ media, season, episode, onAdvance }: {
     episode: number;
     onAdvance: () => void;
 }) {
-    const { playMedia } = useMediaPlayer();
+    const { playMedia } = usePlaybackActions();
     const [next, setNext] = useState<Episode | null>(null);
     const [advancing, setAdvancing] = useState(false);
     const id = media.seriesId || media.id;

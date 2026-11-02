@@ -46,7 +46,7 @@ const { MediaPlayButton } = load('components/media-page/play-button.tsx', {
         if (name === 'react') return { useState: () => [saved, () => {}], useEffect() {} };
         if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
         if (name === '@/lib/media/resume-playback') return helpers;
-        if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ playMedia: target => played.push(target) }) };
+        if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: target => played.push(target) }) };
         if (name === '@/components/ui/button') return { Button: 'button' };
         return new Proxy({}, { get: (_, key) => key });
     },

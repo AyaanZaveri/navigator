@@ -2,7 +2,7 @@
 
 import React from "react";
 import type { MediaItem } from "@/types/stremio";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { WatchedIndicator } from "@/components/watched-indicator";
 
 interface ContinueWatchingCardProps {
@@ -10,7 +10,7 @@ interface ContinueWatchingCardProps {
 }
 
 export function ContinueWatchingCard({ item }: ContinueWatchingCardProps) {
-  const { playMedia, setIsPlayerVisible } = useMediaPlayer();
+  const { playMedia, setIsPlayerVisible } = usePlaybackActions();
 
   const imageUrl = item.background || item.poster;
 

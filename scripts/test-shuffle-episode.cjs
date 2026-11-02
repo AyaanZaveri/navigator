@@ -52,7 +52,7 @@ async function run() {
                 if (fail) throw new Error('offline');
                 return lookupResult;
             } };
-            if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ playMedia: async media => played.push(media) }) };
+            if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: async media => played.push(media) }) };
             return new Proxy({}, { get: (_, key) => key });
         },
     });
@@ -105,7 +105,7 @@ async function run() {
             if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
             if (name === 'react') return { useState: () => [null, () => {}], useEffect() {} };
             if (name === '@/lib/media/resume-playback') return resume;
-            if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ playMedia() {} }) };
+            if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia() {} }) };
             return new Proxy({}, { get: (_, key) => key });
         },
     });

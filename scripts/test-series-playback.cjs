@@ -62,7 +62,7 @@ async function run() {
             useState: () => [slot++ === 0 ? { id: 'tt123:2:1', title: 'Next season', season: 2, episode: 1 } : false, () => {}],
         };
         if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
-        if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ playMedia: media => {
+        if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: media => {
             assert.ok(stopped, 'Report previous playback before starting the next episode');
             played = media;
         } }) };

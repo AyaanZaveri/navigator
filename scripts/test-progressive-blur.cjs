@@ -70,7 +70,7 @@ const header = {
 const dependencies = new Proxy({
   react: { ...React, ...h.react, useLayoutEffect: h.react.useEffect },
   'react/jsx-runtime': h.jsx,
-  '@/contexts/MediaPlayerContext': { useMediaPlayer: () => ({ isPlayerVisible: false }) },
+  '@/contexts/MediaPlayerContext': { useIsPlayerVisible: () => false },
 }, { has: () => true, get: (object, key) => key in object ? object[key] : new Proxy({}, { get: () => () => null }) });
 const { AppHeader } = load('components/app-header.tsx', dependencies, {
   ResizeObserver: class { observe() {} disconnect() { disconnected = true; } },

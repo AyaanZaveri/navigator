@@ -5,7 +5,7 @@ import { preloadPlayer } from "@/lib/preload-tools";
 import { useEffect, useState } from "react";
 import { Play, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useMediaPlayer, type MediaToPlay } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions, type MediaToPlay } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatResumePosition, resumePlaybackTarget, type ResumeEpisode, type ResumeProgress } from "@/lib/media/resume-playback";
@@ -14,7 +14,7 @@ import { WatchToggleButton } from "@/components/media-page/watch-toggle-button";
 import { ShuffleEpisodeButton } from "@/components/media-page/shuffle-episode-button";
 
 export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episodes?: ResumeEpisode[] }) {
-    const { playMedia } = useMediaPlayer();
+    const { playMedia } = usePlaybackActions();
     const id = media.seriesId || media.id;
     const sourceId = media.mediaSourceId;
     const key = `${media.type}:${id}:${sourceId || "overview"}`;

@@ -7,7 +7,7 @@ import { mediaArtwork } from "@/lib/artwork";
 import Link from "next/link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { buildEpisodePath } from "@/lib/series-route";
 import styles from "./media-card.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
@@ -23,7 +23,7 @@ export function MediaCard({
   fullWidth?: boolean;
   subtitleContent?: React.ReactNode;
 }) {
-  const { playMedia, setIsPlayerVisible } = useMediaPlayer();
+  const { playMedia, setIsPlayerVisible } = usePlaybackActions();
 
   let linkHref = "";
   if (

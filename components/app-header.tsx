@@ -7,7 +7,7 @@ import { AdaptiveHeaderLogo } from "@/components/adaptive-header-logo";
 import { useTheme } from "next-themes";
 import { Home, Puzzle, Settings } from "lucide-react";
 import { logout } from "@/app/actions";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import { SearchBar } from "@/components/search-component";
 import { Button } from "@/components/ui/button";
 import { UserMenu, type ThemePreference } from "@/components/arc/user-menu/user-menu";
@@ -42,7 +42,7 @@ function ProfileMenu({ email }: { email: string }) {
 }
 
 export function AppHeader({ email, overlay = false }: { email: string; overlay?: boolean }) {
-    const { isPlayerVisible } = useMediaPlayer();
+    const isPlayerVisible = useIsPlayerVisible();
     const headerRef = useRef<HTMLElement>(null);
     const surfaceRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {

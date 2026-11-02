@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useAtom } from "jotai";
+import { useAtom, useStore } from "jotai";
 import { toast } from "sonner";
 import { useRouter, usePathname } from "next/navigation";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
@@ -10,12 +10,13 @@ import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, readNavig
 import { acknowledgePlayback, type ActionOutcome } from "@/lib/navigator-playback-ack";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { useTheme } from "next-themes";
-import { isAIAskOpenAtom } from "@/lib/atoms";
+import { isAIAskOpenAtom, currentTimestampAtom } from "@/lib/atoms";
 import { useSettings } from "@/contexts/settings-context";
 import { NavigatorFocus } from "./focus";
 import { isNavigatorRequestComplete, navigatorResponseDurations } from "@/lib/navigator-timing";
 
 const AIAsk = ({ userId }: { userId: string }) => {
+    const playbackStore = useStore();
     const [isAskOpen, setIsAskOpen] = useAtom(isAIAskOpenAtom);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [input, setInput] = useState("");
@@ -154,7 +155,6 @@ const AIAsk = ({ userId }: { userId: string }) => {
         isPlayerVisible,
         skipToTimestamp,
         currentMediaWithSource,
-        currentTimestamp,
     } = useMediaPlayer();
 
     const {
@@ -328,7 +328,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
         const opencodeSessionId = opencodeSessionIdRef.current ?? crypto.randomUUID();
         opencodeSessionIdRef.current = opencodeSessionId;
         requestBodyRef.current = {
-            currentMedia: isPlayerVisible ? currentMediaWithSource : null, currentTimestamp, pathname,
+            currentMedia: isPlayerVisible ? currentMediaWithSource : null, currentTimestamp: playbackStore.get(currentTimestampAtom), pathname,
             aiProvider, analysisModel, openaiBaseUrl, openaiModel, geminiModel, ollamaBaseUrl, ollamaModel,
             groqModel, openrouterModel, openrouterReasoningEffort, cerebrasModel, cerebrasReasoningEffort,
             opencodeModel, openaiApiKey, googleApiKey, groqApiKey, openrouterApiKey, cerebrasApiKey,

@@ -5,7 +5,7 @@ import type { MediaItem } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { Play, Loader2 } from "lucide-react";
 import { getNextEpisodeForSeries } from "@/app/actions/tv-shows";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import type { Episode } from "@/app/actions/tv-shows";
 
 interface SeriesPlayButtonProps {
@@ -15,7 +15,7 @@ interface SeriesPlayButtonProps {
 export function SeriesPlayButton({ series }: SeriesPlayButtonProps) {
   const [nextEpisode, setNextEpisode] = useState<Episode | null>(null);
   const [loading, setLoading] = useState(true);
-  const { playMedia, setIsPlayerVisible } = useMediaPlayer();
+  const { playMedia, setIsPlayerVisible } = usePlaybackActions();
 
   useEffect(() => {
     async function fetchNextEpisode() {

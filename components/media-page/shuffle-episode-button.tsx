@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { getRandomEpisodeForSeries } from "@/app/actions/tv-shows";
 import { pickRandomEpisode, type ShuffleEpisode } from "@/lib/media/shuffle-episode";
 import type { MediaToPlay } from "@/lib/atoms";
 
 export function ShuffleEpisodeButton({ media, episodes }: { media: MediaToPlay; episodes?: ShuffleEpisode[] }) {
-    const { playMedia } = useMediaPlayer();
+    const { playMedia } = usePlaybackActions();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const active = useRef(true);

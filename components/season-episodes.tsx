@@ -25,7 +25,7 @@ import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import { buildEpisodePath } from "@/lib/series-route";
 import { episodeThumbnailUrl } from "@/lib/artwork";
 import type { StremioVideo } from "@/types/stremio";
-import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
+import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import cardStyles from "./media-card.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
 
@@ -527,7 +527,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
   showId: string;
   isActive?: boolean;
 }) {
-  const { playMedia } = useMediaPlayer();
+  const { playMedia } = usePlaybackActions();
   const [pressed, setPressed] = useState(false);
   const handlePlay = (event: React.MouseEvent) => {
     event.preventDefault();
