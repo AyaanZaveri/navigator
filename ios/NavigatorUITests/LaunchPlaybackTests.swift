@@ -48,55 +48,66 @@ final class LaunchPlaybackTests: XCTestCase {
     XCTAssertTrue(
       app.webViews.staticTexts["Playback paused"].exists,
       "A paused movie must stay paused after scrubbing")
-    // Native side swipes and explicit sliders share the same video gain.
+    XCTAssertFalse(app.buttons["native-player-volume"].exists)
+    XCTAssertFalse(app.buttons["native-player-brightness"].exists)
+    XCTAssertTrue(app.webViews.staticTexts["Media gain 100%"].waitForExistence(timeout: 5))
     let right = app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.58))
     right.press(
       forDuration: 0.05,
       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.78)))
-    let slider = app.descendants(matching: .any)["native-side-slider"]
-    XCTAssertTrue(
-      app.webViews.staticTexts["Video volume adjusted"].waitForExistence(timeout: 3),
-      app.debugDescription)
-    // Open a persistent bar for direct touch and mute checks, so the Android
-    // 900 ms swipe-HUD dismissal does not race XCTest's accessibility polling.
-    app.buttons["native-player-volume"].tap()
-    if !slider.exists { app.buttons["native-player-volume"].tap() }
-    XCTAssertTrue(slider.waitForExistence(timeout: 3))
-    XCTAssertEqual(slider.label, "Video volume")
-    XCTAssertGreaterThan(slider.frame.height, slider.frame.width * 3)
-    let expectedWidth: CGFloat = app.frame.width >= 600 && app.frame.height >= 600 ? 72.8 : 56
-    XCTAssertEqual(slider.frame.width, expectedWidth, accuracy: 1)
-    let barStart = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-    barStart.press(
-      forDuration: 0.05,
-      thenDragTo: slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
-    // Explicitly reopen after the short-lived bar gesture, then tap its icon.
-    app.buttons["native-player-volume"].tap()
-    if !slider.exists { app.buttons["native-player-volume"].tap() }
-    slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.09)).tap()
-    XCTAssertTrue(app.webViews.staticTexts["Video muted"].waitForExistence(timeout: 3))
-    app.buttons["native-player-volume"].tap()
-    if !slider.exists { app.buttons["native-player-volume"].tap() }
-    slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.09)).tap()
-    XCTAssertTrue(app.webViews.staticTexts["Video audible"].waitForExistence(timeout: 3))
-    app.buttons["native-player-volume"].tap()
-    if !slider.exists { app.buttons["native-player-volume"].tap() }
     let volumeShot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-    volumeShot.name = "Android-style volume bar"
+    volumeShot.name = "Device-volume bar; no header icons"
     volumeShot.lifetime = .keepAlways
     add(volumeShot)
-    let brightness = app.buttons["native-player-brightness"]
-    XCTAssertTrue(brightness.exists)
-    brightness.tap()
-    XCTAssertTrue(slider.waitForExistence(timeout: 3))
-    XCTAssertEqual(slider.label, "Brightness")
+    // Simulators may expose a fixed system route. Always verify that neither
+    // native gestures nor web volume/mute commands lower the actual VLC gain.
+    XCTAssertTrue(app.webViews.staticTexts["Media gain 100%"].exists)
+    app.webViews.buttons["Request device volume"].tap()
+    XCTAssertTrue(app.webViews.staticTexts["Media gain 100%"].waitForExistence(timeout: 3))
+    let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.58))
+    left.press(
+      forDuration: 0.05,
+      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.38)))
     let brightnessShot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-    brightnessShot.name = "Android-style brightness bar"
+    brightnessShot.name = "Brightness bar; no header icons"
     brightnessShot.lifetime = .keepAlways
     add(brightnessShot)
     // Both families must recover acknowledged native geometry after resizing.
     XCUIDevice.shared.orientation = .portrait
     XCUIDevice.shared.orientation = .landscapeLeft
+    let back = app.buttons["native-player-back"]
+    XCTAssertTrue(back.waitForExistence(timeout: 5))
+    back.tap()
+    XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
+  }
+  func testBackDragOutsideCancelsBeforeAProperTap() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-server", "https://localhost:9443"]
+    app.launch()
+    XCTAssertTrue(app.webViews.buttons["Play fixture"].waitForExistence(timeout: 25))
+    app.webViews.buttons["Play fixture"].tap()
+    XCTAssertTrue(app.webViews.staticTexts["Native playback ready"].waitForExistence(timeout: 20))
+    app.webViews.buttons["Pause fixture"].tap()
+    let back = app.buttons["native-player-back"]
+    XCTAssertTrue(back.waitForExistence(timeout: 5))
+    let start = back.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    let outside = back.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5)).withOffset(
+      CGVector(dx: 8, dy: 0))
+    start.press(forDuration: 0.4, thenDragTo: outside)
+    XCTAssertFalse(
+      app.webViews.staticTexts["Player closed"].exists,
+      "Releasing outside the actual circular button must cancel Back")
+    XCTAssertTrue(back.exists)
+    if back.exists { back.tap() }
+    XCTAssertTrue(app.webViews.staticTexts["Player closed"].waitForExistence(timeout: 5))
+  }
+  func testLoadingChromeUsesNativeBackBeforeAStreamExists() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-server", "https://localhost:9443"]
+    app.launch()
+    XCTAssertTrue(app.webViews.buttons["Play fixture"].waitForExistence(timeout: 25))
+    // The fixture toggles the shell without loading media for this entry point.
+    app.webViews.buttons["Show loading fixture"].tap()
     let back = app.buttons["native-player-back"]
     XCTAssertTrue(back.waitForExistence(timeout: 5))
     back.tap()

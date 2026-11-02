@@ -124,8 +124,12 @@ export class MpvController extends EventTarget {
       if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for native playback.");
       this.bridge.send({ type: "load", session: this.session, url, headers,
         ...(["android", "ios"].includes(this.bridge.platform) ? { startPosition: Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0 } : {}) });
-      this.bridge.send({ type: "volume", session: this.session, volume });
-      this.bridge.send({ type: "muted", session: this.session, muted });
+      // iOS owns device volume. A cached HTML-media gain must not overwrite
+      // the current hardware level when a title starts or the source switches.
+      if (!(this.bridge.platform === "ios" && this.bridge.capabilities?.systemVolume)) {
+        this.bridge.send({ type: "volume", session: this.session, volume });
+        this.bridge.send({ type: "muted", session: this.session, muted });
+      }
       this.bridge.send({ type: "rate", session: this.session, rate });
     } catch (error) { this.fail(error instanceof Error ? error.message : "Could not load this stream."); }
   }

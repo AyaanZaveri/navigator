@@ -1,3 +1,4 @@
+import AVFAudio
 import MediaPlayer
 import UIKit
 
@@ -65,6 +66,125 @@ import UIKit
   }
 }
 
+/// Uses UIKit's native glass-button interactions, with strict circular touch
+/// cancellation. The button is never placed inside a clipping material view.
+@MainActor final class PlayerBackButton: UIButton {
+  private var press = CircularButtonPress()
+  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+    CircularButtonPress.contains(point, in: bounds)
+  }
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard event?.allTouches?.count == 1, let touch = touches.first else {
+      press.cancel()
+      super.touchesCancelled(touches, with: event)
+      return
+    }
+    press.begin(touch.location(in: self), in: bounds)
+    super.touchesBegan(touches, with: event)
+  }
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard let touch = touches.first else { return }
+    press.move(touch.location(in: self), in: bounds)
+    if press.armed {
+      super.touchesMoved(touches, with: event)
+    } else {
+      super.touchesCancelled(touches, with: event)
+    }
+  }
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard let touch = touches.first, press.finish(touch.location(in: self), in: bounds) else {
+      super.touchesCancelled(touches, with: event)
+      return
+    }
+    super.touchesEnded(touches, with: event)
+  }
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    press.cancel()
+    super.touchesCancelled(touches, with: event)
+  }
+}
+
+/// Custom volume gestures drive MPVolumeView's UISlider, as VLC for iOS does.
+/// There are no private selectors/classes, and VLC's audio gain is never used.
+/// The view must remain window-backed while playing for its route to be live.
+@MainActor final class DeviceVolumeControl {
+  private let volumeView = MPVolumeView(frame: CGRect(x: -120, y: -120, width: 100, height: 40))
+  private var observation: NSKeyValueObservation?
+  private var pending: Float?
+  private var writer: Task<Void, Never>?
+  private var generation = 0
+  private var muteLevel = DeviceMuteLevel(
+    current: Double(AVAudioSession.sharedInstance().outputVolume))
+  var changed: (Double) -> Void = { _ in }
+  var value: Double { Double(AVAudioSession.sharedInstance().outputVolume) }
+  init() {
+    volumeView.showsRouteButton = false
+    volumeView.isUserInteractionEnabled = false
+    volumeView.accessibilityElementsHidden = true
+    observation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) {
+      [weak self] _, _ in
+      Task { @MainActor in self?.synchronize() }
+    }
+  }
+  func attach(to host: UIView) {
+    guard volumeView.superview !== host else { return }
+    host.insertSubview(volumeView, at: 0)
+    volumeView.layoutIfNeeded()
+  }
+  func detach() {
+    cancel()
+    volumeView.removeFromSuperview()
+  }
+  private func slider(in view: UIView) -> UISlider? {
+    if let slider = view as? UISlider { return slider }
+    for child in view.subviews { if let found = slider(in: child) { return found } }
+    return nil
+  }
+  @discardableResult func set(_ value: Double) -> Bool {
+    guard value.isFinite, volumeView.window != nil else { return false }
+    volumeView.layoutIfNeeded()
+    guard let control = slider(in: volumeView), control.isEnabled else {
+      synchronize()
+      return false
+    }
+    pending = Float(max(0, min(1, value)))
+    guard writer == nil else { return true }
+    let owner = generation
+    writer = Task { [weak self] in
+      try? await Task.sleep(for: .milliseconds(10))
+      guard !Task.isCancelled, let self, self.generation == owner else { return }
+      self.writer = nil
+      guard self.volumeView.window != nil, let next = self.pending,
+        let control = self.slider(in: self.volumeView), control.isEnabled
+      else { return }
+      self.pending = nil
+      control.value = next
+      control.sendActions(for: .valueChanged)
+      self.synchronize()
+    }
+    return true
+  }
+  func setMuted(_ muted: Bool) { set(muteLevel.target(muted: muted, current: value)) }
+  func toggleMute() { setMuted(value > 0) }
+  func synchronize() {
+    let current = value
+    muteLevel.observe(current)
+    changed(current)
+  }
+  func cancel() {
+    generation += 1
+    writer?.cancel()
+    writer = nil
+    pending = nil
+  }
+  func dispose() {
+    detach()
+    observation?.invalidate()
+    observation = nil
+    changed = { _ in }
+  }
+}
+
 @MainActor final class PlaybackBrightness {
   private static weak var owner: PlaybackBrightness?
   private var restoration: BrightnessRestoration?
@@ -110,7 +230,6 @@ import UIKit
   var began: () -> Void = {}
   var released: () -> Void = {}
   var mute: () -> Void = {}
-  var deviceVolume: () -> Void = {}
   private(set) var isVolume = false
   var slider: UIControl { self }
   override init(frame: CGRect) {
@@ -127,7 +246,6 @@ import UIKit
     isAccessibilityElement = true
     accessibilityTraits = .adjustable
     accessibilityIdentifier = "native-side-slider"
-    isContextMenuInteractionEnabled = true
     isHidden = true
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -156,15 +274,13 @@ import UIKit
   func show(volume: Bool, value: Double) {
     let reset = isHidden || isVolume != volume
     isVolume = volume
-    accessibilityLabel = volume ? "Video volume" : "Brightness"
-    accessibilityHint = volume ? "The top icon toggles mute. Hold it for device volume." : nil
+    accessibilityLabel = volume ? "Device volume" : "Brightness"
+    accessibilityHint = volume ? "The top icon toggles device mute." : nil
     accessibilityCustomActions =
       volume
       ? [
         UIAccessibilityCustomAction(
-          name: "Toggle video mute", target: self, selector: #selector(toggleMute)),
-        UIAccessibilityCustomAction(
-          name: "Device volume", target: self, selector: #selector(openDeviceVolume)),
+          name: "Toggle device mute", target: self, selector: #selector(toggleMute))
       ] : nil
     isHidden = false
     layoutIfNeeded()
@@ -260,57 +376,6 @@ import UIKit
     released()
     return true
   }
-  @objc private func openDeviceVolume() -> Bool {
-    began()
-    deviceVolume()
-    return true
-  }
-  override func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint
-  ) -> UIContextMenuConfiguration? {
-    guard isVolume, location.y < 44 * scale else { return nil }
-    began()
-    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-      UIMenu(children: [
-        UIAction(title: "Device volume", image: UIImage(systemName: "speaker.wave.2")) { _ in
-          self?.deviceVolume()
-        }
-      ])
-    }
-  }
-}
-
-/// Apple's public device-volume slider stays separate from the swipe HUD.
-@MainActor final class DeviceVolumeViewController: UIViewController {
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    view.backgroundColor = .secondarySystemBackground
-    overrideUserInterfaceStyle = .dark
-    preferredContentSize = CGSize(width: 300, height: 200)
-    let label = UILabel()
-    label.text = "Device volume"
-    label.font = .preferredFont(forTextStyle: .headline)
-    label.adjustsFontForContentSizeCategory = true
-    let volume = MPVolumeView()
-    volume.showsRouteButton = false
-    let done = UIButton(type: .system)
-    done.setTitle("Done", for: .normal)
-    done.addTarget(self, action: #selector(close), for: .touchUpInside)
-    done.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-    let stack = UIStackView(arrangedSubviews: [label, volume, done])
-    stack.axis = .vertical
-    stack.spacing = 12
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(stack)
-    NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
-      stack.trailingAnchor.constraint(
-        equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -24),
-      stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
-      volume.heightAnchor.constraint(equalToConstant: 44),
-    ])
-  }
-  @objc private func close() { dismiss(animated: true) }
 }
 
 /// Native overlays only intercept their actual controls, leaving the movie and

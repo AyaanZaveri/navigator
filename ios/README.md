@@ -112,25 +112,40 @@ their own touch handling. Browser surface seeking is disabled only when the
 native gesture capability is present; direct timeline dragging stays shared.
 
 Left vertical swipes adjust screen brightness; right vertical swipes adjust
-**Video volume**, the VLC gain, without changing device volume. The HUD matches Android: an 18-point Lucide icon, a 6-point white track over a
-20%-white rail, a transparent 56-by-232-point touch area, relative drags, and
-900 ms dismissal. Volume's icon toggles mute. Roomy iPad windows scale all bar
-metrics by 1.3; compact windows retain phone sizing. Native sun/speaker buttons
-provide non-gesture access. Hold the volume bar's icon for **Device volume**,
-which opens Apple's public MPVolumeView separately, synchronized with hardware
-controls.
+**Device volume**, while VLC's audio gain stays at 100%. The HUD matches Android:
+an 18-point Lucide icon, a 6-point white track over a 20%-white rail, a transparent
+56-by-232-point touch area, relative drags, and 900 ms dismissal. Volume's icon
+toggles device mute and restores the last audible level. Roomy iPad windows scale
+all bar metrics by 1.3; compact windows retain phone sizing. There are no top-right
+sun/speaker buttons. Back's VoiceOver actions expose the adjustable bars.
+
+Device volume uses a window-backed MPVolumeView and its UISlider, following
+[VLC for iOS's implementation](https://github.com/videolan/vlc-ios/blob/ace69689287a412375a5996a8717296fcd73a3f6/Sources/Playback/Player/VideoPlayer-iOS/SliderInfoView.swift).
+Writes coalesce for 10 ms and cancel when playback ends or backgrounds. Public
+AVAudioSession outputVolume observation keeps hardware changes synchronized;
+it is not treated as writable. The shared controller skips restoring saved media
+gain into device volume when loading a title. An unavailable device route never
+falls back to changing VLC gain. Simulator routes can have fixed output volume;
+physical-device validation remains required.
+
 Brightness ownership saves/restores the previous value, respects Control Center
 changes, and releases on backgrounding, closing, or another scene taking playback.
 
-The circular Back button and preview background use UIGlassEffect
-on iOS/iPadOS 26+, and UIBlurEffect on iOS 17–18. The preview's material lives
-between the VLC surface and transparent WebView; the image/text remain shared.
-A session-scoped, bounded layout message supplies exclusions and preview bounds.
-Web materials are replaced only after native geometry acknowledgement, and are
-restored while new geometry is requested. Native surfaces remain at alpha 1;
-transitions animate the material effect. Reduce Transparency uses an opaque system
-surface; Reduce Motion removes material transitions. Side bars expose adjustable VoiceOver values and mute/device-volume actions.
-The Back arrow is 20 points within its 44-point circular touch target. No repeating screenshots, video capture or JPEG backdrop loop is used.
+Back uses UIButton.Configuration.glass() on iOS/iPadOS 26+, without a clipping
+material ancestor, so UIKit owns its press expansion. Leaving its circular touch
+area cancels activation, even when the finger returns before release. Older
+versions use a separate UIBlurEffect backing. The arrow is 20 points within a
+44-point circular touch target. A native-generated chrome session keeps Back
+available while fetching streams, before a playback session exists.
+
+The preview background uses UIGlassEffect on iOS/iPadOS 26+, and UIBlurEffect
+on iOS 17–18. Its material lives between the VLC surface and transparent WebView;
+the image/text remain shared. Bounded layout messages supply exclusions and
+preview bounds, validated against the chrome session and current viewport.
+Web materials are replaced only after native geometry acknowledgement. Native
+surfaces remain at alpha 1; transitions animate the material effect. Reduce
+Transparency uses an opaque system surface; Reduce Motion removes material
+transitions. No repeating screenshots, video capture or JPEG backdrop loop is used.
 
 Link previews are disabled in WKWebView, and its UI delegate declines native
 web context menus. iOS-only link/image callout and drag suppression keeps holding

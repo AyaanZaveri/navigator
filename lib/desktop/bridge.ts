@@ -11,6 +11,8 @@ export type NativeState = {
   duration: number;
   paused: boolean;
   volume: number;
+  /** Native decoder gain, independent of system volume on iOS. */
+  mediaGain?: number;
   muted: boolean;
   rate: number;
   buffering: boolean;

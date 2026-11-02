@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const raw=fs.readFileSync('ios/Navigator/Resources/bridge.js','utf8').replace('__NAVIGATOR_ORIGIN__',JSON.stringify('https://navigator.test')).replace('__NAVIGATOR_STYLES__',JSON.stringify('body{}'));
 function setup({frame=false,origin='https://navigator.test'}={}){
  const sent=[],observers=[];let visible=false,dark=false;
- const document=new EventTarget();document.documentElement={dataset:{},classList:{contains:()=>dark},hasAttribute:()=>visible};document.head={appendChild(){}};document.createElement=()=>({});document.querySelector=()=>null;
+ const document=new EventTarget();document.documentElement={dataset:{},classList:{contains:()=>dark},hasAttribute:()=>visible,setAttribute(){},removeAttribute(){}};document.head={appendChild(){}};document.createElement=()=>({});document.querySelector=()=>null;
  const window={webkit:{messageHandlers:{navigator:{postMessage:m=>sent.push(m)}}},addEventListener(){}};window.top=frame?{}:window;
  vm.runInNewContext(raw,{window,document,location:{origin},Event,MutationObserver:class{constructor(fn){observers.push(fn)}observe(){}disconnect(){}}});
  return{window,sent,visible(v){visible=v;observers.forEach(fn=>fn())},theme(v){dark=v;observers.forEach(fn=>fn())}};
@@ -37,17 +37,19 @@ console.log('PASS: iOS bridge origin/frame isolation, sessions, capabilities, vi
  const window={webkit:{messageHandlers:{navigator:{postMessage:m=>sent.push(m)}}},addEventListener(){}};window.top=window;
  vm.runInNewContext(raw,{window,document,location:{origin:'https://navigator.test'},Event,innerWidth:1000,innerHeight:500,requestAnimationFrame:fn=>frames.push(fn),getComputedStyle:()=>({display:'block',visibility:'visible',opacity:'1'}),MutationObserver:class{observe(){}disconnect(){}}});
  const flush=()=>{let limit=100;while(frames.length&&limit-->0)frames.shift()();assert.ok(limit>0,'Layout settles without a perpetual RAF loop')};
+ window.NavigatorIOS.receive({type:'chrome-session',session:'chrome-one'});flush();
+ assert.ok(sent.some(m=>m.type==='player-layout'),'Loading chrome works before a stream is available');
  window.navigatorDesktop.send({type:'load',session:'layout-one',url:'https://cdn.test/video'});flush();
  let layout=sent.find(m=>m.type==='player-layout');
- assert.equal(layout.session,'layout-one');assert.equal(layout.exclusions.length,2);assert.equal(layout.close.width,44);assert.equal(layout.preview.width,224);
+ assert.equal(layout.session,'chrome-one');assert.equal(layout.exclusions.length,2);assert.equal(layout.close.width,44);assert.equal(layout.preview.width,224);
  assert.equal(attrs.has('data-native-materials'),false,'Keep web fallback until native geometry acknowledgement');
  window.NavigatorIOS.receive({type:'materials-ready',session:'old'});assert.equal(attrs.has('data-native-materials'),false);
- window.NavigatorIOS.receive({type:'materials-ready',session:'layout-one'});assert.equal(attrs.has('data-native-materials'),true);flush();
+ window.NavigatorIOS.receive({type:'materials-ready',session:'chrome-one'});assert.equal(attrs.has('data-native-materials'),true);flush();
  const queued=frames.length;window.NavigatorIOS.receive({type:'state',session:'layout-one',state:{position:3}});assert.equal(frames.length,queued,'Progress messages must not start a geometry sampling loop');
  window.navigatorDesktop.send({type:'stop',session:'old'});assert.equal(attrs.has('data-native-materials'),true,'A stale stop must not disable the current native overlay');
  menuOpen=true;window.NavigatorIOS.receive({type:'layout-request'});flush();
  assert.equal(sent.filter(m=>m.type==='player-layout').at(-1).blocked,true);
- window.navigatorDesktop.send({type:'stop',session:'layout-one'});assert.equal(attrs.has('data-native-materials'),false);assert.equal(close.attrs.has('aria-hidden'),false);
+ window.navigatorDesktop.send({type:'stop',session:'layout-one'});window.NavigatorIOS.receive({type:'chrome-session',session:''});assert.equal(attrs.has('data-native-materials'),false);assert.equal(close.attrs.has('aria-hidden'),false);
  assert.equal(window.navigatorDesktop.capabilities.nativeSurfaceGestures,true);
  assert.equal(window.navigatorDesktop.capabilities.nativeMaterials,true);
  console.log('PASS: iOS geometry coalescing, control exclusions, native acknowledgement, stale sessions, modal blocking, and fallback restoration');

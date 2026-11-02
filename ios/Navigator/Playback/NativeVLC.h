@@ -8,6 +8,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic,readonly) UIView *surface;
 @property(nonatomic,readonly) double position;
 @property(nonatomic,readonly) double duration;
+@property(nonatomic,readonly) double audioGain;
 @property(nonatomic,readonly) BOOL playing;
 @property(nonatomic,readonly) BOOL buffering;
 @property(nonatomic,readonly) BOOL ended;
