@@ -22,6 +22,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test:navigation": "node scripts/test-navigation.mjs",
+    "test:home-pagination": "node scripts/test-home-pagination.cjs",
     "test:gradient": "node scripts/test-gradient-lifecycle.cjs",
     "test:navigator": "node scripts/test-navigator.cjs && node scripts/test-tmdb-discovery.cjs && node scripts/test-navigator-presentation.cjs"
   },
