@@ -1,3 +1,4 @@
+import { preferredEnglishTrack } from "@/lib/media/audio-language";
 import type { DesktopBridge, NativeMessage, NativeState, NativeTrack } from "./bridge";
 
 function ranges(end: number): TimeRanges {
@@ -105,6 +106,8 @@ export class MpvController extends EventTarget {
     this.fire("ratechange");
   }
 
+  private audioChosen = false;
+
   load(url: string, headers?: Record<string, string>, startPosition = 0) {
     this.cancelPreview();
     if (this.disposed) return;
@@ -116,6 +119,7 @@ export class MpvController extends EventTarget {
     this.loaded = this.ready = this.finished = false;
     this.failure = null;
     this.tracks = [];
+    this.audioChosen = false;
     this.subtitleText = "";
     const { volume, muted, rate } = this.state;
     this.state = { ...initialState(), volume, muted, rate };
@@ -155,6 +159,7 @@ export class MpvController extends EventTarget {
     this.bridge.send({ type: "pause", session: this.session });
   }
   selectTrack(kind: "audio" | "subtitle", id: string) {
+    if (kind === "audio") this.audioChosen = true;
     if (kind === "subtitle" && id === "no") this.clearSubtitle();
     this.bridge.send({ type: "track", session: this.session, kind, id });
   }
@@ -261,7 +266,18 @@ export class MpvController extends EventTarget {
       case "loading": this.clearSubtitle(); this.fire("waiting"); break;
       case "ended": this.clearSubtitle(); this.finished = true; this.fire("ended"); break;
       case "error": this.fail(message.message); break;
-      case "tracks": this.tracks = message.tracks; this.fire("trackschange"); break;
+      case "tracks": {
+        this.tracks = message.tracks;
+        if (!this.audioChosen) {
+          const english = preferredEnglishTrack(this.tracks.filter(track => track.type === "audio"));
+          if (english) {
+            this.audioChosen = true;
+            if (!english.selected) this.bridge.send({ type: "track", session: this.session, kind: "audio", id: String(english.id) });
+          }
+        }
+        this.fire("trackschange");
+        break;
+      }
       case "subtitle":
         if (this.subtitleText !== message.text) {
           this.subtitleText = message.text;

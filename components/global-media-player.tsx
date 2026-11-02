@@ -1,5 +1,7 @@
 "use client";
 
+import { installEnglishAudioPreference } from "@/lib/media/audio-language";
+
 import "@/components/player-mobile.css";
 import "@/components/player-entrance.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
@@ -33,7 +35,7 @@ import {
 import MuxVideo from "@mux/mux-video-react";
 import { toast } from "sonner";
 import { getWebPlaybackElement } from "@/lib/media/playback-source";
-import { getPlaybackTitles } from "@/lib/media/playback-titles";
+import { getPlaybackTitles, isMeaningfulEpisodeTitle } from "@/lib/media/playback-titles";
 import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
@@ -566,9 +568,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     let activeMedia = request;
     let latestDetails: MediaItem | null = null;
     let sourceReady = false;
+    let resolvedEpisodeTitle: string | undefined;
+    let episodeLookupKey: string | undefined;
     const publishTitle = () => {
       const titles = getPlaybackTitles(activeMedia, latestDetails);
-      const title = titles.episode?.title || titles.episode?.name;
+      const title = resolvedEpisodeTitle || titles.episodeTitle;
       if (titles.isEpisode && title) activeMedia = {
         ...activeMedia, name: title, episodeTitle: title,
         showName: activeMedia.showName || latestDetails?.name,
@@ -581,22 +585,25 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
     };
 
-    // This action runs alongside stream HTTP requests, rather than behind them.
-    void fetchMediaDetails(request.seriesId || request.id, request.type).then(async details => {
+    const resolveEpisodeTitle = () => {
+      const titles = getPlaybackTitles(activeMedia, latestDetails);
+      if (!titles.isEpisode || titles.season === undefined || titles.episodeNumber === undefined) return;
+      const seriesId = activeMedia.seriesId || activeMedia.id;
+      const key = `${seriesId}:${titles.season}:${titles.episodeNumber}`;
+      if (episodeLookupKey === key) return;
+      episodeLookupKey = key;
+      void fetchEpisodeDetails(seriesId, titles.season, titles.episodeNumber).then(episode => {
+        if (!isCurrent() || !episode || !isMeaningfulEpisodeTitle(episode.title) || episodeLookupKey !== key) return;
+        resolvedEpisodeTitle = episode.title;
+        publishTitle();
+      }).catch(() => {});
+    };
+    // Neither episode names nor show metadata wait on stream resolution or each other.
+    resolveEpisodeTitle();
+    void fetchMediaDetails(request.seriesId || request.id, request.type).then(details => {
       if (!isCurrent()) return;
       latestDetails = details || null;
       setMediaDetails(latestDetails);
-      publishTitle();
-      const titles = getPlaybackTitles(activeMedia, latestDetails);
-      const missingTitle = !activeMedia.episodeTitle || activeMedia.episodeTitle === titles.showTitle;
-      if (!titles.isEpisode || titles.episode || !missingTitle
-        || titles.season === undefined || titles.episodeNumber === undefined) return;
-      const episode = await fetchEpisodeDetails(request.seriesId || request.id, titles.season, titles.episodeNumber);
-      if (!isCurrent() || !episode) return;
-      activeMedia = {
-        ...activeMedia, name: episode.title, episodeTitle: episode.title,
-        showName: activeMedia.showName || latestDetails?.name,
-      };
       publishTitle();
     }).catch(() => {});
 
@@ -616,6 +623,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       }, target => {
         if (!isCurrent()) return;
         activeMedia = target;
+        resolveEpisodeTitle();
         publishTitle();
       });
       if (!isCurrent()) return;
@@ -666,6 +674,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setCurrentTimestamp(0);
     void loadMedia(playbackRequest);
   }, [playbackRequest, isPlayerVisible, playbackKey, loadMedia, setCurrentTimestamp]);
+
+  useEffect(() => {
+    if (nativePlayback || !streamUrl || !videoRef.current) return;
+    return installEnglishAudioPreference(videoRef.current);
+  }, [nativePlayback, streamUrl, playerAttempt]);
 
   // Update current subtitle
   useEffect(() => {
@@ -934,9 +947,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </Button>
         )}
 
-        {!loading && videoReady && !playbackError && streamUrl
+        {!playbackError && streamUrl && duration > 0
           && (currentMedia.type === "movie" || currentMedia.type === "series") && (
           <PlayerSkipSegments
+            enabled={videoReady && !loading}
             key={`${streamUrl}:${currentMedia.seriesId || currentMedia.id}:${season}:${episodeNumber}`}
             lookup={{ id: currentMedia.seriesId || currentMedia.id, type: currentMedia.type,
               season, episode: episodeNumber, duration }}

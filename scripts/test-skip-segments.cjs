@@ -15,6 +15,11 @@ async function run() {
     const { fetchSkipSegments, normalizeSkipSegments, activeSkipSegment } = load('lib/media/skip-segments.ts');
     const lookup = { id: 'tt0944947', type: 'series', season: 1, episode: 1, duration: 3600 };
     const signal = new AbortController().signal;
+    const missingIntro = await fetchSkipSegments({ id: 'tt1442437', type: 'series', season: 8, episode: 16, duration: 1290 }, signal,
+        async id => id, async url => Response.json(url.startsWith('https://api.theintrodb.org')
+            ? { credits: [{ start_ms: 641366, end_ms: null }] }
+            : { intro: null, recap: null, outro: null, no_intro: false }));
+    assert.equal(missingIntro.some(segment => segment.kind === 'intro'), false, 'Missing S8E16 provider timing must never become a guessed intro');
     const calls = [];
     const primary = { intro: [{ start_ms: null, end_ms: 90000 }], credits: [
         { start_ms: 3200000, end_ms: 3300000 }, { start_ms: 3500000, end_ms: null },

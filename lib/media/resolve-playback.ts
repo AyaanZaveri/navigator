@@ -1,3 +1,4 @@
+import { isEnglish, streamEnglishPreference } from "@/lib/media/audio-language";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { StreamMetadata, StreamTrackMetadata } from "@/lib/media/stream-metadata";
 import type { StremioStream } from "@/types/stremio";
@@ -30,7 +31,8 @@ export function scoreWebStream(stream: StremioStream, canPlayType?: (_mime: stri
     try { filename = decodeURIComponent(filename); } catch { /* Add-ons may supply unescaped filenames. */ }
     const text = [stream.name, stream.title, stream.description, stream.behaviorHints?.filename, filename].join(" ")
         .toLowerCase().replace(/[\u200b-\u200f\u2060\ufeff]/g, "").replace(/_/g, " ");
-    let score = 0;
+    const language = streamEnglishPreference(stream);
+    let score = languageScore(language);
     const supports = (mime: string) => canPlayType?.(mime) ?? false;
     if (/\b(avc|h[ .-]?264|x264)\b/.test(text)) score += 3000;
     else if (/\b(hevc|h[ .-]?265|x265)\b/.test(text)) score += supports('video/mp4; codecs="hvc1.1.6.L93.B0"') ? 3000 : -8000;
@@ -64,6 +66,10 @@ export function scoreWebStream(stream: StremioStream, canPlayType?: (_mime: stri
     return score;
 }
 
+function languageScore(preference: number): number {
+    return preference > 0 ? 3000 + preference * 1000 : preference * 5000;
+}
+
 /** A container can declare multiple tracks; check its primary audio, not any AAC tag in a release name. */
 export function webMetadataSupport(metadata: StreamMetadata, canPlayType: (_mime: string) => boolean): "supported" | "unsupported" | "unknown" {
     if (!metadata.video || !metadata.audio.length) return "unsupported";
@@ -94,7 +100,7 @@ function audioCodecString(track: StreamTrackMetadata): string | null {
     return null;
 }
 
-/** Native retains add-on order; browsers rank direct streams by video/audio compatibility. */
+/** Prefer English; retain add-on order within native language tiers and rank web compatibility. */
 export async function resolvePlayback(
     request: MediaToPlay,
     dependencies: PlaybackDependencies,
@@ -132,13 +138,29 @@ export async function resolvePlayback(
         candidates.sort((a, b) => scoreWebStream(b, dependencies.canPlayType) - scoreWebStream(a, dependencies.canPlayType));
         if (dependencies.inspectStream && dependencies.canPlayType) {
             const support = new Map<StremioStream, ReturnType<typeof webMetadataSupport>>();
+            const primaryLanguage = new Map<StremioStream, string>();
             await Promise.allSettled(candidates.slice(0, 3).map(async candidate => {
                 const metadata = await dependencies.inspectStream!(candidate);
-                if (metadata) support.set(candidate, webMetadataSupport(metadata, dependencies.canPlayType!));
+                if (metadata) {
+                    support.set(candidate, webMetadataSupport(metadata, dependencies.canPlayType!));
+                    const language = (metadata.audio.find(track => track.primary) || metadata.audio[0])?.language;
+                    if (language && language !== "und") primaryLanguage.set(candidate, language);
+                }
             }));
             candidates = candidates.filter(candidate => support.get(candidate) !== "unsupported");
-            candidates.sort((a, b) => Number(support.get(b) === "supported") - Number(support.get(a) === "supported"));
+            const inspectedScore = (candidate: StremioStream) => {
+                const language = primaryLanguage.get(candidate);
+                // Replace release-label guesses with the actual default audio language.
+                const adjustment = language ? languageScore(isEnglish(language) ? 2 : -1)
+                    - languageScore(streamEnglishPreference(candidate)) : 0;
+                return scoreWebStream(candidate, dependencies.canPlayType) + adjustment
+                    + (support.get(candidate) === "supported" ? 2000 : 0);
+            };
+            candidates.sort((a, b) => inspectedScore(b) - inspectedScore(a));
         }
+    }
+    if (dependencies.environment !== "web") {
+        candidates.sort((a, b) => streamEnglishPreference(b) - streamEnglishPreference(a));
     }
     dependencies.onCandidates?.(candidates);
     const stream = candidates[0];

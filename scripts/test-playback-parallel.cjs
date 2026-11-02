@@ -2,6 +2,15 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
+function languageRequire(name) {
+    if (name !== '@/lib/media/audio-language') return require(name);
+    const context = { exports: {}, require: languageRequire };
+    vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/audio-language.ts', 'utf8'), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText, context);
+    return context.exports;
+}
+
 const React = require('react');
 function transpile(file) {
     return ts.transpileModule(fs.readFileSync(file, 'utf8'), {
@@ -10,15 +19,16 @@ function transpile(file) {
     }).outputText;
 }
 function utility(file) {
-    const context = { exports: {} };
+    const context = { exports: {}, require: languageRequire };
     vm.runInNewContext(transpile(file), context);
     return context.exports;
 }
 const callbacks = [], changes = [], requests = [];
+const canonical = process.argv.includes("--canonical");
 let finishDetails, finishStreams;
 const details = new Promise(resolve => { finishDetails = resolve; });
 const streams = new Promise(resolve => { finishStreams = resolve; });
-const request = { id: 'show', type: 'series', name: 'Show', showName: 'Show', mediaSourceId: 'show:1:3', seasonNumber: 1, episodeNumber: 3 };
+const request = { id: 'show', type: 'series', name: canonical ? 'Episode 3' : 'Show', episodeTitle: canonical ? 'Episode 3' : undefined, showName: 'Show', mediaSourceId: 'show:1:3', seasonNumber: 1, episodeNumber: 3 };
 const noOp = () => {};
 const hooks = {
     ...React,
@@ -39,6 +49,7 @@ const context = { exports: {}, AbortController, console, require(name) {
     if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
     if (name === '@/lib/media/fetch-playback-streams') return { fetchPlaybackStreams() { requests.push('streams'); return streams; } };
     if (name === '@/app/actions') return { fetchMediaDetails() { requests.push('details'); return details; } };
+    if (name === '@/app/actions/tv-shows') return { fetchEpisodeDetails: async () => canonical ? { title: 'Canonical episode title' } : null };
     if (name === '@/app/actions/utils') return { getSubtitleTracks: async () => [] };
     if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
     return require(name);
@@ -50,13 +61,13 @@ assert.ok(load, 'Exercise the actual player loading callback');
 (async () => {
     const pending = load(request);
     assert.deepEqual(requests, ['details', 'streams'], 'Both requests start before either resolves');
-    finishDetails({ id: 'show', type: 'series', name: 'Show', videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
+    if (!canonical) finishDetails({ id: 'show', type: 'series', name: 'Show', videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
     await new Promise(resolve => setImmediate(resolve));
-    assert.ok(changes.some(value => value?.media?.episodeTitle === 'Early episode title'), 'Episode title must publish while stream discovery is still pending');
+    assert.ok(changes.some(value => value?.media?.episodeTitle === (canonical ? 'Canonical episode title' : 'Early episode title')), 'Episode title must publish while stream discovery is still pending');
     finishStreams([{ url: 'https://example.test/top.mp4' }]);
     await pending;
     const lastPrepared = changes.filter(value => value?.media).at(-1);
-    assert.equal(lastPrepared.media.episodeTitle, 'Early episode title', 'Source completion must preserve the early title');
+    assert.equal(lastPrepared.media.episodeTitle, canonical ? 'Canonical episode title' : 'Early episode title', 'Source completion must preserve the early title');
     assert.equal(lastPrepared.media.streamUrl, 'https://example.test/top.mp4');
     console.log('PASS: actual player requests metadata and streams concurrently, publishes the episode title first, and preserves it when playback becomes ready.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

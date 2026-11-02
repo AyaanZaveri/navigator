@@ -1,6 +1,10 @@
 import type { MediaToPlay } from "@/lib/atoms";
 import type { MediaItem } from "@/types/stremio";
 
+export function isMeaningfulEpisodeTitle(title?: string) {
+    return Boolean(title?.trim() && !/^(?:episode|ep\.?)\s*\d+$|^s\d+\s*e\d+$|^\d+x\d+$/i.test(title.trim()));
+}
+
 export function getPlaybackTitles(media: MediaToPlay, details: MediaItem | null) {
     const sourceNumbers = media.mediaSourceId?.match(/:(\d+):(\d+)$/);
     const season = media.seasonNumber ?? (sourceNumbers ? Number(sourceNumbers[1]) : undefined);
@@ -13,8 +17,8 @@ export function getPlaybackTitles(media: MediaToPlay, details: MediaItem | null)
             && video.season === season && video.episode === episodeNumber);
     const showTitle = media.showName || details?.name;
     // Older resume entries put the show name in both name and episodeTitle.
-    const suppliedTitle = [media.episodeTitle, media.name].find(title => title?.trim() && title !== showTitle);
-    const episodeTitle = episode?.title || episode?.name || suppliedTitle
+    const episodeTitle = [media.episodeTitle, episode?.title, episode?.name, media.name]
+        .find(title => isMeaningfulEpisodeTitle(title) && title !== showTitle)
         || (episodeNumber !== undefined ? "Episode " + episodeNumber : "Episode");
     return {
         isEpisode,

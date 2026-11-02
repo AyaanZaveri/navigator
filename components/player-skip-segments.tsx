@@ -8,7 +8,8 @@ import styles from "./player-skip-segments.module.css";
 
 const labels = { intro: "Skip Intro", recap: "Skip Recap", credits: "Skip Credits" };
 
-export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek }: {
+export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, enabled = true }: {
+    enabled?: boolean;
     lookup: SkipLookup;
     currentTime: number;
     mediaRef: RefObject<HTMLVideoElement | null>;
@@ -58,7 +59,7 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek }: {
     return (
         <>
             {(Object.keys(labels) as Array<SkipSegment["kind"]>).map(kind => {
-                const visible = segment?.kind === kind;
+                const visible = enabled && segment?.kind === kind;
                 return <button
                     key={kind}
                     type="button"

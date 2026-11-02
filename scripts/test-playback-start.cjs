@@ -2,7 +2,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-const context = { exports: {} };
+function languageRequire(name) {
+    if (name !== '@/lib/media/audio-language') return require(name);
+    const context = { exports: {}, require: languageRequire };
+    vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/audio-language.ts', 'utf8'), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText, context);
+    return context.exports;
+}
+
+const context = { exports: {}, require: languageRequire };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/resolve-playback.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);

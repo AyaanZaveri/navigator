@@ -6,6 +6,7 @@ export interface StreamTrackMetadata {
     codecString: string | null;
     internalCodecId: string | null;
     primary?: boolean;
+    language?: string;
     channels?: number;
 }
 export interface StreamMetadata {
@@ -89,7 +90,7 @@ async function inspect(url: string, options: { signal?: AbortSignal; timeoutMs?:
         ]);
         const describe = async (track: InputTrack): Promise<StreamTrackMetadata> => {
             const raw = await track.getInternalCodecId();
-            return { codec: await track.getCodec(), codecString: await track.getCodecParameterString().catch(() => null),
+            return { language: await track.getLanguageCode?.() || undefined, codec: await track.getCodec(), codecString: await track.getCodecParameterString().catch(() => null),
                 internalCodecId: typeof raw === "string" || typeof raw === "number" ? String(raw) : null };
         };
         return { mimeType: format.mimeType, video: video ? await describe(video) : null,

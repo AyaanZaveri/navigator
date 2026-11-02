@@ -229,6 +229,14 @@ export async function fetchEpisodeDetails(
   signal?: AbortSignal
 ): Promise<Episode | null> {
   try {
+    // A single canonical episode lookup also repairs unnamed add-on/resume entries.
+    await getAuthData();
+    const { getTMDBEpisode } = await import("@/lib/tmdb-discovery");
+    const item = await getTMDBEpisode(seriesId, season, episode, signal);
+    if (item.name?.trim()) return { id: `${seriesId}:${season}:${episode}`, title: item.name,
+      season, episode, thumbnail: item.thumbnail };
+  } catch { signal?.throwIfAborted(); }
+  try {
     const episodes = await fetchEpisodes(seriesId, season, signal);
     return episodes.find((e) => e.episode === episode) || null;
   } catch (error) {

@@ -3,9 +3,18 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 const crypto = require("node:crypto");
 const ts = require("typescript");
+function languageRequire(name) {
+    if (name !== '@/lib/media/audio-language') return require(name);
+    const context = { exports: {}, require: languageRequire };
+    vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/audio-language.ts', 'utf8'), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText, context);
+    return context.exports;
+}
+
 
 function load(file, globals = {}) {
-    const context = { exports: {}, Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...globals };
+    const context = { exports: {}, require: languageRequire, Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...globals };
     const code = ts.transpileModule(fs.readFileSync(file, "utf8"), {
         fileName: file,
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -64,6 +73,13 @@ async function testController(platform) {
         assert.equal(sent.find((m) => m.type === "muted").muted, true);
     }
     assert.equal(sent.find((m) => m.type === "rate").rate, 1.5);
+    const audioTracks = [{ id: 1, type: "audio", lang: "rus", selected: true }, { id: 2, type: "audio", lang: "eng" }];
+    receive({ type: "tracks", session: first, tracks: audioTracks });
+    assert.equal(sent.filter(m => m.type === "track" && m.kind === "audio").at(-1).id, "2");
+    media.selectTrack("audio", "1");
+    const afterManual = sent.length;
+    receive({ type: "tracks", session: first, tracks: audioTracks });
+    assert.equal(sent.length, afterManual, "Do not override a later manual language selection");
     let ended = 0;
     media.addEventListener("ended", () => ended++);
     let observedDuration;
