@@ -1,5 +1,13 @@
 export type ArtworkKind = "poster" | "backdrop" | "logo" | "still";
 
+/** Canvas consumers need image bytes from our origin, rather than a CDN redirect. */
+export function artworkSampleUrl(source: string): string {
+  if (!source.startsWith("/api/artwork?")) return source;
+  const params = new URLSearchParams(source.slice(source.indexOf("?") + 1));
+  params.set("sample", "1");
+  return `/api/artwork?${params}`;
+}
+
 /** Only resolve explicit IMDb/TMDB identities; never guess from a title. */
 export function artworkUrl(
   id: string,

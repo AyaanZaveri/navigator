@@ -6,8 +6,6 @@ import { useAtom } from "jotai";
 import AuroraTransition from "@/components/Aurora/AuroraTransition";
 import { auroraColorsAtom, previousAuroraColorsAtom } from "@/lib/atoms";
 
-const DEFAULT_AURORA_COLOR_STOPS = ["#6FE3F5", "#2FB8D6", "#4EA6BF"];
-
 interface AuroraBackgroundProps {
   imageUrl?: string;
   colorStops?: string[];
@@ -18,7 +16,7 @@ interface AuroraBackgroundProps {
 
 export function AuroraBackground({
   imageUrl,
-  colorStops = DEFAULT_AURORA_COLOR_STOPS,
+  colorStops,
   amplitude = 0.8,
   blend = 0.4,
   className = "fixed inset-0 z-0 pointer-events-none opacity-20",
@@ -26,9 +24,11 @@ export function AuroraBackground({
   const [currentColors] = useAtom(auroraColorsAtom);
   const [previousColors] = useAtom(previousAuroraColorsAtom);
   const [transitionProgress, setTransitionProgress] = useState(1.0);
+  const hasColorOverride = colorStops !== undefined;
 
   // Start transition when colors change
   useEffect(() => {
+    if (hasColorOverride) return;
     if (JSON.stringify(currentColors) !== JSON.stringify(previousColors)) {
       setTransitionProgress(0);
 
@@ -53,19 +53,11 @@ export function AuroraBackground({
       frame = requestAnimationFrame(animateTransition);
       return () => cancelAnimationFrame(frame);
     }
-  }, [currentColors, previousColors]);
+  }, [currentColors, previousColors, hasColorOverride]);
 
   // Use provided colorStops or fall back to atom colors
-  const finalCurrentColors =
-    colorStops !== undefined &&
-    JSON.stringify(colorStops) !== JSON.stringify(DEFAULT_AURORA_COLOR_STOPS)
-      ? colorStops
-      : currentColors;
-  const finalPreviousColors =
-    colorStops !== undefined &&
-    JSON.stringify(colorStops) !== JSON.stringify(DEFAULT_AURORA_COLOR_STOPS)
-      ? colorStops
-      : previousColors;
+  const finalCurrentColors = colorStops ?? currentColors;
+  const finalPreviousColors = colorStops ?? previousColors;
 
   const [mounted, setMounted] = useState(false);
   const [themeResolved, setThemeResolved] = useState(false);

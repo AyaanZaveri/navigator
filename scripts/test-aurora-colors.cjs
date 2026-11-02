@@ -12,7 +12,9 @@ class TestImage {
   height = 10;
   set src(value) {
     this._src = value;
-    this.tainted = value.startsWith('/api/artwork') && this.crossOrigin !== 'anonymous';
+    // Anonymous CORS cannot make a CDN that refuses canvas access readable.
+    // The first-party sample endpoint must return bytes instead of redirecting.
+    this.tainted = value.startsWith('/api/artwork') && !value.includes('sample=1');
   }
   get src() { return this._src; }
 }
@@ -42,6 +44,16 @@ const source = ts.transpileModule(fs.readFileSync('components/vibrant-aurora-bac
 const palette = color => ({ Vibrant: { hex: color, population: 20 }, DarkVibrant: { hex: '#112233', population: 10 }, Muted: { hex: '#445566', population: 5 }, LightMuted: { hex: '#AABBCC', population: 3 } });
 const calls = [], updates = [], pending = new Map();
 let effect, rendered;
+let paletteState = null;
+const loadModule = file => {
+  const module = { exports: {}, URLSearchParams };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText, module);
+  return module.exports;
+};
+const paletteHelpers = loadModule('lib/aurora-palette.ts');
+const artworkHelpers = loadModule('lib/artwork.ts');
 const Vibrant = { from(image) { return { async getPalette() {
   const loader = await new BrowserImage().load(image);
   loader.getImageData();
@@ -51,15 +63,26 @@ const Vibrant = { from(image) { return { async getPalette() {
   if (url.includes('slow')) return new Promise(resolve => pending.set(url, resolve));
   return palette(url.includes('second') ? '#3366FF' : '#FF6600');
 } }; } };
-const context = { exports: {}, Image: TestImage, console: { warn() {} }, require(name) {
-  if (name === 'react') return { useEffect: fn => { effect = fn; } };
+const context = { exports: {}, Image: TestImage, setTimeout, clearTimeout, console: { warn() {} }, require(name) {
+  if (name === 'react') return {
+    useEffect: fn => { effect = fn; },
+    useState: () => [paletteState, update => { paletteState = update; }],
+  };
   if (name === 'react/jsx-runtime') return { jsx: (_, props) => { rendered = props; return props; } };
   if (name === 'jotai') return { useAtom: () => [['#old']], useSetAtom: () => colors => updates.push(Array.from(colors)) };
   if (name === 'node-vibrant/browser') return { Vibrant };
+  if (name === '@/lib/aurora-palette') return paletteHelpers;
+  if (name === '@/lib/artwork') return artworkHelpers;
   return {};
 } };
 vm.runInNewContext(source, context);
-const render = props => { context.exports.VibrantAuroraBackground(props); return effect(); };
+const render = props => {
+  const tree = context.exports.VibrantAuroraBackground(props);
+  if (paletteState?.sourceKey !== JSON.stringify([props.backdropUrl, props.posterUrl])) {
+    assert.equal(tree, null, 'A title must not render the default or previous title palette while its artwork loads');
+  }
+  return effect();
+};
 
 function testTransitionLifecycle() {
   const current = ['#3366FF', '#112233', '#445566'];
@@ -92,6 +115,12 @@ function testTransitionLifecycle() {
   assert.equal(frames.size, 1);
   cleanup();
   assert.equal(frames.size, 0, 'Navigation must cancel the old transition animation frame');
+  effects.length = 0;
+  const localTree = renderer.exports.AuroraBackground({ colorStops: current });
+  assert.equal(localTree.props.children.props.colorStopsFrom, current);
+  assert.equal(localTree.props.children.props.colorStopsTo, current);
+  assert.equal(effects[0](), undefined, 'An explicit title palette must not animate from stale global colors');
+  assert.equal(frames.size, 0, 'A local palette must not start an unused transition loop');
 }
 
 async function run() {
@@ -100,9 +129,11 @@ async function run() {
   assert.throws(() => unsafe.getImageData(), { name: 'SecurityError' });
   const cleanupFirst = render({ backdropUrl: '/api/artwork?id=first&kind=backdrop' });
   await tick();
-  assert.equal(updates.at(-1)?.[0], '#FF6600', 'TMDB redirects must produce new aurora colors instead of retaining the previous title');
+  assert.equal(updates.at(-1)?.[0], '#ff6600', 'TMDB redirects must produce new aurora colors instead of retaining the previous title');
   assert.equal(updates.at(-1).length, 3, 'Shader must receive exactly three color stops');
-  assert.equal(rendered.colorStops, undefined, 'Renderer must use atom history instead of receiving the same palette for both transition endpoints');
+  assert.ok(calls[0].includes('sample=1'), 'Palette extraction must use same-origin bytes');
+  context.exports.VibrantAuroraBackground({ backdropUrl: '/api/artwork?id=first&kind=backdrop' });
+  assert.deepEqual(Array.from(rendered.colorStops), updates.at(-1), 'The visible glow must receive this title’s extracted palette');
   cleanupFirst();
 
   const cleanupSlow = render({ backdropUrl: '/api/artwork?id=slow&kind=backdrop' });
@@ -110,17 +141,17 @@ async function run() {
   cleanupSlow();
   const cleanupSecond = render({ backdropUrl: '/api/artwork?id=second&kind=backdrop' });
   await tick();
-  assert.equal(updates.at(-1)[0], '#3366FF');
+  assert.equal(updates.at(-1)[0], '#3366ff');
   const count = updates.length;
-  pending.get('/api/artwork?id=slow&kind=backdrop')(palette('#00FF00'));
+  pending.get('/api/artwork?id=slow&kind=backdrop&sample=1')(palette('#00FF00'));
   await tick();
   assert.equal(updates.length, count, 'A previous title finishing late must not overwrite the current title');
   cleanupSecond();
 
   const cleanupFallback = render({ backdropUrl: '/api/artwork?id=broken&kind=backdrop', posterUrl: '/api/artwork?id=first&kind=poster' });
   await tick();
-  assert.ok(calls.includes('/api/artwork?id=first&kind=poster'), 'A failed backdrop must try the current title poster');
-  assert.equal(updates.at(-1)[0], '#FF6600');
+  assert.ok(calls.includes('/api/artwork?id=first&kind=poster&sample=1'), 'A failed backdrop must try the current title poster through same-origin bytes');
+  assert.equal(updates.at(-1)[0], '#ff6600');
   cleanupFallback();
   testTransitionLifecycle();
   console.log('PASS: redirect-safe palette extraction, title changes, stale-request cancellation, poster fallback, three-stop palettes, and transition cleanup');

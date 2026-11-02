@@ -15,6 +15,9 @@ function load(file, globals = {}) {
 
 async function run() {
   const urls = load('lib/artwork.ts');
+  assert.equal(urls.artworkSampleUrl('/api/artwork?id=tt123&kind=backdrop'), '/api/artwork?id=tt123&kind=backdrop&sample=1');
+  assert.equal(urls.artworkSampleUrl('/api/artwork?id=tt123&kind=poster&sample=1'), '/api/artwork?id=tt123&kind=poster&sample=1');
+  assert.equal(urls.artworkSampleUrl('https://image.tmdb.org/t/p/w1280/art.jpg'), 'https://image.tmdb.org/t/p/w1280/art.jpg');
   assert.equal(urls.artworkUrl('custom-addon-id', 'movie', 'poster'), undefined);
   assert.equal(urls.artworkUrl('tt123:2:3', 'series', 'poster'), '/api/artwork?id=tt123&type=series&kind=poster');
   assert.equal(urls.artworkUrl('tt123', 'series', 'still', 0, 1), '/api/artwork?id=tt123&type=series&kind=still&v=1&season=0&episode=1');
@@ -145,6 +148,9 @@ async function run() {
   assert.equal(sample.headers.get('vary'), 'Cookie');
   assert.equal(await sample.text(), 'fixture-jpeg');
   const logoSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo&sample=1'));
+  const posterSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&sample=1'));
+  assert.equal(posterSample.status, 200, 'Poster palette fallback also needs same-origin image bytes');
+  assert.equal(posterSample.headers.get('location'), null);
   assert.equal(logoSample.status, 200, 'Wordmark measurements need same-origin logo bytes even when the CDN does not permit canvas access');
   assert.equal(logoSample.headers.get('location'), null);
   const brokenSample = load('app/api/artwork/route.ts', {
