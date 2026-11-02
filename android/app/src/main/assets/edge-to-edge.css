@@ -123,9 +123,10 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-
     padding-left: var(--navigator-player-controls-left, max(1.5rem, env(safe-area-inset-left, 0px)));
     padding-right: var(--navigator-player-controls-right, max(1.5rem, env(safe-area-inset-right, 0px)));
   }
-  [data-player-loading-copy] {
-    left: var(--navigator-player-controls-left, max(1.5rem, env(safe-area-inset-left, 0px)));
-    right: var(--navigator-player-controls-right, max(1.5rem, env(safe-area-inset-right, 0px)));
+  /* Do not reuse the playback controls' changing camera-cutout clearance. */
+  [data-slot="media-player"] [data-player-loading-copy] {
+    left: max(1.5rem, env(safe-area-inset-left, 0px));
+    right: max(1.5rem, env(safe-area-inset-right, 0px));
     max-height: calc(100dvh - 5rem); overflow-y: auto;
   }
   [data-player-loading-series] { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.4; }

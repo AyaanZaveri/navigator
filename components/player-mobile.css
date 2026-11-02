@@ -127,9 +127,12 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
     padding-left: var(--navigator-player-controls-left, max(1.5rem, env(safe-area-inset-left, 0px)));
     padding-right: var(--navigator-player-controls-right, max(1.5rem, env(safe-area-inset-right, 0px)));
   }
-  [data-player-loading-copy] {
-    left: var(--navigator-player-controls-left, max(1.5rem, env(safe-area-inset-left, 0px)));
-    right: var(--navigator-player-controls-right, max(1.5rem, env(safe-area-inset-right, 0px)));
+  /* Loading copy has its own bottom gutter. The controls' cutout inset can
+     change while metadata arrives and must not move the loading status. The
+     scoped selector also overrides that rule in older Android clients. */
+  [data-slot="media-player"] [data-player-loading-copy] {
+    left: max(1.5rem, env(safe-area-inset-left, 0px));
+    right: max(1.5rem, env(safe-area-inset-right, 0px));
     max-height: calc(100dvh - 5rem); overflow-y: auto;
   }
   [data-player-loading-series] { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.4; }
