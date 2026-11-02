@@ -173,6 +173,10 @@ impl Player {
                         };
                         state[key] = if key == "volume" { json!(value.as_f64().unwrap_or(100.0) / 100.0) } else { value };
                         dirty = true;
+                        if matches!(key, "paused" | "volume" | "muted" | "rate" | "buffering" | "seeking") && !session.is_empty() {
+                            emit(json!({"type":"state","session":session,"state":state}));
+                            last = Instant::now(); dirty = false;
+                        }
                         if !matches!(key, "position" | "buffered") { last = Instant::now() - Duration::from_secs(1); }
                     }
                     Some(Event::Log { prefix, text, .. }) => log::warn!("mpv {prefix}: {}", text.trim()),
