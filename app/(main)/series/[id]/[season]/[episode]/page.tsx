@@ -31,7 +31,6 @@ export default async function EpisodeOnSeriesPage({
       episodeNumber,
       selectedEpisode,
       selectedEpisodeTitle,
-      regularSeasonCount,
     } = episodeData;
 
     return (
@@ -57,13 +56,12 @@ export default async function EpisodeOnSeriesPage({
                 <Link
                   href={buildSeriesPath(id)}
                   prefetch={true}
+                  draggable={false}
                   className="inline-flex min-w-0 max-w-full items-center gap-2 transition-colors hover:text-foreground"
                 >
-                  <TvIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                  <TvIcon aria-hidden="true" className="relative -top-[0.5px] size-3.5 shrink-0" />
                   <span className="min-w-0 break-words">{show.name}</span>
                 </Link>
-                <span aria-hidden="true">•</span>
-                <span>Season {seasonNumber}</span>
               </nav>
 
               <h1
@@ -95,15 +93,6 @@ export default async function EpisodeOnSeriesPage({
                   >
                     <Star className="size-3 fill-yellow-400 text-yellow-400" />
                     {show.imdbRating}
-                  </Badge>
-                )}
-                {regularSeasonCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="bg-background/90 backdrop-blur-sm"
-                  >
-                    {regularSeasonCount} Season
-                    {regularSeasonCount !== 1 ? "s" : ""}
                   </Badge>
                 )}
               </div>
