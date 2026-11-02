@@ -24,6 +24,7 @@ final class SideControlView extends View {
     private float value;
     private final SliderDrag slider=new SliderDrag();
     private final PlayerBarGlide glide=new PlayerBarGlide(this);
+    private final PlayerBarGlide emphasis=new PlayerBarGlide(this);
     SideControlView(Context context,Consumer<Float> change,Runnable mute,Runnable hold,Runnable release) {
         super(context); d=getResources().getDisplayMetrics().density;
         this.change=change; this.mute=mute; this.hold=hold; this.release=release;
@@ -48,10 +49,11 @@ final class SideControlView extends View {
         Drawable icon=!volume ? sun : muted || value<=0 ? silent : value<.34f ? quiet : value<.67f ? medium : loud;
         int radius=Math.round(9*d),centerY=Math.round(22*d),centerX=Math.round(x);
         icon.setBounds(centerX-radius,centerY-radius,centerX+radius,centerY+radius); icon.draw(canvas);
+        float halfWidth=(4+emphasis.value())*d;
         paint.setColor(Color.argb(51,255,255,255));
-        canvas.drawRoundRect(x-3*d,top,x+3*d,bottom,3*d,3*d,paint);
+        canvas.drawRoundRect(x-halfWidth,top,x+halfWidth,bottom,halfWidth,halfWidth,paint);
         float at=bottom-(bottom-top)*glide.value();
-        paint.setColor(Color.WHITE); canvas.drawRoundRect(x-3*d,at,x+3*d,bottom,3*d,3*d,paint);
+        paint.setColor(Color.WHITE); canvas.drawRoundRect(x-halfWidth,at,x+halfWidth,bottom,halfWidth,halfWidth,paint);
     }
     private void drag(float y) {
         change.accept(slider.move(y));
@@ -59,8 +61,8 @@ final class SideControlView extends View {
     @SuppressLint("ClickableViewAccessibility") // Range actions and mute click are implemented below.
     @Override public boolean onTouchEvent(MotionEvent e) {
         if (e.getActionMasked()==MotionEvent.ACTION_DOWN) {
-            hold.run(); slider.begin(value,e.getY(),getHeight()-60*d,0);
             iconPress=volume && e.getY()<44*d; dragging=!iconPress;
+            hold.run(); slider.begin(value,e.getY(),getHeight()-60*d,0);
             return true;
         }
         if (e.getPointerCount()!=1 || e.getActionMasked()==MotionEvent.ACTION_CANCEL) {
@@ -74,12 +76,18 @@ final class SideControlView extends View {
         }
         return true;
     }
-    void settle() { glide.to(value); }
+    void setHeld(boolean held) { emphasis.to(held && !iconPress ? 1 : 0); }
+    void settle() { glide.to(value); setHeld(false); }
     @Override protected void onVisibilityChanged(View changedView,int visibility) {
         super.onVisibilityChanged(changedView,visibility);
-        if (visibility!=VISIBLE) glide.cancel();
+        if (visibility!=VISIBLE) {
+            // View's constructor can dispatch visibility before fields initialize.
+            if (glide!=null) glide.cancel();
+            if (emphasis!=null) emphasis.snap(0);
+            dragging=iconPress=false;
+        }
     }
-    @Override protected void onDetachedFromWindow() { glide.cancel(); super.onDetachedFromWindow(); }
+    @Override protected void onDetachedFromWindow() { glide.cancel(); emphasis.cancel(); super.onDetachedFromWindow(); }
     @Override public boolean performClick() { super.performClick(); if (volume) mute.run(); return true; }
     @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
         super.onInitializeAccessibilityNodeInfo(info); info.setClassName(SeekBar.class.getName());

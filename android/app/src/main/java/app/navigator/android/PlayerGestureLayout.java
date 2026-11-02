@@ -241,6 +241,7 @@ final class PlayerGestureLayout extends FrameLayout {
             side.setLayoutParams(params);
         }
         side.setVisibility(View.VISIBLE);
+        side.setHeld(sideInteraction);
     }
     private void finishSideControl() {
         sideInteraction=false; endpointHaptics.end(); side.settle(); scheduleHide();
