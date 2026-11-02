@@ -1,40 +1,39 @@
 const assert = require('node:assert/strict');
 const { load } = require('./test-support/react-hooks.cjs');
 const tick = () => new Promise(resolve => setImmediate(resolve));
-const globals = { Request, Response, URL, URLSearchParams, ReadableStream, TextEncoder, TextDecoder, AbortController, AbortSignal };
+const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream, TextEncoder, TextDecoder, AbortController, AbortSignal };
 (async () => {
-  let signedIn = false, active = 0, peak = 0;
-  const jobs = new Map();
-  const targets = Array.from({ length: 6 }, (_, i) => ({ transportUrl: `addon-${i}` }));
+  let signedIn = false, upstream, finish, fail;
+  const calls = [];
   const { GET } = load('app/api/search/suggestions/route.ts', {
     '@/app/actions/auth': { getAuthData: async () => { if (!signedIn) throw Error('unauthorized'); } },
-    '@/app/actions/search': {
-      listSearchAddonTargets: async () => targets,
-      searchCatalogSectionsForAddon: (_query, id, signal) => new Promise((resolve, reject) => {
-        active++; peak = Math.max(peak, active);
-        const finish = value => { active--; resolve([{ key: id, items: [value] }]); };
-        jobs.set(id, { signal, finish });
-        signal.addEventListener('abort', () => { active--; reject(signal.reason); }, { once: true });
-      }),
-    },
+    '@/lib/tmdb-discovery': { searchTMDBMedia: (query, signal) => {
+      calls.push(query); upstream = signal;
+      return new Promise((resolve, reject) => { finish = resolve; fail = reject;
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true }); });
+    } },
+    '@/app/actions/search': new Proxy({}, { get() { throw Error('Search must never call a Stremio add-on'); } }),
   }, globals);
   assert.equal((await GET(new Request('http://app/api/search/suggestions?q=hi'))).status, 400);
   assert.equal((await GET(new Request('http://app/api/search/suggestions?q=test'))).status, 401);
-  assert.equal(jobs.size, 0);
+  assert.equal(calls.length, 0);
   signedIn = true;
-  const request = new AbortController();
-  const response = await GET(new Request('http://app/api/search/suggestions?q=test', { signal: request.signal }));
-  assert.equal(response.headers.get('cache-control'), 'private, no-store');
-  const reader = response.body.getReader();
-  assert.equal(jobs.size, 4, 'Providers run concurrently with a bounded fan-out');
-  jobs.get('addon-1').finish({ name: 'Fast result' });
-  const chunk = new TextDecoder().decode((await reader.read()).value);
-  assert.ok(chunk.includes('Fast result'), 'A fast provider streams before the first slow provider');
+  const pending = GET(new Request('http://app/api/search/suggestions?q=Interstellar'));
   await tick();
-  assert.equal(jobs.size, 5, 'The next provider starts as capacity is released');
-  assert.equal(peak, 4);
-  await reader.cancel(); await tick();
-  assert.ok([...jobs.values()].every(job => job.signal.aborted), 'Closing the read cancels all upstream work');
+  assert.deepEqual(calls, ['Interstellar'], 'One TMDB multi-search, with no add-on fan-out or per-result lookups');
+  finish({ results: [{ id: 'tmdb:157336', type: 'movie', name: 'Interstellar' }] });
+  const response = await pending;
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  const message = JSON.parse(await response.text());
+  assert.equal(message.sections[0].items[0].id, 'tmdb:157336');
+  const request = new AbortController();
+  const cancelledSearch = GET(new Request('http://app/api/search/suggestions?q=test', { signal: request.signal }));
+  await tick(); request.abort();
+  assert.equal((await cancelledSearch).status, 503);
+  assert.equal(upstream.aborted, true, 'Replaced queries cancel the TMDB request');
+  const unavailable = GET(new Request('http://app/api/search/suggestions?q=test'));
+  await tick(); fail(Error('Add your TMDB read access token in Settings → TMDB.'));
+  assert.match((await (await unavailable).json()).error, /TMDB read access token/);
 
   const encoder = new TextEncoder();
   const results = [];
@@ -68,5 +67,5 @@ const globals = { Request, Response, URL, URLSearchParams, ReadableStream, TextE
   await tick(); abort.abort();
   await assert.rejects(work);
   assert.equal(upstreamSignal.aborted, true);
-  console.log('PASS: authenticated read streaming, provider concurrency, fast partial results, cancellation propagation, split UTF-8 chunks and reader cleanup.');
+  console.log('PASS: TMDB-only authenticated suggestions, one-request lookup, cancellation, token errors, split UTF-8 chunks and reader cleanup.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

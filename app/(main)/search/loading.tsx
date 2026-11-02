@@ -7,8 +7,8 @@ export default function SearchLoading() {
       <VibrantAuroraBackground amplitude={0.8} blend={0.4} />
 
       <section className="relative z-10 mb-12 space-y-12">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <SearchSectionLoading key={`search-addon-loading-${index}`} />
+        {Array.from({ length: 2 }).map((_, index) => (
+          <SearchSectionLoading key={`search-tmdb-loading-${index}`} />
         ))}
       </section>
     </div>

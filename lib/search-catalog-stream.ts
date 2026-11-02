@@ -6,7 +6,11 @@ export async function fetchSearchSuggestions(
     signal: AbortSignal,
 ): Promise<void> {
     const response = await fetch(`/api/search/suggestions?${new URLSearchParams({ q: query })}`, { signal, cache: "no-store" });
-    if (!response.ok || !response.body) throw new Error("Search is unavailable");
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || "Search is unavailable");
+    }
+    if (!response.body) throw new Error("Search is unavailable");
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let pending = "";

@@ -265,6 +265,10 @@ export interface SearchResult {
   description?: string;
   releaseInfo?: string;
   imdbRating?: string;
+  communityRating?: number;
+  ratingSource?: string;
+  year?: number;
+  background?: string;
   addonName?: string;
   catalogId?: string;
   catalogName?: string;
