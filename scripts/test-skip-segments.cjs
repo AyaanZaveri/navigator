@@ -31,6 +31,9 @@ async function run() {
     assert.equal(new URL(calls[0].url).searchParams.get('duration_ms'), '3600000');
     assert.ok(calls[1].url.startsWith('/api/skip-segments/introdb?'), 'Fallback goes through the CORS proxy');
     assert.equal(segments.find(s => s.kind === 'intro').end, 90, 'Primary wins');
+    assert.deepEqual([...new Set(segments.filter(s => s.kind === 'intro').map(s => s.provider))], ['theintrodb'],
+        'Never use both providers for the same segment kind');
+    assert.equal(activeSkipSegment(segments, 92), undefined, 'The fallback intro cannot reappear after the primary intro ends');
     assert.equal(segments.find(s => s.kind === 'recap').provider, 'introdb', 'Fallback fills missing segment kinds');
     assert.equal(segments.filter(s => s.kind === 'credits').length, 2, 'Preserve multiple credits segments');
     assert.equal(activeSkipSegment(segments, 3250).end, 3300, 'Skipping credits preserves the post-credit scene');
@@ -41,6 +44,10 @@ async function run() {
     const recovered = await fetchSkipSegments(lookup, signal, resolveIMDb,
         async url => url.startsWith('https:') ? new Response(null, { status: 404 }) : Response.json(fallback));
     assert.equal(recovered.find(s => s.kind === 'intro').provider, 'introdb');
+    const partial = await fetchSkipSegments(lookup, signal, resolveIMDb,
+        async url => Response.json(url.startsWith('https:') ? { intro: primary.intro } : fallback));
+    assert.equal(partial.find(s => s.kind === 'intro').provider, 'theintrodb');
+    assert.equal(partial.find(s => s.kind === 'credits').provider, 'introdb', 'Missing credits use fallback while intro stays on primary');
     const failed = await fetchSkipSegments(lookup, signal, resolveIMDb, async () => { throw new Error('offline'); });
     assert.equal(failed.length, 0, 'Provider outages do not fail playback');
     const invalid = normalizeSkipSegments({ intro: [
@@ -79,12 +86,12 @@ async function run() {
     assert.equal(proxyCalls[0].url, 'https://api.introdb.app/segments?imdb_id=tt0944947&season=1&episode=1');
     assert.equal(proxyCalls[0].options.next.revalidate, 3600);
 
-    let reduceMotion = false;
+    let stateIndex = 0;
     const { PlayerSkipSegments } = load('components/player-skip-segments.tsx', {
         require: name => {
             if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
-            if (name === 'react') return { useState: () => [segments, () => {}], useEffect: () => {} };
-            if (name === 'framer-motion') return { AnimatePresence: 'presence', motion: { div: 'motion-div' }, useReducedMotion: () => reduceMotion };
+            if (name === 'react') return { useState: initial => [stateIndex++ === 0 ? segments : initial, () => {}], useEffect: () => {}, useRef: initial => ({ current: initial }) };
+            if (name.endsWith('.module.css')) return { __esModule: true, default: { button: 'skip-button' } };
             if (name === '@/lib/media/skip-segments') return { activeSkipSegment, fetchSkipSegments };
             return new Proxy({}, { get: (_, key) => key });
         },
@@ -92,18 +99,18 @@ async function run() {
     for (const [time, label, destination] of [[1, 'Skip Intro', 90], [110, 'Skip Recap', 130], [3250, 'Skip Credits', 3300]]) {
         const element = { currentTime: time };
         let updated;
+        stateIndex = 0;
         const tree = PlayerSkipSegments({ lookup, currentTime: time, mediaRef: { current: element }, onSeek: value => { updated = value; } });
-        const button = tree.props.children.props.children;
+        const button = tree.props.children.find(child => !child.props.disabled);
         assert.equal(button.props.children[1], label);
         button.props.onClick({ stopPropagation() {} });
         assert.equal(element.currentTime, destination, 'Seek the actual media element (web or native adapter)');
         assert.equal(updated, destination, 'Update the displayed playback timestamp');
     }
-    reduceMotion = true;
-    const reduced = PlayerSkipSegments({ lookup, currentTime: 1, mediaRef: { current: null }, onSeek() {} });
-    assert.equal(reduced.props.children.props.initial.transform, 'none');
+    stateIndex = 0;
     const scene = PlayerSkipSegments({ lookup, currentTime: 3400, mediaRef: { current: null }, onSeek() {} });
-    assert.equal(scene.props.children, undefined);
+    assert.ok(scene.props.children.every(child => child.props.disabled && child.props['aria-hidden'] && child.props.tabIndex === -1),
+        'Hidden skip actions cannot intercept clicks or keyboard focus');
     console.log('PASS: primary/fallback segment merging, timestamp validation, post-credit scenes, ID translation, movies, cancellation, outages, and CORS proxy.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
