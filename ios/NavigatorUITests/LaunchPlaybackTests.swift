@@ -78,11 +78,9 @@ final class LaunchPlaybackTests: XCTestCase {
   private func assertGlassSamplesNativeVideo(_ app: XCUIApplication) {
     let back = app.buttons["native-player-back"]
     XCTAssertTrue(back.waitForExistence(timeout: 5))
-    guard let image = XCUIScreen.main.screenshot().image.cgImage else {
-      return XCTFail("No glass screenshot")
-    }
-    // AX application frames can retain portrait dimensions during rotation.
-    // The bridge accepts these CSS/window coordinates against UIKit bounds.
+    // Screenshot CGImages can retain portrait pixel storage with an EXIF
+    // rotation. Normalize UIImage orientation into the accepted window geometry
+    // before sampling points; sampling the raw CGImage hits unrelated content.
     let text = app.webViews.staticTexts.matching(
       NSPredicate(format: "label BEGINSWITH %@", "Geometry: ")
     ).firstMatch.label
@@ -92,6 +90,16 @@ final class LaunchPlaybackTests: XCTestCase {
       let width = geometry["w"], let height = geometry["h"], let x = geometry["x"],
       let y = geometry["y"], let w = geometry["width"], let h = geometry["height"]
     else { return XCTFail("Missing accepted viewport geometry: \(text)") }
+    let viewport = CGSize(width: width, height: height)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+    let snapshot = XCUIScreen.main.screenshot().image
+    guard
+      let image = UIGraphicsImageRenderer(size: viewport, format: format).image(actions: { _ in
+        snapshot.draw(in: CGRect(origin: .zero, size: viewport))
+      }).cgImage
+    else { return XCTFail("No normalized screenshot") }
     let nativeFrame = CGRect(x: x, y: y, width: w, height: h)
     let scaleX = CGFloat(image.width) / width
     let scaleY = CGFloat(image.height) / height
