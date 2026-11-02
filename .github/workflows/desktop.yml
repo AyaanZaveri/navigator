@@ -56,9 +56,16 @@ on:
       - "lib/cookie-policy.ts"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
+    inputs:
+      windows_artifact_run:
+        description: Existing run whose portable Windows artifact should be smoke-tested without rebuilding
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: desktop-${{ github.ref }}
@@ -66,6 +73,7 @@ concurrency:
 
 jobs:
   native:
+    if: inputs.windows_artifact_run == ''
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +89,7 @@ jobs:
       - run: cargo fmt --manifest-path desktop/Cargo.toml --all -- --check
       - run: cargo test --manifest-path desktop/Cargo.toml --locked
   adapter:
+    if: inputs.windows_artifact_run == ''
     strategy:
       matrix:
         os: [ubuntu-24.04, macos-15]
@@ -111,9 +120,13 @@ jobs:
       - name: Check Windows ZIP compatibility
         run: node scripts/test-windows-package.mjs
       - uses: oven-sh/setup-bun@v2
+        if: inputs.windows_artifact_run == ''
       - uses: dtolnay/rust-toolchain@1.92.0
+        if: inputs.windows_artifact_run == ''
       - run: bun install --frozen-lockfile
+        if: inputs.windows_artifact_run == ''
       - run: node scripts/test-windows-desktop.cjs
+        if: inputs.windows_artifact_run == ''
       - name: Parse Windows scripts
         shell: pwsh
         run: |
@@ -123,12 +136,15 @@ jobs:
             if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
           }
       - name: Install NSIS
+        if: inputs.windows_artifact_run == ''
         shell: pwsh
         run: |
           choco install nsis --yes --no-progress
           "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
       - run: node scripts/fetch-desktop-libs.mjs
+        if: inputs.windows_artifact_run == ''
       - name: Restore Windows native build cache
+        if: inputs.windows_artifact_run == ''
         id: windows-native-cache
         uses: actions/cache/restore@v4
         with:
@@ -139,13 +155,16 @@ jobs:
           key: windows-desktop-rust-1.92-${{ hashFiles('desktop/Cargo.lock', 'desktop/Cargo.toml', 'desktop/build.rs', 'desktop/src/**/*.rs') }}
           restore-keys: windows-desktop-rust-1.92-
       - name: Check Windows backend process ownership
+        if: inputs.windows_artifact_run == ''
         shell: pwsh
         run: |
           $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
           cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
       - run: node scripts/desktop.mjs package
+        if: inputs.windows_artifact_run == ''
         id: package
       - name: Verify portable archive includes Next assets
+        if: inputs.windows_artifact_run == ''
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -155,6 +174,22 @@ jobs:
             if (-not ($entries -match 'resources/server/\.next/static/')) { $entries | Select-Object -First 25; throw 'Portable ZIP is missing Next static assets' }
             if (-not ($entries -contains 'resources/server/server.js')) { throw 'Portable ZIP is missing the server' }
           } finally { $zip.Dispose() }
+      - name: Download existing portable build
+        if: inputs.windows_artifact_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: Navigator-Windows-x64-Portable
+          run-id: ${{ inputs.windows_artifact_run }}
+          github-token: ${{ github.token }}
+          path: dist/reused
+      - name: Extract existing portable build
+        if: inputs.windows_artifact_run != ''
+        shell: pwsh
+        run: |
+          Expand-Archive -LiteralPath (Get-ChildItem dist/reused/*-portable.zip).FullName -DestinationPath dist/desktop-win32-x64
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile dist/MicrosoftEdgeWebview2Setup.exe
+          $signature = Get-AuthenticodeSignature dist/MicrosoftEdgeWebview2Setup.exe
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation(?:,|$)') { throw 'Invalid Microsoft WebView2 bootstrapper signature' }
       - name: Ensure WebView2 runtime for the Windows Server runner
         shell: pwsh
         run: |
@@ -179,16 +214,23 @@ jobs:
           name: Navigator-Windows-x64-Portable
           path: dist/*-portable.zip
           if-no-files-found: error
+      - name: Collect compositor diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/windows-diagnostics | Out-Null
+          Copy-Item "$env:LOCALAPPDATA/Navigator Desktop/smoke/startup*.jsonl" dist/windows-diagnostics -ErrorAction SilentlyContinue
+          if (Test-Path dist/windows-smoke.png) { Copy-Item dist/windows-smoke.png dist/windows-diagnostics }
+          Get-Content dist/windows-diagnostics/startup.jsonl -ErrorAction SilentlyContinue
+          exit 0
       - name: Upload compositor diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Windows-compositor-diagnostics
-          path: |
-            dist/windows-smoke.png
-            ~/AppData/Local/Navigator Desktop/smoke/startup*.jsonl
+          path: dist/windows-diagnostics
       - name: Save Windows native build cache
-        if: always() && steps.windows-native-cache.outputs.cache-hit != 'true'
+        if: always() && inputs.windows_artifact_run == '' && steps.windows-native-cache.outputs.cache-primary-key != '' && steps.windows-native-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
