@@ -137,6 +137,7 @@ assert.equal(option.props['aria-describedby'], 'track-description');
 assert.ok(find(option, 'Badge').some(node => node.props.children === 'EN'));
 const submenu = dropdown.DropdownMenuSubContent({ container: root });
 assert.equal(submenu.props.container, root);
+assert.equal(submenu.props.children.props.sideOffset, 14, 'The 6px trigger inset plus an 8px visual gap must separate submenu surfaces');
 assert.equal(submenu.props.children.props.collisionPadding, 12);
 assert.equal(submenu.props.children.props.loop, true);
 

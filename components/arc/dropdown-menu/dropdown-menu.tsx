@@ -32,7 +32,9 @@ export function DropdownMenuSubTrigger({ children, className, ...props }: Compon
   </Primitive.SubTrigger>;
 }
 
-export function DropdownMenuSubContent({ container, className, sideOffset = 6, ...props }:
+// The anchor row is inset by 5px padding + 1px border. An offset of 14px
+// leaves 8px between menu surfaces; Radix's pointer grace area bridges it.
+export function DropdownMenuSubContent({ container, className, sideOffset = 14, ...props }:
   ComponentProps<typeof Primitive.SubContent> & { container?: Container }) {
   return <Primitive.Portal container={container}>
     <Primitive.SubContent loop collisionPadding={12} sideOffset={sideOffset}
