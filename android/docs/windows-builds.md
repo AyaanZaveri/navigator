@@ -72,6 +72,24 @@ The certificate SHA-256 matches the checked-in development key:
 Packaged bridge assets and the new Kotlin state-relay classes were checked after
 transfer. No physical device or emulator playback validation was performed.
 
+## Overlay-fix APK (2026-11-03)
+
+- Source: `190dafe572c984ed02c5368fa90db74b43f1bb9d` on `codex/android-overlay-apk`.
+- Includes the latest Kotlin shell plus APK-bundled retained-page isolation for
+  both old and current hosted UI markers. Hosted React source is not bundled;
+  the injected safeguard makes this APK independent of the website rollout.
+- Source archive SHA-256: `6ef4fd6b3e61d5bffa9045bfa6b80b80d6f44a07ff9e8a117c211d279f316a1d`.
+- Build/source/artifact directory: `C:\Users\amanz\Code\navigator-android-overlay-190dafe`.
+- Logs: `C:\Users\amanz\navigator-build-tools\android-overlay-190dafe`.
+- Script: `C:\Users\amanz\navigator-android-overlay-build.ps1`.
+- APK: `Navigator-Android-190dafe.apk`, 6,918,347 bytes; version code `29894758`.
+- APK SHA-256: `27c54e873c69f6fc7c8a181375a8a2b01921b2f1af2ea67657a679768871e7dd`.
+- Signing certificate matches the previous development APK (`42750b0c…0e5e1be`).
+- Kotlin compile, all 46 tests, lint, signing, manifest and packaged-asset checks
+  passed. The Mac checksum and GitHub uploaded-asset digest match the Windows APK.
+- [Private GitHub release, direct APK and metadata](https://github.com/AyaanZaveri/navigator/releases/tag/android-overlay-20261103-190dafe).
+- Physical-device playback/HDR remains unverified for this build.
+
 ## Official references
 
 - [Android SDK manager/package installation](https://developer.android.com/tools/sdkmanager)

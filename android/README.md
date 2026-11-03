@@ -15,8 +15,8 @@ of the selected website's deployment.
 
 ## Install and test
 
-Download the signed test APK from the [Kotlin migration prerelease](https://github.com/AyaanZaveri/navigator/releases/tag/android-kotlin-20261102-d04c169).
-It was built on the Zenbook over SSH from commit `d04c169`, with compilation,
+Download the signed APK from the [Android overlay-fix prerelease](https://github.com/AyaanZaveri/navigator/releases/tag/android-overlay-20261103-190dafe).
+It was built on the Zenbook over SSH from commit `190dafe`, with Kotlin compilation,
 46 unit tests, lint, APK signature and packaged-asset checks passing. GitHub
 Actions builds remain disabled. Physical-device playback still needs testing.
 
