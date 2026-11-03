@@ -218,6 +218,8 @@ impl VideoSurface {
     pub fn visible(&self, visible: bool) { self.renderer.visible(visible); }
 
     pub fn shutdown(&self) { self.renderer.shutdown(); }
+    pub fn begin_shutdown(&self) { self.renderer.begin_shutdown(); }
+    pub fn finished(&self) -> bool { self.renderer.finished() }
 
     pub fn resize(&self, width: u32, height: u32) {
         self.renderer.resize(width,height);

@@ -24,6 +24,7 @@ public static class FullscreenWindow {
  [DllImport("kernel32.dll")]public static extern uint GetCurrentThreadId();
  [DllImport("user32.dll")]public static extern bool AttachThreadInput(uint a,uint b,bool attach);
  [DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetClassName(IntPtr h,System.Text.StringBuilder text,int count);
  [DllImport("user32.dll")]public static extern IntPtr WindowFromPoint(Point p);
  [DllImport("user32.dll")]public static extern IntPtr GetAncestor(IntPtr h,uint flags);
  [DllImport("user32.dll")]public static extern uint GetDpiForWindow(IntPtr h);
@@ -37,15 +38,19 @@ public static class FullscreenWindow {
 '@
 [void][FullscreenWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
 function Activate-Navigator($handle){
- $foreground=[FullscreenWindow]::GetForegroundWindow()
- $other=[FullscreenWindow]::GetWindowThreadProcessId($foreground,[IntPtr]::Zero)
- $own=[FullscreenWindow]::GetCurrentThreadId()
- $attached=$false
- try{
-  if($own -ne $other){$attached=[FullscreenWindow]::AttachThreadInput($own,$other,$true)}
-  [void][FullscreenWindow]::SetForegroundWindow($handle)
- }finally{if($attached){[void][FullscreenWindow]::AttachThreadInput($own,$other,$false)}}
- if([FullscreenWindow]::GetForegroundWindow() -ne $handle){throw 'Could not activate Navigator for the fullscreen check'}
+ for($attempt=0;$attempt -lt 8;$attempt++){
+  $foreground=[FullscreenWindow]::GetForegroundWindow()
+  $other=[FullscreenWindow]::GetWindowThreadProcessId($foreground,[IntPtr]::Zero)
+  $own=[FullscreenWindow]::GetCurrentThreadId()
+  $attached=$false
+  try{
+   if($own -ne $other -and $other -ne 0){$attached=[FullscreenWindow]::AttachThreadInput($own,$other,$true)}
+   [void][FullscreenWindow]::SetForegroundWindow($handle)
+  }finally{if($attached){[void][FullscreenWindow]::AttachThreadInput($own,$other,$false)}}
+  if([FullscreenWindow]::GetForegroundWindow() -eq $handle){return}
+  Start-Sleep -Milliseconds 100
+ }
+ throw 'Could not activate Navigator for the fullscreen check'
 }
 function Read-Bounds($handle){
  [void][FullscreenWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
@@ -110,19 +115,24 @@ try{
  $app=Start-Process (Resolve-Path $Executable).Path -ArgumentList '--url http://127.0.0.1:37379' -PassThru
  do{Start-Sleep -Milliseconds 50;$app.Refresh()}while($app.MainWindowHandle -eq 0 -and !$app.HasExited)
  if($app.HasExited){throw 'App exited before opening a window'}
+ $deadline=[DateTime]::UtcNow.AddSeconds(30)
+ while(!(Test-Path $env:NAVIGATOR_FULLSCREEN_RESULT)){if([DateTime]::UtcNow -gt $deadline){throw 'No native video readiness'};Start-Sleep -Milliseconds 50}
+ if((Get-Content $env:NAVIGATOR_FULLSCREEN_RESULT) -ne 'ready'){throw 'Missed video readiness'}
+ # Establish the starting placement after WebView/DXGI startup, when its HWND
+ # messages and the initial window animation have settled.
+ [void][FullscreenWindow]::ShowWindow($app.MainWindowHandle,9)
  [void][FullscreenWindow]::ShowWindow($app.MainWindowHandle,3)
  Activate-Navigator $app.MainWindowHandle
- Start-Sleep -Milliseconds 200
+ [void][FullscreenWindow]::DwmFlush()
+ Start-Sleep -Milliseconds 300
  $before=Read-Bounds $app.MainWindowHandle
  $wasMaximized=[FullscreenWindow]::IsZoomed($app.MainWindowHandle)
- $deadline=[DateTime]::UtcNow.AddSeconds(30)
- while(!(Test-Path $env:NAVIGATOR_FULLSCREEN_RESULT)){if([DateTime]::UtcNow -gt $deadline){throw 'No native fullscreen response'};Start-Sleep -Milliseconds 50}
  if($Trigger -ne 'Bridge'){
   if((Get-Content $env:NAVIGATOR_FULLSCREEN_RESULT) -ne 'ready'){throw 'Missed video readiness'}
   Send-F11 $app.MainWindowHandle
   while((Get-Content $env:NAVIGATOR_FULLSCREEN_RESULT) -ne 'entered'){if([DateTime]::UtcNow -gt $deadline){throw 'F11 did not enter native fullscreen'};Start-Sleep -Milliseconds 50}
  }
- if((Get-Content $env:NAVIGATOR_FULLSCREEN_RESULT) -ne 'entered'){throw 'Missed fullscreen entry'}
+ while((Get-Content $env:NAVIGATOR_FULLSCREEN_RESULT) -ne 'entered'){if([DateTime]::UtcNow -gt $deadline){throw 'Missed fullscreen entry'};Start-Sleep -Milliseconds 50}
  Activate-Navigator $app.MainWindowHandle
  [void][FullscreenWindow]::DwmFlush()
  Start-Sleep -Milliseconds 250
@@ -133,7 +143,10 @@ try{
  $expected=@($info.Monitor.Left,$info.Monitor.Top,$info.Monitor.Right,$info.Monitor.Bottom)
  $point=New-Object FullscreenWindow+Point
  $point.X=[int](($info.Monitor.Left+$info.Monitor.Right)/2);$point.Y=$info.Monitor.Bottom-3
- $coversTaskbar=[FullscreenWindow]::GetAncestor([FullscreenWindow]::WindowFromPoint($point),2) -eq $app.MainWindowHandle
+ $bottomWindow=[FullscreenWindow]::WindowFromPoint($point)
+ $bottomClass=New-Object Text.StringBuilder 256
+ [void][FullscreenWindow]::GetClassName($bottomWindow,$bottomClass,256)
+ $coversTaskbar=[FullscreenWindow]::GetAncestor($bottomWindow,2) -eq $app.MainWindowHandle
  $clientFillsMonitor=($during.client -join ',') -eq ($expected -join ',')
  if($Trigger -ne 'Bridge'){Send-F11 $app.MainWindowHandle $true}
  $deadline=[DateTime]::UtcNow.AddSeconds(12)
@@ -142,7 +155,7 @@ try{
  $after=Read-Bounds $app.MainWindowHandle
  $restored=[FullscreenWindow]::IsZoomed($app.MainWindowHandle) -and (($before.client -join ',') -eq ($after.client -join ','))
  $passed=$wasMaximized -and $clientFillsMonitor -and $coversTaskbar -and $restored
- @{passed=$passed;trigger=$Trigger;startedMaximized=$wasMaximized;before=$before;during=$during;monitor=$expected;coversTaskbar=$coversTaskbar;clientFillsMonitor=$clientFillsMonitor;restored=$restored;after=$after}|ConvertTo-Json -Depth 5|Set-Content $outputPath
+ @{passed=$passed;bottomClass=$bottomClass.ToString();bottomWindow=$bottomWindow.ToInt64();window=$app.MainWindowHandle.ToInt64();trigger=$Trigger;startedMaximized=$wasMaximized;before=$before;during=$during;monitor=$expected;coversTaskbar=$coversTaskbar;clientFillsMonitor=$clientFillsMonitor;restored=$restored;after=$after}|ConvertTo-Json -Depth 5|Set-Content $outputPath
  if(!$passed){throw "Native fullscreen did not cover the monitor and restore correctly; see $outputPath"}
 }catch{$failed=$true;$_|Out-String|Write-Output}finally{
  if($app -and !$app.HasExited){[void]$app.CloseMainWindow();if(!$app.WaitForExit(10000)){Stop-Process -Id $app.Id -Force}}

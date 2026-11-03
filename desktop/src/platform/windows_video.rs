@@ -103,13 +103,17 @@ impl Host {
         );
         initialized.recv().map_err(|e| e.to_string())?
     }
-    pub fn shutdown(&self) {
+    pub fn begin_shutdown(&self) {
         {
             let mut s = self.state.0.lock().unwrap();
             s.stop = true;
             s.wake = true;
             self.state.1.notify_one();
         }
+    }
+    pub fn finished(&self)->bool {self.worker.lock().unwrap().as_ref().is_none_or(|w|w.is_finished())}
+    pub fn shutdown(&self) {
+        self.begin_shutdown();
         if let Some(worker) = self.worker.lock().unwrap().take() {
             let _ = worker.join();
         }
@@ -424,7 +428,9 @@ unsafe fn run(
         };
         let swap =
             factory.CreateSwapChainForHwnd(&device, HWND(hwnd as *mut _), &desc, None, None)?;
-        factory.MakeWindowAssociation(HWND(hwnd as *mut _), DXGI_MWA_NO_ALT_ENTER)?;
+        // Tao owns window placement and borderless fullscreen. DXGI must not
+        // install a competing message-queue handler for mode transitions.
+        factory.MakeWindowAssociation(HWND(hwnd as *mut _), DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER)?;
         let mut render = match RenderContext::new_d3d11(mpv, device.as_raw()) {
             Ok(r) => r,
             Err(e) => {

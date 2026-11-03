@@ -646,6 +646,10 @@ pub fn run(app: App) -> Result<(), String> {
             if let Some((_, player, _)) = &running { player.begin_shutdown(); }
         }
         if closing && worker.is_finished() && running.as_ref().is_none_or(|(_, p, _)| p.finished()) {
+            // DXGI destroys window-associated resources on the render thread.
+            // Keep pumping HWND messages until that thread has actually exited.
+            surface.begin_shutdown();
+            if !surface.finished() {*flow=ControlFlow::WaitUntil(Instant::now()+Duration::from_millis(16));return;}
             // Dispose the WebView before its context/profile and backend.
             view.take(); context.take();
             if let Some((mut app, mut player, smoke)) = running.take() {

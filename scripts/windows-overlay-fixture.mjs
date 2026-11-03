@@ -24,7 +24,7 @@ document.getElementById('caption-fullscreen').addEventListener('click',()=>bridg
 bridge.subscribe(message=>{if(message.type==='ready') document.documentElement.dataset.nativePlaying='';});
 ${fullscreenTest ? `let entered=false,requested=false;
 bridge.subscribe(message=>{
- if(message.type==='ready'&&!requested){requested=true;${fullscreenMode === '1' ? "setTimeout(()=>bridge.send({type:'fullscreen',value:true}),2000);" : "fetch('/fullscreen-state/ready');"}}
+ if(message.type==='ready'&&!requested){requested=true;fetch('/fullscreen-state/ready');${fullscreenMode === '1' ? "setTimeout(()=>bridge.send({type:'fullscreen',value:true}),2000);" : ""}}
  if(message.type==='fullscreen'&&message.value){entered=true;fetch('/fullscreen-state/entered');${fullscreenMode === '1' ? "setTimeout(()=>bridge.send({type:'fullscreen',value:false}),6000);" : ''}}
  else if(message.type==='fullscreen'&&entered){fetch('/fullscreen-state/exited');}
 });` : ''}
