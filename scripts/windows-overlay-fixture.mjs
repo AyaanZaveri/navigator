@@ -13,10 +13,14 @@ const html = `<!doctype html><html><head><style>${css}\n${wordmark}
 body{margin:0;color:white;font:20px system-ui}
 [data-desktop-app-content]{position:fixed;inset:0}
 .root{height:60vh}.root .artwork{position:absolute;inset:40px 0 auto;height:55vh;max-height:none;transform:none;background:rgb(31,231,117);display:grid;place-items:center;backdrop-filter:blur(12px)}
+.caption{position:fixed;top:0;right:0;display:flex;height:32px;z-index:100}.caption button{width:46px;height:32px;background:none;border:0;color:white}html[data-desktop-fullscreen="true"] .caption{display:none}
 .controls{position:fixed;bottom:24px;left:24px;background:#111b;padding:16px}
-</style></head><body><div data-desktop-app-content><div class="root" data-ready><div class="artwork">MEDIA PAGE WORDMARK — MUST NOT COVER VIDEO</div></div></div><div class="controls">Native video / retained page regression check</div>
+</style></head><body><div data-desktop-app-content><div class="root" data-ready><div class="artwork">MEDIA PAGE WORDMARK — MUST NOT COVER VIDEO</div></div></div><div class="controls">Native video / retained page regression check</div><div class="caption" data-no-window-drag><button aria-label="Minimize">−</button><button id="caption-fullscreen" aria-label="Enter fullscreen">⛶</button><button aria-label="Close window">×</button></div>
 <script>
 const bridge=window.navigatorDesktop;
+// Match the actual app's caption button: native hit testing may deliver the
+// non-client action, or WebView2 delivers this accessible DOM click handler.
+document.getElementById('caption-fullscreen').addEventListener('click',()=>bridge.send({type:'window-control',action:'toggle-maximize'}));
 bridge.subscribe(message=>{if(message.type==='ready') document.documentElement.dataset.nativePlaying='';});
 ${fullscreenTest ? `let entered=false,requested=false;
 bridge.subscribe(message=>{

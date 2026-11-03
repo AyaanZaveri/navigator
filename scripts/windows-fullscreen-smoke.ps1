@@ -62,6 +62,7 @@ function Send-F11($handle,[bool]$ExitFullscreen=$false){
   $dpi=[FullscreenWindow]::GetDpiForWindow($handle)/96.0
   [void][FullscreenWindow]::SetCursorPos([int]($r.client[2]-69*$dpi),[int]($r.client[1]+16*$dpi))
   [FullscreenWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 80
   [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
   return
  }
@@ -74,6 +75,7 @@ function Send-F11($handle,[bool]$ExitFullscreen=$false){
   $rect=Read-Bounds $handle
   [void][FullscreenWindow]::SetCursorPos([int](($rect.client[0]+$rect.client[2])/2),[int](($rect.client[1]+$rect.client[3])/2))
   [FullscreenWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 80
   [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  }
  [FullscreenWindow]::keybd_event(122,87,0,[UIntPtr]::Zero)
