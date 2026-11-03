@@ -21,7 +21,15 @@ html[data-desktop="mpv"] body::before {
   pointer-events: none;
 }
 html[data-native-playing] body::before { display: none; }
-html[data-native-playing] [data-desktop-app-content] { visibility: hidden; }
+/* Hide the retained browsing page at Play intent, before native video or the
+   deferred player chunk is ready. Descendants can override visibility, but
+   cannot escape this complete paint group's opacity. Keep its layout intact. */
+html[data-native-playing] [data-desktop-app-content],
+[data-desktop-app-content][data-playback-hidden] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
 html[data-native-playing] [data-home-gradient] { display: none; }
 html[data-native-playing] [data-native-player-shell],
 html[data-native-playing] [data-slot="media-player"] {
