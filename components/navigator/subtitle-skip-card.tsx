@@ -1,7 +1,8 @@
 "use client";
 
-import { Subtitles } from "lucide-react";
-import { ResultCard, ResultBadge } from "./result-card";
+import { formatSceneTime } from "@/lib/format-scene-time";
+import { ResultCard } from "./result-card";
+import styles from "./subtitle-skip-card.module.css";
 
 interface SubtitleSkipCardProps {
   result: {
@@ -22,21 +23,17 @@ export function SubtitleSkipCard({
   className,
   index = 0,
 }: SubtitleSkipCardProps) {
+  const time = formatSceneTime(result.timestamp, result.timestampFormatted);
   return (
     <ResultCard
       className={className}
       index={index}
-      title={result.success ? "Matching scene" : "Subtitle search failed"}
-      icon={Subtitles}
-      metadata={
-        result.timestampFormatted && (
-          <ResultBadge>{result.timestampFormatted}</ResultBadge>
-        )
-      }
-      description={
-        result.text && <span className="italic">“{result.text}”</span>
-      }
+      title={result.success
+        ? time ? <span className={styles.time}>At {time}</span> : null
+        : "Subtitle search failed"}
       error={!result.success ? result.error : undefined}
-    />
+    >
+      {result.text && <blockquote className={styles.quote}>“{result.text}”</blockquote>}
+    </ResultCard>
   );
 }
