@@ -107,7 +107,7 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 /* Override the original Android client offsets in both loading and playback. */
 html[data-native-engine="exoplayer"] [data-native-player-shell] [data-slot="media-player"] button[data-player-close][data-player-glass] {
   top: calc(1.25rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)));
-  left: calc(var(--navigator-player-back-left, 1rem) + .25rem);
+  left: var(--player-chrome-left);
 }
 @media (hover: hover) and (pointer: fine) {
   [data-player-glass][data-player-close]:enabled:hover,
@@ -201,4 +201,26 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
 @media (prefers-reduced-motion: reduce) {
   [data-scrub-mode="surface"] [data-slot="media-player-seek-range"],
   [data-slot="media-player-seek-tooltip"][data-seek-mode="surface"] { transition: none; }
+}
+
+/* Loading identity and Back share one stable edge. Keep it independent of
+   playback controls, whose mid-screen camera clearance can change later. */
+[data-player-shell] {
+  --player-chrome-left: max(1rem, var(--window-controls-inset, 0px), env(safe-area-inset-left, 0px));
+  --player-chrome-right: max(1rem, var(--navigator-safe-right, env(safe-area-inset-right, 0px)));
+}
+html[data-native-engine="exoplayer"] [data-player-shell] {
+  --player-chrome-left: calc(var(--navigator-player-back-left, 1rem) + .25rem);
+}
+html[data-native-platform="ios"] [data-player-shell] {
+  --player-chrome-left: calc(1rem + var(--native-safe-left, 0px));
+  --player-chrome-right: calc(1rem + var(--native-safe-right, 0px));
+}
+[data-player-shell] [data-player-close] {
+  left: var(--player-chrome-left);
+}
+/* The extra shell scope also wins over CSS injected by already installed APKs. */
+[data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
+  left: var(--player-chrome-left);
+  right: var(--player-chrome-right);
 }

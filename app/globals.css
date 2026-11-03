@@ -21,7 +21,14 @@ html[data-desktop="mpv"] body::before {
   pointer-events: none;
 }
 html[data-native-playing] body::before { display: none; }
-html[data-native-playing] [data-desktop-app-content] { visibility: hidden; }
+/* visibility is inherited and a loaded wordmark/overscroll surface can set
+   itself visible again. Suppress the retained page as a complete paint group
+   on every native platform; keep its layout and scroll position intact. */
+html[data-native-playing] [data-desktop-app-content] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
 html[data-native-playing] [data-home-gradient] { display: none; }
 html[data-native-playing] [data-native-player-shell],
 html[data-native-playing] [data-slot="media-player"] {
