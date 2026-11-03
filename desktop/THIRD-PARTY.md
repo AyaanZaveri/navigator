@@ -41,6 +41,10 @@ their licenses. The standalone web server contains the existing project's npm
 dependencies. Review and include the complete dependency notices and sources
 required for a public release, together with this file and the bundled notices.
 
+The Windows startup document embeds the app's **Sunghyun Sans** regular and
+semibold fonts. Their SIL Open Font License is included in
+`licenses/SunghyunSans-OFL.txt`.
+
 ## Seek previews
 
 Native keyframe previews depend on `aiostreams-container` and `aiostreams-thumbs`

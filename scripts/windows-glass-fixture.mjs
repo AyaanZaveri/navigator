@@ -27,7 +27,9 @@ body{margin:0}.panel{position:fixed;width:240px;padding:24px;border-radius:14px;
 <div class="panel subtitle" data-player-native-glass>Subtitle glass</div>
 <script>
 const bridge=window.navigatorDesktop, cleanups=[];
-let attached=false,frames=0,painted=false;const arrivals=[],changes=[];
+let attached=false,frames=0,painted=false;const arrivals=[],changes=[],paints=[];
+let previousImage='';
+new MutationObserver(()=>{const image=document.querySelector('.preview').style.getPropertyValue('--native-glass-image');if(image&&image!==previousImage){previousImage=image;paints.push(performance.now());}}).observe(document.querySelector('.preview'),{attributes:true,attributeFilter:['style']});
 const NativePlayerGlass=(()=>{const exports={};const require=name=>name==='react'?{useEffect:fn=>cleanups.push(fn())}:name.endsWith('/bridge')?{desktopBridge:()=>bridge}:{};
 ${controller}
 return exports.NativePlayerGlass;})();
@@ -42,7 +44,7 @@ bridge.subscribe(message=>{
     await fetch('/painted',{method:'POST',body:JSON.stringify({frames,material,bytes:message.src.length})});
     setTimeout(()=>{
      for(const node of panels)node.setAttribute('aria-hidden','true');
-     setTimeout(()=>{const stoppedAt=frames;setTimeout(()=>{for(const cleanup of cleanups)cleanup?.();const gaps=arrivals.slice(1).map((t,i)=>t-arrivals[i]).sort((a,b)=>a-b);fetch('/completed',{method:'POST',body:JSON.stringify({frames,stopped:frames===stoppedAt,fps:(arrivals.length-1)*1000/(arrivals.at(-1)-arrivals[0]),p95GapMs:gaps[Math.floor(gaps.length*.95)],uniqueFrames:new Set(changes).size})});},1200);},300);
+     setTimeout(()=>{const stoppedAt=frames;setTimeout(()=>{for(const cleanup of cleanups)cleanup?.();const gaps=arrivals.slice(1).map((t,i)=>t-arrivals[i]).sort((a,b)=>a-b),paintGaps=paints.slice(1).map((t,i)=>t-paints[i]).sort((a,b)=>a-b);fetch('/completed',{method:'POST',body:JSON.stringify({frames,stopped:frames===stoppedAt,fps:(arrivals.length-1)*1000/(arrivals.at(-1)-arrivals[0]),p95GapMs:gaps[Math.floor(gaps.length*.95)],paintFps:(paints.length-1)*1000/(paints.at(-1)-paints[0]),p95PaintGapMs:paintGaps[Math.floor(paintGaps.length*.95)],uniqueFrames:new Set(changes).size})});},1200);},300);
     },5000);
    },100);
   }

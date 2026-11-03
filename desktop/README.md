@@ -81,12 +81,26 @@ while control-state changes are delivered immediately.
 Windows player glass uses opt-in `capabilities.glass` and validated session-scoped
 `glass` demand. A dedicated sampler copies the current rendered video window,
 reduces it to at most 160×90 pixels and sends a bounded in-memory BMP at no more
-than 2 Hz. Playback controls stay on their own worker. Idle demand sleeps; paused
+than 30 Hz. The deadline includes capture time rather than adding a fixed sleep
+after it. New visible surfaces and geometry changes wake capture immediately.
+Playback controls stay on their own worker. Idle demand sleeps; paused
 frames are reused, geometry changes invalidate them, minimizing stops sampling,
 and source replacement discards old results. The shared glass effect paints only
-visible controls; menus retain their tint and subtitles retain their background.
+visible controls. Both the native UI and WebView paint paths keep only the latest
+pending sample. Windows player menus use a 68% tint in light and dark app themes
+so the light-theme 98% menu background cannot hide their glass. Subtitles retain
+their configured background; reduced-transparency menus remain opaque.
 No desktop pixels, temporary screenshot files or second decoder are involved.
 CSS blur remains local to each small surface. Hardware HDR accuracy is unverified.
+The glass smoke check uses production dropdown CSS with a light document root,
+checks sample and actual CSS paint cadence, and verifies hidden-demand shutdown.
+`RUST_LOG=navigator_desktop::glass=debug` reports capture cost and video frame drops.
+The bitmap layout/lifetime follows mpv's [`screenshot-raw` client command](https://mpv.io/manual/stable/#command-screenshot-raw).
+
+The initial native frame contains no GDI text and shares the splash's base color.
+The offline splash embeds the same regular and semibold Sunghyun Sans WOFF2 files
+as the app. Its CSP permits only data fonts; its exact generated document remains
+the navigation allowlist entry, without granting the splash a privileged origin.
 
 ### Windows verification and performance
 

@@ -30,6 +30,7 @@ try{
  $result=Get-Content "$outputPath.completed.json" -Raw|ConvertFrom-Json
  if(!$result.stopped){throw 'Hidden controls continued native image capture'}
  if($result.fps -lt $MinimumFps -or $result.p95GapMs -gt 100){throw "Glass is visibly slow: $($result.fps) fps, p95 gap $($result.p95GapMs) ms"}
+ if($result.paintFps -lt $MinimumFps -or $result.p95PaintGapMs -gt 100){throw "Glass paint is stalling: $($result.paintFps) fps, p95 gap $($result.p95PaintGapMs) ms"}
  if($material.material[1].dropdownOpacity.Trim() -ne '68%'){throw 'Player menu tint hides the video glass'}
  "Preview, real dropdown CSS and subtitle glass painted actual video at $([Math]::Round($result.fps,1)) fps; hidden surfaces stopped sampling."
 }finally{
