@@ -102,14 +102,21 @@ The initial OpenNext build completed on the Zenbook with Node.js 22.13.1 and
 Bun 1.3.10. TypeScript, page-layout/native isolation, player chrome alignment,
 wordmark, desktop authentication and web-player regression checks passed.
 The HTTP smoke script also passed against the existing Vercel deployment.
-Live Cloudflare verification must run after publishing; a successful build alone
-does not verify the Workers runtime. OpenNext reports Node.js middleware support
+The same public HTTP smoke checks passed on the live Cloudflare deployment,
+including TMDB artwork resolution and the private image proxy. OpenNext reports Node.js middleware support
 as experimental, so the smoke checks cover both anonymous and synthetic-cookie
 proxy redirects without sending a real session to upstream services.
 
 Wrangler minifies the upload. No automatic GitHub deployment pipeline is enabled;
 future source changes need another Cloudflare build and deployment. GitHub Actions
 remain disabled.
+
+The initial published version is `6fbb8c08-9e1c-4a2c-8dfd-17acbc96d685`
+from source `3de0685`. Both TMDB bindings were verified as `secret_text`.
+The minified Worker upload was 4,075.59 KiB gzip; Cloudflare reported a 16 ms
+startup time for this deployment. This is a deployment metric, not a playback
+latency measurement. The Windows build archive's SHA-256 is
+`b5c7b3f57cdccb431ea0b6037981261e44beaae8cbada582c1d4a1022809415f`.
 
 ## Official references
 
