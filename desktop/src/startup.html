@@ -2,10 +2,12 @@
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-navigator-startup'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src data:; style-src 'unsafe-inline'; script-src 'nonce-navigator-startup'">
 <title>Navigator</title>
 <style>
-:root{color-scheme:dark;font:14px/1.5 'Segoe UI Variable','Segoe UI',sans-serif;color:#f0fdfa;background:#042f2e}
+@font-face{font-family:SunghyunSans;src:url(data:font/woff2;base64,__SUNGHYUN_REGULAR__) format('woff2');font-weight:400;font-style:normal;font-display:block}
+@font-face{font-family:SunghyunSans;src:url(data:font/woff2;base64,__SUNGHYUN_SEMIBOLD__) format('woff2');font-weight:600;font-style:normal;font-display:block}
+:root{color-scheme:dark;font:14px/1.5 SunghyunSans,sans-serif;color:#f0fdfa;background:#042f2e}
 *{box-sizing:border-box}
 body{margin:0;min-height:100dvh;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 5%,#14b8a68c,transparent 66%),radial-gradient(ellipse at 50% 105%,#0d948880,transparent 68%),radial-gradient(ellipse at 50% 45%,#14b8a629,transparent 48%),linear-gradient(135deg,#0a0a0a,#042f2e)}
 main{width:min(100% - 48px,360px);text-align:center;padding:40px 0 88px}

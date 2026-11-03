@@ -13,6 +13,7 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
         const session = (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.previewSession;
         if (!ready || !(bridge?.platform === "android" || bridge?.platform === "windows") || !bridge.capabilities?.glass || !session) return;
         let requested = false, image: string | null = null;
+        let paintFrame: number | undefined;
         let visible: HTMLElement[] = [];
         const observed = new Set<HTMLElement>();
         const resized = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => refresh());
@@ -30,7 +31,11 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
                 && node.getClientRects().length && getComputedStyle(node).visibility !== "hidden");
             const wanted = !document.hidden && visible.length > 0;
             if (wanted !== requested) { requested = wanted; bridge.send({ type: "glass", session, active: wanted }); }
-            if (!wanted) { visible = []; return; }
+            if (!wanted) {
+                visible = [];
+                if (paintFrame !== undefined) { cancelAnimationFrame(paintFrame); paintFrame = undefined; }
+                return;
+            }
             for (const node of visible) {
                 if (!observed.has(node)) { observed.add(node); resized?.observe(node); }
                 // Moving seek previews align in CSS on every gesture frame.
@@ -56,8 +61,12 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
             if (message.type !== "glass-frame" || message.session !== session || !requested
                 || !(message.src.startsWith("data:image/jpeg;base64,") || (bridge.platform === "windows" && message.src.startsWith("data:image/bmp;base64,"))) || message.src.length > 128*1024) return;
             image = `url("${message.src}")`;
-            // New pixels require only local paint writes, never a layout read.
-            for (const node of visible) paint(node);
+            // Windows delivers at video cadence. Keep only the latest sample
+            // per display frame if WebView2 is busy; never replay old pixels.
+            const draw = () => { paintFrame = undefined; for (const node of visible) paint(node); };
+            if (bridge.platform === "windows") {
+                if (paintFrame === undefined) paintFrame = requestAnimationFrame(draw);
+            } else draw();
         });
         const observer = new MutationObserver(records => {
             if (records.some(record => (record.type === "attributes" && (record.attributeName !== "style" || record.target instanceof Element && record.target.hasAttribute("data-radix-popper-content-wrapper"))) || [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1))) refresh();
@@ -70,6 +79,7 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
         refresh();
         return () => {
             observer.disconnect(); insets.disconnect(); resized?.disconnect(); observed.clear(); unsubscribe();
+            if (paintFrame !== undefined) cancelAnimationFrame(paintFrame);
             document.removeEventListener("visibilitychange", refresh); window.removeEventListener("resize", refresh);
             if (requested) bridge.send({ type: "glass", session, active: false });
             for (const node of nodes()) {

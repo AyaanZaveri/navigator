@@ -51,8 +51,15 @@
 
 :global(html:not(.dark)) .menu { --dropdown-opacity: 98%; }
 
+/* The player is dark even in a light app. Native video needs enough alpha
+   through this tint for the sampled glass to remain visible. */
+:global(html[data-native-platform="windows"][data-native-playing]) .menu[data-player-native-glass] {
+  --dropdown-opacity: 68%;
+}
+
 @media (prefers-reduced-transparency: reduce) {
-  .menu, :global(html:not(.dark)) .menu {
+  .menu, :global(html:not(.dark)) .menu,
+  :global(html[data-native-platform="windows"][data-native-playing]) .menu[data-player-native-glass] {
     --dropdown-opacity: 100%;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;

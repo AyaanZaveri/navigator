@@ -1,5 +1,5 @@
 //! Demand-driven, bounded glass samples. Playback stays in the native surface;
-//! only a 160x90 (maximum) bitmap reaches visible material surfaces at <=2 Hz.
+//! only a 160x90 (maximum) bitmap reaches visible material surfaces at <=30 Hz.
 
 /// Downsample BGR0 to a top-down 24-bit BMP without codecs, temporary files or a
 /// second decoder. Keep this pure function testable without a GPU or libmpv.
@@ -57,24 +57,40 @@ mod sampling {
             let shared=control.clone();
             let stopped=quit.clone();
             let worker=std::thread::Builder::new().name("navigator-glass".into()).spawn(move||{
-                let mut last=Instant::now()-Duration::from_secs(1);
+                let period=Duration::from_secs_f64(1.0/30.0);
+                let mut next=Instant::now();
                 let mut previous=None;
+                let mut attempted_revision=None;
+                let mut sampled=0u64;
+                let mut capture_time=Duration::ZERO;
+                let mut report=Instant::now();
                 while !quit.load(Ordering::Relaxed) {
-                    let (session,revision,wanted)={
+                    let (session,revision)={
                         let mut s=shared.0.0.lock().unwrap();
-                        while !quit.load(Ordering::Relaxed) && !(s.active&&s.visible&&!s.session.is_empty()) {
-                            s=shared.0.1.wait(s).unwrap();
+                        loop {
+                            if quit.load(Ordering::Relaxed) { break; }
+                            if !(s.active&&s.visible&&!s.session.is_empty()) {
+                                s=shared.0.1.wait(s).unwrap();
+                            } else if attempted_revision!=Some(s.revision) || Instant::now()>=next {
+                                break;
+                            } else {
+                                s=shared.0.1.wait_timeout(s,next.saturating_duration_since(Instant::now())).unwrap().0;
+                            }
                         }
                         if quit.load(Ordering::Relaxed) { break; }
-                        (s.session.clone(),s.revision,true)
+                        (s.session.clone(),s.revision)
                     };
-                    if wanted && last.elapsed()>=Duration::from_millis(500) {
-                        last=Instant::now();
+                    {
+                        let started=Instant::now();
+                        attempted_revision=Some(revision);
+                        next=started+period;
                         let position=mpv.get_property("time-pos",Kind::Double).and_then(|v|v.as_f64()).map(f64::to_bits);
                         let key=(revision,position);
                         // A paused frame stays cached; geometry changes invalidate it.
                         if previous!=Some(key) {
                             if let Ok(bitmap)=mpv.glass_bitmap() {
+                                sampled+=1;
+                                capture_time+=started.elapsed();
                                 let s=shared.0.0.lock().unwrap();
                                 if s.active&&s.visible&&s.session==session&&s.revision==revision&&!quit.load(Ordering::Relaxed) {
                                     emit(json!({"type":"glass-frame","session":session,"src":format!("data:image/bmp;base64,{}",STANDARD.encode(bitmap))}));
@@ -82,8 +98,13 @@ mod sampling {
                                 }
                             }
                         }
+                        // Diagnostics are disabled at normal log levels. This
+                        // measures GPU readback as well as BMP downsampling.
+                        if report.elapsed()>=Duration::from_secs(2) && sampled>0 {
+                            log::debug!("glass: {sampled} samples, mean capture {:.2} ms, dropped video frames {:?}", capture_time.as_secs_f64()*1000.0/sampled as f64, mpv.get_property("frame-drop-count",Kind::Double));
+                            sampled=0;capture_time=Duration::ZERO;report=Instant::now();
+                        }
                     }
-                    std::thread::sleep(Duration::from_millis(50));
                 }
             }).map_err(|e|e.to_string())?;
             Ok(Self{control,worker:Some(worker),quit:stopped})

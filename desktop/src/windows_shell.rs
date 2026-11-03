@@ -26,6 +26,14 @@ use tao::{
 };
 use wry::{NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder};
 
+fn startup_document() -> &'static str {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    static DOCUMENT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    DOCUMENT.get_or_init(|| include_str!("startup.html")
+        .replace("__SUNGHYUN_REGULAR__", &STANDARD.encode(include_bytes!("../../app/fonts/sunghyun-sans/SunghyunSans-Regular.woff2")))
+        .replace("__SUNGHYUN_SEMIBOLD__", &STANDARD.encode(include_bytes!("../../app/fonts/sunghyun-sans/SunghyunSans-SemiBold.woff2"))))
+}
+
 // NavigateToString still exposes about:blank to script/IPC, but recent
 // Evergreen versions report its encoded HTML in NavigationStarting.
 fn smoke_navigation_allowed(url: &str) -> bool {
@@ -62,7 +70,9 @@ fn smoke_navigation_is_exact() {
 #[test]
 fn startup_navigation_has_no_privileged_origin() {
     use base64::Engine;
-    let html = include_bytes!("startup.html");
+    let html = startup_document().as_bytes();
+    assert!(!startup_document().contains("__SUNGHYUN_"));
+    assert!(startup_document().contains("font-src data:"));
     let trusted = format!(
         "data:text/html;charset=utf-8;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(html)
@@ -85,6 +95,7 @@ enum UserEvent {
     BackendReady,
     Command(protocol::Command, Option<Value>),
     Emit(Value),
+    GlassFrame,
     Fullscreen(bool),
     Drag,
     ChromeHover(u32),
@@ -228,7 +239,7 @@ fn make_view(
         })
         .with_navigation_handler(move |url| {
             let allowed = (smoke && smoke_navigation_allowed(&url))
-                || (!smoke && bundled_navigation_allowed(&url, include_bytes!("startup.html")))
+                || (!smoke && bundled_navigation_allowed(&url, startup_document().as_bytes()))
                 || protocol::origin(&url).as_deref() == Some(&nav_origin);
             if !allowed && protocol::media_url(&url).is_ok() {
                 let _ = open::that_detached(url);
@@ -255,7 +266,7 @@ fn make_view(
     let builder = if smoke {
         builder.with_html(include_str!("smoke.html"))
     } else {
-        builder.with_html(include_str!("startup.html"))
+        builder.with_html(startup_document())
     };
     builder
         .build_as_child(window)
@@ -311,7 +322,7 @@ pub fn run(app: App) -> Result<(), String> {
         .with_window_classname(platform::window_class(app.smoke))
         .with_window_icon(icon.clone())
         .with_taskbar_icon(icon)
-        .with_background_color((0, 0, 0, 255))
+        .with_background_color(platform::STARTUP_BACKGROUND)
         .with_visible(false)
         .with_inner_size(if app.smoke {
             LogicalSize::new(960.0, 640.0)
@@ -347,6 +358,10 @@ pub fn run(app: App) -> Result<(), String> {
     let cancel = cancelled.clone();
     let boot_proxy = proxy.clone();
     let emit_proxy = proxy.clone();
+    // One pending notification and one latest bitmap: a blocked UI must never
+    // build a queue of obsolete video samples alongside playback commands.
+    let latest_glass = Arc::new(std::sync::Mutex::new(None::<Value>));
+    let glass_output = latest_glass.clone();
     let options = platform::mpv_options(&surface);
     let boot_log = log.clone();
     let backend_proxy = proxy.clone();
@@ -373,7 +388,12 @@ pub fn run(app: App) -> Result<(), String> {
                 };
                 record(&boot_log, started, "player-starting");
                 let player = match app.start_player_options(options, move |value| {
-                    let _ = emit_proxy.send_event(UserEvent::Emit(value));
+                    if value["type"] == "glass-frame" {
+                        let notify = glass_output.lock().unwrap().replace(value).is_none();
+                        if notify { let _ = emit_proxy.send_event(UserEvent::GlassFrame); }
+                    } else {
+                        let _ = emit_proxy.send_event(UserEvent::Emit(value));
+                    }
                 }) {
                     Ok(player) => player,
                     Err(error) => {
@@ -516,6 +536,13 @@ pub fn run(app: App) -> Result<(), String> {
                     }
                 }
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":fullscreen}))); }
+            }
+            Event::UserEvent(UserEvent::GlassFrame) => {
+                let value = latest_glass.lock().unwrap().take();
+                if let Some(value) = value.filter(|value| !closing && value["session"].as_str() == Some(playback_session.as_str())) {
+                    if !glass_ready { glass_ready = true; record(&log, started, "glass-sample-ready"); }
+                    if let Some(view) = &view { let _ = view.evaluate_script(&receive(&value)); }
+                }
             }
             Event::UserEvent(UserEvent::Emit(value)) => {
                 if !playback_session.is_empty() && value["session"].as_str() == Some(playback_session.as_str()) {

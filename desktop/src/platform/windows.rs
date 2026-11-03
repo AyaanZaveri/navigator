@@ -36,6 +36,7 @@ pub fn window_class(smoke: bool) -> &'static str {
     }
 }
 pub const APP_ID: &str = "app.navigator.desktop";
+pub const STARTUP_BACKGROUND: (u8, u8, u8, u8) = (0x04, 0x2f, 0x2e, 255);
 
 pub fn claim_app_id() {
     unsafe {
@@ -83,23 +84,19 @@ unsafe extern "system" fn loading_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    // WebView2 paints the branded splash. The earlier GDI label used the
+    // system's tiny default font and flashed as a separate loading screen.
+    if msg == WM_ERASEBKGND { return 1; }
     if msg == WM_PAINT {
         unsafe {
             let mut paint = std::mem::zeroed();
             let dc = BeginPaint(hwnd, &mut paint);
             let mut rect = std::mem::zeroed();
             GetClientRect(hwnd, &mut rect);
-            FillRect(dc, &rect, GetStockObject(BLACK_BRUSH));
-            SetBkMode(dc, TRANSPARENT as i32);
-            SetTextColor(dc, 0x00e2e2e2);
-            let text = wide("Starting Navigator…");
-            DrawTextW(
-                dc,
-                text.as_ptr(),
-                (text.len() - 1) as i32,
-                &mut rect,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE,
-            );
+            let (r, g, b, _) = STARTUP_BACKGROUND;
+            let brush = CreateSolidBrush(r as u32 | (g as u32) << 8 | (b as u32) << 16);
+            FillRect(dc, &rect, brush);
+            DeleteObject(brush);
             EndPaint(hwnd, &paint);
         }
         return 0;
@@ -118,7 +115,6 @@ impl LoadingView {
                 lpfnWndProc: Some(loading_proc),
                 hInstance: instance,
                 lpszClassName: class.as_ptr(),
-                hbrBackground: GetStockObject(BLACK_BRUSH),
                 ..std::mem::zeroed()
             };
             RegisterClassW(&wc);
