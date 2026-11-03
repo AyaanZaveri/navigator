@@ -108,3 +108,11 @@
   inset-inline: 16px;
   bottom: 12%;
 }
+
+.subtitleSwatch {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+}
