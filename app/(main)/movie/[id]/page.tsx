@@ -136,24 +136,21 @@ export default async function Movie({
                   <div className="flex flex-wrap items-center justify-center gap-2 @3xl:justify-start">
                     {movie.year && (
                       <Badge
-                        variant="outline"
-                        className="bg-background/90 backdrop-blur-sm"
+                        variant="secondary"
                       >
                         {movie.year}
                       </Badge>
                     )}
                     {movie.runtime && (
                       <Badge
-                        variant="outline"
-                        className="bg-background/90 backdrop-blur-sm"
+                        variant="secondary"
                       >
                         {formatRuntime(movie.runtime)}
                       </Badge>
                     )}
                     {movie.imdbRating && (
                       <Badge
-                        variant="outline"
-                        className="bg-background/90 backdrop-blur-sm"
+                        variant="secondary"
                       >
                         <Star className="size-3 fill-yellow-400 text-yellow-400" />
                         {movie.imdbRating}
@@ -180,7 +177,7 @@ export default async function Movie({
                 <dl className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-3 gap-y-3 text-sm">
                   {movie.genres && movie.genres.length > 0 && (
                     <>
-                      <dt className="text-muted-foreground">Genres</dt>
+                      <dt className="font-medium text-muted-foreground">Genres</dt>
                       <dd className="flex min-w-0 flex-wrap gap-1.5">
                         {movie.genres.map((genre) => (
                           <Badge
@@ -196,16 +193,16 @@ export default async function Movie({
                   )}
                   {movie.director && movie.director.length > 0 && (
                     <>
-                      <dt className="text-muted-foreground">Director</dt>
-                      <dd className="min-w-0 break-words">
+                      <dt className="font-medium text-muted-foreground">Director</dt>
+                      <dd className="min-w-0 break-words font-normal">
                         {movie.director.join(", ")}
                       </dd>
                     </>
                   )}
                   {movie.writer && movie.writer.length > 0 && (
                     <>
-                      <dt className="text-muted-foreground">Writers</dt>
-                      <dd className="min-w-0 break-words">
+                      <dt className="font-medium text-muted-foreground">Writers</dt>
+                      <dd className="min-w-0 break-words font-normal">
                         {movie.writer.join(", ")}
                       </dd>
                     </>

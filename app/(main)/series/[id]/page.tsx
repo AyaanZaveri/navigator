@@ -45,23 +45,21 @@ export default async function SeriesOverviewPage({
               <div className="flex flex-wrap items-center justify-center gap-2 @3xl:justify-start">
                 {(show.releaseInfo || show.year) && (
                   <Badge
-                    variant="outline"
-                    className="bg-background/90 backdrop-blur-sm"
+                    variant="secondary"
                   >
                     {show.releaseInfo || show.year}
                   </Badge>
                 )}
                 {show.imdbRating && (
                   <Badge
-                    variant="outline"
-                    className="bg-background/90 backdrop-blur-sm"
+                    variant="secondary"
                   >
                     <Star className="size-3 fill-yellow-400 text-yellow-400" />
                     {show.imdbRating}
                   </Badge>
                 )}
                 {regularSeasonCount > 0 && (
-                  <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
+                  <Badge variant="secondary">
                     {regularSeasonCount} Season{regularSeasonCount !== 1 ? "s" : ""}
                   </Badge>
                 )}
@@ -88,7 +86,7 @@ export default async function SeriesOverviewPage({
             <dl className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-3 gap-y-3 text-sm">
               {show.genres && show.genres.length > 0 && (
                 <>
-                  <dt className="text-muted-foreground">Genres</dt>
+                  <dt className="font-medium text-muted-foreground">Genres</dt>
                   <dd className="flex min-w-0 flex-wrap gap-1.5">
                     {show.genres.map((genre) => (
                       <Badge
@@ -104,16 +102,16 @@ export default async function SeriesOverviewPage({
               )}
               {show.director && show.director.length > 0 && (
                 <>
-                  <dt className="text-muted-foreground">Director</dt>
-                  <dd className="min-w-0 break-words">
+                  <dt className="font-medium text-muted-foreground">Director</dt>
+                  <dd className="min-w-0 break-words font-normal">
                     {show.director.join(", ")}
                   </dd>
                 </>
               )}
               {show.writer && show.writer.length > 0 && (
                 <>
-                  <dt className="text-muted-foreground">Writers</dt>
-                  <dd className="min-w-0 break-words">
+                  <dt className="font-medium text-muted-foreground">Writers</dt>
+                  <dd className="min-w-0 break-words font-normal">
                     {show.writer.join(", ")}
                   </dd>
                 </>

@@ -60,23 +60,20 @@ export function EpisodeDetailsView({
 
             <div className="flex flex-wrap items-center justify-center gap-2 @4xl:justify-start">
               <Badge
-                variant="outline"
-                className="bg-background/90 backdrop-blur-sm"
+                variant="secondary"
               >
                 S{seasonNumber} • E{episodeNumber}
               </Badge>
               {released && (
                 <Badge
-                  variant="outline"
-                  className="bg-background/90 backdrop-blur-sm"
+                  variant="secondary"
                 >
                   {new Date(released).getFullYear()}
                 </Badge>
               )}
               {rating && (
                 <Badge
-                  variant="outline"
-                  className="bg-background/90 backdrop-blur-sm"
+                  variant="secondary"
                 >
                   <Star className="size-3 fill-yellow-400 text-yellow-400" />
                   {rating}
