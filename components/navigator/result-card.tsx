@@ -34,6 +34,7 @@ export function ResultCard({
   title,
   subtitle,
   icon: Icon,
+  iconContent,
   image,
   imageAspect = "portrait",
   metadata,
@@ -48,6 +49,7 @@ export function ResultCard({
   title: ReactNode;
   subtitle?: ReactNode;
   icon: LucideIcon;
+  iconContent?: ReactNode;
   image?: string | null;
   imageAspect?: "portrait" | "landscape";
   metadata?: ReactNode;
@@ -81,7 +83,7 @@ export function ResultCard({
         />
       ) : (
         <span className={styles.icon} aria-hidden="true">
-          <Icon className="size-4" />
+          {iconContent ?? <Icon className="size-4" />}
         </span>
       )}
       <Copy className={styles.copy}>

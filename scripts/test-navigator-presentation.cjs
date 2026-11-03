@@ -20,6 +20,7 @@ const cardModules = {
     './navigation-card': { NavigationCard: widget('navigation') },
     './play-media-card': { PlayMediaCard: widget('playback') },
     './theme-toggle-card': { ThemeToggleCard: widget('theme') },
+    './subtitle-track-card': { SubtitleTrackCard: widget('subtitle-track') },
     './subtitle-skip-card': { SubtitleSkipCard: widget('seek') },
     './scene-explain-card': { SceneExplainCard: widget('scene') },
     './media-analysis-card': { MediaAnalysisCard: widget('analysis') },
@@ -105,6 +106,51 @@ assert.equal(failedProgress.length, 1, 'A failed stage must show one error inste
 const completedProgress = toNavigatorSegments([{ ...sceneAction, state: 'output-available', output: { success: true, execution: 'prepared', preparedToolCallId: sceneAction.toolCallId } }, sceneProgress('title', 'completed', 'Glass Onion'), sceneProgress('subtitles', 'completed', 'eng'), sceneProgress('scene', 'completed', '01:46:32')]);
 assert.equal(completedProgress[0].kind, 'trace');
 assert.equal(completedProgress.at(-1).kind, 'results', 'Progress stays before the eventual scene card');
+
+// Stage cards appear while the scene tool is still running, not just after playback.
+const richProgress = [
+  { ...sceneProgress('title', 'completed', 'Knives Out'), data: { ...sceneProgress('title', 'completed').data,
+    media: { id: 'tt8946378', name: 'Knives Out', type: 'movie', year: 2019 } } },
+  { ...sceneProgress('subtitles', 'completed', 'eng'), data: { ...sceneProgress('subtitles', 'completed').data,
+    subtitles: { language: 'eng', provider: 'OpenSubtitles', index: 0, lineCount: 2111 } } },
+  { ...sceneProgress('scene', 'completed', '01:46:32'), data: { ...sceneProgress('scene', 'completed').data,
+    scene: { timestamp: 6392, timestampFormatted: '01:46:32', text: 'I lied about what happened.' } } },
+];
+const richSegments = toNavigatorSegments([sceneAction, ...richProgress]);
+const stageCards = richSegments.filter(segment => segment.kind === 'results').map(segment => segment.results.cards);
+assert.equal(stageCards.length, 3, 'Each completed stage exposes its real result before final playback acknowledgement');
+assert.equal(stageCards[0].type, widgets.media);
+assert.equal(stageCards[0].props.item.name, 'Knives Out');
+assert.equal(stageCards[1].type, widgets['subtitle-track']);
+assert.equal(stageCards[1].props.track.provider, 'OpenSubtitles');
+assert.equal(stageCards[2].type, widgets.seek);
+assert.equal(stageCards[2].props.result.text, 'I lied about what happened.');
+const richFinal = { ...sceneAction, state: 'output-available', output: { success: true, execution: 'completed', text: 'I lied about what happened.' } };
+assert.equal(toNavigatorSegments([richFinal, ...richProgress]).filter(segment => segment.kind === 'results').length, 3, 'Final action must not duplicate the scene evidence card');
+const playbackFailure = toNavigatorSegments([{ ...richFinal, output: { success: false, error: 'Playback was closed before it started.' } }, ...richProgress]);
+assert.equal(playbackFailure.filter(segment => segment.kind === 'results').length, 3, 'Playback failure must preserve the movie, loaded track and found quote');
+assert.equal(playbackFailure.at(-1).trace.phase, 'error');
+const incomplete = toNavigatorSegments([sceneAction, { ...richProgress[1], data: { ...richProgress[1].data, state: 'running' } }]);
+assert.equal(incomplete.filter(segment => segment.kind === 'results').length, 0, 'Running stages never claim a completed result');
+// Render the real track component to verify it shares dropdown language names
+// and local Circle Flags while retaining the standard Navigator card layout.
+const trackLabels = load('lib/media/track-label.ts', { './track-flags': load('lib/media/track-flags.ts', {}) });
+const { SubtitleTrackCard } = load('components/navigator/subtitle-track-card.tsx', {
+  '@/lib/media/track-label': trackLabels,
+  './result-card': { ResultCard: widget('result-row'), ResultBadge: widget('result-badge'), ResultMeta: widget('result-meta') },
+});
+const subtitleRow = SubtitleTrackCard({ track: { language: 'eng', provider: 'OpenSubtitles', filename: 'Knives.Out.2019.srt', index: 2, lineCount: 2111 } });
+assert.equal(subtitleRow.type, widgets['result-row']);
+assert.equal(subtitleRow.props.title, 'English');
+assert.equal(subtitleRow.props.iconContent.type, 'img');
+assert.equal(subtitleRow.props.iconContent.props.src, '/flags/circle/language/en.svg');
+assert.equal(subtitleRow.props.iconContent.props.width, 16);
+assert.equal(subtitleRow.props.description, 'Knives.Out.2019.srt · OpenSubtitles');
+const unknownSubtitleRow = SubtitleTrackCard({ track: { language: 'und', index: 0, lineCount: 1 } });
+assert.equal(unknownSubtitleRow.props.title, 'Unknown language');
+assert.notEqual(unknownSubtitleRow.props.iconContent.type, 'img', 'Unknown languages use a Lucide fallback instead of a broken flag');
+
+
 
 // Long discovery lists retain every candidate while showing only a compact preview.
 let resultsExpanded = false;
