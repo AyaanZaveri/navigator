@@ -66,6 +66,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
+import { SubtitleText } from "@/components/subtitle-text";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 
@@ -95,7 +96,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     routedRequest.current = playbackRequest;
     router.push(playbackRequest.detailsPath, { scroll: false });
   }, [isPlayerVisible, playbackRequest, router]);
-  const { videoBitrate } = useSettings();
+  const { videoBitrate, subtitleSize, subtitleOutline } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
@@ -952,16 +953,18 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
         {/* Current subtitle */}
         {(currentSubtitle || nativeSubtitle) && !loading && videoReady && (
-          <div
-            data-player-native-glass=""
-            className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md whitespace-pre-line ${
+          <SubtitleText
+            data-player-subtitle=""
+            size={subtitleSize}
+            outline={subtitleOutline}
+            className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 w-max max-w-[90vw] ${
               currentSubtitle?.positionTop ? "top-[15%]" : "bottom-[10%]"
             }`}
           >
             {currentSubtitle ? (
               <span dangerouslySetInnerHTML={{ __html: currentSubtitle.text }} />
             ) : nativeSubtitle}
-          </div>
+          </SubtitleText>
         )}
 
         {!loading && streamUrl && videoReady && !playbackError && (

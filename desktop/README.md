@@ -112,6 +112,11 @@ Updates follow source/render cadence without synthesizing 120 frames for a
 both app themes; reduced-transparency menus remain opaque. The render target is
 still SDR BGRA8; physical HDR presentation/color accuracy remain unverified.
 
+Subtitles use the shared outlined text renderer, without a background box or
+any glass demand. Settings → Subtitles provides UI Arc size/outline controls and
+a live image preview on web and every desktop/mobile client. Preferences persist
+on the current device. Menu and scrub-preview glass retain the existing path.
+
 The Windows loading identity uses the same 24px content gutter as the playback
 text. Back retains its independent 16px chrome gutter. Android/iOS camera and
 safe-area handling are preserved.

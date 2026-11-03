@@ -1,0 +1,22 @@
+/* Paint the stroke first so the white glyph stays crisp and its counters open. */
+.text {
+  --subtitle-scale: 1;
+  --subtitle-stroke: 1.5px;
+  color: #fff;
+  font-size: calc(clamp(1.125rem, 2.1vw, 1.875rem) * var(--subtitle-scale));
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  -webkit-text-stroke: var(--subtitle-stroke) #000;
+  paint-order: stroke fill;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 65%);
+}
+.text[data-subtitle-size="small"] { --subtitle-scale: .8; }
+.text[data-subtitle-size="large"] { --subtitle-scale: 1.2; }
+.text[data-subtitle-outline="strong"] { --subtitle-stroke: 3px; }
+.text[data-subtitle-outline="none"] { --subtitle-stroke: 0px; text-shadow: none; }
+@media (forced-colors: active) {
+  .text { color: CanvasText; -webkit-text-stroke: 0; text-shadow: none; }
+}

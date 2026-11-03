@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
 const root=resolve(import.meta.dirname,'..');
-const css=['components/desktop/native-playback.css','components/player-mobile.css','components/arc/dropdown-menu/dropdown-menu.module.css'].map(p=>readFileSync(resolve(root,p),'utf8').replaceAll(/:global\(([^)]+)\)/g,'$1')).join('\n');
+const css=['components/desktop/native-playback.css','components/player-mobile.css','components/subtitle-text.module.css','components/arc/dropdown-menu/dropdown-menu.module.css'].map(p=>readFileSync(resolve(root,p),'utf8').replaceAll(/:global\(([^)]+)\)/g,'$1')).join('\n').replaceAll(/\.text(?=[\s{\[])/g,'[data-subtitle-text]');
 const controller=ts.transpileModule(readFileSync(resolve(root,'components/native-player-glass.tsx'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 const canvasController=ts.transpileModule(readFileSync(resolve(root,'lib/desktop/windows-player-glass.ts'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 // Twelve seconds of local moving color bars keep the decoder active while
@@ -20,14 +20,16 @@ const video=process.env.NAVIGATOR_GLASS_VIDEO?readFileSync(process.env.NAVIGATOR
 const html=`<!doctype html><html><head><style>${css}
 :root{--background:#111;--popover:#18181b;--foreground:#fff;--border:#fff3;--layer-overlay:100;font:18px 'Segoe UI',sans-serif;color:white}
 body{margin:0}.panel{position:fixed;width:240px;padding:24px;border-radius:14px;border:1px solid #fff3}
-.preview{left:10%;top:30%}.menu{position:fixed;right:10%;top:30%;--radix-dropdown-menu-content-available-width:600px;--radix-dropdown-menu-content-available-height:600px}.subtitle{left:50%;bottom:12%;transform:translateX(-50%);background:#0003;text-align:center}
+.preview{left:10%;top:30%}.menu{position:fixed;right:10%;top:30%;--radix-dropdown-menu-content-available-width:600px;--radix-dropdown-menu-content-available-height:600px}.subtitle{position:fixed;left:50%;bottom:12%;transform:translateX(-50%);max-width:90vw;text-align:center}
 .panel[aria-hidden=true]{visibility:hidden}
 </style></head><body>
 <div class="panel preview" data-player-glass>Preview glass</div>
 <div class="panel menu" role="menu" data-state="open" data-player-native-glass>Speed<br><br>Subtitles</div>
-<div class="panel subtitle" data-player-native-glass>Subtitle glass</div>
+<div class="subtitle" data-subtitle-text data-subtitle-size="standard" data-subtitle-outline="thin">Every story starts somewhere.</div>
 <script>
 const bridge=window.navigatorDesktop, cleanups=[];
+const subtitlesOnly=${process.env.NAVIGATOR_GLASS_SUBTITLES_ONLY==='1'};
+if(subtitlesOnly)document.querySelectorAll('.panel').forEach(node=>node.setAttribute('aria-hidden','true'));
 let attached=false,frames=0,painted=false,measuring=true;const arrivals=[],changes=[],paints=[],drops=[],raf=[],work=[];
 let state={};
 const originalDraw=CanvasRenderingContext2D.prototype.drawImage;
@@ -41,14 +43,14 @@ return exports.NativePlayerGlass;})();
 bridge.subscribe(message=>{
  if(message.type==='state')state=message.state;
  if(message.type==='state'&&measuring&&typeof message.state.droppedFrames==='number')drops.push({at:performance.now(),dropped:message.state.droppedFrames,decoder:message.state.decoderDroppedFrames??0});
- if(message.type==='ready'&&!attached){attached=true;document.documentElement.dataset.nativePlaying='';NativePlayerGlass({mediaRef:{current:{controller:{previewSession:'glass-fixture'}}},sourceKey:'fixture',ready:true});}
+ if(message.type==='ready'&&!attached){attached=true;document.documentElement.dataset.nativePlaying='';NativePlayerGlass({mediaRef:{current:{controller:{previewSession:'glass-fixture'}}},sourceKey:'fixture',ready:true});if(subtitlesOnly){setTimeout(()=>fetch('/painted',{method:'POST',body:JSON.stringify({subtitle:{sampling:document.querySelector('.subtitle').matches('[data-player-glass],[data-player-native-glass]'),stroke:getComputedStyle(document.querySelector('.subtitle')).webkitTextStrokeWidth}})}),1500);setTimeout(()=>fetch('/completed',{method:'POST',body:JSON.stringify({frames,position:state.position})}),6500);}}
  if(message.type==='glass-pixels'){
   frames++;if(measuring){arrivals.push(performance.now());let hash=0;for(let i=0;i<message.frame.data.length;i+=236)hash=(Math.imul(hash,31)+message.frame.data[i])|0;changes.push(hash);}
   if(frames>=3&&!painted){painted=true;
    setTimeout(async()=>{
     const panels=[...document.querySelectorAll('.panel')];
     const material=panels.map(node=>({painted:node.hasAttribute('data-browser-glass'),image:!!node.querySelector('[data-browser-glass-frame]')&&getComputedStyle(node.querySelector('canvas')).visibility==='visible',x:node.style.getPropertyValue('--browser-glass-x'),y:node.style.getPropertyValue('--browser-glass-y'),tint:getComputedStyle(node,'::after').backgroundColor,dropdownOpacity:getComputedStyle(node).getPropertyValue('--dropdown-opacity')}));
-    await fetch('/painted',{method:'POST',body:JSON.stringify({frames,material,pixels:[...document.querySelector('.preview canvas').getContext('2d').getImageData(Math.floor(message.frame.width/6)-16,Math.floor(message.frame.height*.35),32,1).data],canvasStyle:Object.fromEntries(['position','z-index','left','top','width','height','display','visibility','opacity','isolation','clip-path'].map(key=>[key,getComputedStyle(document.querySelector('.preview canvas')).getPropertyValue(key)])),panelStyle:Object.fromEntries(['position','z-index','isolation','background-color','overflow'].map(key=>[key,getComputedStyle(document.querySelector('.preview')).getPropertyValue(key)])),filterSupported:'filter' in document.createElement('canvas').getContext('2d'),bytes:message.frame.data.byteLength,width:message.frame.width,height:message.frame.height})});
+    await fetch('/painted',{method:'POST',body:JSON.stringify({frames,material,subtitle:{sampling:document.querySelector('.subtitle').matches('[data-player-glass],[data-player-native-glass]'),background:getComputedStyle(document.querySelector('.subtitle')).backgroundColor,blur:getComputedStyle(document.querySelector('.subtitle')).backdropFilter,stroke:getComputedStyle(document.querySelector('.subtitle')).webkitTextStrokeWidth},pixels:[...document.querySelector('.preview canvas').getContext('2d').getImageData(Math.floor(message.frame.width/6)-16,Math.floor(message.frame.height*.35),32,1).data],canvasStyle:Object.fromEntries(['position','z-index','left','top','width','height','display','visibility','opacity','isolation','clip-path'].map(key=>[key,getComputedStyle(document.querySelector('.preview canvas')).getPropertyValue(key)])),panelStyle:Object.fromEntries(['position','z-index','isolation','background-color','overflow'].map(key=>[key,getComputedStyle(document.querySelector('.preview')).getPropertyValue(key)])),filterSupported:'filter' in document.createElement('canvas').getContext('2d'),bytes:message.frame.data.byteLength,width:message.frame.width,height:message.frame.height})});
     setTimeout(async()=>{
      measuring=false;
      const gaps=arrivals.slice(1).map((t,i)=>t-arrivals[i]).sort((a,b)=>a-b);

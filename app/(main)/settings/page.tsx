@@ -32,6 +32,7 @@ import {
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 import { Button } from "@/components/ui/button";
 import { getArtworkSettings, saveArtworkToken, removeArtworkToken, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
+import { SubtitleSettings } from "@/components/subtitle-settings";
 import styles from "./settings.module.css";
 
 const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
@@ -828,6 +829,7 @@ export default function SettingsPage() {
                         )}
                     </FieldGroup>
                 </section>
+                <SubtitleSettings />
                 <ArtworkSettings />
                 <p className="text-sm text-muted-foreground">
                     Skip timings from{" "}
