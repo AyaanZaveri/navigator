@@ -18,6 +18,11 @@ public static class NavigatorSmokeWindow {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, IntPtr pid);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder name, int count);
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
   [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hwnd, ref Point point);
@@ -28,6 +33,19 @@ public static class NavigatorSmokeWindow {
 # GetWindowRect is virtualized for a DPI-unaware PowerShell process, while
 # CopyFromScreen needs physical pixels. Match Navigator's per-monitor context.
 [void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
+function Focus-Navigator($handle) {
+  for($attempt=0;$attempt -lt 8;$attempt++) {
+    $other=[NavigatorSmokeWindow]::GetWindowThreadProcessId([NavigatorSmokeWindow]::GetForegroundWindow(),[IntPtr]::Zero)
+    $own=[NavigatorSmokeWindow]::GetCurrentThreadId();$attached=$false
+    try {
+      if($other -ne 0 -and $other -ne $own){$attached=[NavigatorSmokeWindow]::AttachThreadInput($own,$other,$true)}
+      [void][NavigatorSmokeWindow]::SetForegroundWindow($handle)
+    }finally{if($attached){[void][NavigatorSmokeWindow]::AttachThreadInput($own,$other,$false)}}
+    if([NavigatorSmokeWindow]::GetForegroundWindow() -eq $handle){return}
+    Start-Sleep -Milliseconds 100
+  }
+  throw 'Navigator must be in the foreground for the interactive rendering check'
+}
 function Save-NavigatorScreenshot($app, $Output, [switch]$CheckBars, [switch]$CheckStartup) {
   [void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
   # SetForegroundWindow may be denied while the user interacts with another
@@ -130,7 +148,12 @@ try {
   [void][NavigatorSmokeWindow]::ClientToScreen($app.MainWindowHandle, [ref]$point)
   $coordinates = (($point.Y -band 0xffff) -shl 16) -bor ($point.X -band 0xffff)
   $hit = [NavigatorSmokeWindow]::SendMessage($app.MainWindowHandle, 0x0084, [IntPtr]::Zero, [IntPtr]$coordinates).ToInt64()
-  if ($hit -ne 9) { throw "Custom maximize control did not expose HTMAXBUTTON for Snap: $hit" }
+  if ($hit -ne 9) {
+    $windowClass=New-Object Text.StringBuilder 256
+    [void][NavigatorSmokeWindow]::GetClassName($app.MainWindowHandle,$windowClass,256)
+    Save-NavigatorScreenshot $app ($Output+'.hit-test.png')
+    throw "Custom maximize control did not expose HTMAXBUTTON for Snap: $hit; class=$windowClass; client=$($client.Right)x$($client.Bottom), scale=$scale, point=$($point.X),$($point.Y)"
+  }
   Save-NavigatorScreenshot $app $Output -CheckBars:(!$LaunchApp)
   if (-not $app.CloseMainWindow()) { throw 'Could not request normal shutdown' }
   if (-not $app.WaitForExit(15000)) { throw 'Native shutdown did not finish' }

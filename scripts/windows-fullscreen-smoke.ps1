@@ -72,7 +72,7 @@ function Send-F11($handle,[bool]$ExitFullscreen=$false){
   [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
   return
  }
- if($Trigger -eq 'F11Parent' -or ($Trigger -eq 'Caption' -and $ExitFullscreen)){
+ if($Trigger -eq 'F11Parent'){
   # Exercise the parent's actual Tao keyboard handler directly. Attaching an
   # automation thread does not reliably retain focus against WebView2's focus
   # forwarding; the WebView variant below tests physical keyboard delivery.
@@ -81,18 +81,13 @@ function Send-F11($handle,[bool]$ExitFullscreen=$false){
   if(![FullscreenWindow]::PostMessage($handle,0x101,[UIntPtr]::new([uint64]122),[IntPtr]([long]0xc0570001))){throw 'Could not post native F11 keyup'}
   return
  }
- if($Trigger -eq 'Caption'){
-  $own=[FullscreenWindow]::GetCurrentThreadId()
-  $other=[FullscreenWindow]::GetWindowThreadProcessId($handle,[IntPtr]::Zero)
-  $attached=[FullscreenWindow]::AttachThreadInput($own,$other,$true)
-  try{[void][FullscreenWindow]::SetFocus($handle)}finally{if($attached){[void][FullscreenWindow]::AttachThreadInput($own,$other,$false)}}
- }else{
-  $rect=Read-Bounds $handle
-  [void][FullscreenWindow]::SetCursorPos([int](($rect.client[0]+$rect.client[2])/2),[int](($rect.client[1]+$rect.client[3])/2))
-  [FullscreenWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 80
-  [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
- }
+ # Caption entry is a physical non-client click; exit uses the physical
+ # WebView keyboard path. The separate Parent variant covers Win32 routing.
+ $rect=Read-Bounds $handle
+ [void][FullscreenWindow]::SetCursorPos([int](($rect.client[0]+$rect.client[2])/2),[int](($rect.client[1]+$rect.client[3])/2))
+ [FullscreenWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+ Start-Sleep -Milliseconds 80
+ [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  Start-Sleep -Milliseconds 100
  [FullscreenWindow]::keybd_event(122,87,0,[UIntPtr]::Zero)
  Start-Sleep -Milliseconds 80

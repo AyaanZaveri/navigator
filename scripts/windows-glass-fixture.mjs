@@ -27,13 +27,15 @@ body{margin:0}.panel{position:fixed;width:240px;padding:24px;border-radius:14px;
 <div class="panel subtitle" data-player-native-glass>Subtitle glass</div>
 <script>
 const bridge=window.navigatorDesktop, cleanups=[];
-let attached=false,frames=0,painted=false,measuring=true;const arrivals=[],changes=[],paints=[],drops=[];
-let previousImage='';
+let attached=false,frames=0,painted=false,measuring=true;const arrivals=[],changes=[],paints=[],drops=[],raf=[];
+let previousImage='',state={};
+const rafStart=performance.now();requestAnimationFrame(function tick(t){if(measuring)raf.push(t);if(performance.now()-rafStart<20000)requestAnimationFrame(tick);});
 new MutationObserver(()=>{const image=document.querySelector('.preview').style.getPropertyValue('--native-glass-image');if(image&&image!==previousImage){previousImage=image;if(measuring)paints.push(performance.now());}}).observe(document.querySelector('.preview'),{attributes:true,attributeFilter:['style']});
 const NativePlayerGlass=(()=>{const exports={};const require=name=>name==='react'?{useEffect:fn=>cleanups.push(fn())}:name.endsWith('/bridge')?{desktopBridge:()=>bridge}:{};
 ${controller}
 return exports.NativePlayerGlass;})();
 bridge.subscribe(message=>{
+ if(message.type==='state')state=message.state;
  if(message.type==='state'&&measuring&&typeof message.state.droppedFrames==='number')drops.push({at:performance.now(),dropped:message.state.droppedFrames,decoder:message.state.decoderDroppedFrames??0});
  if(message.type==='ready'&&!attached){attached=true;document.documentElement.dataset.nativePlaying='';NativePlayerGlass({mediaRef:{current:{controller:{previewSession:'glass-fixture'}}},sourceKey:'fixture',ready:true});}
  if(message.type==='glass-frame'){
@@ -47,13 +49,17 @@ bridge.subscribe(message=>{
      measuring=false;
      const gaps=arrivals.slice(1).map((t,i)=>t-arrivals[i]).sort((a,b)=>a-b);
      const paintGaps=paints.slice(1).map((t,i)=>t-paints[i]).sort((a,b)=>a-b);
-     const metrics={fps:(arrivals.length-1)*1000/(arrivals.at(-1)-arrivals[0]),p95GapMs:gaps[Math.floor(gaps.length*.95)],paintFps:(paints.length-1)*1000/(paints.at(-1)-paints[0]),p95PaintGapMs:paintGaps[Math.floor(paintGaps.length*.95)],uniqueFrames:new Set(changes).size,videoDropIncrease:drops.length?drops.at(-1).dropped-drops[0].dropped:null,decoderDropIncrease:drops.length?drops.at(-1).decoder-drops[0].decoder:null};
+     const metrics={fps:(arrivals.length-1)*1000/(arrivals.at(-1)-arrivals[0]),p95GapMs:gaps[Math.floor(gaps.length*.95)],paintFps:(paints.length-1)*1000/(paints.at(-1)-paints[0]),p95PaintGapMs:paintGaps[Math.floor(paintGaps.length*.95)],uniqueFrames:new Set(changes).size,rafFps:(raf.length-1)*1000/(raf.at(-1)-raf[0]),videoDropIncrease:drops.length?drops.at(-1).dropped-drops[0].dropped:null,decoderDropIncrease:drops.length?drops.at(-1).decoder-drops[0].decoder:null};
      const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
      bridge.send({type:'pause',session:'glass-fixture'});await wait(300);
      const pausedAt=frames;await wait(500);const pausedCached=frames===pausedAt;
-     bridge.send({type:'seek',session:'glass-fixture',position:3});await wait(350);
-     const pausedSeekUpdated=frames>pausedAt,seekAt=frames;
-     bridge.send({type:'play',session:'glass-fixture'});await wait(350);const resumed=frames>seekAt;
+     const until=async test=>{const end=performance.now()+2500;while(!test()&&performance.now()<end)await wait(20);return test();};
+     const seekStarted=performance.now();bridge.send({type:'seek',session:'glass-fixture',position:3});
+     const pausedSeekUpdated=await until(()=>frames>pausedAt&&!state.seeking&&Math.abs((state.position??0)-3)<.25);
+     metrics.pausedSeekMs=performance.now()-seekStarted;
+     const seekAt=frames,resumeStarted=performance.now();
+     bridge.send({type:'play',session:'glass-fixture'});const resumed=await until(()=>frames>seekAt&&!state.paused&&!state.seeking&&!state.buffering&&(state.position??0)>3.05);
+     metrics.resumeMs=performance.now()-resumeStarted;
      for(const node of panels)node.setAttribute('aria-hidden','true');
      await wait(300);const stoppedAt=frames;await wait(1200);
      for(const cleanup of cleanups)cleanup?.();

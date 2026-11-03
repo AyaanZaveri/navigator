@@ -120,6 +120,26 @@ Context7's mpv and Microsoft Direct3D documentation were consulted alongside the
 primary sources. The Direct3D backend was merged October 15, 2026; the pinned
 October 29 mpv bundle reports client API 2.6 on the Zenbook.
 
+Installed Release measurements on the Zenbook (2880×1800, 120 Hz, Balanced
+power profile, local synthetic H.264): 1080p60 delivered 60.49 samples/sec and
+60.09 material style updates/sec; 4K60 delivered 60.47 and painted 60.30/sec.
+Their p95 material-update gaps were 18.2 and 25.7 ms. Both passed pause caching,
+paused-seek refresh, resume and hidden-demand stop. The 4K exact seek took
+1.087 seconds with the generated long-GOP clip; it is measured separately from
+continuous playback. A foreground 1080p120 Release stress run delivered 97.25
+and painted 84.30/sec (p95 paint gap 23.1 ms), below the test's 100 FPS target.
+Other runs varied, including a Debug peak of 117 deliveries and 107 paints/sec.
+This is adaptive high-refresh support, not a claim of sustained 120 FPS. The
+paint metric observes the production effect's style changes, not physical scanout.
+The fixture also reports WebView rAF cadence to distinguish background throttling.
+The installed Release also passed physical WebView F11, physical caption-button
+entry/F11 exit, bridge fullscreen, monitor/taskbar coverage, maximized restoration,
+retained-page isolation, startup branding, Snap hit testing and normal shutdown.
+A synthetic parent-window `WM_KEYDOWN` probe failed to enter fullscreen in this
+Release run; physical F11 works through WebView2, and parent-only focus remains an
+unverified diagnostic case. This probe must not be reported as a passed check.
+Native renderer/runtime source: `da0e546`; shared packaged UI: `5c5a90e`.
+
 The initial native frame contains no GDI text and shares the splash's base color.
 The offline splash embeds the same regular and semibold Sunghyun Sans WOFF2 files
 as the app. Its CSP permits only data fonts; its exact generated document remains
