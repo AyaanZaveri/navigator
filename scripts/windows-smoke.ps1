@@ -29,6 +29,7 @@ public static class NavigatorSmokeWindow {
 # CopyFromScreen needs physical pixels. Match Navigator's per-monitor context.
 [void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
 function Save-NavigatorScreenshot($app, $Output, [switch]$CheckBars, [switch]$CheckStartup) {
+  [void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
   # SetForegroundWindow may be denied while the user interacts with another
   # app. Temporarily expose our test window without taking keyboard focus.
   [void][NavigatorSmokeWindow]::SetWindowPos($app.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 0x13)
@@ -120,6 +121,7 @@ try {
   }
   [void][NavigatorSmokeWindow]::SetForegroundWindow($app.MainWindowHandle)
   Start-Sleep -Milliseconds 500
+  [void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
   $client = New-Object NavigatorSmokeWindow+Rect
   [void][NavigatorSmokeWindow]::GetClientRect($app.MainWindowHandle, [ref]$client)
   $scale = [NavigatorSmokeWindow]::GetDpiForWindow($app.MainWindowHandle) / 96.0

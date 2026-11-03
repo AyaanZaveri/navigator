@@ -13,7 +13,7 @@ pub fn prepare() -> Result<(), String> {
         if std::env::args().count() != 2 { return Err("Unexpected installation preparation arguments".into()); }
         let executable = std::env::current_exe().map_err(|e| e.to_string())?;
         let resources = executable.parent().ok_or("No installation directory")?.join("resources");
-        let mut child = Process::prepare_install(&resources.join("runtime/node.exe"), &resources)?;
+        let mut child = Process::prepare_install(&resources.join("runtime").join("node.exe"), &resources)?;
         let deadline = Instant::now() + Duration::from_secs(180);
         loop {
             match child.try_exit_code()? {
@@ -26,7 +26,7 @@ pub fn prepare() -> Result<(), String> {
         // Closing the job also cleans any descendant left by a failed service.
         drop(child);
         startup_log::record(&log, started, "startup-files-and-service-verified");
-        let library = resources.join("lib/libmpv-2.dll");
+        let library = resources.join("lib").join("libmpv-2.dll");
         platform::prepare_library(&library);
         let player = Mpv::new(&library, &[
             ("config", "no"), ("load-scripts", "no"), ("terminal", "no"),

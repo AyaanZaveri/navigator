@@ -89,6 +89,7 @@ cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_de
 ./scripts/windows-overlay-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 ./scripts/windows-fullscreen-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 node scripts/test-windows-install.cjs
+./scripts/windows-install-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 ./scripts/windows-performance.ps1 -AppProcessId <NavigatorPID> -Seconds 30
 ```
 
@@ -127,11 +128,11 @@ stream resolution, native opening and resume seeks without logging URLs or title
 Older shells receive none of the new diagnostic requests. Windows preloads the
 player chunk while idle so its download/evaluation need not wait for first Play.
 
-One measured Windows cold launch took 24.6 seconds: the backend listened at
+Before installation preparation, one measured Windows cold launch took 24.6 seconds: the backend listened at
 6.8 seconds, navigation started immediately, and the hydrated interface was
 ready at 24.6 seconds. The player initialized in parallel and was ready at
-9.5 seconds. This remains a startup performance issue; showing the bundled
-startup document quickly does not establish fast application readiness.
+9.5 seconds. Showing the bundled startup document quickly did not establish
+fast application readiness; this prompted the installation preparation work.
 The Zenbook's subsequent log showed a 26.4-second cold launch followed by two
 warm launches at 1.9 and 1.8 seconds. The cold backend took 7.9 seconds and the
 interface another 18.4 seconds. No dependencies are installed at app launch.
