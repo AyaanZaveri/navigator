@@ -9,9 +9,10 @@ keys are bundled in the APK.
 
 ## Install and test
 
-GitHub Actions builds are currently disabled. Use a separately requested local
-APK build for device installation; see [Build](#build). This Kotlin migration was
-validated by local compilation, unit tests and lint without packaging an APK.
+Download the signed test APK from the [Kotlin migration prerelease](https://github.com/AyaanZaveri/navigator/releases/tag/android-kotlin-20261102-d04c169).
+It was built on the Zenbook over SSH from commit `d04c169`, with compilation,
+46 unit tests, lint, APK signature and packaged-asset checks passing. GitHub
+Actions builds remain disabled. Physical-device playback still needs testing.
 
 The application ID is `app.navigator.android`, distinct from the demo app.
 Android 7.0+ and an up-to-date Android System WebView are required. Sign in to
@@ -52,6 +53,10 @@ respective website origins.
 
 ## Build
 
+Build Android APKs on the user's Zenbook through `ssh navigator-windows`, rather
+than GitHub Actions. Keep builds in a separate source directory so the existing
+Windows desktop checkout is untouched. See [Zenbook setup and build record](docs/windows-builds.md).
+
 Requirements: JDK 17 or 21, Android SDK Platform 36 and Build Tools 36.0.0.
 Set `JAVA_HOME` and `ANDROID_HOME`, or set `sdk.dir` in a gitignored
 `android/local.properties`. Gradle 8.13 is pinned and checksum-verified.
@@ -77,8 +82,9 @@ For a different trusted Navigator server:
 ```
 
 Test builds use the checked-in **public development keystore** (password
-`android`), keeping updates installable across local and GitHub builds. This is
-deliberately a development signing identity, not a production signing secret.
+`android`), keeping updates installable across earlier test builds and Zenbook
+builds. This is deliberately a development signing identity, not a production
+signing secret.
 Use a private signing identity for a store/release build. Version codes default
 to build-time epoch minutes so newer test builds can update older ones; an
 explicit `-PversionCode=...` can override this.

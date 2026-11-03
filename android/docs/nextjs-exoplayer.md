@@ -151,8 +151,10 @@ The next useful measurements are cold start to first visible web content,
 play-to-first-frame, native state messages/second, preview decode/encode time,
 and frame timing during a long catalog fling. Capture comparable runs on a
 physical device with the same stream, network and installed WebView version.
-Profile with and without glass/prewarming before changing their budgets. An APK,
-device playback, HDR, gesture feel and battery usage were not tested for this PR.
+Profile with and without glass/prewarming before changing their budgets. A signed
+APK was subsequently built and verified on the Zenbook from commit `d04c169`;
+see the [build record](windows-builds.md). Device playback, HDR, gesture feel and
+battery usage remain unverified.
 
 ## Local verification
 
@@ -179,8 +181,8 @@ node scripts/test-android-web-scrub.cjs
 node scripts/test-previews.cjs
 ```
 
-These commands do not assemble an APK. GitHub Actions remain disabled; request a
-local package build separately when a device build is wanted.
+These validation commands do not assemble an APK. GitHub Actions remain disabled.
+Android APK packaging runs on the Zenbook over SSH; see the [Windows build guide](windows-builds.md).
 
 ## Official documentation and examples reviewed
 
