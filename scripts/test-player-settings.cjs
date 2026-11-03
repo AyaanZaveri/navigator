@@ -77,12 +77,16 @@ assert.equal(sent[0][1], true);
 const content = find(tree, 'DropdownMenuContent')[0];
 assert.equal(content.props.container, root, 'Settings inherit player theme and remain visible in fullscreen');
 assert.equal(content.props.className, 'settingsMenu');
-for (const open of [false, true]) {
-  let restoredByMenu = false;
-  const timingTree = component('MediaPlayerSettings', { ...context, subtitleTiming: { open, seconds: 0, onOpen() {} } }, state, []);
-  find(timingTree, 'DropdownMenuContent')[0].props.onCloseAutoFocus({ preventDefault() { restoredByMenu = true; } });
-  assert.equal(restoredByMenu, open, 'The closing settings menu yields focus only when the timing popover takes over');
+let timingClosed = 0;
+const timingTree = component('MediaPlayerSettings', { ...context, subtitleTiming: { open: true, seconds: 0, onOpen() {}, onClose() { timingClosed++; } } }, state, []);
+const timingContent = find(timingTree, 'DropdownMenuContent')[0];
+for (const inside of [true, false]) {
+  let prevented = false;
+  timingContent.props.onInteractOutside({ target: { closest: () => inside ? {} : null }, preventDefault() { prevented = true; } });
+  assert.equal(prevented, inside, 'Only the timing dialog is treated as part of the open settings interaction');
 }
+timingTree.props.onOpenChange(false);
+assert.equal(timingClosed, 1, 'Closing Settings also closes the sibling timing panel');
 
 const panel = find(tree, 'PlayerSettingsMenu')[0];
 assert.equal(panel.props.subtitles.value, '2');
@@ -142,11 +146,12 @@ assert.deepEqual(find(settingsMenu, 'SubTrigger').map(node => node.props.childre
 assert.equal(find(settingsMenu, 'SubContent').length, 3, 'Every setting opens a side submenu');
 assert.equal(find(settingsMenu, 'SubContent')[2].props.className, 'subtitleMenu', 'Only the subtitle submenu needs the wider surface');
 assert.ok(find(settingsMenu, 'SubContent').every(node => node.props.container === root), 'Nested windows remain in the fullscreen player');
-let timingOpened = false;
-const timingMenu = PlayerSettingsMenu({ ...panel.props, subtitleTiming: { seconds: 1.2, onOpen: () => { timingOpened = true; } } });
+let timingOpened = false, selectionPrevented = false;
+const timingMenu = PlayerSettingsMenu({ ...panel.props, subtitleTiming: { seconds: 1.2, onOpen: () => { timingOpened = true; }, onClose() {} } });
 const timingItem = find(timingMenu, 'Item')[0];
 assert.ok(timingItem, 'Subtitle timing is an action, not a numeric form inside the menu');
-timingItem.props.onSelect(); assert.equal(timingOpened, true);
+timingItem.props.onSelect({ preventDefault() { selectionPrevented = true; } });
+assert.ok(selectionPrevented, "Selecting Timing must keep Settings mounted"); assert.equal(timingOpened, true);
 assert.equal(find(timingMenu, 'SubTrigger').length, 3, 'Timing preserves the existing submenu layout');
 const primitive = new Proxy({}, { get: (_, key) => key === '__esModule' ? true : `Primitive${key}` });
 const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {

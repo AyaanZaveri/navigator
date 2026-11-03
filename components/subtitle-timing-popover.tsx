@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverClose, PopoverContent } from "@/components/arc/popover/popover";
 import { RulerSlider } from "@/components/arc/ruler-slider/ruler-slider";
@@ -18,14 +18,16 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
 }) {
   const headingId = useId();
   const descriptionId = useId();
-  const anchor = container?.querySelector<HTMLElement>('[data-slot="media-player-settings"]');
+  const interactedOutside = useRef(false);
+  const anchor = container?.querySelector<HTMLElement>('[data-slot="media-player-subtitle-timing"]')
+    ?? container?.querySelector<HTMLElement>('[data-slot="media-player-settings"]');
   const description = !available
     ? "Select a downloaded subtitle track to adjust timing. Embedded subtitle timing is not supported yet."
     : seconds === 0 ? "Original timing"
       : `Subtitles appear ${Math.abs(seconds).toFixed(1)} seconds ${seconds < 0 ? "earlier" : "later"}.`;
   return <Popover open={open} onOpenChange={onOpenChange} modal={false}>
     <PopoverAnchor virtualRef={anchor ? { current: anchor } : undefined} />
-    <PopoverContent container={container} side="top" align="end" sideOffset={12}
+    <PopoverContent container={container} side="left" align="end" sideOffset={14}
       data-subtitle-timing="" data-player-native-glass="" className={styles.panel}
       aria-labelledby={headingId} aria-describedby={descriptionId}
       onOpenAutoFocus={event => {
@@ -34,8 +36,14 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
           ?? panel.querySelector<HTMLElement>('button');
         if (target) { event.preventDefault(); target.focus(); }
       }}
+      onInteractOutside={event => {
+        if (anchor?.contains(event.target as Node)) { event.preventDefault(); return; }
+        interactedOutside.current = true;
+      }}
       onCloseAutoFocus={event => {
-        if (anchor?.isConnected) { event.preventDefault(); anchor.focus(); }
+        event.preventDefault();
+        if (!interactedOutside.current && anchor?.isConnected) anchor.focus();
+        interactedOutside.current = false;
       }}>
       <div className={styles.header}>
         <h2 id={headingId}>Subtitle timing</h2>

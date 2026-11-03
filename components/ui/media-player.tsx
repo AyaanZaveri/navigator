@@ -3099,9 +3099,10 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const onOpenChange = React.useCallback(
     (open: boolean) => {
       store.setState("menuOpen", open);
+      if (!open) context.subtitleTiming?.onClose();
       onOpenChangeProp?.(open);
     },
-    [store.setState, onOpenChangeProp]
+    [store.setState, onOpenChangeProp, context.subtitleTiming]
   );
 
   return (
@@ -3119,10 +3120,11 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
       <DropdownMenuContent align="end" side="top" sideOffset={sideOffset}
         container={context.rootRef.current ?? context.portalContainer}
         aria-label="Playback settings"
-        onCloseAutoFocus={event => {
-          // The timing panel takes focus as this menu unmounts. Do not send it
-          // back to Settings before the ruler can receive keyboard input.
-          if (context.subtitleTiming?.open) event.preventDefault();
+        onInteractOutside={event => {
+          // The timing picker is a sibling portalled dialog. Keep this menu
+          // open while focus or the pointer moves into its controls.
+          const target = event.target as HTMLElement;
+          if (target.closest?.("[data-subtitle-timing]")) event.preventDefault();
         }}
         className={playerSettingsStyles.settingsMenu}>
         <DropdownMenuLabel className="sr-only">Playback settings</DropdownMenuLabel>

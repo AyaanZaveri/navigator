@@ -51,7 +51,7 @@ assert.match(source, /\[currentTime, findCurrentSubtitle, subtitleTiming\.second
 
 
 const { SubtitleTimingPopover } = load('components/subtitle-timing-popover.tsx', {
- react: { useId: () => 'timing-test-id' },
+ react: { useId: () => 'timing-test-id', useRef: value => ({ current: value }) },
  'react/jsx-runtime': host.jsx,
  '@/components/arc/popover/popover': { Popover: 'Popover', PopoverAnchor: 'PopoverAnchor', PopoverContent: 'PopoverContent', PopoverClose: 'PopoverClose' },
  '@/components/arc/ruler-slider/ruler-slider': { RulerSlider: 'RulerSlider' },
@@ -65,7 +65,7 @@ function all(tree, type) {
  return [...(tree.type === type ? [tree] : []), ...all(tree.props?.children, type)];
 }
 let focused = false, prevented = false, changed;
-const anchor = { isConnected: true, focus: () => { focused = true; } };
+const anchor = { isConnected: true, contains: () => false, focus: () => { focused = true; } };
 const container = { querySelector: () => anchor };
 const renderPanel = (seconds, available = true) => SubtitleTimingPopover({
  open: true, onOpenChange() {}, seconds, onChange: value => { changed = value; }, available, container,
@@ -73,6 +73,7 @@ const renderPanel = (seconds, available = true) => SubtitleTimingPopover({
 let panel = renderPanel(1, false);
 assert.equal(panel.props.modal, false, 'Timing must not block or dim the video');
 assert.equal(all(panel,'PopoverContent')[0].props.container, container, 'Popover stays inside the fullscreen player');
+assert.equal(all(panel,'PopoverContent')[0].props.side, 'left', 'Timing opens beside Settings like the other nested panels');
 assert.equal(all(panel,'PopoverAnchor')[0].props.virtualRef.current, anchor, 'Anchor survives the settings menu unmount');
 assert.equal(all(panel,'RulerSlider')[0].props.disabled, true, 'Embedded tracks must not offer nonfunctional timing');
 assert.ok(all(panel,'p').some(node => String(node.props.children).includes('Embedded subtitle timing is not supported')));
@@ -104,3 +105,9 @@ for (const [seconds, direction] of [[-30,'earlier'],[30,'later']]) {
 }
 assert.equal(all(renderPanel(0),'Button').find(node => node.props.children === 'Reset').props.disabled, true);
 console.log('PASS: live ruler timing, precise nudges, limits, reset, embedded-track gating, fullscreen anchoring and focus return');
+
+focused = false;
+const closedOutside = all(panel,'PopoverContent')[0];
+closedOutside.props.onInteractOutside({ target: {}, preventDefault() {} });
+closedOutside.props.onCloseAutoFocus({ preventDefault() {} });
+assert.equal(focused, false, 'Outside interaction must retain the user\'s new focus target');
