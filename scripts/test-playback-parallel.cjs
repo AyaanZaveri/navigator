@@ -58,6 +58,7 @@ const context = { exports: {}, AbortController, console, require(name) {
     if (name.endsWith('.css')) return {};
     if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ currentMedia: request, isPlayerVisible: false, setCurrentMediaWithSource: noOp }) };
     if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
+    if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
     if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
     if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
     if (name === '@/lib/media/fetch-playback-streams') return { fetchPlaybackStreams() { requests.push('streams'); return streams; } };

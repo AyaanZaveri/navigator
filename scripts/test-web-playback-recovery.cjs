@@ -29,6 +29,7 @@ function find(tree, predicate) {
     return [...(predicate(tree) ? [tree] : []), ...React.Children.toArray(tree.props?.children).flatMap(child => find(child, predicate))];
 }
 class Media extends EventTarget {
+    closest() { return null; }
     error = null;
     currentTime = 0;
     duration = 600;
@@ -91,6 +92,7 @@ function harness({ native = false, automatic = false, streams: customStreams } =
                 setCurrentMediaWithSource: value => published.push(value), setCurrentTimestamp: noOp,
             }) };
             if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
+            if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
             if (name === '@/lib/desktop/bridge') return { desktopBridge: () => native ? {} : null };
             if (name === '@/lib/media/playback-source') return utility('lib/media/playback-source.ts');
             if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');

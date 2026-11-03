@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 import { SUBTITLE_SIZES, SUBTITLE_OUTLINES, SUBTITLE_WEIGHTS, SUBTITLE_COLORS, type SubtitleSize, type SubtitleOutline, type SubtitleWeight, type SubtitleColor } from "@/lib/subtitle-appearance";
+import { SUBTITLE_POSITION, normalizeSubtitlePosition } from "@/lib/subtitle-appearance";
 
 export interface BitrateOption {
   value: string;
@@ -38,6 +39,8 @@ export type OpenRouterReasoningEffort =
 export type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
 interface SettingsContextType {
+  subtitlePosition: number;
+  setSubtitlePosition: (position: number) => void;
   subtitleSize: SubtitleSize;
   setSubtitleSize: (size: SubtitleSize) => void;
   subtitleOutline: SubtitleOutline;
@@ -98,6 +101,12 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 );
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const [subtitlePosition, setSubtitlePositionState] = useState<number>(SUBTITLE_POSITION.default);
+  const setSubtitlePosition = (value: number) => {
+    const position = normalizeSubtitlePosition(value);
+    setSubtitlePositionState(position);
+    try { localStorage.setItem("navigator-subtitle-position", String(position)); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
   const [subtitleSize, setSubtitleSizeState] = useState<SubtitleSize>("standard");
   const [subtitleOutline, setSubtitleOutlineState] = useState<SubtitleOutline>("thin");
   const setSubtitleSize = (value: SubtitleSize) => {
@@ -119,6 +128,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem("navigator-subtitle-color", value); } catch { /* Keep the current preference when storage is unavailable. */ }
   };
   const resetSubtitleAppearance = () => {
+    setSubtitlePosition(SUBTITLE_POSITION.default);
     setSubtitleSize("standard");
     setSubtitleOutline("thin");
     setSubtitleWeight("medium");
@@ -169,6 +179,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // Load settings from localStorage on mount
   useEffect(() => {
     try {
+      const position = localStorage.getItem("navigator-subtitle-position");
+      if (position?.trim()) setSubtitlePositionState(normalizeSubtitlePosition(Number(position)));
       const weight = localStorage.getItem("navigator-subtitle-weight");
       const color = localStorage.getItem("navigator-subtitle-color");
       if (SUBTITLE_WEIGHTS.some(option => option.value === weight)) setSubtitleWeightState(weight as SubtitleWeight);
@@ -407,7 +419,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <SettingsContext.Provider
       value={{
-        subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline,
+        subtitlePosition, setSubtitlePosition, subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline,
         subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, resetSubtitleAppearance,
         analysisModel: analysisModels[aiProvider] || "",
         setAnalysisModel,

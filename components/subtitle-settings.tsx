@@ -3,6 +3,8 @@
 import { useSettings } from "@/contexts/settings-context";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/arc/select/select";
+import { Slider } from "@/components/arc/slider/slider";
+import { SUBTITLE_POSITION } from "@/lib/subtitle-appearance";
 import Image from "next/image";
 import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
@@ -11,7 +13,7 @@ import { SUBTITLE_OUTLINES, SUBTITLE_SIZES, SUBTITLE_WEIGHTS, SUBTITLE_COLORS, t
 import styles from "@/app/(main)/settings/settings.module.css";
 
 export function SubtitleSettings() {
-  const { subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline, subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, resetSubtitleAppearance } = useSettings();
+  const { subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline, subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, subtitlePosition, setSubtitlePosition, resetSubtitleAppearance } = useSettings();
   return <section aria-labelledby="subtitle-settings-title" className={styles.section}>
     <div className="flex flex-col gap-2">
       <h2 id="subtitle-settings-title" className="text-lg font-medium">Subtitles</h2>
@@ -22,7 +24,7 @@ export function SubtitleSettings() {
         <div className={styles.subtitlePreview}>
           <Image src="/images/subtitle-preview.jpg" alt="" fill unoptimized
             sizes="(max-width: 640px) 90vw, 640px" className={styles.subtitlePreviewImage} />
-          <SubtitleText size={subtitleSize} outline={subtitleOutline} weight={subtitleWeight} color={subtitleColor} className={styles.subtitlePreviewText}>
+          <SubtitleText size={subtitleSize} outline={subtitleOutline} weight={subtitleWeight} color={subtitleColor} style={{ bottom: `${subtitlePosition}%` }} className={styles.subtitlePreviewText}>
             Every story starts somewhere.
           </SubtitleText>
         </div>
@@ -47,8 +49,13 @@ export function SubtitleSettings() {
           onValueChange={value => setSubtitleOutline(value as SubtitleOutline)} options={[...SUBTITLE_OUTLINES]} /></div>
         <FieldDescription>A dark outline keeps text readable over light and dark scenes.</FieldDescription>
       </Field>
+      <Field>
+        <Slider label="Subtitle height" value={subtitlePosition} onValueChange={setSubtitlePosition}
+          min={SUBTITLE_POSITION.min} max={SUBTITLE_POSITION.max} step={1} largeStep={5} format={value => `${value}%`} />
+        <FieldDescription>Distance from the bottom of the screen. Subtitles authored at the top keep their original position.</FieldDescription>
+      </Field>
       <div className="flex"><Button type="button" variant="ghost" size="sm" onClick={resetSubtitleAppearance}
-        disabled={subtitleSize === "standard" && subtitleOutline === "thin" && subtitleWeight === "medium" && subtitleColor === "white"}>
+        disabled={subtitleSize === "standard" && subtitleOutline === "thin" && subtitleWeight === "medium" && subtitleColor === "white" && subtitlePosition === SUBTITLE_POSITION.default}>
         Reset to defaults
       </Button></div>
     </FieldGroup>

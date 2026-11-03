@@ -2,16 +2,22 @@
 
 import {
   DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent,
-  DropdownMenuOptions, type DropdownOption,
+  DropdownMenuOptions, DropdownMenuItem, type DropdownOption,
 } from "@/components/arc/dropdown-menu/dropdown-menu";
 import styles from "./player-settings-menu.module.css";
 
-export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subtitles, disabled, portalContainer }: {
+export interface SubtitleTimingAction {
+  seconds: number;
+  onOpen(): void;
+}
+
+export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subtitles, subtitleTiming, disabled, portalContainer }: {
   speed: number;
   speeds: number[];
   onSpeedChange(_rate: number): void;
   quality?: { value: string; options: DropdownOption[]; onChange(_value: string): void };
   subtitles: { value: string; options: DropdownOption[]; onChange(_value: string): void };
+  subtitleTiming?: SubtitleTimingAction;
   disabled?: boolean;
   portalContainer: Element | DocumentFragment | null;
 }) {
@@ -30,5 +36,10 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
       <DropdownMenuOptions value={row.value} onValueChange={row.onChange} options={row.options} separateFirst={row.label === "Subtitles"} />
       {row.label === "Subtitles" && row.options.length === 1 && <p className={styles.empty}>No subtitle tracks available.</p>}
     </DropdownMenuSubContent>
-  </DropdownMenuSub>)}</>;
+  </DropdownMenuSub>)}
+    {subtitleTiming && <DropdownMenuItem disabled={disabled} onSelect={subtitleTiming.onOpen}>
+      <span className={styles.rowLabel}>Subtitle timing</span>
+      <span className={styles.summary}>{subtitleTiming.seconds > 0 ? "+" : ""}{subtitleTiming.seconds.toFixed(1)} s</span>
+    </DropdownMenuItem>}
+  </>;
 }

@@ -168,6 +168,7 @@ function useStoreSelector<U>(selector: (state: StoreState) => U): U {
 }
 
 interface MediaPlayerContextValue {
+  subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   mediaId: string;
   labelId: string;
   descriptionId: string;
@@ -218,6 +219,7 @@ interface ChapterCue {
 interface MediaPlayerRootProps
   extends Omit<React.ComponentProps<"div">, "onTimeUpdate" | "onVolumeChange"> {
   onPlay?: () => void;
+  subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   onPause?: () => void;
   onEnded?: () => void;
   onTimeUpdate?: (time: number) => void;
@@ -287,6 +289,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     withoutTooltip = false,
     customSubtitleTracks,
     customSubtitlesEnabled = false,
+    subtitleTiming,
     onCustomSubtitleChange,
     chapters,
     children,
@@ -839,6 +842,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       customSubtitlesEnabled,
       onCustomSubtitleChange,
       chapters,
+      subtitleTiming,
     }),
     [
       mediaId,
@@ -855,6 +859,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       customSubtitlesEnabled,
       onCustomSubtitleChange,
       chapters,
+      subtitleTiming,
     ]
   );
 
@@ -3118,6 +3123,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
         <DropdownMenuLabel className="sr-only">Playback settings</DropdownMenuLabel>
         <DropdownMenuGroup>
           <PlayerSettingsMenu speed={mediaPlaybackRate} speeds={speeds} onSpeedChange={onPlaybackRateChange}
+            subtitleTiming={context.subtitleTiming}
             disabled={isDisabled} portalContainer={context.rootRef.current ?? context.portalContainer}
             quality={context.isVideo && mediaRenditionList.length > 0 ? {
               value: selectedRenditionId || "auto",

@@ -57,6 +57,7 @@ function component(name, context, state, sent) {
   return globals.exports[name]({});
 }
 function find(node, type) {
+  if (Array.isArray(node)) return node.flatMap(child => find(child, type));
   if (!node || typeof node !== 'object') return [];
   return [...(node.type === type ? [node] : []), ...[].concat(node.props?.children ?? []).flatMap(child => find(child, type))];
 }
@@ -122,7 +123,7 @@ assert.equal(activity.playerControlsActive({ querySelector: () => null }), true,
 const menuMocks = {
   DropdownMenu: 'Menu', DropdownMenuTrigger: 'Trigger', DropdownMenuContent: 'Content',
   DropdownMenuSub: 'Sub', DropdownMenuSubTrigger: 'SubTrigger', DropdownMenuSubContent: 'SubContent',
-  DropdownMenuOptions: 'Options',
+  DropdownMenuOptions: 'Options', DropdownMenuItem: 'Item',
 };
 const { PlayerSettingsMenu } = load('components/player-settings-menu.tsx', {
   'react/jsx-runtime': require('react/jsx-runtime'),
@@ -134,6 +135,12 @@ assert.deepEqual(find(settingsMenu, 'SubTrigger').map(node => node.props.childre
 assert.equal(find(settingsMenu, 'SubContent').length, 3, 'Every setting opens a side submenu');
 assert.equal(find(settingsMenu, 'SubContent')[2].props.className, 'subtitleMenu', 'Only the subtitle submenu needs the wider surface');
 assert.ok(find(settingsMenu, 'SubContent').every(node => node.props.container === root), 'Nested windows remain in the fullscreen player');
+let timingOpened = false;
+const timingMenu = PlayerSettingsMenu({ ...panel.props, subtitleTiming: { seconds: 1.2, onOpen: () => { timingOpened = true; } } });
+const timingItem = find(timingMenu, 'Item')[0];
+assert.ok(timingItem, 'Subtitle timing is an action, not a numeric form inside the menu');
+timingItem.props.onSelect(); assert.equal(timingOpened, true);
+assert.equal(find(timingMenu, 'SubTrigger').length, 3, 'Timing preserves the existing submenu layout');
 const primitive = new Proxy({}, { get: (_, key) => key === '__esModule' ? true : `Primitive${key}` });
 const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {
   react: { ...React, useId: () => 'track-description' }, 'react/jsx-runtime': require('react/jsx-runtime'),

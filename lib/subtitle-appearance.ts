@@ -25,3 +25,10 @@ export const SUBTITLE_COLORS = [
 ] as const;
 export type SubtitleWeight = typeof SUBTITLE_WEIGHTS[number]["value"];
 export type SubtitleColor = typeof SUBTITLE_COLORS[number]["value"];
+
+export const SUBTITLE_POSITION = { min: 5, max: 30, default: 10 } as const;
+export function normalizeSubtitlePosition(value: number): number {
+  return Number.isFinite(value)
+    ? Math.round(Math.min(SUBTITLE_POSITION.max, Math.max(SUBTITLE_POSITION.min, value)))
+    : SUBTITLE_POSITION.default;
+}

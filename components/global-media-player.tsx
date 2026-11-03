@@ -67,6 +67,8 @@ import {
 } from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
 import { SubtitleText } from "@/components/subtitle-text";
+import { SubtitleTimingDialog } from "@/components/subtitle-timing-dialog";
+import { useSubtitleTiming, subtitleTime } from "@/lib/media/subtitle-timing";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 
@@ -96,10 +98,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     routedRequest.current = playbackRequest;
     router.push(playbackRequest.detailsPath, { scroll: false });
   }, [isPlayerVisible, playbackRequest, router]);
-  const { videoBitrate, subtitleSize, subtitleOutline, subtitleWeight, subtitleColor } = useSettings();
+  const { videoBitrate, subtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
+  const subtitleTiming = useSubtitleTiming(currentMedia);
+  const [timingOpenKey, setTimingOpenKey] = useState<string | null>(null);
+  useEffect(() => { setTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible]);
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
   const [nativePlayback] = useState(() => Boolean(desktopBridge()));
@@ -427,6 +432,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     sendPlaybackUpdate("stopped", { ended: options?.ended });
     toast.dismiss(WEB_RECOVERY_TOAST_ID);
     setIsPlayerVisible(false);
+    setTimingOpenKey(null);
     setStreamUrl(null);
     setMediaDetails(null);
     setSubtitleTracks([]);
@@ -711,9 +717,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   // Update current subtitle
   useEffect(() => {
-    const subtitle = findCurrentSubtitle(currentTime);
+    const subtitle = findCurrentSubtitle(subtitleTime(currentTime, subtitleTiming.seconds));
     setCurrentSubtitle(subtitle);
-  }, [currentTime, findCurrentSubtitle]);
+  }, [currentTime, findCurrentSubtitle, subtitleTiming.seconds]);
 
   // Handle skip timestamp
   useEffect(() => {
@@ -755,6 +761,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
+        subtitleTiming={{ seconds: subtitleTiming.seconds, onOpen: () => setTimingOpenKey(subtitleTiming.key) }}
         chapters={[]}
         onCustomSubtitleChange={(subtitleTrack) => {
           if (!subtitleTrack) {
@@ -798,6 +805,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           }
         }}
       >
+        <SubtitleTimingDialog open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
+          onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
+          seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
+          available={subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles}
+          container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
         {/* Video element */}
@@ -956,9 +968,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             outline={subtitleOutline}
             weight={subtitleWeight}
             color={subtitleColor}
-            className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 w-max max-w-[90vw] ${
-              currentSubtitle?.positionTop ? "top-[15%]" : "bottom-[10%]"
-            }`}
+            style={currentSubtitle?.positionTop ? { top: "15%" } : { bottom: `${subtitlePosition}%` }}
+            className="pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 w-max max-w-[90vw]"
           >
             {currentSubtitle ? (
               <span dangerouslySetInnerHTML={{ __html: currentSubtitle.text }} />
