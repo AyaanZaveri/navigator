@@ -28,13 +28,13 @@ export function SubtitleSettings() {
       </figure>
       <Field>
         <FieldLabel asChild><span>Text size</span></FieldLabel>
-        <SegmentedControl label="Subtitle text size" value={subtitleSize}
-          onValueChange={value => setSubtitleSize(value as SubtitleSize)} options={[...SUBTITLE_SIZES]} />
+        <div className="flex"><SegmentedControl label="Subtitle text size" value={subtitleSize}
+          onValueChange={value => setSubtitleSize(value as SubtitleSize)} options={[...SUBTITLE_SIZES]} /></div>
       </Field>
       <Field>
         <FieldLabel asChild><span>Outline</span></FieldLabel>
-        <SegmentedControl label="Subtitle outline" value={subtitleOutline}
-          onValueChange={value => setSubtitleOutline(value as SubtitleOutline)} options={[...SUBTITLE_OUTLINES]} />
+        <div className="flex"><SegmentedControl label="Subtitle outline" value={subtitleOutline}
+          onValueChange={value => setSubtitleOutline(value as SubtitleOutline)} options={[...SUBTITLE_OUTLINES]} /></div>
         <FieldDescription>A dark outline keeps text readable over light and dark scenes.</FieldDescription>
       </Field>
     </FieldGroup>
