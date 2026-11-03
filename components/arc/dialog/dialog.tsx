@@ -23,6 +23,7 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 export const DialogClose = DialogPrimitive.Close;
 
 export interface DialogContentProps extends ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  container?: ComponentPropsWithoutRef<typeof DialogPrimitive.Portal>["container"];
   title: string;
   description?: string;
   children: ReactNode;
@@ -40,7 +41,7 @@ function SwapText({ text }: { text: string }) {
     </AnimatePresence>;
 }
 
-export function DialogContent({ title, description, children, className, onPointerDownOutside, ...props }: DialogContentProps) {
+export function DialogContent({ title, description, children, className, onPointerDownOutside, container, ...props }: DialogContentProps) {
     const open = useContext(OpenContext);
     const reduced = useReducedMotion();
     // When the open state last changed. Radix waits for the click before treating a press as outside, and a press on the trigger
@@ -57,13 +58,13 @@ export function DialogContent({ title, description, children, className, onPoint
         <div className={styles.body}>{children}</div>
     </>;
     // Under a bare Radix root the open state is unknown here, so CSS keyframes keyed off data-state animate the layers instead.
-    if (open === null) return <DialogPrimitive.Portal>
+    if (open === null) return <DialogPrimitive.Portal container={container}>
         <DialogPrimitive.Overlay className={`${styles.overlay} ${styles.keyframes}`}/>
         <DialogPrimitive.Content {...props} onPointerDownOutside={pressOutside} className={`${classes} ${styles.keyframes}`}>{inner}</DialogPrimitive.Content>
     </DialogPrimitive.Portal>;
     // A centered modal fades and gently scales in; the shorter exit retargets from its current state.
     return <AnimatePresence>
-        {open && <DialogPrimitive.Portal key="dialog" forceMount>
+        {open && <DialogPrimitive.Portal key="dialog" container={container} forceMount>
             <DialogPrimitive.Overlay asChild forceMount><motion.div className={styles.overlay} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: reduced ? fade : leave }} transition={reduced ? fade : leave}/></DialogPrimitive.Overlay>
             <DialogPrimitive.Content {...props} onPointerDownOutside={pressOutside} asChild forceMount>
                 <motion.div className={classes} initial={{ opacity: 0, transform: reduced ? "scale(1)" : "scale(0.97)" }} animate={{ opacity: 1, transform: "scale(1)" }} exit={{ opacity: 0, transform: reduced ? "scale(1)" : "scale(0.97)", transition: reduced ? fade : leave }} transition={reduced ? fade : enter}>{inner}</motion.div>

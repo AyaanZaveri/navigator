@@ -16,6 +16,10 @@ export const DropdownMenuLabel = Primitive.Label;
 export const DropdownMenuRadioGroup = Primitive.RadioGroup;
 export const DropdownMenuSub = Primitive.Sub;
 
+export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof Primitive.Item>) {
+  return <Primitive.Item {...props} className={cn(styles.item, className)} />;
+}
+
 type Container = ComponentProps<typeof Primitive.Portal>["container"];
 
 export function DropdownMenuContent({ container, className, sideOffset = 6, ...props }:
