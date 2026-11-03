@@ -58,6 +58,7 @@ const { SubtitleTimingPopover } = load('components/subtitle-timing-popover.tsx',
  '@/components/ui/button': { Button: 'Button' },
  '@/lib/media/subtitle-timing': timing,
  './subtitle-timing-popover.module.css': {},
+ './arc/floating-surface.module.css': {},
 });
 function all(tree, type) {
  if (Array.isArray(tree)) return tree.flatMap(child => all(child, type));
@@ -65,7 +66,8 @@ function all(tree, type) {
  return [...(tree.type === type ? [tree] : []), ...all(tree.props?.children, type)];
 }
 let focused = false, prevented = false, changed;
-const anchor = { isConnected: true, contains: () => false, focus: () => { focused = true; } };
+const menu = {};
+const anchor = { closest: () => menu, isConnected: true, contains: () => false, focus: () => { focused = true; } };
 const container = { querySelector: () => anchor };
 const renderPanel = (seconds, available = true) => SubtitleTimingPopover({
  open: true, onOpenChange() {}, seconds, onChange: value => { changed = value; }, available, container,
@@ -76,7 +78,8 @@ assert.equal(all(panel,'PopoverContent')[0].props.container, container, 'Popover
 assert.equal(all(panel,'PopoverContent')[0].props.side, 'left', 'Timing opens beside Settings like the other nested panels');
 assert.equal(all(panel,'PopoverAnchor')[0].props.virtualRef.current, anchor, 'Anchor survives the settings menu unmount');
 assert.equal(all(panel,'RulerSlider')[0].props.disabled, true, 'Embedded tracks must not offer nonfunctional timing');
-assert.ok(all(panel,'p').some(node => String(node.props.children).includes('Embedded subtitle timing is not supported')));
+assert.equal(all(panel,'p')[0].props.className, 'sr-only', 'Keep technical status out of the visible layout');
+assert.equal(all(panel,'RulerSlider')[0].props.hideLabel, true, 'Avoid repeating the heading above the ruler');
 all(panel,'PopoverContent')[0].props.onCloseAutoFocus({ preventDefault() { prevented = true; } });
 assert.ok(focused && prevented, 'Closing returns focus to the persistent settings trigger');
 let rulerFocused = false;
@@ -90,7 +93,8 @@ assert.equal(ruler.props.min, -30);
 assert.equal(ruler.props.max, 30);
 assert.equal(ruler.props.format(.3), '+0.3');
 ruler.props.onValueChange(-.4); assert.equal(changed, -.4, 'Dragging updates the existing timing state immediately');
-let buttons = all(panel,'Button');
+const panelButtons = tree => [...all(tree,'Button'), ...all(all(tree,'RulerSlider')[0].props.valueStart,'Button'), ...all(all(tree,'RulerSlider')[0].props.valueEnd,'Button')];
+let buttons = panelButtons(panel);
 buttons.find(node => node.props['aria-label']?.endsWith('earlier')).props.onClick();
 assert.equal(changed, .2, 'Earlier nudges one tenth without floating-point drift');
 buttons.find(node => node.props['aria-label']?.endsWith('later')).props.onClick();
@@ -100,7 +104,7 @@ assert.equal(changed, 0);
 assert.ok(all(panel,'p').some(node => String(node.props.children).includes('0.3 seconds later')));
 assert.ok(all(renderPanel(-.3),'p').some(node => String(node.props.children).includes('0.3 seconds earlier')));
 for (const [seconds, direction] of [[-30,'earlier'],[30,'later']]) {
- const atLimit = all(renderPanel(seconds),'Button').find(node => node.props['aria-label']?.endsWith(direction));
+ const atLimit = panelButtons(renderPanel(seconds)).find(node => node.props['aria-label']?.endsWith(direction));
  assert.equal(atLimit.props.disabled, true);
 }
 assert.equal(all(renderPanel(0),'Button').find(node => node.props.children === 'Reset').props.disabled, true);
@@ -111,3 +115,17 @@ const closedOutside = all(panel,'PopoverContent')[0];
 closedOutside.props.onInteractOutside({ target: {}, preventDefault() {} });
 closedOutside.props.onCloseAutoFocus({ preventDefault() {} });
 assert.equal(focused, false, 'Outside interaction must retain the user\'s new focus target');
+
+// Reproduce the focus handoff Radix causes when the pointer leaves the row.
+panel = renderPanel(.3);
+const content = all(panel, 'PopoverContent')[0];
+prevented = false; focused = false;
+content.props.onInteractOutside({ target: menu, detail: { originalEvent: { type: 'focusin' } }, preventDefault() { prevented = true; } });
+assert.equal(prevented, true, 'Hover-induced menu focus must not dismiss the timing panel');
+content.props.onCloseAutoFocus({ preventDefault() {} });
+assert.equal(focused, true, 'An internal hover handoff must preserve focus return');
+prevented = false;
+content.props.onInteractOutside({ target: menu, detail: { originalEvent: { type: 'pointerdown' } }, preventDefault() { prevented = true; } });
+assert.equal(prevented, false, 'Real outside pointer interactions still dismiss the panel');
+assert.ok(Object.hasOwn(content.props, 'data-player-native-glass'), 'Timing participates in native menu glass');
+console.log('PASS: hover focus handoff stays open without blocking real outside dismissal');

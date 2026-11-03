@@ -1,11 +1,12 @@
 "use client";
 
 import { useId, useRef } from "react";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { Minus, Plus, X } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverClose, PopoverContent } from "@/components/arc/popover/popover";
 import { RulerSlider } from "@/components/arc/ruler-slider/ruler-slider";
 import { Button } from "@/components/ui/button";
 import { normalizeSubtitleDelay, SUBTITLE_TIMING_LIMIT } from "@/lib/media/subtitle-timing";
+import glass from "./arc/floating-surface.module.css";
 import styles from "./subtitle-timing-popover.module.css";
 
 export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, available, container }: {
@@ -21,14 +22,20 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
   const interactedOutside = useRef(false);
   const anchor = container?.querySelector<HTMLElement>('[data-slot="media-player-subtitle-timing"]')
     ?? container?.querySelector<HTMLElement>('[data-slot="media-player-settings"]');
-  const description = !available
-    ? "Select a downloaded subtitle track to adjust timing. Embedded subtitle timing is not supported yet."
+  const description = !available ? "Timing unavailable for this subtitle track."
     : seconds === 0 ? "Original timing"
       : `Subtitles appear ${Math.abs(seconds).toFixed(1)} seconds ${seconds < 0 ? "earlier" : "later"}.`;
+  const nudge = (direction: -1 | 1) => <Button type="button" variant="ghost" size="icon"
+    className="size-11" aria-label={`Show subtitles 0.1 seconds ${direction < 0 ? "earlier" : "later"}`}
+    title={direction < 0 ? "Earlier by 0.1 seconds" : "Later by 0.1 seconds"}
+    disabled={!available || (direction < 0 ? seconds <= -SUBTITLE_TIMING_LIMIT : seconds >= SUBTITLE_TIMING_LIMIT)}
+    onClick={() => onChange(normalizeSubtitleDelay(seconds + direction * 0.1))}>
+    {direction < 0 ? <Minus className="size-4" /> : <Plus className="size-4" />}
+  </Button>;
   return <Popover open={open} onOpenChange={onOpenChange} modal={false}>
     <PopoverAnchor virtualRef={anchor ? { current: anchor } : undefined} />
     <PopoverContent container={container} side="left" align="end" sideOffset={14}
-      data-subtitle-timing="" data-player-native-glass="" className={styles.panel}
+      data-subtitle-timing="" data-player-native-glass="" className={`${glass.surface} ${styles.panel}`}
       aria-labelledby={headingId} aria-describedby={descriptionId}
       onOpenAutoFocus={event => {
         const panel = event.currentTarget as HTMLElement;
@@ -37,7 +44,13 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
         if (target) { event.preventDefault(); target.focus(); }
       }}
       onInteractOutside={event => {
-        if (anchor?.contains(event.target as Node)) { event.preventDefault(); return; }
+        const target = event.target as Node;
+        // Radix returns focus to its menu on pointer leave. That handoff is
+        // internal to this pair of surfaces, not an outside interaction.
+        const menu = anchor?.closest('[role="menu"]');
+        if (anchor?.contains(target) || (event.detail?.originalEvent.type === "focusin" && target === menu)) {
+          event.preventDefault(); return;
+        }
         interactedOutside.current = true;
       }}
       onCloseAutoFocus={event => {
@@ -47,24 +60,18 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
       }}>
       <div className={styles.header}>
         <h2 id={headingId}>Subtitle timing</h2>
-        <PopoverClose asChild><Button type="button" variant="ghost" size="icon"
-          aria-label="Close subtitle timing" className="size-9"><X className="size-4" /></Button></PopoverClose>
+        <div className={styles.headerActions}>
+          <Button type="button" variant="ghost" size="sm" disabled={!available || seconds === 0}
+            onClick={() => onChange(0)}>Reset</Button>
+          <PopoverClose asChild><Button type="button" variant="ghost" size="icon"
+            aria-label="Close subtitle timing" className="size-9"><X className="size-4" /></Button></PopoverClose>
+        </div>
       </div>
-      <RulerSlider className={styles.ruler} label="Subtitle delay" value={seconds} onValueChange={onChange}
+      <RulerSlider className={styles.ruler} label="Subtitle timing" hideLabel valueStart={nudge(-1)} valueEnd={nudge(1)} value={seconds} onValueChange={onChange}
         min={-SUBTITLE_TIMING_LIMIT} max={SUBTITLE_TIMING_LIMIT} step={0.1} largeStep={1}
         majorEvery={10} spacing={10} format={value => `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
         unit="s" disabled={!available} />
-      <p id={descriptionId} className={styles.description}>{description}</p>
-      <div className={styles.actions}>
-        <Button type="button" variant="secondary" size="sm" className="h-11"
-          aria-label="Show subtitles 0.1 seconds earlier" disabled={!available || seconds <= -SUBTITLE_TIMING_LIMIT}
-          onClick={() => onChange(normalizeSubtitleDelay(seconds - 0.1))}><ArrowLeft className="size-4" />Earlier</Button>
-        <Button type="button" variant="ghost" size="sm" className="h-11"
-          disabled={!available || seconds === 0} onClick={() => onChange(0)}>Reset</Button>
-        <Button type="button" variant="secondary" size="sm" className="h-11"
-          aria-label="Show subtitles 0.1 seconds later" disabled={!available || seconds >= SUBTITLE_TIMING_LIMIT}
-          onClick={() => onChange(normalizeSubtitleDelay(seconds + 0.1))}>Later<ArrowRight className="size-4" /></Button>
-      </div>
+      <p id={descriptionId} className="sr-only">{description}</p>
     </PopoverContent>
   </Popover>;
 }

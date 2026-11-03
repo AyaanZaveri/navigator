@@ -1,7 +1,7 @@
 // UI Arc, free MIT component: https://uiarc.dev/components/ruler-slider
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform, type AnimationPlaybackControls } from "motion/react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./ruler-slider.module.css";
@@ -9,6 +9,9 @@ import styles from "./ruler-slider.module.css";
 export interface RulerSliderProps {
   /** Visible label; it also names the control. */
   label: string;
+  hideLabel?: boolean;
+  valueStart?: ReactNode;
+  valueEnd?: ReactNode;
   value?: number;
   defaultValue?: number;
   onValueChange?: (value: number) => void;
@@ -72,7 +75,7 @@ function Rolling({ text, reduced }: { text: string; reduced: boolean }) {
  * digit as the tape passes. Arrows step one tick, Shift+arrows and PageUp or PageDown move one labelled tick, Home and End go to the ends,
  * and horizontal trackpad scrolling moves the tape.
  */
-export function RulerSlider({ label, value, defaultValue, onValueChange, onValueCommit, min = 0, max = 100, step: stepProp = 1, largeStep, majorEvery = 10, spacing = 10, format, unit, name, disabled, className }: RulerSliderProps) {
+export function RulerSlider({ label, hideLabel, valueStart, valueEnd, value, defaultValue, onValueChange, onValueCommit, min = 0, max = 100, step: stepProp = 1, largeStep, majorEvery = 10, spacing = 10, format, unit, name, disabled, className }: RulerSliderProps) {
   const reduced = useReducedMotion() ?? false;
   const labelId = useId();
   const step = stepProp > 0 ? stepProp : 1;
@@ -212,8 +215,10 @@ export function RulerSlider({ label, value, defaultValue, onValueChange, onValue
   const tapeStyle = { "--spacing": `${spacing}px`, "--major": `${spacing * majorEvery}px`, "--half": majorEvery % 2 === 0 ? `${(spacing * majorEvery) / 2}px` : "0px", width: (max - min) * perUnit + 1 } as CSSProperties;
 
   return <div className={[styles.root, className].filter(Boolean).join(" ")} data-disabled={disabled || undefined} data-dragging={dragging || undefined}>
-    <span id={labelId} className={styles.label}>{label}</span>
+    <span id={labelId} className={hideLabel ? "sr-only" : styles.label}>{label}</span>
+    <div className={styles.readoutRow}>{valueStart}
     <div className={styles.readout} aria-hidden="true"><Rolling text={text} reduced={reduced} />{unit && <span className={styles.unit}>{unit}</span>}</div>
+    {valueEnd}</div>
     <div ref={viewportRef} className={styles.viewport} role="slider" tabIndex={disabled ? -1 : 0} aria-labelledby={labelId} aria-valuemin={min} aria-valuemax={max} aria-valuenow={current} aria-valuetext={unit ? `${text} ${unit}` : text} aria-orientation="horizontal" aria-disabled={disabled || undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onLostPointerCapture={onPointerEnd} onKeyDown={onKeyDown}>
       <div className={styles.fade}>

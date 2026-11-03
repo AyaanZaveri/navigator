@@ -13,11 +13,11 @@ function node(left, top, hidden) {
 }
 const back = node(24, 16), preview = node(200, 240, true), nodes = [back, preview];
 preview.attrs.set('data-slot', 'media-player-seek-tooltip');
-const document = { hidden: false, body: {}, querySelectorAll: () => nodes,
+const document = { hidden: false, body: {}, querySelectorAll: selector => nodes.filter(node => node.attrs.has('data-player-native-glass') ? selector.includes('[data-player-native-glass]') : true),
   documentElement: { style: { setProperty: (name, value) => css.set(name, value), removeProperty: name => css.delete(name) } },
   addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) };
 const bridge = { platform: 'android', capabilities: { glass: true }, send: message => sent.push(message), subscribe(fn) { receive = fn; return () => { receive = null; }; } };
-const context = { exports: {}, document, getComputedStyle: node => ({ visibility: node.visible ? 'visible' : 'hidden' }),
+const context = { exports: {}, document, getComputedStyle: node => ({ visibility: node.visible ? 'visible' : 'hidden', backgroundColor: 'rgba(20, 20, 20, 0.9)', backgroundImage: 'none' }),
   window: { innerWidth: 1000, innerHeight: 500, addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) },
   setTimeout(fn) { timers.set(++id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe(target) { if (target === document.body) mutation = this.fn; else insets = this.fn; } disconnect() {} },
@@ -64,8 +64,16 @@ assert.equal(reads, beforeSkipFrame, 'Skip glass adds no layout work to frame de
 assert.ok(skip.props.get('--native-glass-image').includes('CC=='));
 skip.attrs.set('aria-hidden', 'true'); mutation([{ type: 'attributes' }]);
 assert.equal(sent.at(-1).active, false, 'Dismissing the only visible skip action releases capture demand');
+const timingPanel = node(420, 120);
+timingPanel.attrs.set('data-player-native-glass', '');
+nodes.push(timingPanel);
+mutation([{ type: 'childList', addedNodes: [{ nodeType: 1 }], removedNodes: [] }]);
+assert.ok(timingPanel.attrs.has('data-native-glass'), 'Timing menus join native glass even when other controls are hidden');
+assert.equal(timingPanel.props.get('--native-glass-color'), 'rgba(20, 20, 20, 0.9)', 'Keep the menu tint over sampled video');
+assert.equal(timingPanel.props.get('--native-glass-sheen'), 'none');
+timingPanel.visible = false;
 back.visible = true; mutation([{ type: 'attributes' }]);
 document.hidden = true; events.get('visibilitychange')();
 assert.equal(sent.at(-1).active, false, 'Backgrounding stops video readback');
-cleanup(); assert.equal(back.props.size, 0); assert.equal(preview.props.size, 0); assert.equal(skip.props.size, 0); assert.equal(css.size, 0); assert.equal(events.size, 0); assert.equal(timers.size, 0); assert.equal(receive, null);
+cleanup(); assert.equal(timingPanel.props.size, 0); assert.equal(back.props.size, 0); assert.equal(preview.props.size, 0); assert.equal(skip.props.size, 0); assert.equal(css.size, 0); assert.equal(events.size, 0); assert.equal(timers.size, 0); assert.equal(receive, null);
 console.log('PASS: native glass demand, source isolation, bounded geometry updates, visibility/background cancellation and cleanup');

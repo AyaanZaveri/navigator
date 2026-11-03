@@ -25,3 +25,6 @@
 @media (prefers-reduced-motion: reduce) { .strip { transition: none; } }
 
 .viewport:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.readoutRow { display: flex; width: 100%; align-items: center; justify-content: center; gap: .75rem; margin-bottom: var(--space-3); }
+.readoutRow .readout { flex: 1; justify-content: center; margin-bottom: 0; }

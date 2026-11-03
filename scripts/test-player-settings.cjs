@@ -159,6 +159,7 @@ const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {
   '@radix-ui/react-dropdown-menu': primitive,
   '@/components/ui/badge': { Badge: 'Badge' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
   './dropdown-menu.module.css': {},
+  '../floating-surface.module.css': {},
 });
 const choices = dropdown.DropdownMenuOptions({ value: '2', options: panel.props.subtitles.options, onValueChange() {} });
 assert.equal(choices.props.value, '2');
