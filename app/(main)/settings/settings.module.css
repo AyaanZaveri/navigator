@@ -85,3 +85,26 @@
 @media (prefers-reduced-motion: reduce) {
   .apiKeyInput[data-slot="input-group"] { transition: none; }
 }
+
+.subtitlePreviewFigure {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.subtitlePreview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface-muted);
+}
+
+.subtitlePreviewImage { object-fit: cover; }
+
+.subtitlePreviewText {
+  position: absolute;
+  inset-inline: 16px;
+  bottom: 12%;
+}
