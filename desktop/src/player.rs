@@ -113,11 +113,12 @@ impl Player {
                         Command::Muted { muted, .. } => client.set_property("mute", if muted { "yes" } else { "no" }),
                         Command::Rate { rate, .. } => client.set_property("speed", &rate.to_string()),
                         Command::VideoFit { mode, .. } => {
+                            use crate::protocol::VideoFitMode;
+                            let result = client.set_property("keepaspect", if matches!(mode, VideoFitMode::Stretch) { "no" } else { "yes" })
+                                .and_then(|_| client.set_property("panscan", if matches!(mode, VideoFitMode::Crop) { "1" } else { "0" }));
                             #[cfg(windows)]
                             glass_control.invalidate();
-                            use crate::protocol::VideoFitMode;
-                            client.set_property("keepaspect", if matches!(mode, VideoFitMode::Stretch) { "no" } else { "yes" })
-                                .and_then(|_| client.set_property("panscan", if matches!(mode, VideoFitMode::Crop) { "1" } else { "0" }))
+                            result
                         }
                         Command::Track { kind, id, .. } => client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id),
                         Command::Stop { .. } => {
