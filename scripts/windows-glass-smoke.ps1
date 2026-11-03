@@ -1,5 +1,6 @@
-param([Parameter(Mandatory=$true)][string]$Executable,[string]$Output='dist/windows-glass.png',[double]$MinimumFps=50,[double]$MaximumGapMs=50,[switch]$SubtitlesOnly)
+param([Parameter(Mandatory=$true)][string]$Executable,[string]$Output='dist/windows-glass.png',[double]$MinimumFps=50,[double]$MaximumGapMs=50,[switch]$SubtitlesOnly,[switch]$NoCapture)
 $ErrorActionPreference='Stop'
+if($NoCapture -and !$SubtitlesOnly){throw 'NoCapture is only a functional subtitle check, never a glass performance test'}
 $root=Split-Path $PSScriptRoot -Parent
 $outputPath=[IO.Path]::GetFullPath($Output)
 New-Item -ItemType Directory -Force (Split-Path $outputPath)|Out-Null
@@ -27,12 +28,12 @@ try{
  $deadline=[DateTime]::UtcNow.AddSeconds(15)
  do{$app.Refresh();$handle=Get-NavigatorHandle $app;if($app.HasExited -or [DateTime]::UtcNow -gt $deadline){throw 'No owned player window'};if($handle -eq [IntPtr]::Zero){Start-Sleep -Milliseconds 50}}while($handle -eq [IntPtr]::Zero)
  [void][NavigatorSmokeWindow]::SetThreadExecutionState([uint32]2147483651)
- Focus-Navigator $handle
+ if(!$NoCapture){Focus-Navigator $handle}
  $deadline=[DateTime]::UtcNow.AddSeconds(25)
  while(!(Test-Path "$outputPath.painted.json")){if($app.HasExited -or [DateTime]::UtcNow -gt $deadline){throw 'No actual video samples reached the production glass effect'};Start-Sleep -Milliseconds 100}
  # Reuse the capture helper's physical-coordinate and window-ownership checks.
  $app.Refresh()
- Save-NavigatorScreenshot $app $outputPath
+ if(!$NoCapture){Save-NavigatorScreenshot $app $outputPath}
  if($SubtitlesOnly){
   $deadline=[DateTime]::UtcNow.AddSeconds(12)
   while(!(Test-Path "$outputPath.completed.json")){if([DateTime]::UtcNow -gt $deadline){throw 'Subtitle-only playback did not finish'};Start-Sleep -Milliseconds 100}
@@ -40,7 +41,7 @@ try{
   if($result.frames -ne 0 -or $result.position -lt 3){throw 'Subtitle-only playback sampled glass or did not advance'}
   $painted=Get-Content "$outputPath.painted.json" -Raw|ConvertFrom-Json
   if($painted.subtitle.sampling -or $painted.subtitle.stroke -ne '1.5px'){throw 'Subtitle outline did not render'}
-  'Outlined subtitles remain visible while video advances, with zero glass frames.'
+  if($NoCapture){'Subtitle outline styles, advancing playback and zero glass frames passed; no pixels captured.'}else{'Outlined subtitles remain visible while video advances, with zero glass frames.'}
   return
  }
  $material=Get-Content "$outputPath.painted.json" -Raw|ConvertFrom-Json

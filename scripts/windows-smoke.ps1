@@ -21,6 +21,8 @@ public static class NavigatorSmokeWindow {
   public static IntPtr FindClassWindow(IntPtr after,string className) { return FindWindowEx(IntPtr.Zero,after,className,null); }
   [DllImport("user32.dll", EntryPoint="GetWindowThreadProcessId")] public static extern uint WindowProcess(IntPtr hwnd, out uint pid);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd,int command);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
   [DllImport("user32.dll")] static extern IntPtr OpenInputDesktop(uint flags,bool inherit,uint access);
@@ -67,6 +69,7 @@ function Close-Navigator($app) {
 function Focus-Navigator($handle) {
   if(![NavigatorSmokeWindow]::InputDesktopActive()){throw 'Unlock the interactive Windows desktop before measuring'}
   [void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
+  if([NavigatorSmokeWindow]::IsIconic($handle)){[void][NavigatorSmokeWindow]::ShowWindow($handle,9);Start-Sleep -Milliseconds 300}
   # The fixture has no action at its center. A verified physical click gives
   # foreground permission without guessing a helper HWND or clicking another app.
   [void][NavigatorSmokeWindow]::SetWindowPos($handle,[IntPtr](-1),0,0,0,0,0x13)
@@ -76,7 +79,8 @@ function Focus-Navigator($handle) {
     [void][NavigatorSmokeWindow]::GetWindowRect($handle,[ref]$rect)
     $point=New-Object NavigatorSmokeWindow+Point
     $point.X=[int](($rect.Left+$rect.Right)/2);$point.Y=[int](($rect.Top+$rect.Bottom)/2)
-    if([NavigatorSmokeWindow]::GetAncestor([NavigatorSmokeWindow]::WindowFromPoint($point),2) -ne $handle){throw 'Owned fixture is occluded; refusing to click'}
+    $blocker=[NavigatorSmokeWindow]::GetAncestor([NavigatorSmokeWindow]::WindowFromPoint($point),2)
+    if($blocker -ne $handle){$name=New-Object Text.StringBuilder 256;[void][NavigatorSmokeWindow]::GetClassName($blocker,$name,256);throw "Owned fixture is occluded by $blocker ($name), target=$handle, bounds=$($rect.Left),$($rect.Top),$($rect.Right),$($rect.Bottom); refusing to click"}
     [void][NavigatorSmokeWindow]::SetCursorPos($point.X,$point.Y)
     [NavigatorSmokeWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 80
     [NavigatorSmokeWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
