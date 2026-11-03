@@ -96,7 +96,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     routedRequest.current = playbackRequest;
     router.push(playbackRequest.detailsPath, { scroll: false });
   }, [isPlayerVisible, playbackRequest, router]);
-  const { videoBitrate, subtitleSize, subtitleOutline } = useSettings();
+  const { videoBitrate, subtitleSize, subtitleOutline, subtitleWeight, subtitleColor } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
@@ -954,6 +954,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             data-player-subtitle=""
             size={subtitleSize}
             outline={subtitleOutline}
+            weight={subtitleWeight}
+            color={subtitleColor}
             className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 w-max max-w-[90vw] ${
               currentSubtitle?.positionTop ? "top-[15%]" : "bottom-[10%]"
             }`}

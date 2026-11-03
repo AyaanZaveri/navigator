@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-import { SUBTITLE_SIZES, SUBTITLE_OUTLINES, type SubtitleSize, type SubtitleOutline } from "@/lib/subtitle-appearance";
+import { SUBTITLE_SIZES, SUBTITLE_OUTLINES, SUBTITLE_WEIGHTS, SUBTITLE_COLORS, type SubtitleSize, type SubtitleOutline, type SubtitleWeight, type SubtitleColor } from "@/lib/subtitle-appearance";
 
 export interface BitrateOption {
   value: string;
@@ -42,6 +42,11 @@ interface SettingsContextType {
   setSubtitleSize: (size: SubtitleSize) => void;
   subtitleOutline: SubtitleOutline;
   setSubtitleOutline: (outline: SubtitleOutline) => void;
+  subtitleWeight: SubtitleWeight;
+  setSubtitleWeight: (weight: SubtitleWeight) => void;
+  subtitleColor: SubtitleColor;
+  setSubtitleColor: (color: SubtitleColor) => void;
+  resetSubtitleAppearance: () => void;
   videoBitrate: string;
   setVideoBitrate: (bitrate: string) => void;
   navigatorEnabled: boolean;
@@ -103,6 +108,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setSubtitleOutlineState(value);
     try { localStorage.setItem("navigator-subtitle-outline", value); } catch { /* Keep the current preference when storage is unavailable. */ }
   };
+  const [subtitleWeight, setSubtitleWeightState] = useState<SubtitleWeight>("medium");
+  const [subtitleColor, setSubtitleColorState] = useState<SubtitleColor>("white");
+  const setSubtitleWeight = (value: SubtitleWeight) => {
+    setSubtitleWeightState(value);
+    try { localStorage.setItem("navigator-subtitle-weight", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const setSubtitleColor = (value: SubtitleColor) => {
+    setSubtitleColorState(value);
+    try { localStorage.setItem("navigator-subtitle-color", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const resetSubtitleAppearance = () => {
+    setSubtitleSize("standard");
+    setSubtitleOutline("thin");
+    setSubtitleWeight("medium");
+    setSubtitleColor("white");
+  };
   const [videoBitrate, setVideoBitrateState] = useState<string>("auto");
   const [navigatorEnabled, setNavigatorEnabledState] = useState<boolean>(true);
   const [analysisModels, setAnalysisModels] = useState<Partial<Record<AIProvider, string>>>({});
@@ -148,6 +169,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // Load settings from localStorage on mount
   useEffect(() => {
     try {
+      const weight = localStorage.getItem("navigator-subtitle-weight");
+      const color = localStorage.getItem("navigator-subtitle-color");
+      if (SUBTITLE_WEIGHTS.some(option => option.value === weight)) setSubtitleWeightState(weight as SubtitleWeight);
+      if (SUBTITLE_COLORS.some(option => option.value === color)) setSubtitleColorState(color as SubtitleColor);
       const size = localStorage.getItem("navigator-subtitle-size");
       const outline = localStorage.getItem("navigator-subtitle-outline");
       if (SUBTITLE_SIZES.some(option => option.value === size)) setSubtitleSizeState(size as SubtitleSize);
@@ -383,6 +408,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     <SettingsContext.Provider
       value={{
         subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline,
+        subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, resetSubtitleAppearance,
         analysisModel: analysisModels[aiProvider] || "",
         setAnalysisModel,
         videoBitrate,
