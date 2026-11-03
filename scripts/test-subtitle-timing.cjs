@@ -129,3 +129,8 @@ content.props.onInteractOutside({ target: menu, detail: { originalEvent: { type:
 assert.equal(prevented, false, 'Real outside pointer interactions still dismiss the panel');
 assert.ok(Object.hasOwn(content.props, 'data-player-native-glass'), 'Timing participates in native menu glass');
 console.log('PASS: hover focus handoff stays open without blocking real outside dismissal');
+
+prevented = false;
+content.props.onInteractOutside({ target: {}, detail: { originalEvent: { type: 'focusin' } }, preventDefault() { prevented = true; } });
+assert.equal(prevented, true, 'Moving focus while hovering must never close a click-toggled panel');
+assert.equal(all(panel, 'PopoverClose').length, 0, 'Close via the timing toggle, outside press or Escape without a redundant X');

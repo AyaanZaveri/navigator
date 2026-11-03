@@ -1,8 +1,8 @@
 "use client";
 
 import { useId, useRef } from "react";
-import { Minus, Plus, X } from "lucide-react";
-import { Popover, PopoverAnchor, PopoverClose, PopoverContent } from "@/components/arc/popover/popover";
+import { Minus, Plus } from "lucide-react";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/arc/popover/popover";
 import { RulerSlider } from "@/components/arc/ruler-slider/ruler-slider";
 import { Button } from "@/components/ui/button";
 import { normalizeSubtitleDelay, SUBTITLE_TIMING_LIMIT } from "@/lib/media/subtitle-timing";
@@ -45,10 +45,9 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
       }}
       onInteractOutside={event => {
         const target = event.target as Node;
-        // Radix returns focus to its menu on pointer leave. That handoff is
-        // internal to this pair of surfaces, not an outside interaction.
-        const menu = anchor?.closest('[role="menu"]');
-        if (anchor?.contains(target) || (event.detail?.originalEvent.type === "focusin" && target === menu)) {
+        // This panel is click-toggled. Radix's menu hover/roving focus and
+        // keyboard focus changes must not act as a click outside the panel.
+        if (anchor?.contains(target) || event.detail?.originalEvent.type === "focusin") {
           event.preventDefault(); return;
         }
         interactedOutside.current = true;
@@ -63,8 +62,6 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
         <div className={styles.headerActions}>
           <Button type="button" variant="ghost" size="sm" disabled={!available || seconds === 0}
             onClick={() => onChange(0)}>Reset</Button>
-          <PopoverClose asChild><Button type="button" variant="ghost" size="icon"
-            aria-label="Close subtitle timing" className="size-9"><X className="size-4" /></Button></PopoverClose>
         </div>
       </div>
       <RulerSlider className={styles.ruler} label="Subtitle timing" hideLabel valueStart={nudge(-1)} valueEnd={nudge(1)} value={seconds} onValueChange={onChange}
