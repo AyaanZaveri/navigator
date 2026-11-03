@@ -1,3 +1,16 @@
+.header {
+    /* Browser tabs already position content below their status/tool bars.
+       Do not reserve that top inset a second time inside the page. Native
+       shells apply their own safe-area padding in their platform stylesheet. */
+    padding-block-start: 0;
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+    .header {
+        padding-block-start: env(safe-area-inset-top, 0px);
+    }
+}
+
 .navigation {
     padding-block: 1.25rem;
 }
