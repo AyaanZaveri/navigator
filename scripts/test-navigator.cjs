@@ -347,7 +347,21 @@ async function main() {
   assert.equal(episodeScene.success, true);
   assert.equal(episodeScene.mediaSourceId, 'tt13623608:1:1');
   assert.equal(episodeScene.resumePositionTicks, 5);
-  const queryScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence', mediaQuery: 'Example' }, toolOptions);
+  const sceneCardsProgress = [];
+  const queryScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence', mediaQuery: 'Example' },
+    { ...toolOptions, context: { onSceneProgress: progress => sceneCardsProgress.push(progress) } });
+  const titleProgress = sceneCardsProgress.find(progress => progress.stage === 'title' && progress.state === 'completed');
+  assert.equal(titleProgress.media.name, 'Example');
+  assert.equal(titleProgress.media.year, 2020);
+  assert.equal(titleProgress.media.poster, 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  const trackProgress = sceneCardsProgress.find(progress => progress.stage === 'subtitles' && progress.state === 'completed');
+  assert.equal(trackProgress.subtitles.language, 'en');
+  assert.equal(trackProgress.subtitles.lineCount, 3);
+  assert.equal(trackProgress.subtitles.index, 0);
+  assert.equal(trackProgress.subtitles.src, undefined, 'Progress never sends signed subtitle download URLs');
+  const foundSceneProgress = sceneCardsProgress.find(progress => progress.stage === 'scene' && progress.state === 'completed');
+  assert.equal(foundSceneProgress.scene.text, queryScene.text);
+  assert.equal(foundSceneProgress.scene.timestamp, queryScene.timestamp);
   assert.equal(queryScene.success, true, 'A scene tool must resolve a title query internally without another model turn');
   assert.equal(queryScene.mediaId, 'tt123');
   const inPlace = await analysisTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
