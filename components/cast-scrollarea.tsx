@@ -100,7 +100,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
                 <ul className="flex w-max gap-6">
                     {cast.map((member) => (
                         <li key={member.id} className="w-28 shrink-0 text-center">
-                            <Avatar className="mx-auto size-24">
+                            <Avatar className="mx-auto size-24 outline outline-1 -outline-offset-1 outline-black/5 dark:outline-transparent">
                                 {member.image && <AvatarImage src={member.image} alt={member.name} loading="lazy" className="object-cover object-center" />}
                                 <AvatarFallback className="text-2xl font-medium text-muted-foreground">
                                     {member.name.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0]).join("")}

@@ -11,6 +11,11 @@
   background-color: var(--accent);
 }
 
+:global(html:not(.dark)) .frame {
+  border-color: var(--artwork-edge);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--shadow-artwork);
+}
+
 /* Don't float a decoded logo over artwork that is still downloading. */
 .wordmark { visibility: hidden; }
 .frame:has(.artwork[data-artwork-state="ready"]) .wordmark { visibility: visible; }
