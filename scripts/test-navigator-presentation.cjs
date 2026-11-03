@@ -144,11 +144,35 @@ assert.equal(subtitleRow.type, widgets['result-row']);
 assert.equal(subtitleRow.props.title, 'English');
 assert.equal(subtitleRow.props.iconContent.type, 'img');
 assert.equal(subtitleRow.props.iconContent.props.src, '/flags/circle/language/en.svg');
-assert.equal(subtitleRow.props.iconContent.props.width, 16);
+assert.equal(subtitleRow.props.iconContent.props.width, 20);
+assert.equal(subtitleRow.props.icon, undefined, "A language flag does not need a second boxed icon");
+assert.equal(subtitleRow.props.metadata.type, widgets["result-meta"], "Subtitle metadata is a line count without a language badge");
 assert.equal(subtitleRow.props.description, 'Knives.Out.2019.srt · OpenSubtitles');
 const unknownSubtitleRow = SubtitleTrackCard({ track: { language: 'und', index: 0, lineCount: 1 } });
 assert.equal(unknownSubtitleRow.props.title, 'Unknown language');
 assert.notEqual(unknownSubtitleRow.props.iconContent.type, 'img', 'Unknown languages use a Lucide fallback instead of a broken flag');
+const { formatSceneTime } = load('lib/format-scene-time.ts', {});
+for (const [seconds, expected] of [[0, '0s'], [27.168, '27s'], [65, '1m 5s'], [6147.168, '1h 42m 27s'], [3600, '1h 0m 0s']]) {
+  assert.equal(formatSceneTime(seconds), expected);
+}
+assert.equal(formatSceneTime(undefined, '01:42:27,168'), '1h 42m 27s', 'Old SRT timestamps become readable without milliseconds');
+assert.equal(formatSceneTime(undefined, '02:05.987'), '2m 5s');
+assert.equal(formatSceneTime(undefined, 'not a timestamp'), undefined);
+assert.equal(formatSceneTime(-1), undefined);
+assert.equal(formatSceneTime(Infinity), undefined);
+const { SubtitleSkipCard } = load('components/navigator/subtitle-skip-card.tsx', {
+  '@/lib/format-scene-time': { formatSceneTime }, './result-card': { ResultCard: widgets['result-row'] },
+  './subtitle-skip-card.module.css': { time: 'scene-time', quote: 'scene-quote' },
+});
+const sceneRow = SubtitleSkipCard({ result: { success: true, timestamp: 6147.168, text: 'You have always been good to me.' } });
+assert.equal(sceneRow.props.icon, undefined, 'Scene evidence has no decorative subtitle tile');
+assert.equal(sceneRow.props.metadata, undefined, 'Timestamp is plain text, not a badge');
+assert.deepEqual(Array.from(sceneRow.props.title.props.children), ['At ', '1h 42m 27s']);
+assert.equal(sceneRow.props.children.type, 'blockquote');
+assert.equal(sceneRow.props.children.props.className, 'scene-quote');
+assert.equal(SubtitleSkipCard({ result: { success: true, text: 'A quote without a timestamp.' } }).props.title, null);
+assert.equal(SubtitleSkipCard({ result: { success: false, error: 'No match' } }).props.error, 'No match');
+
 
 
 
