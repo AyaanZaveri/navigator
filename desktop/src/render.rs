@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Adapted from Viren070/AIOStreams, commit c358754b0ae4758d034badf8618de6fdb7fa9333.
 // See desktop/THIRD-PARTY.md for provenance and modifications.
-//! libmpv's render API for OpenGL, where mpv draws into a surface the app owns.
+//! libmpv's OpenGL and D3D11 render APIs, drawing into app-owned surfaces.
 
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
@@ -74,6 +74,7 @@ struct Api {
     get_info: unsafe extern "C" fn(Context, Param) -> c_int,
     clock: Clock,
     free: unsafe extern "C" fn(Context),
+    #[cfg(windows)]
     report_swap: unsafe extern "C" fn(Context),
 }
 
@@ -112,6 +113,7 @@ impl RenderContext {
             get_info: mpv.symbol("mpv_render_context_get_info")?,
             clock: Clock::Ns(mpv.symbol("mpv_get_time_ns")?),
             free: mpv.symbol("mpv_render_context_free")?,
+            #[cfg(windows)]
             report_swap: mpv.symbol("mpv_render_context_report_swap")?,
         }};
         let mut device=device;
@@ -159,6 +161,7 @@ impl RenderContext {
                     Err(_) => Clock::Us(mpv.symbol("mpv_get_time_us")?),
                 },
                 free: mpv.symbol("mpv_render_context_free")?,
+            #[cfg(windows)]
             report_swap: mpv.symbol("mpv_render_context_report_swap")?,
             }
         };

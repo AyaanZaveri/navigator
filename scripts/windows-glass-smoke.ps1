@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Executable,[string]$Output='dist/windows-glass.png',[double]$MinimumFps=20)
+param([Parameter(Mandatory=$true)][string]$Executable,[string]$Output='dist/windows-glass.png',[double]$MinimumFps=50,[double]$MaximumGapMs=50)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $outputPath=[IO.Path]::GetFullPath($Output)
@@ -30,8 +30,8 @@ try{
  $result=Get-Content "$outputPath.completed.json" -Raw|ConvertFrom-Json
  if(!$result.stopped){throw 'Hidden controls continued native image capture'}
  if(!$result.pausedCached -or !$result.pausedSeekUpdated -or !$result.resumed){throw 'Pause cache, paused seek refresh or resume failed'}
- if($result.fps -lt $MinimumFps -or $result.p95GapMs -gt 100){throw "Glass is visibly slow: $($result.fps) fps, p95 gap $($result.p95GapMs) ms"}
- if($result.paintFps -lt $MinimumFps -or $result.p95PaintGapMs -gt 100){throw "Glass paint is stalling: $($result.paintFps) fps, p95 gap $($result.p95PaintGapMs) ms"}
+ if($result.fps -lt $MinimumFps -or $result.p95GapMs -gt $MaximumGapMs){throw "Glass is visibly slow: $($result.fps) fps, p95 gap $($result.p95GapMs) ms"}
+ if($result.paintFps -lt $MinimumFps -or $result.p95PaintGapMs -gt $MaximumGapMs){throw "Glass paint is stalling: $($result.paintFps) fps, p95 gap $($result.p95PaintGapMs) ms"}
  if($material.material[1].dropdownOpacity.Trim() -ne '68%'){throw 'Player menu tint hides the video glass'}
  "Preview, real dropdown CSS and subtitle glass painted actual video at $([Math]::Round($result.fps,1)) fps; hidden surfaces stopped sampling."
 }finally{
