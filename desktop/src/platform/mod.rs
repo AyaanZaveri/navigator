@@ -10,3 +10,6 @@ pub use windows::*;
 mod linux;
 #[cfg(target_os = "linux")]
 pub use linux::*;
+
+#[cfg(windows)]
+mod windows_video;

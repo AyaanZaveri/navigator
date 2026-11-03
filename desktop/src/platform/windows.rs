@@ -172,6 +172,7 @@ unsafe extern "system" fn video_proc(
 /// The child window mpv draws into, kept beneath the web view.
 pub struct VideoSurface {
     hwnd: HWND,
+    renderer: Arc<super::windows_video::Host>,
 }
 
 impl VideoSurface {
@@ -206,16 +207,20 @@ impl VideoSurface {
             if hwnd.is_null() {
                 return Err("could not create the video window".into());
             }
-            Ok(Self { hwnd })
+            Ok(Self { hwnd, renderer: super::windows_video::Host::new(hwnd as usize,size.width,size.height) })
         }
     }
 
     /// mpv draws into the window itself, so it needs no render context.
     pub fn attach(&self, _mpv: Arc<Mpv>) {}
 
-    pub fn shutdown(&self) {}
+    pub fn renderer(&self) -> Arc<super::windows_video::Host> { self.renderer.clone() }
+    pub fn visible(&self, visible: bool) { self.renderer.visible(visible); }
+
+    pub fn shutdown(&self) { self.renderer.shutdown(); }
 
     pub fn resize(&self, width: u32, height: u32) {
+        self.renderer.resize(width,height);
         unsafe {
             SetWindowPos(
                 self.hwnd,
@@ -229,11 +234,10 @@ impl VideoSurface {
         }
     }
 }
-pub fn mpv_options(video: &VideoSurface) -> Vec<(&'static str, String)> {
+pub fn mpv_options(_video: &VideoSurface) -> Vec<(&'static str, String)> {
     vec![
-        ("wid", (video.hwnd as i64).to_string()),
-        ("vo", "gpu-next,gpu,".into()),
-        ("gpu-context", "d3d11".into()),
+        ("vo", "libmpv".into()),
+        ("video-timing-offset", "0".into()),
         ("hwdec", "auto-safe".into()),
         ("tone-mapping", "bt.2390".into()),
     ]

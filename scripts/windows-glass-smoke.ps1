@@ -11,7 +11,7 @@ try{
  $server=Start-Process (Get-Command node.exe).Source -ArgumentList "$root\scripts\windows-glass-fixture.mjs" -PassThru -WindowStyle Hidden -RedirectStandardError "$outputPath.server-error.log"
  $deadline=[DateTime]::UtcNow.AddSeconds(15)
  while(!(Test-Path "$outputPath.ready")){if([DateTime]::UtcNow -gt $deadline){throw 'Glass fixture server failed'};Start-Sleep -Milliseconds 100}
- $env:RUST_LOG='navigator_desktop::glass=debug'
+ $env:RUST_LOG='navigator_desktop::glass=debug,navigator_desktop::platform::windows_video=debug'
  $app=Start-Process (Resolve-Path $Executable).Path -ArgumentList '--url http://127.0.0.1:37381' -PassThru -RedirectStandardError "$outputPath.native.log"
  $env:RUST_LOG=$oldLog
  $deadline=[DateTime]::UtcNow.AddSeconds(25)
@@ -29,6 +29,7 @@ try{
  while(!(Test-Path "$outputPath.completed.json")){if([DateTime]::UtcNow -gt $deadline){throw 'Glass demand did not stop'};Start-Sleep -Milliseconds 100}
  $result=Get-Content "$outputPath.completed.json" -Raw|ConvertFrom-Json
  if(!$result.stopped){throw 'Hidden controls continued native image capture'}
+ if(!$result.pausedCached -or !$result.pausedSeekUpdated -or !$result.resumed){throw 'Pause cache, paused seek refresh or resume failed'}
  if($result.fps -lt $MinimumFps -or $result.p95GapMs -gt 100){throw "Glass is visibly slow: $($result.fps) fps, p95 gap $($result.p95GapMs) ms"}
  if($result.paintFps -lt $MinimumFps -or $result.p95PaintGapMs -gt 100){throw "Glass paint is stalling: $($result.paintFps) fps, p95 gap $($result.p95PaintGapMs) ms"}
  if($material.material[1].dropdownOpacity.Trim() -ne '68%'){throw 'Player menu tint hides the video glass'}

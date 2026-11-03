@@ -78,24 +78,47 @@ atomically at creation, then resumes without a console; its descendants cannot
 outlive Navigator. Playback frames stay native, and progress stays throttled
 while control-state changes are delivered immediately.
 
-Windows player glass uses opt-in `capabilities.glass` and validated session-scoped
-`glass` demand. A dedicated sampler copies the current rendered video window,
-reduces it to at most 160×90 pixels and sends a bounded in-memory BMP at no more
-than 30 Hz. The deadline includes capture time rather than adding a fixed sleep
-after it. New visible surfaces and geometry changes wake capture immediately.
-Playback controls stay on their own worker. Idle demand sleeps; paused
-frames are reused, geometry changes invalidate them, minimizing stops sampling,
-and source replacement discards old results. The shared glass effect paints only
-visible controls. Both the native UI and WebView paint paths keep only the latest
-pending sample. Windows player menus use a 68% tint in light and dark app themes
-so the light-theme 98% menu background cannot hide their glass. Subtitles retain
-their configured background; reduced-transparency menus remain opaque.
-No desktop pixels, temporary screenshot files or second decoder are involved.
-CSS blur remains local to each small surface. Hardware HDR accuracy is unverified.
-The glass smoke check uses production dropdown CSS with a light document root,
-checks sample and actual CSS paint cadence, and verifies hidden-demand shutdown.
-`RUST_LOG=navigator_desktop::glass=debug` reports capture cost and video frame drops.
-The bitmap layout/lifetime follows mpv's [`screenshot-raw` client command](https://mpv.io/manual/stable/#command-screenshot-raw).
+Windows video uses libmpv 2.6's Direct3D 11 render API, with an app-owned flip
+swap chain and the same device for hardware decoding. Its dedicated render thread
+handles mpv frame callbacks and presentation; it never performs blocking client
+property/command calls. Resize reuses compiled shaders. Minimized zero-size
+surfaces consume pending frames without drawing. Device failures surface an error
+and close the app cleanly rather than leaving a frozen video window.
+
+Player glass is derived directly from that rendered texture, including its crop,
+letterboxing and tone mapping. A small GPU shader downsamples to at most 160×90.
+A three-slot staging queue uses `D3D11_MAP_FLAG_DO_NOT_WAIT`; unfinished copies are
+skipped, and only the tiny completed bitmap is read by the CPU. No screenshot
+command, desktop/window capture, full-resolution readback or second decoder is
+involved. A separate worker packs BMP data. Native delivery and WebView paint keep
+only the newest pending sample. There is no fixed sampling timer or 30/60 FPS cap:
+updates follow actual rendered video frames. Opening glass during pause captures
+the cached video texture once; seeking renders a new frame automatically.
+
+Opt-in `capabilities.glass` and session-scoped `glass` demand retain protocol 1 and
+the existing origin checks. Hidden/minimized surfaces stop sampling, and source
+replacement invalidates queued copies. Windows player menus use a 68% tint in
+light and dark app themes, preventing a light-theme 98% background from hiding
+the blur. Reduced-transparency menus stay opaque. Subtitles retain their tint.
+CSS blur is clipped to each small surface. The current render target is SDR BGRA8;
+physical HDR presentation and HDR glass color accuracy remain unverified.
+
+The smoke fixture exercises production menu CSS in a light document and measures
+sample delivery and actual material paint separately. It tests pause caching,
+paused seek refresh, resume and hidden-demand stop. Set `NAVIGATOR_GLASS_VIDEO` to
+a local generated video to test 1080p/4K and high frame rates.
+`RUST_LOG=navigator_desktop::platform::windows_video=debug` reports native rendering
+and glass submission cadence. `NativeState` includes optional video/decoder drop
+counters for diagnostics.
+
+References: [upstream D3D11 render API](https://github.com/mpv-player/mpv/pull/17764),
+[public API contract](https://github.com/mpv-player/mpv/blob/master/include/mpv/render_d3d11.h),
+[mpv rendering examples](https://github.com/mpv-player/mpv-examples/tree/master/libmpv),
+[frame/texture sharing reference](https://github.com/jnschulze/flutter-webview-windows/blob/main/windows/texture_bridge_gpu.cc),
+[Microsoft nonblocking map semantics](https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_map_flag).
+Context7's mpv and Microsoft Direct3D documentation were consulted alongside these
+primary sources. The Direct3D backend was merged October 15, 2026; the pinned
+October 29 mpv bundle reports client API 2.6 on the Zenbook.
 
 The initial native frame contains no GDI text and shares the splash's base color.
 The offline splash embeds the same regular and semibold Sunghyun Sans WOFF2 files

@@ -23,6 +23,8 @@ const PROPERTIES: &[(&str, Kind)] = &[
     ("video-params/h", Kind::Double),
     ("video-params/gamma", Kind::String),
     ("video-params/primaries", Kind::String),
+    ("frame-drop-count", Kind::Double),
+    ("decoder-frame-drop-count", Kind::Double),
 ];
 
 fn video_colour(mpv: &Mpv) -> (Option<String>, Option<String>) {
@@ -59,7 +61,7 @@ impl Player {
         let (requests, inbox) = mpsc::channel();
         let quit = Arc::new(AtomicBool::new(false));
         #[cfg(windows)]
-        let glass = crate::glass::Sampler::start(mpv.clone(), emit.clone(), quit.clone())?;
+        let glass = crate::glass::Sampler::start(emit.clone(), quit.clone())?;
         #[cfg(windows)]
         let glass_control = glass.control.clone();
         let (client, stopped) = (mpv.clone(), quit.clone());
@@ -167,6 +169,8 @@ impl Player {
                         emit(json!({"type":"loaded","session":session}));
                     }
                     Some(Event::PlaybackRestart) => {
+                        #[cfg(windows)]
+                        glass_control.invalidate();
                         state["seeking"] = json!(false);
                         emit(json!({"type":"state","session":session,"state":state}));
                         emit(json!({"type":"ready","session":session}));
@@ -192,9 +196,12 @@ impl Player {
                         let key = match name.as_str() {
                             "time-pos" => "position", "duration" => "duration", "pause" => "paused", "volume" => "volume",
                             "mute" => "muted", "speed" => "rate", "paused-for-cache" => "buffering", "seeking" => "seeking",
-                            "demuxer-cache-time" => "buffered", "video-params/w" => "width", "video-params/h" => "height", _ => continue,
+                            "demuxer-cache-time" => "buffered", "video-params/w" => "width", "video-params/h" => "height",
+                            "frame-drop-count" => "droppedFrames", "decoder-frame-drop-count" => "decoderDroppedFrames", _ => continue,
                         };
                         state[key] = if key == "volume" { json!(value.as_f64().unwrap_or(100.0) / 100.0) } else { value };
+                        #[cfg(windows)]
+                        if matches!(key,"width"|"height") {glass_control.invalidate();}
                         dirty = true;
                         if matches!(key, "paused" | "volume" | "muted" | "rate" | "buffering" | "seeking") && !session.is_empty() {
                             emit(json!({"type":"state","session":session,"state":state}));
@@ -238,6 +245,8 @@ impl Player {
         self.glass.wake();
         self.mpv.wakeup();
     }
+    #[cfg(windows)]
+    pub fn glass_control(&self) -> crate::glass::Control { self.glass.control.clone() }
     #[cfg(windows)]
     pub fn glass_visible(&self, visible: bool) { self.glass.control.visible(visible); }
     #[cfg(windows)]

@@ -59,59 +59,12 @@ struct RawLogMessage {
 
 pub(crate) type Handle = *mut c_void;
 
-#[cfg(windows)]
-#[repr(C)]
-union RawNodeData { string: *const c_char, integer: i64, list: *const RawNodeList, bytes: *const RawBytes }
-#[cfg(windows)]
-#[repr(C)]
-struct RawNode { value: RawNodeData, format: c_int }
-#[cfg(windows)]
-#[repr(C)]
-struct RawNodeList { count: c_int, values: *const RawNode, keys: *const *const c_char }
-#[cfg(windows)]
-#[repr(C)]
-struct RawBytes { data: *const u8, size: usize }
-
-#[cfg(windows)]
-unsafe fn raw_glass_bitmap(node: &RawNode) -> Result<Vec<u8>, String> {
-    unsafe {
-        if node.format != 8 || node.value.list.is_null() { return Err("No video screenshot map".into()); }
-        let map = &*node.value.list;
-        if !(1..=32).contains(&map.count) || map.values.is_null() || map.keys.is_null() { return Err("Invalid video screenshot map".into()); }
-        let field = |name: &str| -> Option<&RawNode> {
-            (0..map.count as usize).find_map(|i| {
-                let key = *map.keys.add(i);
-                if !key.is_null() && CStr::from_ptr(key).to_bytes() == name.as_bytes() { Some(&*map.values.add(i)) } else { None }
-            })
-        };
-        let integer = |name: &str| field(name).filter(|n| n.format == 4).map(|n| n.value.integer);
-        let width = integer("w").ok_or("Missing screenshot width")?;
-        let height = integer("h").ok_or("Missing screenshot height")?;
-        let stride = integer("stride").ok_or("Missing screenshot stride")?;
-        let format = field("format").filter(|n| n.format == 1 && !n.value.string.is_null()).ok_or("Missing screenshot format")?;
-        if CStr::from_ptr(format.value.string).to_bytes() != b"bgr0" { return Err("Unsupported screenshot format".into()); }
-        let bytes = field("data").filter(|n| n.format == 9 && !n.value.bytes.is_null()).ok_or("Missing screenshot pixels")?;
-        let bytes = &*bytes.value.bytes;
-        if width <= 0 || height <= 0 || width > 16384 || height > 16384 || stride <= 0
-            || stride < width * 4 || bytes.data.is_null() || bytes.size > 256*1024*1024
-            || (height-1).checked_mul(stride).and_then(|n| n.checked_add(width*4)).is_none_or(|n| n as u64 > bytes.size as u64) {
-            // bgr0 screenshots on our Windows output use positive stride.
-            // Reject unsupported layouts instead of reading outside the buffer.
-            return Err("Unsupported screenshot dimensions or stride".into());
-        }
-        crate::glass::bitmap(std::slice::from_raw_parts(bytes.data, bytes.size), width as usize, height as usize, stride as usize)
-    }
-}
 
 struct Api {
     create: unsafe extern "C" fn() -> Handle,
     initialize: unsafe extern "C" fn(Handle) -> c_int,
     terminate_destroy: unsafe extern "C" fn(Handle),
     set_option_string: unsafe extern "C" fn(Handle, *const c_char, *const c_char) -> c_int,
-    #[cfg(windows)]
-    command_ret: unsafe extern "C" fn(Handle, *mut *const c_char, *mut RawNode) -> c_int,
-    #[cfg(windows)]
-    free_node_contents: unsafe extern "C" fn(*mut RawNode),
     command: unsafe extern "C" fn(Handle, *mut *const c_char) -> c_int,
     set_property_string: unsafe extern "C" fn(Handle, *const c_char, *const c_char) -> c_int,
     set_property_async:
@@ -162,10 +115,6 @@ impl Api {
             terminate_destroy: sym!("mpv_terminate_destroy"),
             set_option_string: sym!("mpv_set_option_string"),
             command: sym!("mpv_command"),
-            #[cfg(windows)]
-            command_ret: sym!("mpv_command_ret"),
-            #[cfg(windows)]
-            free_node_contents: sym!("mpv_free_node_contents"),
             set_property_string: sym!("mpv_set_property_string"),
             set_property_async: sym!("mpv_set_property_async"),
             get_property: sym!("mpv_get_property"),
@@ -247,21 +196,6 @@ fn text(p: *const c_char) -> String {
 }
 
 impl Mpv {
-    /// A tiny in-memory copy of the rendered video window for glass surfaces.
-    /// Called by the dedicated sampler, never by the UI or playback worker.
-    #[cfg(windows)]
-    pub(crate) fn glass_bitmap(&self) -> Result<Vec<u8>, String> {
-        let args = [cstring("screenshot-raw")?, cstring("window")?, cstring("bgr0")?];
-        let mut pointers: Vec<_> = args.iter().map(|s| s.as_ptr()).collect();
-        pointers.push(ptr::null());
-        let mut result: RawNode = unsafe { std::mem::zeroed() };
-        self.check(unsafe { (self.api.command_ret)(self.handle, pointers.as_mut_ptr(), &mut result) })?;
-        // The returned image belongs to this node and is valid only until free.
-        let image = unsafe { raw_glass_bitmap(&result) };
-        unsafe { (self.api.free_node_contents)(&mut result) };
-        image
-    }
-
     pub fn new(library: &Path, options: &[(&str, &str)]) -> Result<Self, String> {
         let api = Api::load(library)?;
         // SAFETY: mpv_create has no preconditions.

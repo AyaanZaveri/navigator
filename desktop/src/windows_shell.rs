@@ -90,6 +90,7 @@ fn startup_navigation_has_no_privileged_origin() {
 
 type Boot = Result<(App, Player, Option<PathBuf>), String>;
 enum UserEvent {
+    RenderError(String),
     ClientStage(protocol::ClientStage),
     Boot(Box<Boot>),
     BackendReady,
@@ -363,6 +364,8 @@ pub fn run(app: App) -> Result<(), String> {
     let latest_glass = Arc::new(std::sync::Mutex::new(None::<Value>));
     let glass_output = latest_glass.clone();
     let options = platform::mpv_options(&surface);
+    let renderer = surface.renderer();
+    let render_error = proxy.clone();
     let boot_log = log.clone();
     let backend_proxy = proxy.clone();
     let worker = std::thread::Builder::new()
@@ -387,7 +390,7 @@ pub fn run(app: App) -> Result<(), String> {
                     None
                 };
                 record(&boot_log, started, "player-starting");
-                let player = match app.start_player_options(options, move |value| {
+                let mut player = match app.start_player_options(options, move |value| {
                     if value["type"] == "glass-frame" {
                         let notify = glass_output.lock().unwrap().replace(value).is_none();
                         if notify { let _ = emit_proxy.send_event(UserEvent::GlassFrame); }
@@ -403,6 +406,7 @@ pub fn run(app: App) -> Result<(), String> {
                         return Err(error);
                     }
                 };
+                if let Err(error) = renderer.start(player.mpv.clone(),player.glass_control(),move |message|{let _=render_error.send_event(UserEvent::RenderError(message));}) {player.begin_shutdown();player.join();return Err(error);}
                 record(&boot_log, started, "player-ready");
                 Ok((app, player, smoke))
             })();
@@ -447,6 +451,11 @@ pub fn run(app: App) -> Result<(), String> {
     event_loop.run(move |event, _, flow| {
         *flow = if closing || ready_deadline.is_some() { ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)) } else { ControlFlow::Wait };
         match event {
+            Event::UserEvent(UserEvent::RenderError(message)) => {
+                if !closing {record(&log,started,"video-output-error");platform::show_error(&format!("The video device stopped responding: {message}. Restart Navigator."));}
+                closing=true;cancelled.store(true,Ordering::Relaxed);
+                if let Some((_,player,_))=&running {player.begin_shutdown();}
+            }
             Event::UserEvent(UserEvent::ClientStage(stage)) => record(&log, started, stage.label()),
             Event::UserEvent(UserEvent::BackendReady) => {
                 if !closing && !frontend.smoke {
@@ -615,6 +624,7 @@ pub fn run(app: App) -> Result<(), String> {
             _ => {}
         }
         if let Some((_, player, _)) = &running { player.glass_visible(!window.is_minimized()); }
+        surface.visible(!window.is_minimized());
         let actual = window.fullscreen().is_some();
         platform::set_chrome_fullscreen(actual);
         if actual != fullscreen {

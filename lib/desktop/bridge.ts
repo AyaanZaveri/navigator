@@ -20,6 +20,8 @@ export type NativeState = {
   buffered: number;
   width: number;
   height: number;
+  droppedFrames?: number;
+  decoderDroppedFrames?: number;
 };
 
 export type NativeMessage =
