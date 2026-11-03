@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const jotai = require('jotai');
 const { load } = require('./test-support/react-hooks.cjs');
-const atoms = load('lib/atoms.ts', { jotai, '@/lib/media/playback-context': require('./test-support/playback-context.cjs'), '@/lib/artwork': { artworkUrl: () => '/backdrop' } }, { setTimeout: () => 0 });
+const atoms = load('lib/atoms.ts', { jotai, '@/lib/media/playback-context': require('./test-support/playback-context.cjs'), '@/lib/artwork': { artworkUrl: () => '/backdrop' }, '@/lib/desktop/bridge': load('lib/desktop/bridge.ts') }, { setTimeout: () => 0 });
 const store = jotai.createStore();
 const subscriptions = [], updates = [];
 const hooks = load('contexts/MediaPlayerContext.tsx', {

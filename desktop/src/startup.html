@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-navigator-startup'">
+<title>Navigator</title>
+<style>
+:root{color-scheme:dark;font:14px/1.5 'Segoe UI Variable','Segoe UI',sans-serif;color:#f0fdfa;background:#042f2e}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 5%,#14b8a68c,transparent 66%),radial-gradient(ellipse at 50% 105%,#0d948880,transparent 68%),radial-gradient(ellipse at 50% 45%,#14b8a629,transparent 48%),linear-gradient(135deg,#0a0a0a,#042f2e)}
+main{width:min(100% - 48px,360px);text-align:center;padding:40px 0 88px}
+.mark{display:block;width:200px;height:200px;margin:0 auto -16px}
+h1{margin:0;font-size:30px;font-weight:600;letter-spacing:-1px}
+.status{font-size:14px;color:#ccfbf1;margin:14px 0 22px}
+.steps{margin:0;padding:16px 20px;list-style:none;text-align:left;border:1px solid #ccfbf112;border-radius:16px;background:#021e1d35}
+.steps li{display:flex;align-items:center;gap:12px;min-height:32px;font-size:12px;color:#c6ddd7}
+.dot{display:grid;place-items:center;width:14px;height:14px;flex:none;border:1.5px solid #b5d9d14d;border-radius:50%}
+[data-state="active"] .dot{border-color:#5eead433;border-top-color:#99f6e4}
+[data-state="done"] .dot{background:#5eead41a;border-color:transparent;color:#99f6e4}
+[data-state="done"] .dot::after{content:'✓';font-size:11px}
+.note{color:#a7c7c1;font-size:12px;min-height:36px;margin:18px 0 0;text-wrap:balance}
+body:not([data-details]) .status,body:not([data-details]) .steps,body:not([data-details]) .note,body:not([data-details]) footer{display:none}
+footer{position:fixed;bottom:24px;left:24px;right:24px;display:flex;justify-content:space-between;color:#a7c7c1;font-size:11px}
+.caption{position:fixed;top:0;right:0;display:flex;height:32px;color:#ecfdf5}
+.caption span{display:grid;place-items:center;width:46px}.caption span:hover{background:#ffffff20}.caption span:last-child:hover{background:#c42b1c}
+.caption svg{stroke:currentColor;stroke-width:1;fill:none}
+@media(prefers-reduced-motion:no-preference){[data-state="active"] .dot{animation:spin 1s linear infinite}.mark{animation:arrive 500ms cubic-bezier(.2,0,0,1) both}}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-height:720px){main{padding:32px 0 54px}.mark{width:120px;height:120px;margin-bottom:-8px}h1{font-size:26px}.status{margin:8px 0 10px}.steps{padding:10px 16px}.steps li{min-height:28px}.note{margin-top:12px}footer{bottom:14px}}
+@media(max-height:460px){main{padding:28px 0 44px}.mark{width:100px;height:100px;margin-bottom:-16px}h1{font-size:22px}.status{margin:6px 0 8px;font-size:12px}.steps{padding:8px 16px}.steps li{min-height:24px}.note{display:none}}
+</style></head><body>
+<div class="caption" aria-hidden="true"><span><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 6.5h10"/></svg></span><span><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z"/></svg></span><span><svg width="12" height="12" viewBox="0 0 12 12"><path d="m1.5 1.5 9 9m0-9-9 9"/></svg></span></div>
+<main aria-label="Starting Navigator">
+<svg class="mark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="288" height="288" viewBox="0 0 288 288" fill="none"><defs><linearGradient id="ship-0" x1="0" x2="0" y1="0" y2="104.06570434570312" gradientUnits="userSpaceOnUse"><stop stop-color="#F0FDFA"/><stop offset="1" stop-color="#5EEAD4"/></linearGradient><linearGradient id="ship-1" x1="0" x2="0" y1="0" y2="81.91999816894531" gradientUnits="userSpaceOnUse"><stop stop-color="#F0FDFA"/><stop offset="1" stop-color="#5EEAD4"/></linearGradient><linearGradient id="ship-2" x1="0" x2="0" y1="0" y2="218.4533233642578" gradientUnits="userSpaceOnUse"><stop stop-color="#F0FDFA"/><stop offset="1" stop-color="#5EEAD4"/></linearGradient><linearGradient id="ship-3" x1="0" x2="0" y1="0" y2="315.9723815917969" gradientUnits="userSpaceOnUse"><stop stop-color="#F0FDFA"/><stop offset="1" stop-color="#5EEAD4"/></linearGradient><linearGradient id="ship-4" x1="0" x2="0" y1="0" y2="54.61333084106445" gradientUnits="userSpaceOnUse"><stop stop-color="#F0FDFA"/><stop offset="1" stop-color="#5EEAD4"/></linearGradient></defs><g transform="translate(0 -4.5)"><g transform="translate(144.0 144.0) scale(0.235372053621532) translate(-512 -512)"><g transform="translate(512.001708984375 462.549072265625)"><path d="M 0 0 L 0 104.06570434570312" fill="none" stroke="url(#ship-0)" stroke-width="65.66399383544922" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(512.001708984375 238.93328857421875)"><path d="M 0 0 L 0 81.91999816894531" fill="none" stroke="url(#ship-1)" stroke-width="65.66399383544922" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(320.8533935546875 320.853271484375)"><path d="M 382.2933654785156 218.4533233642578 L 382.2933654785156 54.61333084106445 C 382.2933654785156 40.128974405701115 376.539466068917 26.237857689359146 366.2974787168329 15.995871665864797 C 356.05549136474883 5.753885642370449 342.1643858672865 4.850638188097674e-14 327.68002755301336 0 L 54.61333792550223 0 C 40.1289796112291 2.425319094048837e-14 26.237861092932363 5.753885642370449 15.995873740848245 15.995871665864797 C 5.753886388764126 26.237857689359146 4.8506388173221486e-14 40.128974405701115 0 54.61333084106445 L 0 218.4533233642578" fill="none" stroke="url(#ship-2)" stroke-width="65.66399383544922" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(266.20166015625 462.54119873046875)"><path d="M 447.3251347739718 267.91264021365095 C 476.69848622834394 218.33949383106957 491.9930654704527 161.69298780933042 491.56195556683383 104.0726340949725 L 267.97501317621715 4.703672050660741 C 260.99428597229854 1.6023928414175992 253.44061120474132 0 245.80199340740796 0 C 238.1633756100746 0 230.60970084251736 1.6023928414175992 223.62897363859875 4.703672050660741 L 0.042001760373637044 104.0726340949725 C -1.2220776670565447 181.7239976719808 26.08484249766972 257.13388330069677 76.77372678285222 315.9723815917969" fill="none" stroke="url(#ship-3)" stroke-width="65.66399383544922" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(238.933349609375 730.453369140625)"><path d="M 0 27.306665420532227 C 16.384001505533888 40.95999813079834 32.768003011067776 54.61333084106445 68.26667022705078 54.61333084106445 C 136.53334045410156 54.61333084106445 136.53334045410156 0 204.80001068115234 0 C 240.29867789713535 0 256.68267940266924 13.653332710266113 273.0666809082031 27.306665420532227 C 289.450682413737 40.95999813079834 305.8346839192709 54.61333084106445 341.3333511352539 54.61333084106445 C 409.6000213623047 54.61333084106445 409.6000213623047 0 477.86669158935547 0 C 513.3653588053385 0 529.7493603108724 13.653332710266113 546.1333618164062 27.306665420532227" fill="none" stroke="url(#ship-4)" stroke-width="65.66399383544922" stroke-linecap="round" stroke-linejoin="round"/></g></g></g></svg>
+<h1>Navigator</h1>
+<p class="status" id="status" role="status">Starting your local services…</p>
+<ul class="steps" aria-label="Startup progress">
+<li id="backend" data-state="active"><span class="dot" aria-hidden="true"></span><span>Starting local services</span></li>
+<li id="interface" data-state="waiting"><span class="dot" aria-hidden="true"></span><span>Loading your interface</span></li>
+<li id="player" data-state="waiting"><span class="dot" aria-hidden="true"></span><span>Preparing the video engine</span></li>
+</ul>
+<p class="note" id="note">Everything you need is already installed.<br>Your library will be ready in a moment.</p>
+</main>
+<footer><span id="elapsed">Opening Navigator</span><span>Navigator for Windows</span></footer>
+<script nonce="navigator-startup">
+(()=>{
+const started=performance.now();
+// Fast launches show only the brand; detailed progress is a slow-start fallback.
+setTimeout(()=>{document.body.dataset.details='true';},1500);
+window.navigatorStartup=(backendReady,playerReady)=>{
+  document.getElementById('backend').dataset.state=backendReady?'done':'active';
+  document.getElementById('interface').dataset.state=backendReady?'active':'waiting';
+  document.getElementById('player').dataset.state=playerReady?'done':backendReady?'active':'waiting';
+  document.getElementById('status').textContent=backendReady?'Loading your interface…':'Starting your local services…';
+};
+setInterval(()=>{
+ const seconds=Math.floor((performance.now()-started)/1000);
+ document.getElementById('elapsed').textContent=`${seconds}s elapsed`;
+ if(seconds>=8)document.getElementById('note').textContent='First launches and updates can take longer while Windows loads the app’s files. Later launches are usually faster.';
+},1000);
+})();
+</script></body></html>

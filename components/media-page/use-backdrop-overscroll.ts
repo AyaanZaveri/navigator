@@ -8,7 +8,7 @@ import styles from "./backdrop-transition.module.css";
 export function useBackdropOverscroll(imageRef: RefObject<HTMLImageElement | null>, source: string) {
     useEffect(() => {
         const image = imageRef.current;
-        const scroller = image?.closest("main");
+        const scroller = image?.closest<HTMLElement>("[data-page-scroll]");
         const parent = scroller?.parentElement;
         if (!source || !image || !scroller || !parent) return;
 

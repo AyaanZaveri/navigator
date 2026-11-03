@@ -19,7 +19,7 @@
     value: Object.freeze({
       protocol: __PROTOCOL__,
       platform,
-      capabilities: Object.freeze({ videoFit: true }),
+      capabilities: Object.freeze({ videoFit: true, timings: platform === "windows" }),
       get fullscreen() { return fullscreen; },
       send(message) {
         if (message.type === "load") session = message.session;
@@ -66,7 +66,7 @@
   window.addEventListener("keydown", (event) => {
     if (event.key === "F11" || (event.key === "Escape" && fullscreen)) {
       event.preventDefault();
-      window.navigatorDesktop.send({ type: "fullscreen", value: !fullscreen });
+      if (!event.repeat) window.navigatorDesktop.send({ type: "fullscreen", value: !fullscreen });
     }
-  });
+  }, { capture: true });
 })();

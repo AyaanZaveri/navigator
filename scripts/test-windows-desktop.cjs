@@ -12,6 +12,17 @@ function load(file, extra = {}) {
 }
 
 (async () => {
+  for (const platform of ["windows", "macos", "android"]) {
+    for (const timings of [false, true]) {
+      const sent = [];
+      const { recordDesktopStage } = load("lib/desktop/bridge.ts", {
+        window: { navigatorDesktop: { protocol: 1, platform, capabilities: { timings }, send: message => sent.push(message) } },
+      });
+      recordDesktopStage("play-requested");
+      assert.equal(sent.length, platform === "windows" && timings ? 1 : 0, "Diagnostics must be opt-in and must not send new commands to older native builds");
+      if (sent.length) assert.equal(sent[0].type, "client-stage");
+    }
+  }
   let clock = 1000;
   let listener;
   const sent = [];
@@ -65,7 +76,7 @@ function load(file, extra = {}) {
       require(name) {
         if (name === "react") return { useEffect(fn) { effect = fn; } };
         if (name === "next-themes") return { useTheme: () => ({ resolvedTheme: "dark" }) };
-        if (name === "@/lib/desktop/bridge") return { desktopBridge: () => ({ platform, send: m => messages.push(m) }) };
+        if (name === "@/lib/desktop/bridge") return { desktopBridge: () => ({ platform, send: m => messages.push(m) }), recordDesktopStage() {} };
         throw new Error(name);
       },
     });

@@ -15,6 +15,12 @@ The original license is included in `licenses/AIOStreams-AGPL-3.0.txt`.
 | `src/platform/linux.rs` | `app/src/platform/linux.rs` | Retain the GTK/OpenGL surface and native display integration; remove unrelated services. |
 | `libs.json` | `libs.pin`, `libs-macos.pin` | Preserve pinned release and library archive SHA-256 values. |
 
+The Windows fullscreen transition in `src/windows_shell.rs` also adapts the
+maximize/restore workaround from AIOStreams commit
+[`259e769414ba51fd8034971fb4fda37d7c9d316f`](https://github.com/Viren070/AIOStreams/blob/259e769414ba51fd8034971fb4fda37d7c9d316f/packages/desktop/app/src/shell/tao_shell.rs).
+It restores a maximized frameless window before entering fullscreen and restores
+its maximized placement on exit.
+
 The rest of the native shell and the Navigator integration are newly written.
 Distributing a desktop derivative requires preserving the AGPL license, notices,
 and corresponding source. This file does not relicense unrelated Navigator files.

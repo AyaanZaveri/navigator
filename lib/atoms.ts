@@ -1,5 +1,6 @@
 import { atom } from "jotai";
 import { artworkUrl } from "@/lib/artwork";
+import { recordDesktopStage } from "@/lib/desktop/bridge";
 import type { MediaItem } from "@/types/stremio";
 import type { PlaybackStreamRequest } from "@/lib/media/fetch-playback-streams";
 import { applyPlaybackContext, type PlaybackPageContext } from "@/lib/media/playback-context";
@@ -78,6 +79,7 @@ export const currentTimestampAtom = atom(0);
 // Derived atom for playing media
 export const playMediaAtom = atom(null, (get, set, media: MediaToPlay) => {
   media = applyPlaybackContext(media, get(playbackPageContextAtom));
+  recordDesktopStage("play-requested");
   set(isAIAskOpenAtom, false);
   set(currentMediaAtom, media.type === "series" ? {
     ...media,

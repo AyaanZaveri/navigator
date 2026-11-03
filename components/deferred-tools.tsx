@@ -15,7 +15,7 @@ function PlayerPending() {
     // Cover the page in the same commit that hides its header/background.
     // This is the player's black surface, with no separate opening interstitial.
     return <div data-player-shell="" aria-busy="true" className="fixed inset-0 z-[var(--layer-player)] bg-black">
-        <button type="button" aria-label="Back to browsing" className="fixed left-4 top-4 inline-flex size-9 items-center justify-center rounded-full text-white" onClick={() => setPlaying(false)}>
+        <button type="button" data-player-close="" aria-label="Back to browsing" className="fixed left-4 top-4 inline-flex size-9 items-center justify-center rounded-full text-white" onClick={() => setPlaying(false)}>
             <ArrowLeft aria-hidden="true" className="size-5" />
         </button>
     </div>;
@@ -43,9 +43,9 @@ export function DeferredTools({ userId, navigatorEnabled, onToggleAIAsk }: {
     const [playerRequested, setPlayerRequested] = useState(false);
     const [navigatorRequested, setNavigatorRequested] = useState(false);
     useEffect(() => {
-        if (desktopBridge()?.platform !== "android") return;
-        // Touch has no advance hover intent. Warm the existing chunk after the
-        // shell settles, so the first tap reaches the actual player loading UI.
+        if (!["android", "windows"].includes(desktopBridge()?.platform ?? "")) return;
+        // Warm the existing chunk while idle. Windows also benefits on its
+        // first launch, before either pointer intent or playback requests it.
         if (typeof window.requestIdleCallback === "function") {
             const idle = window.requestIdleCallback(preloadPlayer, { timeout: 1500 });
             return () => window.cancelIdleCallback(idle);

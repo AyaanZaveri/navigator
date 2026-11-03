@@ -168,10 +168,11 @@ async function testController(platform) {
 
 function testBridge() {
     let listener;
+    let keydown;
     const sent = [];
     const events = new Map();
     const document = { documentElement: { dataset: {}, style: { setProperty() {} } }, addEventListener(type, callback) { events.set(type, callback); } };
-    const window = { ipc: { postMessage: (value) => sent.push(JSON.parse(value)) }, addEventListener(type, callback) { if (type === "pagehide") listener = callback; } };
+    const window = { ipc: { postMessage: (value) => sent.push(JSON.parse(value)) }, addEventListener(type, callback, options) { if (type === "pagehide") listener = callback; if (type === "keydown") { keydown = callback; assert.equal(options.capture, true); } } };
     window.top = window;
     const script = fs.readFileSync("desktop/src/bridge.js", "utf8").replace("__PROTOCOL__", "1").replace("__ORIGIN__", JSON.stringify("http://localhost:3000")).replace("__PLATFORM__", JSON.stringify("macos"));
     vm.runInNewContext(script, { window, document, location: { origin: "http://localhost:3000" }, console });
@@ -210,6 +211,14 @@ function testBridge() {
     window.navigatorDesktop.send({ type: "load", session: "example", url: "https://example.test/video" });
     listener();
     assert.equal(sent.at(-1).type, "stop", "Reload must stop its old playback session");
+    keydown({ key: "F11", repeat: false, preventDefault() {} });
+    assert.deepEqual(sent.at(-1), { type: "fullscreen", value: true });
+    const keyCount = sent.length;
+    keydown({ key: "F11", repeat: true, preventDefault() {} });
+    assert.equal(sent.length, keyCount, "Holding F11 cannot repeatedly toggle the native window");
+    window.__navigatorDesktopReceive({ type: "fullscreen", value: true });
+    keydown({ key: "Escape", repeat: false, preventDefault() {} });
+    assert.deepEqual(sent.at(-1), { type: "fullscreen", value: false });
     const foreign = { top: null };
     foreign.top = foreign;
     vm.runInNewContext(script, { window: foreign, location: { origin: "https://untrusted.example" } });
@@ -233,7 +242,7 @@ function testBridge() {
 function testAskPlayback() {
     const { createStore } = require("jotai/vanilla");
     const artwork = load("lib/artwork.ts");
-    const atoms = load("lib/atoms.ts", { require: name => name === "@/lib/artwork" ? artwork : name === "@/lib/media/playback-context" ? require("./test-support/playback-context.cjs") : require(name) });
+    const atoms = load("lib/atoms.ts", { require: name => name === "@/lib/artwork" ? artwork : name === "@/lib/media/playback-context" ? require("./test-support/playback-context.cjs") : name === "@/lib/desktop/bridge" ? load("lib/desktop/bridge.ts") : require(name) });
     const store = createStore();
     store.set(atoms.isAIAskOpenAtom, true);
     const item = { id: "tt123", name: "Fixture", type: "movie" };

@@ -78,16 +78,16 @@ function warmup(platform, idleSupported = true) {
 }
 for (const platform of [undefined, 'macos', 'ios']) {
   const client = warmup(platform);
-  assert.equal(client.pending.size, 0, 'Idle warmup is limited to the Android playback entry point');
+  assert.equal(client.pending.size, 0, 'Idle warmup is limited to Android and Windows');
   assert.equal(client.preloaded, 0);
   client.native.unmount();
 }
-for (const idleSupported of [true, false]) {
-  const client = warmup('android', idleSupported);
-  assert.equal(client.preloaded, 0, 'Android warmup leaves the initial shell render free');
+for (const platform of ['android', 'windows']) for (const idleSupported of [true, false]) {
+  const client = warmup(platform, idleSupported);
+  assert.equal(client.preloaded, 0, `${platform} warmup leaves the initial shell render free`);
   assert.equal(client.pending.size, 1);
   client.run();
-  assert.equal(client.preloaded, 1, 'Android warms the player before the first Play tap');
+  assert.equal(client.preloaded, 1, `${platform} warms the player before first playback`);
   client.native.replay();
   assert.equal(client.pending.size, 1);
   client.native.unmount();

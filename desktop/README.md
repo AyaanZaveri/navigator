@@ -6,13 +6,12 @@ state. Browser playback continues to use the current Mux/HTML media player.
 
 ## Windows private build
 
-The **Desktop playback** GitHub workflow produces separate installer and portable
-artifacts (`Navigator-Windows-x64-Installer` and
-`Navigator-Windows-x64-Portable`) containing `Navigator-<version>-windows-x64-setup.exe`
-and `Navigator-<version>-windows-x64-portable.zip`. Download the desired artifact
-from a successful workflow run. Builds target Intel/AMD Windows 11 PCs; 25H2 and 26H2
-are the initial manual validation targets. They are unsigned private builds,
-with manual upgrades and no automatic updater.
+Windows builds run only on the user's Zenbook via `ssh navigator-windows`,
+from a reviewed source snapshot at `C:\Users\amanz\Code\navigator`. Do not
+use GitHub Actions or Blacksmith for Windows builds. GitHub may host source and
+private installer releases. Packaging produces `Navigator-<version>-windows-x64-setup.exe`
+and `Navigator-<version>-windows-x64-portable.zip`. Builds target Intel/AMD
+Windows 11 PCs and remain unsigned private builds with manual upgrades.
 
 The installer runs per user, adds a Start menu shortcut and uninstall entry,
 and installs Microsoft Edge WebView2 Evergreen if missing. The downloaded
@@ -36,7 +35,7 @@ Next server, pinned Node runtime and native libraries. The ZIP explicitly keeps
 `.next/static`; no user credentials are bundled. Build on Windows for release
 artifacts; cross-target `cargo check` skips Windows resource compilation. The
 Windows packaging script uses an explicit x64 target and a static MSVC C runtime;
-CI inspects imports so the release needs no separately installed Visual C++ runtime.
+Release verification inspects imports so the release needs no separately installed Visual C++ runtime.
 
 Windows draws minimize, maximize/restore and close inside the app, with no
 separate system title bar. Native caption hit testing retains window dragging,
@@ -46,10 +45,33 @@ wrap in narrow windows. Normal window size/position and maximized state persist,
 and saved placement is clamped onto an available display. A second launch
 restores/activates the running window.
 
+The Windows header uses the web's top spacing and keeps account actions beside
+search. Horizontal clearance protects the caption buttons in narrow windows;
+there is no extra caption row. The account menu expands to the right below the
+avatar and clamps to the viewport. The shared page scrollport uses
+Radix's overlay thumb on every platform, preserving native scrolling without
+reserving a scrollbar gutter.
+
+After extraction, the installer runs the native `--prepare-install` mode once:
+it verifies startup code/UI files against a SHA-256 manifest, starts and checks
+the bundled local service on an ephemeral loopback port, then initializes a
+headless video engine. The owned job cleans up the service and its descendants.
+This creates no WebView profile, reads no sign-in cookies and changes no antivirus
+settings. Errors abort installation with details in `installation.log`; timings
+are recorded in `installation.jsonl` beside the normal startup log. The Start
+menu shortcut points directly to the app without this flag. Portable users can
+run `navigator-desktop.exe --prepare-install` once after extraction.
+
 The first frame is a small native loading view. Backend and mpv initialization
-run on a worker while the window remains responsive; WebView2 is created after
-the backend is ready. A painted React readiness signal removes the loading
-view and synchronizes the caption theme. Closing during startup cancels the
+run on a worker while the window remains responsive. WebView2 starts in parallel
+and paints a bundled startup document that requires no server or network. The
+document shares Android's ship mark and static teal light fields. It shows an
+elapsed timer and actual backend/interface/player stages after a 1.5-second delay; it does not simulate
+installation progress or promise that a slow launch happens only once. The
+same WebView navigates as soon as the backend listens, while mpv continues
+initializing. Up to 64 validated playback commands can wait for the player;
+overflow reports a session error. A painted React readiness signal removes the
+native loading view and synchronizes the caption theme. Closing during startup cancels the
 backend wait. The backend is assigned to a kill-on-close Windows Job Object
 atomically at creation, then resumes without a console; its descendants cannot
 outlive Navigator. Playback frames stay native, and progress stays throttled
@@ -63,23 +85,71 @@ npm run desktop:check
 $env:NAVIGATOR_TEST_NODE = (Get-Command node).Source
 cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_descendants -- --include-ignored
 ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -LaunchApp -StartupDelaySeconds 8
+./scripts/windows-overlay-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+./scripts/windows-fullscreen-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+node scripts/test-windows-install.cjs
 ./scripts/windows-performance.ps1 -AppProcessId <NavigatorPID> -Seconds 30
 ```
 
 The smoke check starts no server, uses generated color bars and a separate
 `Navigator Desktop\smoke` profile, verifies native playback progress and the
 WebView bridge, captures the compositor output, checks visible bars, and closes
-normally. CI uploads the screenshot and timing log as compositor diagnostics.
+normally. Keep screenshots and timing logs as local compositor diagnostics.
 It does not establish hardware decoding, HDR accuracy or physical-display behavior.
+The installed-app check deliberately blocks Node startup for eight seconds and
+checks a screenshot of the bundled startup screen before the backend is ready.
+It then verifies the hydrated app, caption hit testing and normal shutdown.
+The overlay regression uses the production native-playback and wordmark CSS
+over a local test video. It checks that a descendant with explicit visibility
+cannot leak out of the retained browsing page. Run screenshot checks in the
+signed-in desktop session, not SSH session zero. The Windows page's opacity is
+suppressed during playback, preserving layout/scroll state while hiding the
+entire composed surface, including wordmarks and backdrop effects.
 
 `startup.jsonl` in the local data directory records elapsed milliseconds for
-`window-visible`, `backend-ready`, `player-ready`, `webview-created`, `page-loaded`
-and `app-ready`. The visibility mark records the native show call, not a measured
+`window-visible`, `backend-starting`, `backend-ready`, `player-starting`,
+`player-ready`, `webview-starting`, `startup-view-created`, `startup-page-loaded`,
+`navigation-starting`, `page-loaded` and `app-ready` (`webview-created` in the
+video-only smoke test). The visibility mark records the native show call, not a measured
 display scanout; readiness records the painted hydrated shell, not completion
 of remote catalog requests. Logs rotate at 1 MiB and contain no media URLs or
 credentials. First-window and interactive-startup goals are 300 ms and
 1 second warm / 2.5 seconds cold respectively; these are goals until measured
 on the target PC. Compare repeated cold and warm Release launches separately.
+
+New Windows shells advertise `capabilities.timings`. Their log also records
+`client-interface-hydrated`, `client-play-requested`, `client-player-mounted`,
+`client-stream-resolving`, `client-stream-resolved`, `playback-load-received`,
+`playback-open-started`, `playback-file-loaded`, `playback-seek-requested`, and
+the first `playback-ready` for each load. These distinguish deferred JavaScript,
+stream resolution, native opening and resume seeks without logging URLs or titles.
+Older shells receive none of the new diagnostic requests. Windows preloads the
+player chunk while idle so its download/evaluation need not wait for first Play.
+
+One measured Windows cold launch took 24.6 seconds: the backend listened at
+6.8 seconds, navigation started immediately, and the hydrated interface was
+ready at 24.6 seconds. The player initialized in parallel and was ready at
+9.5 seconds. This remains a startup performance issue; showing the bundled
+startup document quickly does not establish fast application readiness.
+The Zenbook's subsequent log showed a 26.4-second cold launch followed by two
+warm launches at 1.9 and 1.8 seconds. The cold backend took 7.9 seconds and the
+interface another 18.4 seconds. No dependencies are installed at app launch.
+
+A November 2 Defender recording attributed 11.3 seconds of cumulative scan time
+to the bundled Node process and 4.8 seconds to the native app. These durations can
+overlap. A controlled reinstall followed by installation preparation reduced the
+first normal launch from 22–26 seconds to 2.1 seconds on the Zenbook. Targeted
+preparation took 28.3 seconds during installation. This measures first launch
+after installation, not launch after an OS reboot or every antivirus configuration.
+The installer is not rerun by the shortcut.
+
+The fullscreen transition restores a maximized frameless window before entering
+borderless fullscreen, then remaximizes it on exit. F11 is handled in the WebView
+capture phase and by the native parent when it has keyboard focus; held keys do
+not repeatedly toggle. The native fullscreen regression measures physical monitor
+and client bounds and checks that the bottom screen pixel belongs to Navigator,
+without setting the app topmost (which would hide a taskbar regression).
 
 The performance script records the complete Navigator/Node/WebView2 process
 tree's summed working sets, private bytes, CPU and available GPU engine counters.

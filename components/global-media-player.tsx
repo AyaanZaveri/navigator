@@ -45,7 +45,7 @@ import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
 import { fetchPlaybackDetails } from "@/lib/media/fetch-playback-details";
 import { initialPlaybackDetails, mergePlaybackDetails } from "@/lib/media/playback-details";
-import { desktopBridge } from "@/lib/desktop/bridge";
+import { desktopBridge, recordDesktopStage } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
 import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
@@ -102,6 +102,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
   const [nativePlayback] = useState(() => Boolean(desktopBridge()));
+  useEffect(() => { recordDesktopStage("player-mounted"); }, []);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
   const reportNavigatorPlayback = useCallback((state: "playing" | "error" | "closed", message?: string) => {
@@ -552,6 +553,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   );
 
   const loadMedia = useCallback(async (request: MediaToPlay, fallback = false) => {
+    recordDesktopStage("stream-resolving");
     const generation = ++loadGenerationRef.current;
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
@@ -656,6 +658,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
       if (!isCurrent()) return;
       // Keep an episode title that arrived while the source request was pending.
+      recordDesktopStage("stream-resolved");
       const earlyTitle = activeMedia.episodeTitle;
       activeMedia = { ...media, episodeTitle: earlyTitle || media.episodeTitle };
       sourceReady = true;

@@ -3,6 +3,7 @@ import { cp, mkdir, access, writeFile, chmod } from "node:fs/promises";
 import { resolve, dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchNodeRuntime } from "./desktop-runtime.mjs";
+import { writeInstallManifest } from "./windows-install-manifest.mjs";
 import { packageWindows } from "./package-windows.mjs";
 import { readFile } from "node:fs/promises";
 
@@ -86,6 +87,8 @@ try {
             await run("codesign", ["--force", "--deep", "--sign", "-", join(output, "Navigator.app")]);
         }
         if (process.platform === "win32") {
+            await cp(join(desktop, "windows", "prepare.cjs"), join(resources, "prepare.cjs"));
+            await writeInstallManifest(resources);
             const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
             const artifacts = await packageWindows(output, version);
             console.log(`Windows installer: ${artifacts.installer}\nPortable ZIP: ${artifacts.portable}`);
