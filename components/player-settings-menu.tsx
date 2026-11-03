@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent,
   DropdownMenuOptions, DropdownMenuItem, type DropdownOption,
@@ -23,13 +24,37 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
   disabled?: boolean;
   portalContainer: Element | DocumentFragment | null;
 }) {
+  const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  const activateSubmenu = (label: string) => {
+    if (disabled) return;
+    subtitleTiming?.onClose();
+    setOpenSubmenu(label);
+  };
   const rows = [
     { label: "Speed", value: String(speed), summary: `${speed}×`, options: speeds.map(rate => ({ value: String(rate), label: rate === 1 ? "Normal (1×)" : `${rate}×` })), onChange: (value: string) => onSpeedChange(Number(value)) },
     ...(quality ? [{ label: "Quality", ...quality, summary: quality.options.find(option => option.value === quality.value)?.label ?? "Auto" }] : []),
     { label: "Subtitles", ...subtitles, summary: subtitles.options.find(option => option.value === subtitles.value)?.label ?? "Off" },
   ];
-  return <>{rows.map(row => <DropdownMenuSub key={row.label}>
-    <DropdownMenuSubTrigger disabled={disabled}>
+  return <>{rows.map(row => <DropdownMenuSub key={row.label}
+    open={!subtitleTiming?.open && openSubmenu === row.label}
+    onOpenChange={next => {
+      // A pinned timing panel ignores submenu hover. Explicit activation below
+      // swaps it out; regular submenu hover still works when timing is closed.
+      if (subtitleTiming?.open) return;
+      setOpenSubmenu(current => next ? row.label : current === row.label ? null : current);
+    }}>
+    <DropdownMenuSubTrigger disabled={disabled}
+      onClick={() => { if (subtitleTiming?.open) activateSubmenu(row.label); }}
+      onKeyDown={event => {
+        if (subtitleTiming?.open && ["Enter", " ", "ArrowRight", "ArrowLeft"].includes(event.key)) {
+          // Radix supports the arrow pointing toward the submenu in either
+          // writing direction. Leave the opposite arrow's close behavior alone.
+          const rtl = event.currentTarget.closest('[dir]')?.getAttribute('dir') === "rtl";
+          if (event.key === (rtl ? "ArrowRight" : "ArrowLeft")) return;
+          event.preventDefault();
+          activateSubmenu(row.label);
+        }
+      }}>
       <span className={styles.rowLabel}>{row.label}</span>
       <span className={styles.summary}>{row.summary}</span>
     </DropdownMenuSubTrigger>
@@ -43,6 +68,7 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
       aria-haspopup="dialog" aria-expanded={Boolean(subtitleTiming.open)} onSelect={event => {
         // This is an interactive picker, not a command that dismisses Settings.
         event.preventDefault();
+        setOpenSubmenu(null);
         if (subtitleTiming.open) subtitleTiming.onClose(); else subtitleTiming.onOpen();
       }}>
       <span className={styles.rowLabel}>Subtitle timing</span>

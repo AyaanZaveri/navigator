@@ -136,11 +136,14 @@ const menuMocks = {
   DropdownMenuSub: 'Sub', DropdownMenuSubTrigger: 'SubTrigger', DropdownMenuSubContent: 'SubContent',
   DropdownMenuOptions: 'Options', DropdownMenuItem: 'Item',
 };
-const { PlayerSettingsMenu } = load('components/player-settings-menu.tsx', {
+const menuHooks = hooks();
+const { PlayerSettingsMenu: RawPlayerSettingsMenu } = load('components/player-settings-menu.tsx', {
+  react: menuHooks.react,
   'react/jsx-runtime': require('react/jsx-runtime'),
   '@/components/arc/dropdown-menu/dropdown-menu': menuMocks,
   './player-settings-menu.module.css': { subtitleMenu: 'subtitleMenu' },
 });
+const PlayerSettingsMenu = props => menuHooks.render(RawPlayerSettingsMenu, props);
 const settingsMenu = PlayerSettingsMenu(panel.props);
 assert.deepEqual(find(settingsMenu, 'SubTrigger').map(node => node.props.children[0].props.children), ['Speed', 'Quality', 'Subtitles']);
 assert.equal(find(settingsMenu, 'SubContent').length, 3, 'Every setting opens a side submenu');
@@ -250,3 +253,35 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   assert.equal(discovered[0].provider, 'Subtitle provider');
   console.log('PASS: language names/codes, safe filenames, original track indices, distinct English files, Off, speed/quality actions, fullscreen submenu portals and UIArc dropdown choices.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+// The real component coordinates timing and all side submenus at its props seam.
+let timingPinned = true;
+const exclusiveProps = { ...panel.props, subtitleTiming: {
+ seconds: 0, open: true, onOpen() { timingPinned = true; }, onClose() { timingPinned = false; },
+} };
+let exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
+find(exclusiveMenu, 'Sub')[2].props.onOpenChange(true);
+exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
+assert.ok(find(exclusiveMenu, 'Sub').every(node => !node.props.open), 'Hover cannot open a submenu over pinned timing');
+find(exclusiveMenu, 'SubTrigger')[2].props.onClick();
+assert.equal(timingPinned, false, 'Explicit subtitle activation closes timing');
+exclusiveProps.subtitleTiming.open = timingPinned;
+exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
+assert.deepEqual(find(exclusiveMenu, 'Sub').map(node => node.props.open), [false, false, true]);
+find(exclusiveMenu, 'Item')[0].props.onSelect({ preventDefault() {} });
+exclusiveProps.subtitleTiming.open = timingPinned;
+exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
+assert.ok(timingPinned);
+assert.ok(find(exclusiveMenu, 'Sub').every(node => !node.props.open), 'Timing replaces the previous submenu');
+let keyboardPrevented = false;
+find(exclusiveMenu, 'SubTrigger')[0].props.onKeyDown({ key: 'ArrowRight', currentTarget: { closest: () => null }, preventDefault() { keyboardPrevented = true; } });
+assert.ok(keyboardPrevented);
+exclusiveProps.subtitleTiming.open = timingPinned;
+exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
+assert.deepEqual(find(exclusiveMenu, 'Sub').map(node => node.props.open), [true, false, false], 'Keyboard activation also replaces timing');
+find(exclusiveMenu, 'Sub')[2].props.onOpenChange(true);
+exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
+find(exclusiveMenu, 'Sub')[0].props.onOpenChange(false);
+exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
+assert.deepEqual(find(exclusiveMenu, 'Sub').map(node => node.props.open), [false, false, true], 'A stale close event cannot dismiss the new submenu');
+console.log('PASS: exclusive settings panels, pinned timing hover, explicit click/keyboard switching and stale submenu close handling');

@@ -54,7 +54,10 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
       }}
       onCloseAutoFocus={event => {
         event.preventDefault();
-        if (!interactedOutside.current && anchor?.isConnected) anchor.focus();
+        // Switching to a sibling panel already gives that menu item focus.
+        // Returning to Timing here would immediately close the new submenu.
+        const focusedItem = anchor?.ownerDocument.activeElement?.closest('[role^="menuitem"]');
+        if (!interactedOutside.current && anchor?.isConnected && (!focusedItem || focusedItem === anchor)) anchor.focus();
         interactedOutside.current = false;
       }}>
       <div className={styles.header}>

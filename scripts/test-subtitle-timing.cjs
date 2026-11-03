@@ -67,7 +67,7 @@ function all(tree, type) {
 }
 let focused = false, prevented = false, changed;
 const menu = {};
-const anchor = { closest: () => menu, isConnected: true, contains: () => false, focus: () => { focused = true; } };
+const anchor = { ownerDocument: { activeElement: null }, closest: () => menu, isConnected: true, contains: () => false, focus: () => { focused = true; } };
 const container = { querySelector: () => anchor };
 const renderPanel = (seconds, available = true) => SubtitleTimingPopover({
  open: true, onOpenChange() {}, seconds, onChange: value => { changed = value; }, available, container,
@@ -134,3 +134,9 @@ prevented = false;
 content.props.onInteractOutside({ target: {}, detail: { originalEvent: { type: 'focusin' } }, preventDefault() { prevented = true; } });
 assert.equal(prevented, true, 'Moving focus while hovering must never close a click-toggled panel');
 assert.equal(all(panel, 'PopoverClose').length, 0, 'Close via the timing toggle, outside press or Escape without a redundant X');
+
+focused = false;
+anchor.ownerDocument.activeElement = { closest: () => ({}) };
+all(renderPanel(.3), 'PopoverContent')[0].props.onCloseAutoFocus({ preventDefault() {} });
+assert.equal(focused, false, 'Switching to a sibling panel must not restore focus to Timing and collapse the new submenu');
+anchor.ownerDocument.activeElement = null;
