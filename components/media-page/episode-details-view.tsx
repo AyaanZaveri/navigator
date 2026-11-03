@@ -26,8 +26,8 @@ export function EpisodeDetailsView({
       aria-labelledby={titleId}
       className="@container"
     >
-      <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-center @4xl:gap-8">
-        <div className={`${artworkStyles.surface} relative mx-auto aspect-video w-full max-w-xl overflow-hidden rounded-lg bg-muted @4xl:mx-0 @4xl:max-w-none`}>
+      <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @4xl:items-start @4xl:gap-8">
+        <div className={`${artworkStyles.surface} relative mx-auto aspect-video w-full max-w-xl overflow-hidden rounded-lg bg-muted @4xl:mx-0 @4xl:mt-6 @4xl:max-w-none`}>
           {thumbnail}
         </div>
 
