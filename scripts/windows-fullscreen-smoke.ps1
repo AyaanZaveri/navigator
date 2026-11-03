@@ -27,6 +27,7 @@ public static class FullscreenWindow {
  [DllImport("user32.dll")]public static extern IntPtr WindowFromPoint(Point p);
  [DllImport("user32.dll")]public static extern IntPtr GetAncestor(IntPtr h,uint flags);
  [DllImport("user32.dll")]public static extern uint GetDpiForWindow(IntPtr h);
+ [DllImport("user32.dll")]public static extern bool PostMessage(IntPtr h,uint message,UIntPtr w,IntPtr l);
  [DllImport("user32.dll")]public static extern IntPtr SetFocus(IntPtr h);
  [DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);
  [DllImport("user32.dll")]public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
@@ -66,7 +67,16 @@ function Send-F11($handle,[bool]$ExitFullscreen=$false){
   [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
   return
  }
- if($Trigger -in @('F11Parent','Caption')){
+ if($Trigger -eq 'F11Parent' -or ($Trigger -eq 'Caption' -and $ExitFullscreen)){
+  # Exercise the parent's actual Tao keyboard handler directly. Attaching an
+  # automation thread does not reliably retain focus against WebView2's focus
+  # forwarding; the WebView variant below tests physical keyboard delivery.
+  if(![FullscreenWindow]::PostMessage($handle,0x100,[UIntPtr]::new([uint64]122),[IntPtr]0x570001)){throw 'Could not post native F11 keydown'}
+  Start-Sleep -Milliseconds 80
+  if(![FullscreenWindow]::PostMessage($handle,0x101,[UIntPtr]::new([uint64]122),[IntPtr]([long]0xc0570001))){throw 'Could not post native F11 keyup'}
+  return
+ }
+ if($Trigger -eq 'Caption'){
   $own=[FullscreenWindow]::GetCurrentThreadId()
   $other=[FullscreenWindow]::GetWindowThreadProcessId($handle,[IntPtr]::Zero)
   $attached=[FullscreenWindow]::AttachThreadInput($own,$other,$true)
@@ -78,13 +88,16 @@ function Send-F11($handle,[bool]$ExitFullscreen=$false){
   Start-Sleep -Milliseconds 80
   [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  }
+ Start-Sleep -Milliseconds 100
  [FullscreenWindow]::keybd_event(122,87,0,[UIntPtr]::Zero)
+ Start-Sleep -Milliseconds 80
  [FullscreenWindow]::keybd_event(122,87,2,[UIntPtr]::Zero)
 }
 $root=Split-Path $PSScriptRoot -Parent
 $outputPath=[IO.Path]::GetFullPath($Output)
 $directory=Split-Path $outputPath -Parent
 New-Item -ItemType Directory -Force $directory | Out-Null
+Remove-Item -LiteralPath $outputPath -ErrorAction SilentlyContinue
 $app=$null;$server=$null;$failed=$false
 try{
  $env:NAVIGATOR_FULLSCREEN_TEST=if($Trigger -eq 'Bridge'){'1'}else{'key'}

@@ -158,7 +158,12 @@ installer (`df53deb`) then measured 1.988 seconds for its first normal launch an
 1.949 seconds warm; preparation took 28.782 seconds within a 45.180-second total
 installation. This measures first launch after installation, not launch after an
 OS reboot or every antivirus configuration.
-The installer is not rerun by the shortcut.
+The installer is not rerun by the shortcut. After app-wide caption fullscreen
+and native glass were added (`c672185`), a later run measured 4.804 seconds first
+launch, 4.369 seconds warm and 2.420 seconds on a subsequent warm check. Its
+installation took 65.282 seconds, including 38.595 seconds of preparation.
+These are individual samples on the shared Zenbook, not a statistically controlled
+benchmark or a guarantee of a fixed launch time.
 
 The fullscreen transition restores a maximized frameless window before entering
 borderless fullscreen, then remaximizes it on exit. F11 is handled in the WebView
