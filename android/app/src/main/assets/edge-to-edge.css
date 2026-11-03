@@ -1,3 +1,13 @@
+/* Native video sits below the transparent WebView. Suppress the whole retained
+   page paint group, including ready wordmarks/blur that restore visibility.
+   Bundle this protection so an older hosted UI cannot expose browsing assets. */
+html[data-native-engine="exoplayer"][data-native-playing] [data-desktop-app-content],
+html[data-native-engine="exoplayer"] [data-desktop-app-content][data-playback-hidden] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 /* Backgrounds stay in the full WebView; only interactive content uses safe areas. */
 html[data-native-engine="exoplayer"] {
   --navigator-inset-top: var(--navigator-safe-top, env(safe-area-inset-top, 0px));

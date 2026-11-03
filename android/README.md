@@ -7,6 +7,12 @@ This uses the same layering and HDR path verified on the user's phone with the
 separate SDR/HDR10/HLG demo. The website remains hosted; no Node.js server or API
 keys are bundled in the APK.
 
+The APK bundles a page-isolation safeguard for both the older
+`data-native-playing` hosted UI and the immediate `data-playback-hidden` React
+boundary. Ready Continue Watching wordmarks and backdrop layers cannot restore
+paint above the native video. This protection ships inside the APK, independently
+of the selected website's deployment.
+
 ## Install and test
 
 Download the signed test APK from the [Kotlin migration prerelease](https://github.com/AyaanZaveri/navigator/releases/tag/android-kotlin-20261102-d04c169).

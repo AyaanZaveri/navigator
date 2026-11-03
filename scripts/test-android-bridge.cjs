@@ -256,3 +256,20 @@ const activitySource = fs.readFileSync('android/app/src/main/java/app/navigator/
 const visibilityCase = activitySource.split('"visible" ->')[1].split('"seek-feedback" ->')[0];
 assert.match(visibilityCase,/setFullscreen\(playerVisible\)/,'Landscape starts when the shell opens, before a stream is loaded');
 assert.ok(!visibilityCase.includes('player.active()'),'Fetching streams must not delay orientation');
+
+// The APK must protect older hosted UIs too: their visibility:hidden boundary
+// can be overridden by loaded Continue Watching and hero wordmarks.
+const edgeCss = require('postcss').parse(fs.readFileSync('android/app/src/main/assets/edge-to-edge.css', 'utf8'));
+let isolatedPage;
+edgeCss.walkRules(rule => {
+    if (rule.selector.includes('html[data-native-engine="exoplayer"][data-native-playing] [data-desktop-app-content]')) isolatedPage = rule;
+});
+assert.ok(isolatedPage, 'Bundle retained-page isolation in the APK, independent of hosted deployment');
+for (const [property, expected] of [['opacity', '0'], ['pointer-events', 'none']]) {
+    const declaration = isolatedPage.nodes.find(node => node.prop === property);
+    assert.equal(declaration.value, expected);
+    assert.equal(declaration.important, true, 'Older hosted styles cannot override the APK paint boundary');
+}
+assert.ok(isolatedPage.selector.includes('[data-playback-hidden]'), 'Also honor the immediate React playback boundary');
+assert.ok(!isolatedPage.nodes.some(node => node.prop === 'display'), 'Keep the retained page geometry intact');
+console.log('PASS: APK-bundled page isolation covers old and current hosted UI contracts');
