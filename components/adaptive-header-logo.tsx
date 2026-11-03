@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { HEADER_LOGO_SOURCES, chooseLogoTreatment, type LogoPixels, type LogoTone } from "@/lib/logo-contrast";
+import { HEADER_LOGO_SOURCES, chooseLogoTreatment, createLogoToneStabilizer, type LogoPixels, type LogoTone } from "@/lib/logo-contrast";
 import { logoBlurRadius, logoSampleSource, paintLogoBackdrop, type LogoArtwork, type LogoOverlay } from "@/lib/logo-backdrop";
 import { collectLogoSurfaces } from "@/lib/logo-surfaces";
 import styles from "./adaptive-header-logo.module.css";
@@ -35,6 +35,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         let lastRead = -Infinity;
         const images = new Map<string, { image: HTMLImageElement; failedAt?: number }>();
         let previous: LogoTone | null = null;
+        const stabilizeTone = createLogoToneStabilizer();
         const logoPixels: Partial<LogoPixels> = {};
         const paletteCanvas = document.createElement("canvas");
         paletteCanvas.width = paletteCanvas.height = canvas.width;
@@ -138,7 +139,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
                     window.getComputedStyle(document.documentElement).getPropertyValue("--background").trim(),
                     layers, overlays, { radius, canvas: blurCanvas });
                 const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-                const nextTreatment = chooseLogoTreatment(pixels, logoPixels as LogoPixels, previous);
+                const nextTreatment = stabilizeTone(chooseLogoTreatment(pixels, logoPixels as LogoPixels, previous), performance.now());
                 if (nextTreatment !== previous) {
                     previous = nextTreatment;
                     setSample({ key: pathname, treatment: nextTreatment });

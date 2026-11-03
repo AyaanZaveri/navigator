@@ -2,6 +2,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 const contrast = load('lib/logo-contrast.ts');
+const stable = contrast.createLogoToneStabilizer();
+assert.equal(stable('deep', 0), 'deep');
+for (const [tone, time] of [['dark', 32], ['light', 64], ['neutral', 96], ['deep', 128]]) {
+  assert.equal(stable(tone, time), 'deep', 'Rapid readings cannot cycle through multiple variants');
+}
+assert.equal(stable('light', 160), 'deep');
+assert.equal(stable('light', 288), 'light', 'A stable new background is accepted');
+assert.equal(stable('deep', 320), 'light');
+assert.equal(stable('deep', 448), 'light', 'A second switch cannot interrupt the crossfade');
+assert.equal(stable('deep', 544), 'deep');
 const backdrop = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast }, { URL });
 const surfaces = load('lib/logo-surfaces.ts');
 const h = hooks();
@@ -79,29 +89,34 @@ const { AdaptiveHeaderLogo } = load('components/adaptive-header-logo.tsx', {
 });
 const render = () => h.render(AdaptiveHeaderLogo, { adaptive: true });
 function tick(time) { now = time; const work = [...raf.values()]; raf.clear(); work.forEach(fn => fn(time)); }
+async function settle(time) { tick(time); await new Promise(resolve => setImmediate(resolve)); tick(time + 50); tick(time + 180); tick(time + 300); }
 (async () => {
   render().props.ref.current = logo; h.flush();
   await new Promise(resolve => setImmediate(resolve));
-  tick(0); await new Promise(resolve => setImmediate(resolve)); tick(50);
+  await settle(0);
   assert.equal(render().props['data-logo-tone'], 'deep', 'Bright hero uses the dark high-contrast logo');
   hero.bounds.top = -500; poster.bounds.top = 0;
-  tick(500); await new Promise(resolve => setImmediate(resolve)); tick(550);
+  await settle(500);
   assert.equal(render().props['data-logo-tone'], 'light', 'A poster scrolled behind the logo is sampled after the hero leaves, even without another scroll event');
   assert.ok(requestedImages.some(source => source.includes('kind=poster') && source.includes('sample=1')), 'Posters also use readable same-origin bytes');
   assert.ok(raf.size, 'The idle sampler stays alive after the settling window');
-  poster.src = '/broken.jpg'; tick(900); await new Promise(resolve => setImmediate(resolve)); tick(950);
+  poster.bounds.top = 600; tick(900);
+  assert.equal(render().props['data-logo-tone'], 'light', 'A transient bright patch cannot reverse the current fade');
+  poster.bounds.top = 0; tick(1000);
+  assert.equal(render().props['data-logo-tone'], 'light');
+  poster.src = '/broken.jpg'; await settle(1200);
   assert.ok(raf.size, 'An image failure cannot stop the sampler');
-  poster.src = '/new-dark.jpg'; tick(1300); await new Promise(resolve => setImmediate(resolve)); tick(1350);
+  poster.src = '/new-dark.jpg'; await settle(1700);
   assert.equal(render().props['data-logo-tone'], 'light', 'New content recovers after a failed image');
   const clipped = new Element('DIV', rect(250, 0, 200, 300), scroller, 2);
   clipped.style.overflowX = 'hidden'; poster.parentElement = clipped;
-  tick(1600);
+  await settle(2200);
   assert.equal(render().props['data-logo-tone'], 'deep', 'Offscreen carousel images cannot affect the logo through an overflow clip');
   poster.parentElement = scroller;
-  poster.bounds.top = 600; tick(1800);
+  poster.bounds.top = 600; await settle(2700);
   assert.equal(render().props['data-logo-tone'], 'deep', 'The real page background replaces artwork once it leaves the sampling region');
-  document.hidden = true; tick(2000); assert.equal(raf.size, 0);
-  document.hidden = false; listeners.get('visibilitychange')(); tick(2050); assert.ok(raf.size);
+  document.hidden = true; tick(3300); assert.equal(raf.size, 0);
+  document.hidden = false; listeners.get('visibilitychange')(); tick(3350); assert.ok(raf.size);
   const tree = render();
   assert.equal(tree.props.children.length, 4);
   assert.ok(tree.props.children.every(image => image.props.className === 'mark'), 'Every tone, including neutral, shares the same mounted transition layer');

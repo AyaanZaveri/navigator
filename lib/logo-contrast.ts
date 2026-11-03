@@ -3,9 +3,29 @@ export const HEADER_LOGO_SOURCES: Record<LogoTone, string> = {
     dark: "/logo/navigator-header-light.svg?v=3",
     light: "/logo/navigator-header-dark.svg?v=2",
     deep: "/logo/navigator-header-high-contrast.svg?v=1",
-    neutral: "/logo/navigator-header-neutral.svg?v=2",
+    neutral: "/logo/navigator-header-neutral.svg?v=3",
 };
 export type LogoPixels = Record<LogoTone, ArrayLike<number>>;
+
+/** Confirm a new reading for 120ms and finish the 240ms crossfade before
+ * accepting another tone. Single-frame texture changes never reverse a fade. */
+export function createLogoToneStabilizer() {
+    let current: LogoTone | null = null;
+    let pending: LogoTone | null = null;
+    let pendingSince = 0;
+    let switchedAt = -Infinity;
+    return (next: LogoTone, now: number): LogoTone => {
+        if (current === null) { current = next; switchedAt = now; return current; }
+        if (next === current) { pending = null; return current; }
+        if (pending !== next) { pending = next; pendingSince = now; }
+        if (now - pendingSince >= 120 && now - switchedAt >= 240) {
+            current = next;
+            switchedAt = now;
+            pending = null;
+        }
+        return current;
+    };
+}
 type Rectangle = { left: number; top: number; width: number; height: number };
 
 function linearChannel(channel: number): number {
