@@ -33,7 +33,8 @@
   transform: scale(0.995);
 }
 .image,
-.icon {
+.icon,
+.leading {
   display: flex;
   flex: none;
   align-items: center;
@@ -171,4 +172,13 @@
 .row:not(.interactive) .titleText {
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* An unframed leading visual preserves the same text alignment as posters. */
+.leading {
+  width: 2rem;
+  height: 2rem;
+}
+.textOnly {
+  padding-inline-start: 3.25rem;
 }

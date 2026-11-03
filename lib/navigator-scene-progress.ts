@@ -2,6 +2,32 @@ export interface SceneProgress {
     stage: "title" | "subtitles" | "scene";
     state: "running" | "completed" | "error";
     detail?: string;
+    media?: {
+        id: string;
+        name: string;
+        type: "movie" | "series" | "episode";
+        year?: number;
+        communityRating?: number;
+        poster?: string;
+        source?: string;
+        seriesId?: string;
+        seriesName?: string;
+        seasonNumber?: number;
+        episodeNumber?: number;
+    };
+    subtitles?: {
+        language?: string;
+        label?: string;
+        filename?: string;
+        provider?: string;
+        index: number;
+        lineCount: number;
+    };
+    scene?: {
+        timestamp: number;
+        timestampFormatted: string;
+        text: string;
+    };
 }
 
 export function sceneProgressLabel(progress: SceneProgress): string {
