@@ -9,10 +9,9 @@ keys are bundled in the APK.
 
 ## Install and test
 
-Download **Navigator-Android.apk** from the **Android APK** workflow's artifact
-or job summary. The workflow uses `actions/upload-artifact@v7.0.2` with
-`archive: false`: the download is the APK itself, without an outer ZIP.
-GitHub requires sign-in to download workflow artifacts.
+GitHub Actions builds are currently disabled. Use a separately requested local
+APK build for device installation; see [Build](#build). This Kotlin migration was
+validated by local compilation, unit tests and lint without packaging an APK.
 
 The application ID is `app.navigator.android`, distinct from the demo app.
 Android 7.0+ and an up-to-date Android System WebView are required. Sign in to
@@ -20,10 +19,9 @@ Navigator normally, configure any provider/artwork credentials in the existing
 Settings page, and play a title. The default server is
 `https://navigator-strm.vercel.app`.
 
-The APK already works with the currently deployed desktop media bridge contract,
-so testing does not require merging this PR. New web UI additions (the explicit
-Android close event and **App settings** avatar-menu entry) appear when this PR's
-web changes are deployed; the app includes an existing-player Back-button fallback.
+The native shell is written in Kotlin and retains the existing web media-bridge
+contract. See [Next.js/ExoPlayer integration, examples and performance review](docs/nextjs-exoplayer.md)
+for the architecture, migration scope, optimizations and device-testing limits.
 
 Test on a physical device:
 
@@ -60,7 +58,13 @@ Set `JAVA_HOME` and `ANDROID_HOME`, or set `sdk.dir` in a gitignored
 
 ```sh
 cd android
-./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew compileDebugKotlin testDebugUnitTest lintDebug
+```
+
+To package an APK when explicitly requested:
+
+```sh
+./gradlew assembleDebug
 ```
 
 Output: `app/build/outputs/apk/debug/app-debug.apk`.
