@@ -3,6 +3,8 @@
 mod gtk_shell;
 #[cfg(any(target_os = "macos", test))]
 mod hdr;
+#[cfg(any(windows, test))]
+mod glass;
 mod mpv;
 mod platform;
 mod player;

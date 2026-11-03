@@ -25,7 +25,7 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
       <span className={styles.rowLabel}>{row.label}</span>
       <span className={styles.summary}>{row.summary}</span>
     </DropdownMenuSubTrigger>
-    <DropdownMenuSubContent container={portalContainer} aria-label={row.label}
+    <DropdownMenuSubContent data-player-native-glass="" container={portalContainer} aria-label={row.label}
       className={row.label === "Subtitles" ? styles.subtitleMenu : undefined}>
       <DropdownMenuOptions value={row.value} onValueChange={row.onChange} options={row.options} separateFirst={row.label === "Subtitles"} />
       {row.label === "Subtitles" && row.options.length === 1 && <p className={styles.empty}>No subtitle tracks available.</p>}

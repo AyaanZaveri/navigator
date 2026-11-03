@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory=$true)][string]$Executable,
   [string]$Output='dist/windows-fullscreen.json',
-  [ValidateSet('Bridge','F11WebView','F11Parent')][string]$Trigger='Bridge'
+  [ValidateSet('Bridge','F11WebView','F11Parent','Caption')][string]$Trigger='Bridge'
 )
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
@@ -26,6 +26,7 @@ public static class FullscreenWindow {
  [DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);
  [DllImport("user32.dll")]public static extern IntPtr WindowFromPoint(Point p);
  [DllImport("user32.dll")]public static extern IntPtr GetAncestor(IntPtr h,uint flags);
+ [DllImport("user32.dll")]public static extern uint GetDpiForWindow(IntPtr h);
  [DllImport("user32.dll")]public static extern IntPtr SetFocus(IntPtr h);
  [DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);
  [DllImport("user32.dll")]public static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
@@ -54,9 +55,17 @@ function Read-Bounds($handle){
  [void][FullscreenWindow]::ClientToScreen($handle,[ref]$point)
  return @{outer=@($outer.Left,$outer.Top,$outer.Right,$outer.Bottom);client=@($point.X,$point.Y,($point.X+$client.Right),($point.Y+$client.Bottom))}
 }
-function Send-F11($handle){
+function Send-F11($handle,[bool]$ExitFullscreen=$false){
  Activate-Navigator $handle
- if($Trigger -eq 'F11Parent'){
+ if($Trigger -eq 'Caption' -and !$ExitFullscreen){
+  $r=Read-Bounds $handle
+  $dpi=[FullscreenWindow]::GetDpiForWindow($handle)/96.0
+  [void][FullscreenWindow]::SetCursorPos([int]($r.client[2]-69*$dpi),[int]($r.client[1]+16*$dpi))
+  [FullscreenWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+  [FullscreenWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+  return
+ }
+ if($Trigger -in @('F11Parent','Caption')){
   $own=[FullscreenWindow]::GetCurrentThreadId()
   $other=[FullscreenWindow]::GetWindowThreadProcessId($handle,[IntPtr]::Zero)
   $attached=[FullscreenWindow]::AttachThreadInput($own,$other,$true)
@@ -111,7 +120,7 @@ try{
  $point.X=[int](($info.Monitor.Left+$info.Monitor.Right)/2);$point.Y=$info.Monitor.Bottom-3
  $coversTaskbar=[FullscreenWindow]::GetAncestor([FullscreenWindow]::WindowFromPoint($point),2) -eq $app.MainWindowHandle
  $clientFillsMonitor=($during.client -join ',') -eq ($expected -join ',')
- if($Trigger -ne 'Bridge'){Send-F11 $app.MainWindowHandle}
+ if($Trigger -ne 'Bridge'){Send-F11 $app.MainWindowHandle $true}
  $deadline=[DateTime]::UtcNow.AddSeconds(12)
  while((Get-Content $env:NAVIGATOR_FULLSCREEN_RESULT) -ne 'exited'){if([DateTime]::UtcNow -gt $deadline){throw 'No native fullscreen exit response'};Start-Sleep -Milliseconds 100}
  Start-Sleep -Milliseconds 250

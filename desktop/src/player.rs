@@ -39,6 +39,8 @@ pub struct Player {
     requests: mpsc::Sender<Command>,
     quit: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
+    #[cfg(windows)]
+    glass: crate::glass::Sampler,
 }
 
 impl Player {
@@ -56,6 +58,10 @@ impl Player {
         mpv.request_log_messages("warn")?;
         let (requests, inbox) = mpsc::channel();
         let quit = Arc::new(AtomicBool::new(false));
+        #[cfg(windows)]
+        let glass = crate::glass::Sampler::start(mpv.clone(), emit.clone(), quit.clone())?;
+        #[cfg(windows)]
+        let glass_control = glass.control.clone();
         let (client, stopped) = (mpv.clone(), quit.clone());
         let worker = std::thread::Builder::new().name("navigator-mpv".into()).spawn(move || {
             let mut session = String::new();
@@ -73,7 +79,7 @@ impl Player {
                     let target = match &command {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
-                        | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } => session,
+                        | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
                         Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
@@ -81,6 +87,8 @@ impl Player {
                     let result = match command {
                         Command::Load { session: next, url, headers } => {
                             desired = next.clone();
+                            #[cfg(windows)]
+                            glass_control.source(next.clone());
                             previews = None;
                             preview_source = Some((next.clone(), url.clone(), headers.clone()));
                             // mpv's %length% syntax quotes commas and arbitrary header values.
@@ -105,12 +113,24 @@ impl Player {
                         Command::Muted { muted, .. } => client.set_property("mute", if muted { "yes" } else { "no" }),
                         Command::Rate { rate, .. } => client.set_property("speed", &rate.to_string()),
                         Command::VideoFit { mode, .. } => {
+                            #[cfg(windows)]
+                            glass_control.invalidate();
                             use crate::protocol::VideoFitMode;
                             client.set_property("keepaspect", if matches!(mode, VideoFitMode::Stretch) { "no" } else { "yes" })
                                 .and_then(|_| client.set_property("panscan", if matches!(mode, VideoFitMode::Crop) { "1" } else { "0" }))
                         }
                         Command::Track { kind, id, .. } => client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id),
-                        Command::Stop { .. } => { desired.clear(); previews = None; preview_source = None; client.command(&["stop"]) },
+                        Command::Stop { .. } => {
+                            #[cfg(windows)]
+                            glass_control.source(String::new());
+                            desired.clear(); previews = None; preview_source = None; client.command(&["stop"]) },
+                        Command::Glass { session, active } => {
+                            #[cfg(windows)]
+                            glass_control.demand(&session, active);
+                            #[cfg(not(windows))]
+                            let _ = (session, active);
+                            Ok(())
+                        }
                         Command::Thumbnail { request, position, .. } => { if let Some(previews) = &previews { previews.want(request, position); } Ok(()) },
                         Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } => unreachable!(),
                     };
@@ -153,6 +173,8 @@ impl Player {
                     Some(Event::Seek) => { state["seeking"] = json!(true); dirty = true; }
                     Some(Event::EndFile { playlist_id, reason, error }) => {
                         if playlist_id != playing_id { entries.remove(&playlist_id); continue; }
+                        #[cfg(windows)]
+                        glass_control.demand(&session, false);
                         if previews.as_ref().is_some_and(|p| p.session() == session) { previews = None; }
                         last_colour = (None, None);
                         colour(None, None);
@@ -197,6 +219,8 @@ impl Player {
             requests,
             quit,
             worker: Some(worker),
+            #[cfg(windows)]
+            glass,
         })
     }
 
@@ -209,12 +233,22 @@ impl Player {
     }
     pub fn begin_shutdown(&self) {
         self.quit.store(true, Ordering::Relaxed);
+        #[cfg(windows)]
+        self.glass.wake();
         self.mpv.wakeup();
     }
+    #[cfg(windows)]
+    pub fn glass_visible(&self, visible: bool) { self.glass.control.visible(visible); }
+    #[cfg(windows)]
+    pub fn glass_resized(&self) { self.glass.control.invalidate(); }
     pub fn finished(&self) -> bool {
+        #[cfg(windows)]
+        if !self.glass.finished() { return false; }
         self.worker.as_ref().is_none_or(|w| w.is_finished())
     }
     pub fn join(&mut self) {
+        #[cfg(windows)]
+        self.glass.join();
         if let Some(w) = self.worker.take() {
             let _ = w.join();
         }

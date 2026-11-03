@@ -88,6 +88,7 @@ enum UserEvent {
     Fullscreen(bool),
     Drag,
     ChromeHover(u32),
+    ToggleFullscreen,
     WindowControl(protocol::WindowAction),
     Ready(bool),
     StartupLoaded,
@@ -329,6 +330,8 @@ pub fn run(app: App) -> Result<(), String> {
     platform::on_chrome_hover(move |hit| {
         let _ = chrome_proxy.send_event(UserEvent::ChromeHover(hit));
     });
+    let fullscreen_proxy = proxy.clone();
+    platform::on_chrome_fullscreen(move || { let _ = fullscreen_proxy.send_event(UserEvent::ToggleFullscreen); });
     platform::install_chrome(&window);
     let surface = platform::VideoSurface::new(&window)?;
     let mut loading = Some(platform::LoadingView::new(&window)?);
@@ -401,6 +404,7 @@ pub fn run(app: App) -> Result<(), String> {
     let mut smoke_playing = false;
     let mut playback_session = String::new();
     let mut playback_ready = false;
+    let mut glass_ready = false;
     let mut pending = VecDeque::new();
     // Start Chromium while Node is starting, and paint bundled HTML that needs
     // neither the local server nor external data. Keep this WebView for the app.
@@ -443,6 +447,7 @@ pub fn run(app: App) -> Result<(), String> {
                     if let protocol::Command::Load { session, .. } = &command {
                         playback_session = session.clone();
                         playback_ready = false;
+                        glass_ready = false;
                         record(&log, started, "playback-load-received");
                     } else if matches!(&command, protocol::Command::Seek { .. }) {
                         record(&log, started, "playback-seek-requested");
@@ -521,6 +526,7 @@ pub fn run(app: App) -> Result<(), String> {
                             playback_ready = true;
                             record(&log, started, "playback-ready");
                         }
+                        Some("glass-frame") if !glass_ready => { glass_ready = true; record(&log, started, "glass-sample-ready"); }
                         Some("error") => record(&log, started, "playback-error"),
                         _ => {}
                     }
@@ -536,19 +542,23 @@ pub fn run(app: App) -> Result<(), String> {
                 set_fullscreen(&window, value, &mut remaximize);
                 record(&log, started, if value { "fullscreen-entered" } else { "fullscreen-exited" });
             }
+            Event::UserEvent(UserEvent::ToggleFullscreen) => {
+                set_fullscreen(&window, window.fullscreen().is_none(), &mut remaximize);
+            }
             Event::UserEvent(UserEvent::ChromeHover(hit)) => {
                 let name = match hit { 8 => "minimize", 9 => "maximize", 20 => "close", _ => "" };
                 if let Some(view) = &view { let _ = view.evaluate_script(&format!("document.documentElement.dataset.windowControlHover={}", json!(name))); }
             }
             Event::UserEvent(UserEvent::WindowControl(action)) => match action {
                 protocol::WindowAction::Minimize => window.set_minimized(true),
-                protocol::WindowAction::ToggleMaximize => window.set_maximized(!window.is_maximized()),
+                protocol::WindowAction::ToggleMaximize => set_fullscreen(&window, window.fullscreen().is_none(), &mut remaximize),
                 protocol::WindowAction::Close => platform::request_close(&window),
             },
             Event::UserEvent(UserEvent::Drag) => { if !fullscreen { let _ = window.drag_window(); } }
             Event::WindowEvent { event: WindowEvent::KeyboardInput { event: key, is_synthetic: false, .. }, .. }
                 if key.state == tao::event::ElementState::Pressed && !key.repeat
-                    && key.physical_key == tao::keyboard::KeyCode::F11 => {
+                    && (key.physical_key == tao::keyboard::KeyCode::F11
+                        || (key.physical_key == tao::keyboard::KeyCode::Escape && fullscreen)) => {
                 set_fullscreen(&window, window.fullscreen().is_none(), &mut remaximize);
             }
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
@@ -564,6 +574,7 @@ pub fn run(app: App) -> Result<(), String> {
             }
             Event::WindowEvent { event: WindowEvent::Resized(size), .. } => {
                 resize_views(&surface, view.as_ref(), loading.as_ref(), size);
+                if let Some((_, player, _)) = &running { player.glass_resized(); }
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"window-state","maximized":window.is_maximized()}))); }
                 remember_placement(&window, &mut normal);
             }
@@ -576,6 +587,7 @@ pub fn run(app: App) -> Result<(), String> {
             }
             _ => {}
         }
+        if let Some((_, player, _)) = &running { player.glass_visible(!window.is_minimized()); }
         let actual = window.fullscreen().is_some();
         platform::set_chrome_fullscreen(actual);
         if actual != fullscreen {

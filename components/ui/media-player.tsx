@@ -2699,7 +2699,7 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
         </Button>
       </DropdownMenuTrigger>
     </MediaPlayerTooltip>
-    <DropdownMenuContent container={context.rootRef.current ?? context.portalContainer} side="top" sideOffset={sideOffset}>
+    <DropdownMenuContent data-player-native-glass="" container={context.rootRef.current ?? context.portalContainer} side="top" sideOffset={sideOffset}>
       <DropdownMenuOptions value={String(mediaPlaybackRate)} onValueChange={value => onPlaybackRateChange(Number(value))}
         options={speeds.map(speed => ({ value: String(speed), label: `${speed}×` }))} />
     </DropdownMenuContent>
@@ -3111,7 +3111,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
           </Button>
         </DropdownMenuTrigger>
       </MediaPlayerTooltip>
-      <DropdownMenuContent align="end" side="top" sideOffset={sideOffset}
+      <DropdownMenuContent data-player-native-glass="" align="end" side="top" sideOffset={sideOffset}
         container={context.rootRef.current ?? context.portalContainer}
         aria-label="Playback settings"
         className={playerSettingsStyles.settingsMenu}>

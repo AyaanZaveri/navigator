@@ -62,6 +62,7 @@ pub enum Command {
     WindowControl {
         action: WindowAction,
     },
+    Glass { session: String, active: bool },
     Thumbnail {
         session: String,
         request: u64,
@@ -138,6 +139,9 @@ pub fn parse(text: &str) -> Result<Command, String> {
             {
                 return Err("Invalid request headers".into());
             }
+        }
+        Command::Glass { session, .. } if session.is_empty() || session.len() > 128 => {
+            return Err("Invalid playback session".into());
         }
         Command::Seek { position, .. } if !position.is_finite() || *position < 0.0 => {
             return Err("Invalid seek position".into());

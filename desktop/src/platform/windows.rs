@@ -244,9 +244,14 @@ pub fn mpv_options(video: &VideoSurface) -> Vec<(&'static str, String)> {
 }
 
 thread_local! {
+    static CHROME_PRESSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static CHROME_FULLSCREEN_ACTION: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
     static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
+}
+pub fn on_chrome_fullscreen(listener: impl Fn() + 'static) {
+    CHROME_FULLSCREEN_ACTION.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
 }
 pub fn on_chrome_hover(listener: impl Fn(u32) + 'static) {
     CHROME_LISTENER.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
@@ -317,6 +322,27 @@ unsafe extern "system" fn chrome_proc(
             RemoveWindowSubclass(hwnd, Some(chrome_proc), id);
         }
         if hwnd == root as HWND {
+            // The top-right middle control enters app fullscreen. Capture the
+            // click ourselves rather than letting DefWindowProc maximize into
+            // the work area. Native hit testing still supports Snap on hover.
+            if msg == WM_NCLBUTTONDOWN && wparam as u32 == HTMAXBUTTON {
+                CHROME_PRESSED.set(true);
+                windows_sys::Win32::UI::Input::KeyboardAndMouse::SetCapture(hwnd);
+                return 0;
+            }
+            if msg == WM_LBUTTONUP && CHROME_PRESSED.replace(false) {
+                windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture();
+                let mut point = POINT { x: 0, y: 0 };
+                GetCursorPos(&mut point);
+                let screen = ((point.y as u16 as usize) << 16) | point.x as u16 as usize;
+                if chrome_hit(hwnd, screen as LPARAM) == Some(HTMAXBUTTON) {
+                    CHROME_FULLSCREEN_ACTION.with(|value| {
+                        if let Some(listener) = &*value.borrow() { listener(); }
+                    });
+                }
+                return 0;
+            }
+            if msg == WM_CAPTURECHANGED { CHROME_PRESSED.set(false); }
             if msg == WM_NCMOUSEMOVE {
                 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
                 let mut track = TRACKMOUSEEVENT {

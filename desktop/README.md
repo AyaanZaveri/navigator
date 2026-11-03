@@ -2,7 +2,7 @@
 
 Navigator's existing Next.js/React UI above native **libmpv** playback. Video
 frames stay in the native GPU surface; a small JSON bridge carries commands and
-state. Browser playback continues to use the current Mux/HTML media player.
+state and bounded material samples. Browser playback continues to use the current Mux/HTML media player.
 
 ## Windows private build
 
@@ -37,9 +37,10 @@ artifacts; cross-target `cargo check` skips Windows resource compilation. The
 Windows packaging script uses an explicit x64 target and a static MSVC C runtime;
 Release verification inspects imports so the release needs no separately installed Visual C++ runtime.
 
-Windows draws minimize, maximize/restore and close inside the app, with no
-separate system title bar. Native caption hit testing retains window dragging,
-double-click maximize, Alt+Space, Alt+F4 and Snap (HTMAXBUTTON). Fullscreen hides
+Windows draws minimize, app fullscreen and close inside the app, with no
+separate system title bar. The middle caption control enters fullscreen for the
+entire app, covering the taskbar. Native caption hit testing retains window
+dragging, double-click maximize, Alt+Space, Alt+F4 and Snap hover (HTMAXBUTTON). Fullscreen hides
 the window buttons and retains F11/Escape behavior. Its minimum client size is 480×360 logical pixels; player controls
 wrap in narrow windows. Normal window size/position and maximized state persist,
 and saved placement is clamped onto an available display. A second launch
@@ -77,6 +78,16 @@ atomically at creation, then resumes without a console; its descendants cannot
 outlive Navigator. Playback frames stay native, and progress stays throttled
 while control-state changes are delivered immediately.
 
+Windows player glass uses opt-in `capabilities.glass` and validated session-scoped
+`glass` demand. A dedicated sampler copies the current rendered video window,
+reduces it to at most 160×90 pixels and sends a bounded in-memory BMP at no more
+than 2 Hz. Playback controls stay on their own worker. Idle demand sleeps; paused
+frames are reused, geometry changes invalidate them, minimizing stops sampling,
+and source replacement discards old results. The shared glass effect paints only
+visible controls; menus retain their tint and subtitles retain their background.
+No desktop pixels, temporary screenshot files or second decoder are involved.
+CSS blur remains local to each small surface. Hardware HDR accuracy is unverified.
+
 ### Windows verification and performance
 
 ```powershell
@@ -87,7 +98,8 @@ cargo test --manifest-path desktop/Cargo.toml --locked job_closes_backend_and_de
 ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 ./scripts/windows-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -LaunchApp -StartupDelaySeconds 8
 ./scripts/windows-overlay-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
-./scripts/windows-fullscreen-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
+./scripts/windows-fullscreen-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe -Trigger Caption
+./scripts/windows-glass-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 node scripts/test-windows-install.cjs
 ./scripts/windows-install-smoke.ps1 -Executable ./dist/desktop-win32-x64/navigator-desktop.exe
 ./scripts/windows-performance.ps1 -AppProcessId <NavigatorPID> -Seconds 30
@@ -141,8 +153,11 @@ A November 2 Defender recording attributed 11.3 seconds of cumulative scan time
 to the bundled Node process and 4.8 seconds to the native app. These durations can
 overlap. A controlled reinstall followed by installation preparation reduced the
 first normal launch from 22–26 seconds to 2.1 seconds on the Zenbook. Targeted
-preparation took 28.3 seconds during installation. This measures first launch
-after installation, not launch after an OS reboot or every antivirus configuration.
+preparation took 28.3 seconds during the prototype installation. The completed
+installer (`df53deb`) then measured 1.988 seconds for its first normal launch and
+1.949 seconds warm; preparation took 28.782 seconds within a 45.180-second total
+installation. This measures first launch after installation, not launch after an
+OS reboot or every antivirus configuration.
 The installer is not rerun by the shortcut.
 
 The fullscreen transition restores a maximized frameless window before entering

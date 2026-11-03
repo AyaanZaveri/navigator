@@ -953,6 +953,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {/* Current subtitle */}
         {(currentSubtitle || nativeSubtitle) && !loading && videoReady && (
           <div
+            data-player-native-glass=""
             className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md whitespace-pre-line ${
               currentSubtitle?.positionTop ? "top-[15%]" : "bottom-[10%]"
             }`}
