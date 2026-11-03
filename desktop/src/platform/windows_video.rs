@@ -220,7 +220,7 @@ impl GlassGpu {
                 (size.0 as f64 * scale).round().max(1.0) as u32,
                 (size.1 as f64 * scale).round().max(1.0) as u32,
             );
-            let source = "Texture2D image:register(t0);SamplerState linearClamp:register(s0);struct V{float4 position:SV_Position;float2 uv:TEXCOORD0;};V vs(uint id:SV_VertexID){V o;o.uv=float2((id<<1)&2,id&2);o.position=float4(o.uv*float2(2,-2)+float2(-1,1),0,1);return o;}cbuffer SampleSize:register(b0){float4 footprint;}float4 ps(V input):SV_Target{float4 sum=0;[unroll]for(int y=0;y<4;y++){[unroll]for(int x=0;x<4;x++){sum+=image.SampleLevel(linearClamp,input.uv+(float2(x,y)*.25-.375)*footprint.xy,0);}}return (sum/16).bgra;}";
+            let source = "Texture2D image:register(t0);SamplerState linearClamp:register(s0);struct V{float4 position:SV_Position;float2 uv:TEXCOORD0;};V vs(uint id:SV_VertexID){V o;o.uv=float2((id<<1)&2,id&2);o.position=float4(o.uv*float2(2,-2)+float2(-1,1),0,1);return o;}cbuffer SampleSize:register(b0){float4 footprint;}float4 ps(V input):SV_Target{float4 sum=0;[unroll]for(int y=0;y<2;y++){[unroll]for(int x=0;x<2;x++){sum+=image.SampleLevel(linearClamp,input.uv+(float2(x,y)*.50-.250)*footprint.xy,0);}}return (sum/4).bgra;}";
             let vs = compile(source, c"vs", c"vs_4_0")?;
             let ps = compile(source, c"ps", c"ps_4_0")?;
             let mut vertex = None;

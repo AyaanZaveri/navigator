@@ -86,7 +86,7 @@ surfaces consume pending frames without drawing. Device failures surface an erro
 and close the app cleanly rather than leaving a frozen video window.
 
 Player glass is derived directly from that rendered texture, including its crop,
-letterboxing and tone mapping. A GPU shader averages a 4×4 grid over each output
+letterboxing and tone mapping. A GPU shader averages a 2×2 grid over each output
 pixel footprint at up to 640×360, replacing the old 160×90 single bilinear sample.
 The shader writes RGBA byte order, avoiding a CPU channel conversion. Three GPU
 staging slots use nonblocking maps, and only completed small frames are read.

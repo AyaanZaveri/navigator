@@ -64,10 +64,14 @@ bridge.subscribe(message=>{
      const seekAt=frames,resumeStarted=performance.now();
      bridge.send({type:'play',session:'glass-fixture'});const resumed=await until(()=>frames>seekAt&&!state.paused&&!state.seeking&&!state.buffering&&(state.position??0)>3.05);
      metrics.resumeMs=performance.now()-resumeStarted;
+     const beforeFullscreen=frames;bridge.send({type:'fullscreen',value:true});
+     const fullscreenUpdated=await until(()=>bridge.fullscreen&&frames>beforeFullscreen&&getComputedStyle(document.querySelector('.preview canvas')).width===window.innerWidth+'px');
+     const beforeRestore=frames;bridge.send({type:'fullscreen',value:false});
+     const fullscreenRestored=await until(()=>!bridge.fullscreen&&frames>beforeRestore&&getComputedStyle(document.querySelector('.preview canvas')).width===window.innerWidth+'px');
      for(const node of panels)node.setAttribute('aria-hidden','true');
      await wait(300);const stoppedAt=frames;await wait(1200);
      for(const cleanup of cleanups)cleanup?.();
-     fetch('/completed',{method:'POST',body:JSON.stringify({...metrics,frames,stopped:frames===stoppedAt,pausedCached,pausedSeekUpdated,resumed})});
+     fetch('/completed',{method:'POST',body:JSON.stringify({...metrics,frames,stopped:frames===stoppedAt,pausedCached,pausedSeekUpdated,resumed,fullscreenUpdated,fullscreenRestored})});
     },5000);
    },100);
   }

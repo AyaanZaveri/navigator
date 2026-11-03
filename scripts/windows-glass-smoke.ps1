@@ -31,10 +31,15 @@ try{
  Save-NavigatorScreenshot $app $outputPath
  $material=Get-Content "$outputPath.painted.json" -Raw|ConvertFrom-Json
  if($material.bytes -gt 640*360*4 -or $material.material.Count -ne 3 -or @($material.material|Where-Object {!$_.painted -or !$_.image}).Count){throw 'Preview/menu/subtitle video glass did not paint correctly'}
+ if($env:NAVIGATOR_GLASS_TESTSRC -eq '1') {
+  $red=@(for($i=0;$i -lt $material.pixels.Count;$i+=4){$material.pixels[$i]})
+  if(@($red|Select-Object -Unique).Count -lt 8){throw 'The canvas contains a sharp edge instead of the expected blur gradient'}
+ }
  $deadline=[DateTime]::UtcNow.AddSeconds(15)
  while(!(Test-Path "$outputPath.completed.json")){if([DateTime]::UtcNow -gt $deadline){throw 'Glass demand did not stop'};Start-Sleep -Milliseconds 100}
  $result=Get-Content "$outputPath.completed.json" -Raw|ConvertFrom-Json
  if(!$result.stopped){throw 'Hidden controls continued native image capture'}
+ if(!$result.fullscreenUpdated -or !$result.fullscreenRestored){throw 'Canvas glass did not follow fullscreen resize and restoration'}
  if(!$result.pausedCached -or !$result.pausedSeekUpdated -or !$result.resumed){throw 'Pause cache, paused seek refresh or resume failed'}
  if($result.fps -lt $MinimumFps -or $result.p95GapMs -gt $MaximumGapMs){throw "Glass is visibly slow: $($result.fps) fps, p95 gap $($result.p95GapMs) ms"}
  if($result.paintFps -lt $MinimumFps -or $result.p95PaintGapMs -gt $MaximumGapMs){throw "Glass paint is stalling: $($result.paintFps) fps, p95 gap $($result.p95PaintGapMs) ms"}
