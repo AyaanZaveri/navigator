@@ -36,6 +36,11 @@ try {
 using System;using System.Runtime.InteropServices;
 public static class OverlayWindow {
  [DllImport("user32.dll")]public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+ [StructLayout(LayoutKind.Sequential)]public struct Point{public int X,Y;}
+ [DllImport("user32.dll")]public static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int w,int height,uint flags);
+ [DllImport("user32.dll")]public static extern IntPtr WindowFromPoint(Point point);
+ [DllImport("user32.dll")]public static extern IntPtr GetAncestor(IntPtr h,uint flags);
+ [DllImport("dwmapi.dll")]public static extern int DwmFlush();
  [StructLayout(LayoutKind.Sequential)] public struct Rect{public int Left,Top,Right,Bottom;}
  [DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out Rect r);
  [DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);
@@ -43,9 +48,14 @@ public static class OverlayWindow {
 '@
   [void][OverlayWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
   [void][OverlayWindow]::SetForegroundWindow($app.MainWindowHandle)
+  [void][OverlayWindow]::SetWindowPos($app.MainWindowHandle,[IntPtr](-1),0,0,0,0,0x13)
+  [void][OverlayWindow]::DwmFlush()
   Start-Sleep -Milliseconds 500
   $rect=New-Object OverlayWindow+Rect
   [void][OverlayWindow]::GetWindowRect($app.MainWindowHandle,[ref]$rect)
+  $center=New-Object OverlayWindow+Point
+  $center.X=[int](($rect.Left+$rect.Right)/2);$center.Y=[int](($rect.Top+$rect.Bottom)/2)
+  if([OverlayWindow]::GetAncestor([OverlayWindow]::WindowFromPoint($center),2) -ne $app.MainWindowHandle){throw 'Another window is covering Navigator'}
   $bitmap=New-Object Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top)
   $graphics=[Drawing.Graphics]::FromImage($bitmap)
   try{
@@ -63,7 +73,10 @@ public static class OverlayWindow {
     @{escapedPixels=$escaped;samples=$samples;videoColors=$colors.Count;passed=($escaped -eq 0 -and $colors.Count -gt 8)}|ConvertTo-Json|Set-Content ($absolute+".json")
     if($escaped -ne 0){throw "Retained media-page artwork covered $escaped of $samples video samples"}
     if($colors.Count -le 8){throw 'Expected visible native video, not an empty/opaque window'}
-  }finally{$graphics.Dispose();$bitmap.Dispose()}
+  }finally{
+    $graphics.Dispose();$bitmap.Dispose()
+    [void][OverlayWindow]::SetWindowPos($app.MainWindowHandle,[IntPtr](-2),0,0,0,0,0x13)
+  }
 }catch{$failed=$true;$_|Out-String|Write-Output}finally{
   if($app -and !$app.HasExited){[void]$app.CloseMainWindow();if(!$app.WaitForExit(10000)){Stop-Process -Id $app.Id -Force}}
   if($server -and !$server.HasExited){Stop-Process -Id $server.Id -Force}

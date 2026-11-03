@@ -11,6 +11,10 @@ using System;
 using System.Runtime.InteropServices;
 public static class NavigatorSmokeWindow {
   [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+  [DllImport("dwmapi.dll")] public static extern int DwmFlush();
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
@@ -25,8 +29,16 @@ public static class NavigatorSmokeWindow {
 # CopyFromScreen needs physical pixels. Match Navigator's per-monitor context.
 [void][NavigatorSmokeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
 function Save-NavigatorScreenshot($app, $Output, [switch]$CheckBars, [switch]$CheckStartup) {
+  # SetForegroundWindow may be denied while the user interacts with another
+  # app. Temporarily expose our test window without taking keyboard focus.
+  [void][NavigatorSmokeWindow]::SetWindowPos($app.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 0x13)
+  [void][NavigatorSmokeWindow]::DwmFlush()
+  Start-Sleep -Milliseconds 150
   $rect = New-Object NavigatorSmokeWindow+Rect
   if (-not [NavigatorSmokeWindow]::GetWindowRect($app.MainWindowHandle, [ref]$rect)) { throw 'No smoke window bounds' }
+  $center = New-Object NavigatorSmokeWindow+Point
+  $center.X = [int](($rect.Left+$rect.Right)/2); $center.Y = [int](($rect.Top+$rect.Bottom)/2)
+  if ([NavigatorSmokeWindow]::GetAncestor([NavigatorSmokeWindow]::WindowFromPoint($center), 2) -ne $app.MainWindowHandle) { throw 'Another window is covering Navigator; refusing to validate its pixels' }
   $bitmap = New-Object Drawing.Bitmap ($rect.Right-$rect.Left), ($rect.Bottom-$rect.Top)
   $graphics = [Drawing.Graphics]::FromImage($bitmap)
   try {
@@ -52,7 +64,10 @@ function Save-NavigatorScreenshot($app, $Output, [switch]$CheckBars, [switch]$Ch
       }
       if ($bright -lt 40) { throw "The startup screen is blank while the backend is delayed. Inspect $absolute" }
     }
-  } finally { $graphics.Dispose(); $bitmap.Dispose() }
+  } finally {
+    $graphics.Dispose(); $bitmap.Dispose()
+    [void][NavigatorSmokeWindow]::SetWindowPos($app.MainWindowHandle, [IntPtr](-2), 0, 0, 0, 0, 0x13)
+  }
 }
 $launchTime = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $arguments = @{ FilePath = (Resolve-Path $Executable); PassThru = $true }
@@ -78,6 +93,9 @@ try {
   while ([DateTime]::UtcNow -lt $deadline) {
     $app.Refresh()
     if ($app.HasExited) { throw "Native smoke exited early: $($app.ExitCode)" }
+    # Prevent Chromium's occluded-window throttling from distorting readiness
+    # measurements. Only this short-lived test window is raised.
+    if ($app.MainWindowHandle -ne 0) { [void][NavigatorSmokeWindow]::SetWindowPos($app.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 0x13) }
     if (Test-Path $log) {
       $events = @(Get-Content -LiteralPath $log | ForEach-Object { try { $_ | ConvertFrom-Json } catch {} } | Where-Object { $_.pid -eq $app.Id -and $_.unix_ms -ge $launchTime })
       $played = $LaunchApp -or @($events | Where-Object stage -eq 'smoke-playing').Count -gt 0
