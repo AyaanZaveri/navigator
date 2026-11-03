@@ -5,8 +5,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { HEADER_LOGO_SOURCES, chooseLogoTreatment, type LogoPixels, type LogoTone } from "@/lib/logo-contrast";
-import { logoBlurRadius, logoSampleSource, paintLogoBackdrop } from "@/lib/logo-backdrop";
-import { cn } from "@/lib/utils";
+import { logoBlurRadius, logoSampleSource, paintLogoBackdrop, type LogoArtwork, type LogoOverlay } from "@/lib/logo-backdrop";
+import { collectLogoSurfaces } from "@/lib/logo-surfaces";
 import styles from "./adaptive-header-logo.module.css";
 
 export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
@@ -32,9 +32,8 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         let stopped = false;
         let frame = 0;
         let settleUntil = 0;
-        let source = "";
-        let readableImage: HTMLImageElement | null = null;
-        let observedImage: HTMLImageElement | null = null;
+        let lastRead = -Infinity;
+        const images = new Map<string, { image: HTMLImageElement; failedAt?: number }>();
         let previous: LogoTone | null = null;
         const logoPixels: Partial<LogoPixels> = {};
         const paletteCanvas = document.createElement("canvas");
@@ -60,79 +59,95 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             // Keep sampling through the header's 180ms opacity transition,
             // including after the final scroll event in a fling.
             settleUntil = performance.now() + 220;
-            if (!stopped && !frame) frame = window.requestAnimationFrame(inspect);
+            if (!stopped && !document.hidden && !frame) frame = window.requestAnimationFrame(tick);
         }
 
         const resize = new ResizeObserver(schedule);
         resize.observe(logo);
         resize.observe(scope);
 
-        function inspect() {
+        function tick(now: number) {
             frame = 0;
-            if (stopped || !logo || !scope || !context) return;
-            if (!logoPixels.light || !logoPixels.dark || !logoPixels.deep || !logoPixels.neutral) return;
-            const bounds = logo.getBoundingClientRect();
-            const blurLayers = Array.from(header?.querySelectorAll<HTMLElement>("[data-progressive-blur-layer]") || [])
-                .map(element => {
-                    const style = window.getComputedStyle(element);
-                    return { rect: element.getBoundingClientRect(), filter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter"),
-                        mask: style.maskImage || style.webkitMaskImage, opacity: Number(style.opacity) };
-                });
-            const blurRadius = logoBlurRadius(blurLayers, bounds);
-            const padding = Math.ceil(blurRadius * 3);
-            const backdrop = Array.from(scope.querySelectorAll<HTMLImageElement>("img[data-header-backdrop]"))
-                .find((image) => {
-                    const rect = image.getBoundingClientRect();
-                    return bounds.left - padding < rect.right && bounds.top - padding < rect.bottom
-                        && bounds.right + padding > rect.left && bounds.bottom + padding > rect.top;
-                });
-            if (backdrop && observedImage !== backdrop) {
-                if (observedImage) resize.unobserve(observedImage);
-                observedImage = backdrop;
-                resize.observe(backdrop);
+            if (stopped || document.hidden) return;
+            // Keep checking moving/late-loading content even after scrolling
+            // stops. Only sample pixels at 10Hz idle, up to 30Hz during motion.
+            if (now - lastRead >= (now < settleUntil ? 32 : 100)) {
+                lastRead = now;
+                inspect();
             }
+            if (!stopped) frame = window.requestAnimationFrame(tick);
+        }
 
-            if (backdrop) {
-                const nextSource = backdrop.currentSrc || backdrop.src;
-                if (source !== nextSource) {
-                    source = nextSource;
-                    previous = null;
-                    if (readableImage) readableImage.onload = readableImage.onerror = null;
-                    const image = new window.Image();
-                    readableImage = image;
-                    image.crossOrigin = "anonymous";
-                    image.onload = schedule;
-                    // Preserve the last sampled tone if a source temporarily fails.
-                    image.onerror = () => {};
-                    image.src = logoSampleSource(source, window.location.origin);
+        function readable(source: string) {
+            let entry = images.get(source);
+            if (entry?.failedAt !== undefined && performance.now() - entry.failedAt > 10_000) {
+                images.delete(source);
+                entry = undefined;
+            }
+            if (!entry) {
+                const image = new window.Image();
+                entry = { image };
+                const pending = entry;
+                image.crossOrigin = "anonymous";
+                image.onload = schedule;
+                image.onerror = () => { pending.failedAt = performance.now(); schedule(); };
+                images.set(source, entry);
+                image.src = logoSampleSource(source, window.location.origin);
+                // Bound this to nearby images, rather than retaining a gallery.
+                if (images.size > 24) {
+                    const oldest = images.keys().next().value!;
+                    const old = images.get(oldest)!;
+                    old.image.onload = old.image.onerror = null;
+                    images.delete(oldest);
                 }
-                if (!readableImage?.complete || !readableImage.naturalWidth) return;
             }
+            return entry.failedAt === undefined && entry.image.complete && entry.image.naturalWidth ? entry.image : null;
+        }
 
+        function inspect() {
+            if (!logo || !scope || !context || !header) return;
+            if (!Object.keys(logoPixels).length) return;
+            const bounds = logo.getBoundingClientRect();
+            if (!bounds.width || !bounds.height) return;
             try {
-                const imageStyle = backdrop ? window.getComputedStyle(backdrop) : null;
-                const overlays = Array.from(scope.querySelectorAll<HTMLElement>("[data-header-backdrop-fade], [data-header-tint]"))
-                    // Page fade paints first; the fixed header tint paints last.
-                    .sort((a, b) => Number(a.hasAttribute("data-header-tint")) - Number(b.hasAttribute("data-header-tint")))
+                const blurLayers = Array.from(header.querySelectorAll<HTMLElement>("[data-progressive-blur-layer]"))
                     .map(element => {
                         const style = window.getComputedStyle(element);
-                        return { rect: element.getBoundingClientRect(), background: style.backgroundImage === "none" ? style.backgroundColor : style.backgroundImage, opacity: Number(style.opacity), header: element.hasAttribute("data-header-tint") };
+                        return { rect: element.getBoundingClientRect(), filter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter"),
+                            mask: style.maskImage || style.webkitMaskImage, opacity: Number(style.opacity) };
+                    });
+                const radius = logoBlurRadius(blurLayers, bounds);
+                const padding = Math.ceil(radius * 3);
+                const region = { left: bounds.left - padding, top: bounds.top - padding,
+                    width: bounds.width + padding * 2, height: bounds.height + padding * 2 };
+                const surfaces = collectLogoSurfaces(scope, header, region,
+                    element => window.getComputedStyle(element), (x, y) => document.elementsFromPoint(x, y));
+                const layers: (LogoArtwork | LogoOverlay)[] = [];
+                for (const surface of surfaces) {
+                    if (!("source" in surface)) { layers.push(surface); continue; }
+                    const image = readable(surface.source);
+                    if (image) layers.push({ ...surface, image });
+                }
+                const overlays = Array.from(header.querySelectorAll<HTMLElement>("[data-header-tint]"))
+                    .map(element => {
+                        const style = window.getComputedStyle(element);
+                        return { rect: element.getBoundingClientRect(), background: style.backgroundImage === "none" ? style.backgroundColor : style.backgroundImage,
+                            opacity: Number(style.opacity), header: true };
                     });
                 paintLogoBackdrop(context, bounds,
                     window.getComputedStyle(document.documentElement).getPropertyValue("--background").trim(),
-                    backdrop && readableImage && imageStyle ? {
-                        image: readableImage, rect: backdrop.getBoundingClientRect(),
-                        opacity: Number(imageStyle.opacity), objectPosition: imageStyle.objectPosition,
-                    } : null, overlays, { radius: blurRadius, canvas: blurCanvas });
+                    layers, overlays, { radius, canvas: blurCanvas });
                 const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
                 const nextTreatment = chooseLogoTreatment(pixels, logoPixels as LogoPixels, previous);
-                previous = nextTreatment;
-                setSample(current => current?.key === pathname && current.treatment === nextTreatment ? current : { key: pathname, treatment: nextTreatment });
+                if (nextTreatment !== previous) {
+                    previous = nextTreatment;
+                    setSample({ key: pathname, treatment: nextTreatment });
+                }
             } catch {
-                // Unsupported sources retain the last valid reading instead of
-                // flipping to the theme while the same artwork remains visible.
+                // A failed/unsupported layer must not permanently stop sampling.
+                // Reset the canvas too, in case a source tainted its readback.
+                canvas.width = canvas.height = 64;
             }
-            if (performance.now() < settleUntil) frame = window.requestAnimationFrame(inspect);
         }
 
         const changes = new MutationObserver(schedule);
@@ -143,6 +158,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         scope.addEventListener("load", schedule, true);
         window.addEventListener("resize", schedule, { passive: true });
         window.addEventListener("scroll", schedule, { capture: true, passive: true });
+        document.addEventListener("visibilitychange", schedule);
         schedule();
 
         return () => {
@@ -151,7 +167,8 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             resize.disconnect();
             changes.disconnect();
             surfaceChanges.disconnect();
-            if (readableImage) readableImage.onload = readableImage.onerror = null;
+            images.forEach(({ image }) => { image.onload = image.onerror = null; });
+            document.removeEventListener("visibilitychange", schedule);
             paletteImages.forEach(image => { image.onload = null; });
             scope.removeEventListener("load", schedule, true);
             window.removeEventListener("resize", schedule);
@@ -161,14 +178,10 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
 
     return (
         <span ref={ref} className={styles.frame} data-logo-tone={tone ?? "theme"}>
-            <Image src={HEADER_LOGO_SOURCES.dark} alt="" width={32} height={32} draggable={false}
-                className={cn(styles.mark, tone === "dark" ? "opacity-100" : tone ? "opacity-0" : "opacity-100 dark:opacity-0")} />
-            <Image src={HEADER_LOGO_SOURCES.light} alt="" width={32} height={32} draggable={false}
-                className={cn(styles.mark, tone === "light" ? "opacity-100" : tone ? "opacity-0" : "opacity-0 dark:opacity-100")} />
-            <Image src={HEADER_LOGO_SOURCES.deep} alt="" width={32} height={32} draggable={false}
-                className={cn(styles.mark, tone === "deep" ? "opacity-100" : "opacity-0")} />
-            <Image src={HEADER_LOGO_SOURCES.neutral} alt="" width={32} height={32} draggable={false}
-                className={cn(styles.mark, tone === "neutral" ? "opacity-100" : "opacity-0")} />
+            {(Object.keys(HEADER_LOGO_SOURCES) as LogoTone[]).map(variant => <Image
+                key={variant} src={HEADER_LOGO_SOURCES[variant]} alt="" width={32} height={32} draggable={false}
+                className={styles.mark} data-tone={variant} data-active={tone === variant || undefined}
+            />)}
         </span>
     );
 }

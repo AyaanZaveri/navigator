@@ -3,7 +3,7 @@ export const HEADER_LOGO_SOURCES: Record<LogoTone, string> = {
     dark: "/logo/navigator-header-light.svg?v=3",
     light: "/logo/navigator-header-dark.svg?v=2",
     deep: "/logo/navigator-header-high-contrast.svg?v=1",
-    neutral: "/logo/navigator-header-neutral.svg?v=1",
+    neutral: "/logo/navigator-header-neutral.svg?v=2",
 };
 export type LogoPixels = Record<LogoTone, ArrayLike<number>>;
 type Rectangle = { left: number; top: number; width: number; height: number };
@@ -31,10 +31,11 @@ export function minimumLogoContrast(background: ArrayLike<number>, logo: ArrayLi
     return Number.isFinite(minimum) ? minimum : 0;
 }
 
-export function chooseLogoTreatment(background: ArrayLike<number>, logos: LogoPixels, current: LogoTone | null = null): LogoTone {
+export function chooseLogoTreatment(background: ArrayLike<number>, logos: Partial<LogoPixels>, current: LogoTone | null = null): LogoTone {
     const tones: LogoTone[] = ["light", "dark", "deep", "neutral"];
-    const scores = Object.fromEntries(tones.map(tone => [tone, minimumLogoContrast(background, logos[tone])])) as Record<LogoTone, number>;
-    const branded: LogoTone[] = ["light", "dark", "deep"];
+    const scores = Object.fromEntries(tones.map(tone => [tone, logos[tone] ? minimumLogoContrast(background, logos[tone]!) : 0])) as Record<LogoTone, number>;
+    const branded = (["light", "dark", "deep"] as LogoTone[]).filter(tone => logos[tone]);
+    if (!branded.length) return logos.neutral ? "neutral" : current || "dark";
     let best = branded.reduce((a, b) => scores[a] >= scores[b] ? a : b);
     // Preserve the brand when readable. On muddy midtones, use near-white only
     // when it improves contrast. Leave a small exit band to prevent toggling.

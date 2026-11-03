@@ -1,7 +1,9 @@
 import { getLogoSampleCrop } from "@/lib/logo-contrast";
 
-type Rect = { left: number; top: number; width: number; height: number };
-export type LogoOverlay = { rect: Rect; background: string; opacity: number; header?: boolean };
+export type LogoRect = { left: number; top: number; width: number; height: number };
+type Rect = LogoRect;
+export type LogoOverlay = { rect: Rect; background: string; opacity: number; header?: boolean; clip?: Rect };
+export type LogoArtwork = { image: HTMLImageElement; rect: Rect; opacity: number; objectPosition: string; objectFit?: string; clip?: Rect };
 export type LogoBlurLayer = { rect: Rect; filter: string; mask: string; opacity: number };
 
 function intersection(a: Rect, b: Rect): Rect | null {
@@ -70,7 +72,8 @@ export function logoBlurRadius(layers: LogoBlurLayer[], bounds: Rect): number {
 
 function paintOverlays(context: CanvasRenderingContext2D, bounds: Rect, overlays: LogoOverlay[]) {
     for (const overlay of overlays) {
-        const patch = intersection(bounds, overlay.rect);
+        const region = intersection(bounds, overlay.rect);
+        const patch = region && (overlay.clip ? intersection(region, overlay.clip) : region);
         if (!patch || overlay.opacity <= 0) continue;
         const stops = verticalGradientStops(overlay.background);
         if (!stops) {
@@ -79,7 +82,9 @@ function paintOverlays(context: CanvasRenderingContext2D, bounds: Rect, overlays
             context.fillStyle = overlay.background;
         } else {
             const gradient = context.createLinearGradient(0, overlay.rect.top, 0, overlay.rect.top + overlay.rect.height);
-            for (const stop of stops) gradient.addColorStop(Math.max(0, Math.min(1, stop.position)), stop.color);
+            try {
+                for (const stop of stops) gradient.addColorStop(Math.max(0, Math.min(1, stop.position)), stop.color);
+            } catch { continue; }
             context.globalAlpha = overlay.opacity;
             context.fillStyle = gradient;
         }
@@ -91,7 +96,7 @@ function paintOverlays(context: CanvasRenderingContext2D, bounds: Rect, overlays
  * then header tint. Reading computed styles keeps this aligned with both themes. */
 export function paintLogoBackdrop(
     context: CanvasRenderingContext2D, bounds: Rect, background: string,
-    artwork: { image: HTMLImageElement; rect: Rect; opacity: number; objectPosition: string } | null,
+    artwork: LogoArtwork | (LogoArtwork | LogoOverlay)[] | null,
     overlays: LogoOverlay[],
     blur?: { radius: number; canvas: HTMLCanvasElement },
 ) {
@@ -133,12 +138,27 @@ export function paintLogoBackdrop(
         context.globalAlpha = 1;
         context.fillStyle = background;
         context.fillRect(bounds.left, bounds.top, bounds.width, bounds.height);
-        if (artwork) {
-            const patch = intersection(bounds, artwork.rect);
-            const crop = patch && getLogoSampleCrop(artwork.image.naturalWidth, artwork.image.naturalHeight, artwork.rect, patch, artwork.objectPosition);
+        for (const layer of artwork ? Array.isArray(artwork) ? artwork : [artwork] : []) {
+            if (!("image" in layer)) { paintOverlays(context, bounds, [layer]); continue; }
+            let rect = layer.rect;
+            if (layer.objectFit === "contain") {
+                const scale = Math.min(rect.width / layer.image.naturalWidth, rect.height / layer.image.naturalHeight);
+                const width = layer.image.naturalWidth * scale, height = layer.image.naturalHeight * scale;
+                const [x = "50%", y = "50%"] = layer.objectPosition.split(/\s+/);
+                const offset = (position: string, space: number) => position.endsWith("%") ? Number.parseFloat(position) / 100 * space : Number.parseFloat(position) || 0;
+                rect = { left: rect.left + offset(x, rect.width - width), top: rect.top + offset(y, rect.height - height), width, height };
+            }
+            const region = intersection(bounds, rect);
+            const patch = region && (layer.clip ? intersection(region, layer.clip) : region);
+            const crop = patch && (layer.objectFit === "fill" ? {
+                x: (patch.left - rect.left) / rect.width * layer.image.naturalWidth,
+                y: (patch.top - rect.top) / rect.height * layer.image.naturalHeight,
+                width: patch.width / rect.width * layer.image.naturalWidth,
+                height: patch.height / rect.height * layer.image.naturalHeight,
+            } : getLogoSampleCrop(layer.image.naturalWidth, layer.image.naturalHeight, rect, patch, layer.objectPosition));
             if (crop && patch) {
-                context.globalAlpha = artwork.opacity;
-                context.drawImage(artwork.image, crop.x, crop.y, crop.width, crop.height, patch.left, patch.top, patch.width, patch.height);
+                context.globalAlpha = layer.opacity;
+                context.drawImage(layer.image, crop.x, crop.y, crop.width, crop.height, patch.left, patch.top, patch.width, patch.height);
             }
         }
         paintOverlays(context, bounds, overlays);
@@ -151,8 +171,9 @@ export function paintLogoBackdrop(
  * redirect that can display normally but make canvas sampling fail CORS. */
 export function logoSampleSource(source: string, origin: string) {
     const url = new URL(source, origin);
-    if (url.origin === origin && url.pathname === "/api/artwork" && url.searchParams.get("kind") === "backdrop") {
+    if (url.origin === origin && url.pathname === "/api/artwork") {
         url.searchParams.set("sample", "1");
+        if (url.searchParams.get("kind") !== "logo") url.searchParams.set("palette", "1");
         return url.href;
     }
     return source;
