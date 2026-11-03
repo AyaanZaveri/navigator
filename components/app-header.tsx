@@ -88,7 +88,7 @@ export function AppHeader({ email }: { email: string; overlay?: boolean }) {
     if (isPlayerVisible) return null;
 
     return (
-        <header ref={headerRef} data-window-drag-region="" className="relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pt-[env(safe-area-inset-top)] pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right),var(--window-controls-right-inset,0px))]">
+        <header ref={headerRef} data-window-drag-region="" className={`${styles.header} relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right),var(--window-controls-right-inset,0px))]`}>
             <div ref={surfaceRef} className={styles.surface} aria-hidden="true">
                 <ProgressiveBlur direction="top" blurLayers={6} blurIntensity={2.4} className={styles.blur} />
                 <div data-header-tint="" className={styles.tint} />
