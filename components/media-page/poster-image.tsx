@@ -35,7 +35,7 @@ export function PosterImage({
       <div
         role="img"
         aria-label={`${mediaName} poster unavailable`}
-        className={`${styles.surface} ${className} flex items-center justify-center bg-muted text-sm text-muted-foreground`}
+        className={`${styles.surface} ${styles.poster} ${className} flex items-center justify-center bg-muted text-sm text-muted-foreground`}
         style={{ aspectRatio: `${width} / ${height}` }}
       >
         Poster unavailable
@@ -46,7 +46,7 @@ export function PosterImage({
   return (
     <ArtworkImage
       draggable={false}
-      className={`${styles.surface} ${className}`}
+      className={`${styles.surface} ${styles.poster} ${className}`}
       src={resolvedPosterImage}
       alt={`${mediaName} poster`}
       width={width}

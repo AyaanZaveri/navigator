@@ -11,6 +11,11 @@
   background-color: var(--accent);
 }
 
+.posterFrame {
+  border: 0;
+  outline: none;
+}
+
 :global(html:not(.dark)) .frame {
   border-color: var(--artwork-edge);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--shadow-artwork);

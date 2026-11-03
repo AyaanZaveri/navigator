@@ -100,7 +100,7 @@ export function MediaCard({
       }`}
     >
       <div
-        className={`${styles.frame} relative w-full border overflow-hidden ${
+        className={`${styles.frame} ${continueWatching ? "border" : styles.posterFrame} relative w-full overflow-hidden ${
           continueWatching ? "aspect-video" : "aspect-[2/3]"
         }`}
         data-pressed={pressed || undefined}

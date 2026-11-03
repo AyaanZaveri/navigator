@@ -11,3 +11,8 @@
   --detail-artwork-shadow: 0 0 #0000;
   outline-color: rgb(255 255 255 / .1);
 }
+
+.poster {
+  border: 0;
+  outline: none;
+}
