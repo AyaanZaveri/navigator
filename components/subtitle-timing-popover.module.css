@@ -1,0 +1,19 @@
+.panel {
+  --surface: var(--muted);
+  --text-secondary: var(--muted-foreground);
+  --text-muted: var(--muted-foreground);
+  width: 22rem;
+  max-width: calc(100vw - 24px);
+  max-height: min(calc(100dvh - 24px), var(--radix-popover-content-available-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: color-mix(in oklab, var(--popover) 90%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+.header h2 { margin: 0; font-size: .875rem; font-weight: 500; }
+.description { min-height: 1.5em; margin: .75rem 0; font-size: .8125rem; line-height: 1.5; color: var(--muted-foreground); }
+.actions { display: grid; grid-template-columns: 1fr auto 1fr; gap: .5rem; }
+
+.ruler { --accent: var(--primary); }

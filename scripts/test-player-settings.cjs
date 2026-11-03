@@ -77,6 +77,13 @@ assert.equal(sent[0][1], true);
 const content = find(tree, 'DropdownMenuContent')[0];
 assert.equal(content.props.container, root, 'Settings inherit player theme and remain visible in fullscreen');
 assert.equal(content.props.className, 'settingsMenu');
+for (const open of [false, true]) {
+  let restoredByMenu = false;
+  const timingTree = component('MediaPlayerSettings', { ...context, subtitleTiming: { open, seconds: 0, onOpen() {} } }, state, []);
+  find(timingTree, 'DropdownMenuContent')[0].props.onCloseAutoFocus({ preventDefault() { restoredByMenu = true; } });
+  assert.equal(restoredByMenu, open, 'The closing settings menu yields focus only when the timing popover takes over');
+}
+
 const panel = find(tree, 'PlayerSettingsMenu')[0];
 assert.equal(panel.props.subtitles.value, '2');
 assert.equal(panel.props.subtitles.options[0].icon.type, 'CaptionsOff');

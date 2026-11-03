@@ -49,25 +49,58 @@ assert.equal(find(timing.subtitleTime(9,0)), null);
 assert.equal(find(timing.subtitleTime(9,-1)).text, 'Hello', 'Paused time can select a new cue after adjustment');
 assert.match(source, /\[currentTime, findCurrentSubtitle, subtitleTiming\.seconds\]/);
 
-const { SubtitleTimingDialog } = load('components/subtitle-timing-dialog.tsx', {
+
+const { SubtitleTimingPopover } = load('components/subtitle-timing-popover.tsx', {
+ react: { useId: () => 'timing-test-id' },
  'react/jsx-runtime': host.jsx,
- '@/components/arc/dialog/dialog': { Dialog: 'Dialog', DialogContent: 'DialogContent' },
- '@/components/arc/number-field/number-field': { NumberField: 'NumberField' },
+ '@/components/arc/popover/popover': { Popover: 'Popover', PopoverAnchor: 'PopoverAnchor', PopoverContent: 'PopoverContent', PopoverClose: 'PopoverClose' },
+ '@/components/arc/ruler-slider/ruler-slider': { RulerSlider: 'RulerSlider' },
  '@/components/ui/button': { Button: 'Button' },
- '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup' },
  '@/lib/media/subtitle-timing': timing,
+ './subtitle-timing-popover.module.css': {},
 });
 function all(tree, type) {
  if (Array.isArray(tree)) return tree.flatMap(child => all(child, type));
  if (!tree || typeof tree !== 'object') return [];
  return [...(tree.type === type ? [tree] : []), ...all(tree.props?.children, type)];
 }
-let focused = false, prevented = false;
-const container = { querySelector: () => ({ focus: () => { focused = true; } }) };
-const dialog = SubtitleTimingDialog({ open: true, onOpenChange() {}, seconds: 1, onChange() {}, available: false, container });
-assert.equal(all(dialog,'DialogContent')[0].props.container, container, 'Dialog stays inside the fullscreen player');
-assert.equal(all(dialog,'NumberField')[0].props.disabled, true, 'Embedded tracks must not offer nonfunctional timing');
-assert.match(all(dialog,'NumberField')[0].props.description, /Embedded subtitle timing is not supported/);
-all(dialog,'DialogContent')[0].props.onCloseAutoFocus({ preventDefault() { prevented = true; } });
-assert.ok(focused && prevented, 'Closing the dialog returns focus to the persistent settings trigger');
-console.log('PASS: subtitle timing direction, cue boundaries, limits, reset and per-video isolation');
+let focused = false, prevented = false, changed;
+const anchor = { isConnected: true, focus: () => { focused = true; } };
+const container = { querySelector: () => anchor };
+const renderPanel = (seconds, available = true) => SubtitleTimingPopover({
+ open: true, onOpenChange() {}, seconds, onChange: value => { changed = value; }, available, container,
+});
+let panel = renderPanel(1, false);
+assert.equal(panel.props.modal, false, 'Timing must not block or dim the video');
+assert.equal(all(panel,'PopoverContent')[0].props.container, container, 'Popover stays inside the fullscreen player');
+assert.equal(all(panel,'PopoverAnchor')[0].props.virtualRef.current, anchor, 'Anchor survives the settings menu unmount');
+assert.equal(all(panel,'RulerSlider')[0].props.disabled, true, 'Embedded tracks must not offer nonfunctional timing');
+assert.ok(all(panel,'p').some(node => String(node.props.children).includes('Embedded subtitle timing is not supported')));
+all(panel,'PopoverContent')[0].props.onCloseAutoFocus({ preventDefault() { prevented = true; } });
+assert.ok(focused && prevented, 'Closing returns focus to the persistent settings trigger');
+let rulerFocused = false;
+all(panel,'PopoverContent')[0].props.onOpenAutoFocus({ currentTarget: { querySelector: () => ({ focus: () => { rulerFocused = true; } }) }, preventDefault() {} });
+assert.ok(rulerFocused, 'The ruler receives keyboard focus on open');
+panel = renderPanel(.3);
+const ruler = all(panel,'RulerSlider')[0];
+assert.equal(ruler.props.step, .1);
+assert.equal(ruler.props.largeStep, 1);
+assert.equal(ruler.props.min, -30);
+assert.equal(ruler.props.max, 30);
+assert.equal(ruler.props.format(.3), '+0.3');
+ruler.props.onValueChange(-.4); assert.equal(changed, -.4, 'Dragging updates the existing timing state immediately');
+let buttons = all(panel,'Button');
+buttons.find(node => node.props['aria-label']?.endsWith('earlier')).props.onClick();
+assert.equal(changed, .2, 'Earlier nudges one tenth without floating-point drift');
+buttons.find(node => node.props['aria-label']?.endsWith('later')).props.onClick();
+assert.equal(changed, .4);
+buttons.find(node => node.props.children === 'Reset').props.onClick();
+assert.equal(changed, 0);
+assert.ok(all(panel,'p').some(node => String(node.props.children).includes('0.3 seconds later')));
+assert.ok(all(renderPanel(-.3),'p').some(node => String(node.props.children).includes('0.3 seconds earlier')));
+for (const [seconds, direction] of [[-30,'earlier'],[30,'later']]) {
+ const atLimit = all(renderPanel(seconds),'Button').find(node => node.props['aria-label']?.endsWith(direction));
+ assert.equal(atLimit.props.disabled, true);
+}
+assert.equal(all(renderPanel(0),'Button').find(node => node.props.children === 'Reset').props.disabled, true);
+console.log('PASS: live ruler timing, precise nudges, limits, reset, embedded-track gating, fullscreen anchoring and focus return');
