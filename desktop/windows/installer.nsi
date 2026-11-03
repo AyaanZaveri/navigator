@@ -8,7 +8,8 @@ OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Navigator"
 InstallDirRegKey HKCU "Software\Navigator Desktop" "InstallDir"
 RequestExecutionLevel user
-SetCompressor /SOLID lzma
+; Private builds favor quick packaging/extraction over a smaller download.
+SetCompressor /SOLID zlib
 Icon "${APP_ICON}"
 UninstallIcon "${APP_ICON}"
 VIProductVersion "${APP_VERSION}.0"
