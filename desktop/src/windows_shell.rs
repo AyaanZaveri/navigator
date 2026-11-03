@@ -97,6 +97,7 @@ enum UserEvent {
     Command(protocol::Command, Option<Value>),
     Emit(Value),
     GlassFrame,
+    GlassConsumed(u32, u64),
     Fullscreen(bool),
     Drag,
     ChromeHover(u32),
@@ -218,6 +219,9 @@ fn make_view(
                 }
                 Ok(protocol::Command::WindowControl { action }) => {
                     let _ = ipc.send_event(UserEvent::WindowControl(action));
+                }
+                Ok(protocol::Command::GlassConsumed { slot, sequence }) => {
+                    let _ = ipc.send_event(UserEvent::GlassConsumed(slot, sequence));
                 }
                 Ok(protocol::Command::WindowDrag {}) => {
                     let _ = ipc.send_event(UserEvent::Drag);
@@ -418,6 +422,7 @@ pub fn run(app: App) -> Result<(), String> {
     let mut view: Option<WebView> = None;
     let mut running: Option<(App, Player, Option<PathBuf>)> = None;
     let mut closing = false;
+    let mut glass_shared = crate::windows_glass::SharedGlass::new(frontend.origin.clone());
     let mut fullscreen = false;
     let mut remaximize = false;
     let mut ready = false;
@@ -534,6 +539,7 @@ pub fn run(app: App) -> Result<(), String> {
                 if let Some(view) = &view { update_startup(view, navigating, running.is_some()); }
             }
             Event::UserEvent(UserEvent::PageLoaded) => {
+                glass_shared = crate::windows_glass::SharedGlass::new(frontend.origin.clone());
                 loaded = true;
                 platform::install_chrome(&window);
                 record(&log, started, "page-loaded");
@@ -546,12 +552,21 @@ pub fn run(app: App) -> Result<(), String> {
                 }
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":fullscreen}))); }
             }
+            Event::UserEvent(UserEvent::GlassConsumed(slot, sequence)) => {
+                glass_shared.consumed(slot, sequence);
+                if !closing { if let (Some(view),Some((_,player,_))) = (&view,&running) {
+                    if let Err(error)=glass_shared.flush(view,&player.glass_control()) {log::warn!("Shared glass: {error}");}
+                }}
+            }
             Event::UserEvent(UserEvent::GlassFrame) => {
-                let value = latest_glass.lock().unwrap().take();
-                if let Some(value) = value.filter(|value| !closing && value["session"].as_str() == Some(playback_session.as_str())) {
-                    if !glass_ready { glass_ready = true; record(&log, started, "glass-sample-ready"); }
-                    if let Some(view) = &view { let _ = view.evaluate_script(&receive(&value)); }
-                }
+                latest_glass.lock().unwrap().take();
+                if !closing { if let (Some(view), Some((_,player,_)))=(&view,&running) {
+                    if let Some(frame)=player.glass_control().take() {
+                        if !glass_ready {glass_ready=true;record(&log,started,"glass-sample-ready");}
+                        glass_shared.offer(frame);
+                        if let Err(error)=glass_shared.flush(view,&player.glass_control()) {log::warn!("Shared glass: {error}");}
+                    }
+                }}
             }
             Event::UserEvent(UserEvent::Emit(value)) => {
                 if !playback_session.is_empty() && value["session"].as_str() == Some(playback_session.as_str()) {

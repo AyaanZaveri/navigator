@@ -6,6 +6,7 @@ import ts from 'typescript';
 const root=resolve(import.meta.dirname,'..');
 const css=['components/desktop/native-playback.css','components/player-mobile.css','components/arc/dropdown-menu/dropdown-menu.module.css'].map(p=>readFileSync(resolve(root,p),'utf8').replaceAll(/:global\(([^)]+)\)/g,'$1')).join('\n');
 const controller=ts.transpileModule(readFileSync(resolve(root,'components/native-player-glass.tsx'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const canvasController=ts.transpileModule(readFileSync(resolve(root,'lib/desktop/windows-player-glass.ts'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 // Twelve seconds of local moving color bars keep the decoder active while
 // the test hides glass; EOF must not accidentally make a demand-stop test pass.
 const chunks=[Buffer.from('YUV4MPEG2 W320 H180 F60:1 Ip A1:1 C420jpeg\n')];
@@ -20,36 +21,39 @@ const html=`<!doctype html><html><head><style>${css}
 :root{--background:#111;--popover:#18181b;--foreground:#fff;--border:#fff3;--layer-overlay:100;font:18px 'Segoe UI',sans-serif;color:white}
 body{margin:0}.panel{position:fixed;width:240px;padding:24px;border-radius:14px;border:1px solid #fff3}
 .preview{left:10%;top:30%}.menu{position:fixed;right:10%;top:30%;--radix-dropdown-menu-content-available-width:600px;--radix-dropdown-menu-content-available-height:600px}.subtitle{left:50%;bottom:12%;transform:translateX(-50%);background:#0003;text-align:center}
-[aria-hidden=true]{visibility:hidden}
+.panel[aria-hidden=true]{visibility:hidden}
 </style></head><body>
 <div class="panel preview" data-player-glass>Preview glass</div>
 <div class="panel menu" role="menu" data-state="open" data-player-native-glass>Speed<br><br>Subtitles</div>
 <div class="panel subtitle" data-player-native-glass>Subtitle glass</div>
 <script>
 const bridge=window.navigatorDesktop, cleanups=[];
-let attached=false,frames=0,painted=false,measuring=true;const arrivals=[],changes=[],paints=[],drops=[],raf=[];
-let previousImage='',state={};
+let attached=false,frames=0,painted=false,measuring=true;const arrivals=[],changes=[],paints=[],drops=[],raf=[],work=[];
+let state={};
+const originalDraw=CanvasRenderingContext2D.prototype.drawImage;
+CanvasRenderingContext2D.prototype.drawImage=function(...args){const result=originalDraw.apply(this,args);if(measuring&&this.canvas.hasAttribute('data-browser-glass-frame')&&this.canvas.parentElement?.classList.contains('preview'))paints.push(performance.now());return result;};
 const rafStart=performance.now();requestAnimationFrame(function tick(t){if(measuring)raf.push(t);if(performance.now()-rafStart<20000)requestAnimationFrame(tick);});
-new MutationObserver(()=>{const image=document.querySelector('.preview').style.getPropertyValue('--native-glass-image');if(image&&image!==previousImage){previousImage=image;if(measuring)paints.push(performance.now());}}).observe(document.querySelector('.preview'),{attributes:true,attributeFilter:['style']});
-const NativePlayerGlass=(()=>{const exports={};const require=name=>name==='react'?{useEffect:fn=>cleanups.push(fn())}:name.endsWith('/bridge')?{desktopBridge:()=>bridge}:{};
+const controllerBridge={...bridge,subscribe(fn){return bridge.subscribe(message=>{const start=performance.now();fn(message);if(measuring&&message.type==='glass-pixels')work.push(performance.now()-start);});}};
+const canvasModule=(()=>{const exports={};${canvasController};return exports;})();
+const NativePlayerGlass=(()=>{const exports={};const require=name=>name==='react'?{useEffect:fn=>cleanups.push(fn())}:name.endsWith('/bridge')?{desktopBridge:()=>controllerBridge}:name.endsWith('/windows-player-glass')?canvasModule:{};
 ${controller}
 return exports.NativePlayerGlass;})();
 bridge.subscribe(message=>{
  if(message.type==='state')state=message.state;
  if(message.type==='state'&&measuring&&typeof message.state.droppedFrames==='number')drops.push({at:performance.now(),dropped:message.state.droppedFrames,decoder:message.state.decoderDroppedFrames??0});
  if(message.type==='ready'&&!attached){attached=true;document.documentElement.dataset.nativePlaying='';NativePlayerGlass({mediaRef:{current:{controller:{previewSession:'glass-fixture'}}},sourceKey:'fixture',ready:true});}
- if(message.type==='glass-frame'){
-  frames++;if(measuring){arrivals.push(performance.now());changes.push(message.src);}
+ if(message.type==='glass-pixels'){
+  frames++;if(measuring){arrivals.push(performance.now());let hash=0;for(let i=0;i<message.frame.data.length;i+=236)hash=(Math.imul(hash,31)+message.frame.data[i])|0;changes.push(hash);}
   if(frames>=3&&!painted){painted=true;
    setTimeout(async()=>{
     const panels=[...document.querySelectorAll('.panel')];
-    const material=panels.map(node=>({painted:node.hasAttribute('data-native-glass'),image:node.style.getPropertyValue('--native-glass-image').startsWith('url("data:image/bmp;base64,'),x:node.style.getPropertyValue('--native-glass-x'),y:node.style.getPropertyValue('--native-glass-y'),tint:getComputedStyle(node,'::after').backgroundColor,dropdownOpacity:getComputedStyle(node).getPropertyValue('--dropdown-opacity')}));
-    await fetch('/painted',{method:'POST',body:JSON.stringify({frames,material,bytes:message.src.length})});
+    const material=panels.map(node=>({painted:node.hasAttribute('data-browser-glass'),image:!!node.querySelector('[data-browser-glass-frame]')&&getComputedStyle(node.querySelector('canvas')).visibility==='visible',x:node.style.getPropertyValue('--browser-glass-x'),y:node.style.getPropertyValue('--browser-glass-y'),tint:getComputedStyle(node,'::after').backgroundColor,dropdownOpacity:getComputedStyle(node).getPropertyValue('--dropdown-opacity')}));
+    await fetch('/painted',{method:'POST',body:JSON.stringify({frames,material,pixels:[...document.querySelector('.preview canvas').getContext('2d').getImageData(Math.floor(message.frame.width/6)-16,Math.floor(message.frame.height*.35),32,1).data],canvasStyle:Object.fromEntries(['position','z-index','left','top','width','height','display','visibility','opacity','isolation','clip-path'].map(key=>[key,getComputedStyle(document.querySelector('.preview canvas')).getPropertyValue(key)])),panelStyle:Object.fromEntries(['position','z-index','isolation','background-color','overflow'].map(key=>[key,getComputedStyle(document.querySelector('.preview')).getPropertyValue(key)])),filterSupported:'filter' in document.createElement('canvas').getContext('2d'),bytes:message.frame.data.byteLength,width:message.frame.width,height:message.frame.height})});
     setTimeout(async()=>{
      measuring=false;
      const gaps=arrivals.slice(1).map((t,i)=>t-arrivals[i]).sort((a,b)=>a-b);
      const paintGaps=paints.slice(1).map((t,i)=>t-paints[i]).sort((a,b)=>a-b);
-     const metrics={fps:(arrivals.length-1)*1000/(arrivals.at(-1)-arrivals[0]),p95GapMs:gaps[Math.floor(gaps.length*.95)],paintFps:(paints.length-1)*1000/(paints.at(-1)-paints[0]),p95PaintGapMs:paintGaps[Math.floor(paintGaps.length*.95)],uniqueFrames:new Set(changes).size,rafFps:(raf.length-1)*1000/(raf.at(-1)-raf[0]),videoDropIncrease:drops.length?drops.at(-1).dropped-drops[0].dropped:null,decoderDropIncrease:drops.length?drops.at(-1).decoder-drops[0].decoder:null};
+     const metrics={fps:(arrivals.length-1)*1000/(arrivals.at(-1)-arrivals[0]),p95GapMs:gaps[Math.floor(gaps.length*.95)],paintFps:(paints.length-1)*1000/(paints.at(-1)-paints[0]),p95PaintGapMs:paintGaps[Math.floor(paintGaps.length*.95)],p95CanvasMs:work.sort((a,b)=>a-b)[Math.floor(work.length*.95)],uniqueFrames:new Set(changes).size,rafFps:(raf.length-1)*1000/(raf.at(-1)-raf[0]),videoDropIncrease:drops.length?drops.at(-1).dropped-drops[0].dropped:null,decoderDropIncrease:drops.length?drops.at(-1).decoder-drops[0].decoder:null};
      const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
      bridge.send({type:'pause',session:'glass-fixture'});await wait(300);
      const pausedAt=frames;await wait(500);const pausedCached=frames===pausedAt;

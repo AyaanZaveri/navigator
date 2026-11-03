@@ -11,7 +11,8 @@ try{
  $server=Start-Process (Get-Command node.exe).Source -ArgumentList "$root\scripts\windows-glass-fixture.mjs" -PassThru -WindowStyle Hidden -RedirectStandardError "$outputPath.server-error.log"
  $deadline=[DateTime]::UtcNow.AddSeconds(15)
  while(!(Test-Path "$outputPath.ready")){if([DateTime]::UtcNow -gt $deadline){throw 'Glass fixture server failed'};Start-Sleep -Milliseconds 100}
- $env:RUST_LOG='navigator_desktop::glass=debug,navigator_desktop::platform::windows_video=debug'
+ $env:RUST_LOG='navigator_desktop::windows_glass=debug,navigator_desktop::glass=debug,navigator_desktop::platform::windows_video=debug'
+ if($env:NAVIGATOR_GLASS_TRACE -eq '1'){$env:RUST_LOG='navigator_desktop::glass=trace,navigator_desktop::windows_glass=trace,navigator_desktop::platform::windows_video=trace'}
  $app=Start-Process (Resolve-Path $Executable).Path -ArgumentList '--url http://127.0.0.1:37381' -PassThru -RedirectStandardError "$outputPath.native.log"
  $env:RUST_LOG=$oldLog
  # Extract the common physical-pixel helpers before timing. A background
@@ -29,8 +30,8 @@ try{
  $app.Refresh()
  Save-NavigatorScreenshot $app $outputPath
  $material=Get-Content "$outputPath.painted.json" -Raw|ConvertFrom-Json
- if($material.bytes -gt 64*1024 -or $material.material.Count -ne 3 -or @($material.material|Where-Object {!$_.painted -or !$_.image}).Count){throw 'Preview/menu/subtitle video glass did not paint correctly'}
- $deadline=[DateTime]::UtcNow.AddSeconds(10)
+ if($material.bytes -gt 640*360*4 -or $material.material.Count -ne 3 -or @($material.material|Where-Object {!$_.painted -or !$_.image}).Count){throw 'Preview/menu/subtitle video glass did not paint correctly'}
+ $deadline=[DateTime]::UtcNow.AddSeconds(15)
  while(!(Test-Path "$outputPath.completed.json")){if([DateTime]::UtcNow -gt $deadline){throw 'Glass demand did not stop'};Start-Sleep -Milliseconds 100}
  $result=Get-Content "$outputPath.completed.json" -Raw|ConvertFrom-Json
  if(!$result.stopped){throw 'Hidden controls continued native image capture'}

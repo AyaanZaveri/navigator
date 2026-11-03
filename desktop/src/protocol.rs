@@ -62,6 +62,7 @@ pub enum Command {
     WindowControl {
         action: WindowAction,
     },
+    GlassConsumed { slot: u32, sequence: u64 },
     Glass { session: String, active: bool },
     Thumbnail {
         session: String,
@@ -140,6 +141,9 @@ pub fn parse(text: &str) -> Result<Command, String> {
                 return Err("Invalid request headers".into());
             }
         }
+        Command::GlassConsumed { slot, sequence } if *slot > 2 || *sequence == 0 || *sequence > 9_007_199_254_740_991 => {
+            return Err("Invalid shared frame acknowledgment".into());
+        }
         Command::Glass { session, .. } if session.is_empty() || session.len() > 128 => {
             return Err("Invalid playback session".into());
         }
@@ -185,6 +189,9 @@ mod tests {
     use super::*;
     #[test]
     fn playback_boundary() {
+        assert!(parse(r#"{"type":"glass-consumed","slot":2,"sequence":1}"#).is_ok());
+        for invalid in [r#"{"type":"glass-consumed","slot":3,"sequence":1}"#, r#"{"type":"glass-consumed","slot":0,"sequence":0}"#, r#"{"type":"glass-consumed","slot":0,"sequence":9007199254740992}"#] { assert!(parse(invalid).is_err()); }
+
         assert!(parse(r#"{"type":"client-stage","stage":"play-requested"}"#).is_ok());
         assert!(parse(r#"{"type":"client-stage","stage":"http://example.com"}"#).is_err());
         assert!(

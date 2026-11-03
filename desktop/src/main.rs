@@ -24,6 +24,8 @@ mod windows_install;
 mod windows_process;
 #[cfg(windows)]
 mod windows_shell;
+#[cfg(windows)]
+mod windows_glass;
 
 use mpv::Mpv;
 use serde_json::{Value, json};

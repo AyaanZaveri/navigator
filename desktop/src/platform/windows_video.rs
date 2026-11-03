@@ -111,7 +111,13 @@ impl Host {
             self.state.1.notify_one();
         }
     }
-    pub fn finished(&self)->bool {self.worker.lock().unwrap().as_ref().is_none_or(|w|w.is_finished())}
+    pub fn finished(&self) -> bool {
+        self.worker
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_none_or(|w| w.is_finished())
+    }
     pub fn shutdown(&self) {
         self.begin_shutdown();
         if let Some(worker) = self.worker.lock().unwrap().take() {
@@ -141,6 +147,7 @@ struct GlassGpu {
     vertex: ID3D11VertexShader,
     pixel: ID3D11PixelShader,
     sampler: ID3D11SamplerState,
+    footprint: ID3D11Buffer,
     slots: Vec<Slot>,
     sequence: u64,
     delivered: u64,
@@ -208,12 +215,12 @@ unsafe fn texture(
 impl GlassGpu {
     unsafe fn new(device: &ID3D11Device, size: (u32, u32)) -> WinResult<Self> {
         unsafe {
-            let scale = (160.0 / size.0 as f64).min(90.0 / size.1 as f64).min(1.0);
+            let scale = (640.0 / size.0 as f64).min(360.0 / size.1 as f64).min(1.0);
             let size = (
                 (size.0 as f64 * scale).round().max(1.0) as u32,
                 (size.1 as f64 * scale).round().max(1.0) as u32,
             );
-            let source = "Texture2D image:register(t0);SamplerState linearClamp:register(s0);struct V{float4 position:SV_Position;float2 uv:TEXCOORD0;};V vs(uint id:SV_VertexID){V o;o.uv=float2((id<<1)&2,id&2);o.position=float4(o.uv*float2(2,-2)+float2(-1,1),0,1);return o;}float4 ps(V input):SV_Target{return image.SampleLevel(linearClamp,input.uv,0);}";
+            let source = "Texture2D image:register(t0);SamplerState linearClamp:register(s0);struct V{float4 position:SV_Position;float2 uv:TEXCOORD0;};V vs(uint id:SV_VertexID){V o;o.uv=float2((id<<1)&2,id&2);o.position=float4(o.uv*float2(2,-2)+float2(-1,1),0,1);return o;}cbuffer SampleSize:register(b0){float4 footprint;}float4 ps(V input):SV_Target{float4 sum=0;[unroll]for(int y=0;y<4;y++){[unroll]for(int x=0;x<4;x++){sum+=image.SampleLevel(linearClamp,input.uv+(float2(x,y)*.25-.375)*footprint.xy,0);}}return (sum/16).bgra;}";
             let vs = compile(source, c"vs", c"vs_4_0")?;
             let ps = compile(source, c"ps", c"ps_4_0")?;
             let mut vertex = None;
@@ -227,6 +234,21 @@ impl GlassGpu {
                 std::slice::from_raw_parts(ps.GetBufferPointer().cast(), ps.GetBufferSize()),
                 None,
                 Some(&mut pixel),
+            )?;
+            let mut footprint = None;
+            let values = [1.0f32 / size.0 as f32, 1.0f32 / size.1 as f32, 0.0, 0.0];
+            device.CreateBuffer(
+                &D3D11_BUFFER_DESC {
+                    ByteWidth: 16,
+                    Usage: D3D11_USAGE_DEFAULT,
+                    BindFlags: D3D11_BIND_CONSTANT_BUFFER.0 as u32,
+                    ..Default::default()
+                },
+                Some(&D3D11_SUBRESOURCE_DATA {
+                    pSysMem: values.as_ptr().cast(),
+                    ..Default::default()
+                }),
+                Some(&mut footprint),
             )?;
             let target = texture(device, size, false)?;
             let mut rtv = None;
@@ -258,6 +280,7 @@ impl GlassGpu {
                 vertex: vertex.unwrap(),
                 pixel: pixel.unwrap(),
                 sampler: sampler.unwrap(),
+                footprint: footprint.unwrap(),
                 slots,
                 sequence: 0,
                 delivered: 0,
@@ -269,7 +292,7 @@ impl GlassGpu {
     }
     unsafe fn resize(&mut self, device: &ID3D11Device, size: (u32, u32)) -> WinResult<()> {
         unsafe {
-            let scale = (160.0 / size.0 as f64).min(90.0 / size.1 as f64).min(1.0);
+            let scale = (640.0 / size.0 as f64).min(360.0 / size.1 as f64).min(1.0);
             let size = (
                 (size.0 as f64 * scale).round().max(1.0) as u32,
                 (size.1 as f64 * scale).round().max(1.0) as u32,
@@ -326,6 +349,7 @@ impl GlassGpu {
                                 self.size.0 as usize,
                                 self.size.1 as usize,
                                 stride,
+                                pending.started,
                             );
                             log::trace!(
                                 "glass GPU readback ready in {:.2} ms",
@@ -367,6 +391,14 @@ impl GlassGpu {
             context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             context.VSSetShader(&self.vertex, None);
             context.PSSetShader(&self.pixel, None);
+            let footprint = [
+                1.0f32 / self.size.0 as f32,
+                1.0f32 / self.size.1 as f32,
+                0.0,
+                0.0,
+            ];
+            context.UpdateSubresource(&self.footprint, 0, None, footprint.as_ptr().cast(), 0, 0);
+            context.PSSetConstantBuffers(0, Some(&[Some(self.footprint.clone())]));
             context.PSSetShaderResources(0, Some(&[srv]));
             context.PSSetSamplers(0, Some(&[Some(self.sampler.clone())]));
             context.Draw(3, 0);
@@ -430,7 +462,10 @@ unsafe fn run(
             factory.CreateSwapChainForHwnd(&device, HWND(hwnd as *mut _), &desc, None, None)?;
         // Tao owns window placement and borderless fullscreen. DXGI must not
         // install a competing message-queue handler for mode transitions.
-        factory.MakeWindowAssociation(HWND(hwnd as *mut _), DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER)?;
+        factory.MakeWindowAssociation(
+            HWND(hwnd as *mut _),
+            DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER,
+        )?;
         let mut render = match RenderContext::new_d3d11(mpv, device.as_raw()) {
             Ok(r) => r,
             Err(e) => {

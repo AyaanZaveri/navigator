@@ -15,11 +15,48 @@
       }
     },
   });
+  if (platform === "windows" && window.chrome?.webview) {
+    const buffers = new Map(), pending = new Map();
+    const consume = (message) => {
+      const buffer = buffers.get(message.slot);
+      if (!buffer) { pending.set(message.slot, message); return; }
+      try {
+        if (message.session === session && Number.isInteger(message.width) && Number.isInteger(message.height)
+            && message.width > 0 && message.width <= 640 && message.height > 0 && message.height <= 360) {
+          const pixels = new Uint8ClampedArray(buffer, 0, message.width * message.height * 4);
+          // Listeners must synchronously copy; this read-only slot is reused
+          // only after every listener has returned and the exact sequence is acked.
+          window.__navigatorDesktopReceive({ type: "glass-pixels", session: message.session,
+            sequence: message.sequence, frame: new ImageData(pixels, message.width, message.height) });
+        }
+      } catch (error) { console.error(error); }
+      finally { window.ipc.postMessage(JSON.stringify({ type: "glass-consumed", slot: message.slot, sequence: message.sequence })); }
+    };
+    window.chrome.webview.addEventListener("sharedbufferreceived", event => {
+      const metadata = event.additionalData;
+      if (metadata?.type !== "navigator-glass-buffer" || !Number.isInteger(metadata.slot) || metadata.slot < 0 || metadata.slot > 2) return;
+      const previous = buffers.get(metadata.slot);
+      if (previous) window.chrome.webview.releaseBuffer(previous);
+      buffers.set(metadata.slot, event.getBuffer());
+      const message = pending.get(metadata.slot);
+      if (message) { pending.delete(metadata.slot); consume(message); }
+    });
+    window.chrome.webview.addEventListener("message", event => {
+      const message = event.data;
+      if (message?.type !== "navigator-glass-frame" || !Number.isInteger(message.slot) || message.slot < 0 || message.slot > 2
+          || !Number.isSafeInteger(message.sequence) || message.sequence < 1) return;
+      consume(message);
+    });
+    window.addEventListener("pagehide", () => {
+      for (const buffer of buffers.values()) window.chrome.webview.releaseBuffer(buffer);
+      buffers.clear(); pending.clear();
+    }, { once: true });
+  }
   Object.defineProperty(window, "navigatorDesktop", {
     value: Object.freeze({
       protocol: __PROTOCOL__,
       platform,
-      capabilities: Object.freeze({ videoFit: true, timings: platform === "windows", glass: platform === "windows" }),
+      capabilities: Object.freeze({ videoFit: true, timings: platform === "windows", glass: platform === "windows", glassPixels: platform === "windows" }),
       get fullscreen() { return fullscreen; },
       send(message) {
         if (message.type === "load") session = message.session;

@@ -35,4 +35,10 @@ oldAndroid.walkRules(rule => { if (rule.selector === '[data-slot="media-player"]
 assert.ok(oldCopy);
 assert.ok((copy.match(/\[/g) || []).length > (oldCopy.selector.match(/\[/g) || []).length,
   'The web fix must win over the already installed APK CSS without requiring a rebuild');
+const group = selector => rules.find(rule => rule.selector.split(',').map(value=>value.trim()).includes(selector));
+const windows = 'html[data-native-platform="windows"] [data-player-shell]';
+const loading = group(windows+' [data-slot="media-player"] [data-player-loading-copy]');
+const controls = group(windows+' [data-slot="media-player-controls"]');
+assert.equal(loading.nodes.find(node=>node.prop==='left').value, 'var(--player-content-left)');
+assert.equal(controls.nodes.find(node=>node.prop==='padding-left').value, 'var(--player-content-left)', 'Windows loading copy aligns to playback text rather than the narrower Back gutter');
 console.log('PASS: shared Back/loading gutter across desktop, Android landscape cutouts, changing control insets and installed APK compatibility');

@@ -25,6 +25,8 @@ export type NativeState = {
 };
 
 export type NativeMessage =
+  // Shared frame bytes are valid only during the synchronous listener call.
+  | { type: "glass-pixels"; session: string; frame: ImageData; sequence: number }
   | { type: "glass-frame"; session: string; src: string }
   | { type: "scrub"; session: string; active: boolean; position: number; duration: number; x: number; speed?: number; commit?: boolean }
   | { type: "state"; session: string; state: NativeState }
@@ -62,7 +64,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { videoFit?: boolean; timings?: boolean; glass?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
+  readonly capabilities?: { videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

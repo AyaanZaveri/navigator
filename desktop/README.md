@@ -86,30 +86,49 @@ surfaces consume pending frames without drawing. Device failures surface an erro
 and close the app cleanly rather than leaving a frozen video window.
 
 Player glass is derived directly from that rendered texture, including its crop,
-letterboxing and tone mapping. A small GPU shader downsamples to at most 160×90.
-A three-slot staging queue uses `D3D11_MAP_FLAG_DO_NOT_WAIT`; unfinished copies are
-skipped, and only the tiny completed bitmap is read by the CPU. No screenshot
-command, desktop/window capture, full-resolution readback or second decoder is
-involved. A separate worker packs BMP data. Native delivery and WebView paint keep
-only the newest pending sample. There is no fixed sampling timer or 30/60 FPS cap:
-updates follow actual rendered video frames. Opening glass during pause captures
-the cached video texture once; seeking renders a new frame automatically.
+letterboxing and tone mapping. A GPU shader averages a 4×4 grid over each output
+pixel footprint at up to 640×360, replacing the old 160×90 single bilinear sample.
+The shader writes RGBA byte order, avoiding a CPU channel conversion. Three GPU
+staging slots use nonblocking maps, and only completed small frames are read.
+There is no screenshot command, full-resolution readback or second decoder.
 
-Opt-in `capabilities.glass` and session-scoped `glass` demand retain protocol 1 and
-the existing origin checks. Hidden/minimized surfaces stop sampling, and source
-replacement invalidates queued copies. Windows player menus use a 68% tint in
-light and dark app themes, preventing a light-theme 98% background from hiding
-the blur. Reduced-transparency menus stay opaque. Subtitles retain their tint.
-CSS blur is clipped to each small surface. The current render target is SDR BGRA8;
-physical HDR presentation and HDR glass color accuracy remain unverified.
+Three read-only WebView2 shared buffers carry those pixels. The host never
+modifies a slot until JS synchronously copies it to a canvas and acknowledges
+its exact sequence. Pixel bytes never pass through JSON, base64 or image decoding;
+only bounded metadata does. Pending frames are latest-only. Every send checks
+the current trusted main-frame origin, and session/revision checks reject stale
+GPU copies. Source/navigation/visibility changes invalidate pending work. JS
+handles buffer/frame notifications arriving in either order and releases views
+on pagehide. `capabilities.glassPixels` selects this additive protocol-1 path;
+older native builds retain their existing image-glass fallback.
 
-The smoke fixture exercises production menu CSS in a light document and measures
-sample delivery and actual material paint separately. It tests pause caching,
-paused seek refresh, resume and hidden-demand stop. Set `NAVIGATOR_GLASS_VIDEO` to
-a local generated video to test 1080p/4K and high frame rates.
-`RUST_LOG=navigator_desktop::platform::windows_video=debug` reports native rendering
-and glass submission cadence. `NativeState` includes optional video/decoder drop
-counters for diagnostics.
+As on web, canvas applies a 12 CSS-pixel blur once at thumbnail resolution and
+copies that frame to visible clipped controls. It does not schedule another rAF
+or reparse CSS images per sample. Geometry updates only when controls move or
+resize; tooltip positioning remains CSS-driven. Opening glass while paused
+copies the cached video texture once; seek and resume update it normally.
+Updates follow source/render cadence without synthesizing 120 frames for a
+24 FPS video. Hidden/minimized controls stop sampling. Menus use a 68% tint in
+both app themes; reduced-transparency menus remain opaque. The render target is
+still SDR BGRA8; physical HDR presentation/color accuracy remain unverified.
+
+The Windows loading identity uses the same 24px content gutter as the playback
+text. Back retains its independent 16px chrome gutter. Android/iOS camera and
+safe-area handling are preserved.
+
+The smoke fixture runs the production effect and real menu CSS, checks that its
+canvas is visible and contains a blurred edge, and measures actual canvas draw
+calls independently from delivery. It tests pause caching, paused-seek refresh,
+resume and hidden-demand stop. `NAVIGATOR_GLASS_VIDEO` selects a local generated
+clip. `RUST_LOG=navigator_desktop::windows_glass=debug` reports p95 elapsed time
+from GPU sampling to the synchronous canvas-copy acknowledgment. This is a
+pipeline-age metric, not physical display scanout or source PTS synchronization.
+The fixture separately reports JavaScript canvas work and WebView rAF cadence.
+
+Additional references: [WebView2 read-only shared buffers](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/icorewebview2_17),
+[Microsoft shared-buffer example](https://github.com/MicrosoftEdge/WebView2Samples/blob/main/SampleApps/WebView2APISample/ScenarioSharedBuffer.cpp),
+[WebView2 synchronization contract](https://github.com/MicrosoftEdge/WebView2Feedback/blob/main/specs/SharedBuffer.md).
+Context7's WebView2 documentation and Microsoft's examples informed this path.
 
 References: [upstream D3D11 render API](https://github.com/mpv-player/mpv/pull/17764),
 [public API contract](https://github.com/mpv-player/mpv/blob/master/include/mpv/render_d3d11.h),
@@ -120,7 +139,7 @@ Context7's mpv and Microsoft Direct3D documentation were consulted alongside the
 primary sources. The Direct3D backend was merged October 15, 2026; the pinned
 October 29 mpv bundle reports client API 2.6 on the Zenbook.
 
-Installed Release measurements on the Zenbook (2880×1800, 120 Hz, Balanced
+Historical bitmap-path Release measurements (`da0e546`) on the Zenbook (2880×1800, 120 Hz, Balanced
 power profile, local synthetic H.264): 1080p60 delivered 60.49 samples/sec and
 60.09 material style updates/sec; 4K60 delivered 60.47 and painted 60.30/sec.
 Their p95 material-update gaps were 18.2 and 25.7 ms. Both passed pause caching,

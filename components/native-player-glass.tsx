@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type RefObject } from "react";
+import { attachWindowsPlayerGlass } from "@/lib/desktop/windows-player-glass";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 
@@ -12,6 +13,7 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
         const bridge = desktopBridge();
         const session = (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.previewSession;
         if (!ready || !(bridge?.platform === "android" || bridge?.platform === "windows") || !bridge.capabilities?.glass || !session) return;
+        if (bridge.platform === "windows" && bridge.capabilities.glassPixels) return attachWindowsPlayerGlass(bridge, session);
         let requested = false, image: string | null = null;
         let paintFrame: number | undefined;
         let visible: HTMLElement[] = [];

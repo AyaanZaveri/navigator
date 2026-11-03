@@ -55,6 +55,8 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 }
 /* Live sRGB canvases make web glass consistent across SDR/HDR compositing.
    The shared low-resolution frame is already blurred; these layers only crop it. */
+[data-player-glass][data-browser-glass],
+[data-player-native-glass][data-browser-glass],
 [data-browser-glass] {
   overflow: hidden;
   isolation: isolate;
@@ -228,4 +230,22 @@ html[data-native-platform="ios"] [data-player-shell] {
 [data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
   left: var(--player-chrome-left);
   right: var(--player-chrome-right);
+}
+
+/* Web and Windows loading details align with playback text. Back keeps its
+   independent chrome gutter; touch-native players retain cutout handling. */
+html:not([data-native-platform]) [data-player-shell],
+html[data-native-platform="windows"] [data-player-shell] {
+  --player-content-left: max(1.5rem, env(safe-area-inset-left, 0px));
+  --player-content-right: max(1.5rem, env(safe-area-inset-right, 0px));
+}
+html:not([data-native-platform]) [data-player-shell] [data-slot="media-player"] [data-player-loading-copy],
+html[data-native-platform="windows"] [data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
+  left: var(--player-content-left);
+  right: var(--player-content-right);
+}
+html:not([data-native-platform]) [data-player-shell] [data-slot="media-player-controls"],
+html[data-native-platform="windows"] [data-player-shell] [data-slot="media-player-controls"] {
+  padding-left: var(--player-content-left);
+  padding-right: var(--player-content-right);
 }
