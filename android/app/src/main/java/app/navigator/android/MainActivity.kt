@@ -240,7 +240,11 @@ class MainActivity : ComponentActivity() {
                 try {
                     val request = JSONObject(data)
                     when (request.optString("type")) {
-                        "hello" -> { send(json("type", "fullscreen", "value", fullscreen)); send(safeInsets) }
+                        "hello" -> {
+                            send(json("type", "fullscreen", "value", fullscreen)); send(safeInsets)
+                            // A new document must receive state even when playback is paused.
+                            player?.state(force = true)
+                        }
                         "appearance" -> { webDark = request.optBoolean("dark", true); updateSystemBarAppearance(); updateWebPresentation() }
                         "player-controls" -> root.setControlsVisible(request.optBoolean("visible", true))
                         "player-layout" -> {

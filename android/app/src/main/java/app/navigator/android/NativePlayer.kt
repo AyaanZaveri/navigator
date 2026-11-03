@@ -65,6 +65,13 @@ class NativePlayer(private val context: Context, parent: FrameLayout, private va
     private var rate = 1f
     private var aspect = 16.0 / 9
     private var subtitle = ""
+    private val states = PlaybackStateRelay { state ->
+        emit(json("type", "state", "session", state.session, "state", json(
+            "position", state.positionMs / 1000.0, "duration", state.durationMs / 1000.0,
+            "paused", state.paused, "volume", state.volume, "muted", state.muted, "rate", state.rate,
+            "buffering", state.buffering, "seeking", state.seeking, "buffered", state.bufferedMs / 1000.0,
+            "width", state.width, "height", state.height)))
+    }
     private data class TrackChoice(val group: Tracks.Group, val index: Int, val type: Int)
 
     init {
@@ -229,8 +236,7 @@ class NativePlayer(private val context: Context, parent: FrameLayout, private va
             override fun onEvents(ignored: Player, events: Player.Events) {
                 if (!current()) return
                 if (!loaded && owner.playbackState == Player.STATE_READY) markLoaded()
-                val video = owner.currentTracks.groups.any { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }
-                if (loaded && !ready && !video) markReady()
+                if (loaded && !ready && owner.currentTracks.groups.none { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }) markReady()
                 layer.keepScreenOn = owner.playWhenReady && owner.playbackState != Player.STATE_ENDED && owner.playerError == null
                 state()
             }
@@ -306,16 +312,15 @@ class NativePlayer(private val context: Context, parent: FrameLayout, private va
         val params = builder.build()
         if (params != current.parameters) current.parameters = params
     }
-    fun state() {
+    fun state(force: Boolean = false) {
         val current = player ?: return
         if (!active()) return
         val size = current.videoSize
-        emit(json("type", "state", "session", session, "state", json(
-            "position", current.currentPosition.coerceAtLeast(0) / 1000.0,
-            "duration", current.duration.coerceAtLeast(0) / 1000.0,
-            "paused", !(if (scrubbing) scrubWasPlaying else current.playWhenReady), "volume", volume, "muted", muted, "rate", rate,
-            "buffering", current.playbackState == Player.STATE_BUFFERING, "seeking", seeking,
-            "buffered", current.bufferedPosition.coerceAtLeast(0) / 1000.0, "width", size.width, "height", size.height)))
+        states.update(PlaybackSnapshot(session,
+            current.currentPosition.coerceAtLeast(0), current.duration.coerceAtLeast(0),
+            !(if (scrubbing) scrubWasPlaying else current.playWhenReady), volume, muted, rate,
+            current.playbackState == Player.STATE_BUFFERING, seeking,
+            current.bufferedPosition.coerceAtLeast(0), size.width, size.height), force)
     }
     fun start() { foreground = true; create() }
     fun suspend() {
@@ -328,6 +333,7 @@ class NativePlayer(private val context: Context, parent: FrameLayout, private va
     }
     fun destroy() { stop(); glass.close(); http.dispatcher.cancelAll(); http.connectionPool.evictAll() }
     private fun release() {
+        states.reset()
         glass.setActive(false)
         scrubbing = false; thumbnailRequest = null; thumbnailPosition = null
         previews?.close(); previews = null
