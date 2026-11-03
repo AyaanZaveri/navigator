@@ -14,7 +14,7 @@
     "test:episode-skeleton": "node scripts/test-episode-skeleton.cjs",
     "test:artwork-loading": "node scripts/test-artwork-loading.cjs",
     "test:carousel-artwork": "node scripts/test-carousel-artwork.cjs",
-    "test:player-settings": "node scripts/test-player-settings.cjs",
+    "test:player-settings": "node scripts/test-player-settings.cjs && node scripts/test-subtitle-appearance.cjs",
     "test:search": "node scripts/test-search-stream.cjs && node scripts/test-tmdb-search-page.cjs && node scripts/test-tmdb-playback-id.cjs && node scripts/test-tmdb-discovery.cjs",
     "test:playback-episode": "node scripts/test-playback-episode-http.cjs && node scripts/test-playback-details.cjs && node scripts/test-player-wordmark.cjs && node scripts/test-episode-details.cjs && node scripts/test-playback-parallel.cjs && node scripts/test-playback-parallel.cjs --canonical && node scripts/test-playback-parallel.cjs --series && node scripts/test-playback-parallel.cjs --provided && node scripts/test-playback-parallel.cjs --page && node scripts/test-playback-context.cjs",
     "test:skip-segments": "node scripts/test-skip-segments.cjs && node scripts/test-skip-providers.cjs && node scripts/test-skip-button-recovery.cjs",

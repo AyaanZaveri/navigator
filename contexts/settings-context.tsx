@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+import { SUBTITLE_SIZES, SUBTITLE_OUTLINES, type SubtitleSize, type SubtitleOutline } from "@/lib/subtitle-appearance";
+
 export interface BitrateOption {
   value: string;
   label: string;
@@ -36,6 +38,10 @@ export type OpenRouterReasoningEffort =
 export type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
 interface SettingsContextType {
+  subtitleSize: SubtitleSize;
+  setSubtitleSize: (size: SubtitleSize) => void;
+  subtitleOutline: SubtitleOutline;
+  setSubtitleOutline: (outline: SubtitleOutline) => void;
   videoBitrate: string;
   setVideoBitrate: (bitrate: string) => void;
   navigatorEnabled: boolean;
@@ -87,6 +93,16 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 );
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const [subtitleSize, setSubtitleSizeState] = useState<SubtitleSize>("standard");
+  const [subtitleOutline, setSubtitleOutlineState] = useState<SubtitleOutline>("thin");
+  const setSubtitleSize = (value: SubtitleSize) => {
+    setSubtitleSizeState(value);
+    try { localStorage.setItem("navigator-subtitle-size", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const setSubtitleOutline = (value: SubtitleOutline) => {
+    setSubtitleOutlineState(value);
+    try { localStorage.setItem("navigator-subtitle-outline", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
   const [videoBitrate, setVideoBitrateState] = useState<string>("auto");
   const [navigatorEnabled, setNavigatorEnabledState] = useState<boolean>(true);
   const [analysisModels, setAnalysisModels] = useState<Partial<Record<AIProvider, string>>>({});
@@ -131,6 +147,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   // Load settings from localStorage on mount
   useEffect(() => {
+    try {
+      const size = localStorage.getItem("navigator-subtitle-size");
+      const outline = localStorage.getItem("navigator-subtitle-outline");
+      if (SUBTITLE_SIZES.some(option => option.value === size)) setSubtitleSizeState(size as SubtitleSize);
+      if (SUBTITLE_OUTLINES.some(option => option.value === outline)) setSubtitleOutlineState(outline as SubtitleOutline);
+    } catch { /* Use defaults if local preferences cannot be read. */ }
     try {
       const saved = JSON.parse(localStorage.getItem("navigator-analysis-models") || "{}");
       if (saved && typeof saved === "object" && !Array.isArray(saved)) {
@@ -360,6 +382,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <SettingsContext.Provider
       value={{
+        subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline,
         analysisModel: analysisModels[aiProvider] || "",
         setAnalysisModel,
         videoBitrate,
