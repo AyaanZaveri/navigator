@@ -11,6 +11,18 @@ async function main() {
     assert.ok(process.env.OPENCODE_GO_API_KEY && process.env.TMDB_API_READ_ACCESS_TOKEN && process.env.TINYFISH_API_KEY, 'Configure live service credentials in .env');
     const dependencies = {};
     for (const name of ['ai', 'zod', '@ai-sdk/openai', '@ai-sdk/google', '@ai-sdk/groq', '@ai-sdk/cerebras', '@ai-sdk/openai-compatible', '@openrouter/ai-sdk-provider', 'ai-sdk-ollama']) dependencies[name] = await import(name);
+    if (process.argv.includes('--diagnostics')) {
+        const ai = dependencies.ai;
+        dependencies.ai = { ...ai, generateText: async options => {
+            try { return await ai.generateText(options); }
+            catch (error) {
+                console.error(JSON.stringify({ stage: 'structured-generation', name: error.name, message: error.message,
+                    cause: error.cause?.message, finishReason: error.finishReason, outputChars: error.text?.length,
+                    usage: error.usage }));
+                throw error;
+            }
+        } };
+    }
     dependencies['server-only'] = {};
     dependencies['next/headers'] = { cookies: async () => ({ get: name => name === 'stremio-auth' ? { value: JSON.stringify({ user: { _id: 'local-live-episode-probe' } }) } : undefined }) };
     dependencies['@/app/actions/auth'] = { getUser: async () => ({ _id: 'local-live-episode-probe' }) };
@@ -40,7 +52,10 @@ async function main() {
             target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true,
         } }).outputText, {
             module, exports: module.exports, require: localRequire, process,
-            console: { log() {}, warn() {}, error() {} },
+            console: { log() {}, warn() {}, error(...args) {
+                if (process.argv.includes('--diagnostics')) console.error(...args.map(value => value instanceof Error || value?.message
+                    ? { name: value.name, message: value.message, cause: value.cause?.message } : typeof value === 'string' ? value : '[details omitted]'));
+            } },
             setTimeout, clearTimeout, AbortController, AbortSignal, Error, TypeError, SyntaxError,
             fetch: async (url, init) => {
                 const started = Date.now(); const response = await fetch(url, init);
