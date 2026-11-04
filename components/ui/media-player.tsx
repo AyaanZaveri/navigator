@@ -3034,12 +3034,6 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const mediaPlaybackRate = useMediaSelector(
     (state) => state.mediaPlaybackRate ?? 1
   );
-  const mediaSubtitlesList = useMediaSelector(
-    (state) => state.mediaSubtitlesList ?? []
-  );
-  const mediaSubtitlesShowing = useMediaSelector(
-    (state) => state.mediaSubtitlesShowing ?? []
-  );
   const mediaRenditionList = useMediaSelector(
     (state) => state.mediaRenditionList ?? []
   );
@@ -3068,33 +3062,6 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
     },
     [dispatch]
   );
-
-  const onSubtitlesToggle = React.useCallback(() => {
-    dispatch({
-      type: MediaActionTypes.MEDIA_TOGGLE_SUBTITLES_REQUEST,
-      detail: false,
-    });
-  }, [dispatch]);
-
-  const onShowSubtitleTrack = React.useCallback(
-    (subtitleTrack: (typeof mediaSubtitlesList)[number]) => {
-      dispatch({
-        type: MediaActionTypes.MEDIA_TOGGLE_SUBTITLES_REQUEST,
-        detail: false,
-      });
-      dispatch({
-        type: MediaActionTypes.MEDIA_SHOW_SUBTITLES_REQUEST,
-        detail: subtitleTrack,
-      });
-    },
-    [dispatch]
-  );
-
-  const subtitleTracks = context.customSubtitlesEnabled ? context.customSubtitleTracks ?? [] : mediaSubtitlesList;
-  const selectedSubtitleIndex = context.customSubtitlesEnabled
-    ? context.customSubtitleTracks?.findIndex(track => track.active) ?? -1
-    : mediaSubtitlesList.findIndex(track => mediaSubtitlesShowing.some(showing =>
-      showing.kind === track.kind && showing.language === track.language && showing.label === track.label));
 
   const onOpenChange = React.useCallback(
     (open: boolean) => {
@@ -3130,7 +3097,6 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
         <DropdownMenuLabel className="sr-only">Playback settings</DropdownMenuLabel>
         <DropdownMenuGroup>
           <PlayerSettingsMenu speed={mediaPlaybackRate} speeds={speeds} onSpeedChange={onPlaybackRateChange}
-            subtitleTiming={context.subtitleTiming}
             disabled={isDisabled} portalContainer={context.rootRef.current ?? context.portalContainer}
             quality={context.isVideo && mediaRenditionList.length > 0 ? {
               value: selectedRenditionId || "auto",
@@ -3140,23 +3106,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
                 .flatMap(rendition => rendition.id ? [{ value: rendition.id, label: rendition.height
                   ? `${rendition.height}p` : rendition.width ? `${rendition.width}p` : rendition.id }] : [])],
             } : undefined}
-            subtitles={{
-              value: selectedSubtitleIndex >= 0 ? String(selectedSubtitleIndex) : "off",
-              options: [{ value: "off", label: "Off", icon: <CaptionsOffIcon size={14} strokeWidth={1.75} /> }, ...trackOptions(subtitleTracks)],
-              onChange: value => {
-                if (value === "off") {
-                  if (context.customSubtitlesEnabled) context.onCustomSubtitleChange?.(null);
-                  else onSubtitlesToggle();
-                  return;
-                }
-                const index = Number(value);
-                if (!Number.isInteger(index) || index < 0) return;
-                if (context.customSubtitlesEnabled) {
-                  const track = context.customSubtitleTracks?.[index];
-                  if (track) context.onCustomSubtitleChange?.(track);
-                } else if (mediaSubtitlesList[index]) onShowSubtitleTrack(mediaSubtitlesList[index]);
-              },
-            }} />
+          />
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

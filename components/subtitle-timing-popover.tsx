@@ -21,6 +21,7 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
   const descriptionId = useId();
   const interactedOutside = useRef(false);
   const anchor = container?.querySelector<HTMLElement>('[data-slot="media-player-subtitle-timing"]')
+    ?? container?.querySelector<HTMLElement>('[data-slot="media-player-subtitles"]')
     ?? container?.querySelector<HTMLElement>('[data-slot="media-player-settings"]');
   const description = !available ? "Timing unavailable for this subtitle track."
     : seconds === 0 ? "Original timing"

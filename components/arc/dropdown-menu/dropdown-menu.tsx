@@ -17,6 +17,10 @@ export const DropdownMenuLabel = Primitive.Label;
 export const DropdownMenuRadioGroup = Primitive.RadioGroup;
 export const DropdownMenuSub = Primitive.Sub;
 
+export function DropdownMenuSeparator() {
+  return <Primitive.Separator className={styles.separator} />;
+}
+
 export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof Primitive.Item>) {
   return <Primitive.Item {...props} className={cn(styles.item, className)} />;
 }

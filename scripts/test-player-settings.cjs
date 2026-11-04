@@ -89,13 +89,9 @@ timingTree.props.onOpenChange(false);
 assert.equal(timingClosed, 1, 'Closing Settings also closes the sibling timing panel');
 
 const panel = find(tree, 'PlayerSettingsMenu')[0];
-assert.equal(panel.props.subtitles.value, '2');
-assert.equal(panel.props.subtitles.options[0].icon.type, 'CaptionsOff');
-assert.equal(panel.props.subtitles.options[1].label, 'English', 'English options are first without changing track indices');
-panel.props.subtitles.onChange('2');
-assert.equal(selected[0], tracks[2], 'Same-label English options must select the original distinct track');
-panel.props.subtitles.onChange('off');
-assert.equal(selected[1], null);
+assert.equal(panel.props.subtitles, undefined, 'Subtitle tracks have a dedicated button, not a Settings submenu');
+assert.equal(panel.props.subtitleTiming, undefined, 'Timing belongs with the subtitle tracks');
+const subtitleChoices = { value: '2', options: [{ value: 'off', label: 'Off', icon: { type: 'CaptionsOff' } }, ...labels.trackOptions(tracks)], onChange() {} };
 panel.props.onSpeedChange(1.5);
 assert.equal(sent.at(-1).detail, 1.5);
 assert.equal(panel.props.quality.options[1].value, '1080');
@@ -108,11 +104,7 @@ const nativeTree = component('MediaPlayerSettings', { ...context, customSubtitle
   mediaSubtitlesList: [native], mediaSubtitlesShowing: [native],
 }, sent);
 const nativePanel = find(nativeTree, 'PlayerSettingsMenu')[0];
-assert.equal(nativePanel.props.subtitles.value, '0');
-nativePanel.props.subtitles.onChange('0');
-assert.equal(sent.at(-1).detail, native);
-nativePanel.props.subtitles.onChange('off');
-assert.equal(sent.at(-1).detail, false);
+assert.equal(nativePanel.props.subtitles, undefined);
 assert.equal(nativePanel.props.quality, undefined, 'A direct stream has no fabricated quality options');
 assert.equal(component('MediaPlayerPlaybackSpeed', context, {}, sent).type, 'DropdownMenu');
 let keyboardHandler;
@@ -145,9 +137,8 @@ const { PlayerSettingsMenu: RawPlayerSettingsMenu } = load('components/player-se
 });
 const PlayerSettingsMenu = props => menuHooks.render(RawPlayerSettingsMenu, props);
 const settingsMenu = PlayerSettingsMenu(panel.props);
-assert.deepEqual(find(settingsMenu, 'SubTrigger').map(node => node.props.children[0].props.children), ['Speed', 'Quality', 'Subtitles']);
-assert.equal(find(settingsMenu, 'SubContent').length, 3, 'Every setting opens a side submenu');
-assert.equal(find(settingsMenu, 'SubContent')[2].props.className, 'subtitleMenu', 'Only the subtitle submenu needs the wider surface');
+assert.deepEqual(find(settingsMenu, 'SubTrigger').map(node => node.props.children[0].props.children), ['Speed', 'Quality']);
+assert.equal(find(settingsMenu, 'SubContent').length, 2, 'Every setting opens a side submenu');
 assert.ok(find(settingsMenu, 'SubContent').every(node => node.props.container === root), 'Nested windows remain in the fullscreen player');
 let timingOpened = false, selectionPrevented = false;
 const timingMenu = PlayerSettingsMenu({ ...panel.props, subtitleTiming: { seconds: 1.2, onOpen: () => { timingOpened = true; }, onClose() {} } });
@@ -155,7 +146,7 @@ const timingItem = find(timingMenu, 'Item')[0];
 assert.ok(timingItem, 'Subtitle timing is an action, not a numeric form inside the menu');
 timingItem.props.onSelect({ preventDefault() { selectionPrevented = true; } });
 assert.ok(selectionPrevented, "Selecting Timing must keep Settings mounted"); assert.equal(timingOpened, true);
-assert.equal(find(timingMenu, 'SubTrigger').length, 3, 'Timing preserves the existing submenu layout');
+assert.equal(find(timingMenu, 'SubTrigger').length, 2, 'Timing preserves the existing submenu layout');
 const primitive = new Proxy({}, { get: (_, key) => key === '__esModule' ? true : `Primitive${key}` });
 const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {
   react: { ...React, useId: () => 'track-description' }, 'react/jsx-runtime': require('react/jsx-runtime'),
@@ -164,7 +155,7 @@ const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {
   './dropdown-menu.module.css': {},
   '../floating-surface.module.css': {},
 });
-const choices = dropdown.DropdownMenuOptions({ value: '2', options: panel.props.subtitles.options, onValueChange() {} });
+const choices = dropdown.DropdownMenuOptions({ value: '2', options: subtitleChoices.options, onValueChange() {} });
 assert.equal(choices.props.value, '2');
 const english = find(choices, dropdown.DropdownMenuRadioItem)[1];
 assert.equal(english.props.textValue, 'English');
@@ -173,7 +164,7 @@ assert.equal(option.props['aria-describedby'], 'track-description');
 assert.ok(find(option, 'Badge').some(node => node.props.children === 'EN'));
 const unknown = dropdown.DropdownMenuRadioItem({ ...labels.describeTrack({ language: 'und' }, 0), children: 'Unknown language', value: '0' });
 assert.equal(find(unknown, require('lucide-react').CircleHelp).length, 1, 'Unknown tracks use a circular Lucide fallback');
-const divided = dropdown.DropdownMenuOptions({ value: 'off', options: panel.props.subtitles.options, separateFirst: true, onValueChange() {} });
+const divided = dropdown.DropdownMenuOptions({ value: 'off', options: subtitleChoices.options, separateFirst: true, onValueChange() {} });
 assert.equal(find(divided, 'PrimitiveSeparator').length, 1, 'Off is separated from the language tracks once');
 assert.equal(find(choices, 'PrimitiveSeparator').length, 0, 'Speed and other choice menus do not gain a divider');
 const flag = find(option, 'img')[0];
@@ -212,14 +203,10 @@ let cleared = 0;
 const nativeProps = { mediaRef, sourceKey: 'fixture', onNativeSubtitle() { cleared++; } };
 nativeHooks.render(DesktopTracks, nativeProps); nativeHooks.flush();
 const nativeControls = find(nativeHooks.render(DesktopTracks, nativeProps), 'Options');
-assert.equal(nativeControls[0].props.separateFirst, false);
-assert.equal(nativeControls[1].props.separateFirst, true);
+assert.equal(nativeControls.length, 1, 'The old caption button is removed; only native audio remains');
 assert.equal(nativeControls[0].props.options[0].value, '75');
 nativeControls[0].props.onValueChange('75');
-nativeControls[1].props.onValueChange('91');
-nativeControls[1].props.onValueChange('no');
-assert.deepEqual(nativeCalls, [['audio', '75'], ['subtitle', '91'], ['subtitle', 'no']]);
-assert.equal(cleared, 2);
+assert.deepEqual(nativeCalls, [['audio', '75']]);
 nativeHooks.unmount(); assert.equal(events.size, 0);
 
 // Execute the real external-track handler: duplicate raw labels used to load
@@ -228,12 +215,12 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   const global = ts.createSourceFile('global.tsx', fs.readFileSync('components/global-media-player.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let handler;
   function walk(node) {
-    if (ts.isJsxAttribute(node) && node.name.getText(global) === 'onCustomSubtitleChange') handler = node.initializer.expression.getText(global);
+    if (ts.isVariableDeclaration(node) && node.name.getText(global) === 'handleSubtitleChange') handler = node.initializer.arguments[0].getText(global);
     ts.forEachChild(node, walk);
   }
   walk(global);
   let nextTracks, fetched;
-  const env = { exports: {}, subtitleTracks: tracks, nativePlayback: false,
+  const env = { exports: {}, subtitleTracks: tracks, nativePlayback: false, subtitleSelectionRef: { current: 0 }, loadGenerationRef: { current: 1 },
     setFetchingSubtitles() {}, setSubtitleData() {}, setCurrentSubtitle() {},
     fetchSubtitleFileContent: async src => { fetched = src; return { success: true, content: 'subtitle' }; },
     parseSubtitleTextContent: () => [], setSubtitleTracks: update => { nextTracks = update(tracks); },
@@ -244,6 +231,14 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   assert.equal(fetched, '/english-second.srt');
   assert.equal(nextTracks[2].active, true);
   assert.equal(nextTracks[1].active, false);
+  let finish;
+  env.fetchSubtitleFileContent = () => new Promise(resolve => { finish = resolve; });
+  env.exports.handler(tracks[2]);
+  env.exports.handler(null);
+  finish({ success: true, content: 'late external download' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(nextTracks.every(track => !track.active), 'Off/embedded selection cancels a pending external subtitle download');
+
   const utils = load('app/actions/utils.ts', {
     '@/lib/subtitle-provider': load('lib/subtitle-provider.ts'),
     './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://addon.test/manifest.json', manifest: { id: 'fixture', name: 'Subtitle provider', resources: ['subtitles'] } }] },
@@ -256,7 +251,7 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
 
 // The real component coordinates timing and all side submenus at its props seam.
 let timingPinned = true;
-const exclusiveProps = { ...panel.props, subtitleTiming: {
+const exclusiveProps = { ...panel.props, subtitles: subtitleChoices, subtitleTiming: {
  seconds: 0, open: true, onOpen() { timingPinned = true; }, onClose() { timingPinned = false; },
 } };
 let exclusiveMenu = PlayerSettingsMenu(exclusiveProps);

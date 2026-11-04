@@ -19,7 +19,7 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
   speeds: number[];
   onSpeedChange(_rate: number): void;
   quality?: { value: string; options: DropdownOption[]; onChange(_value: string): void };
-  subtitles: { value: string; options: DropdownOption[]; onChange(_value: string): void };
+  subtitles?: { value: string; options: DropdownOption[]; onChange(_value: string): void };
   subtitleTiming?: SubtitleTimingAction;
   disabled?: boolean;
   portalContainer: Element | DocumentFragment | null;
@@ -33,7 +33,7 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
   const rows = [
     { label: "Speed", value: String(speed), summary: `${speed}×`, options: speeds.map(rate => ({ value: String(rate), label: rate === 1 ? "Normal (1×)" : `${rate}×` })), onChange: (value: string) => onSpeedChange(Number(value)) },
     ...(quality ? [{ label: "Quality", ...quality, summary: quality.options.find(option => option.value === quality.value)?.label ?? "Auto" }] : []),
-    { label: "Subtitles", ...subtitles, summary: subtitles.options.find(option => option.value === subtitles.value)?.label ?? "Off" },
+    ...(subtitles ? [{ label: "Subtitles", ...subtitles, summary: subtitles.options.find(option => option.value === subtitles.value)?.label ?? "Off" }] : []),
   ];
   return <>{rows.map(row => <DropdownMenuSub key={row.label}
     open={!subtitleTiming?.open && openSubmenu === row.label}
