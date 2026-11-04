@@ -1,11 +1,12 @@
 import { tool } from "ai";
+import { resolveEpisode } from "@/lib/episode-discovery";
 import { z } from "zod";
 import os from "node:os";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import {
-    searchTMDBMedia, getTMDBTitle, getTMDBEpisodes as fetchEpisodes, getTMDBSeasons as fetchSeasons,
-    resolveTMDBPlaybackId, mapTMDBSeasons, getTMDBEpisode,
+    searchTMDBMedia, getTMDBTitle, getTMDBEpisodes as fetchEpisodes,
+    resolveTMDBPlaybackId, getTMDBEpisode,
 } from "@/lib/tmdb-discovery";
 
 import {
@@ -77,66 +78,6 @@ function scoreMediaMatch(
         if (!Number.isNaN(rating)) qualityScore += rating;
     }
     return nameScore + qualityScore + preferredTypeScore;
-}
-
-const EPISODE_OVERVIEW_MAX_CHARS = 220;
-
-function truncateText(
-    value?: string | null,
-    maxChars = EPISODE_OVERVIEW_MAX_CHARS
-): string | null {
-    if (!value) return null;
-    const trimmed = value.trim();
-    if (trimmed.length <= maxChars) return trimmed;
-    return `${trimmed.slice(0, maxChars).trimEnd()}...`;
-}
-
-function scoreEpisodeSemanticMatch(
-    query: string,
-    title: string,
-    overview?: string | null
-): number {
-    const q = normalizeText(query);
-    const titleNorm = normalizeText(title);
-    const overviewNorm = normalizeText(overview || "");
-    const combined = `${titleNorm} ${overviewNorm}`.trim();
-    if (!q || !combined) return 0;
-
-    let score = scoreSeriesMatch(q, titleNorm) * 3;
-    if (combined.includes(q)) score += 250;
-
-    const qTokens = q.split(" ").filter(Boolean);
-    const combinedTokenSet = new Set(combined.split(" ").filter(Boolean));
-    const titleTokenSet = new Set(titleNorm.split(" ").filter(Boolean));
-
-    for (const token of qTokens) {
-        if (titleTokenSet.has(token)) score += 90;
-        else if (combinedTokenSet.has(token)) score += 45;
-        else if (combined.includes(token)) score += 15;
-    }
-
-    const coverage = qTokens.length
-        ? [...new Set(qTokens)].filter((token) => combinedTokenSet.has(token)).length /
-      [...new Set(qTokens)].length
-        : 0;
-    score += Math.round(coverage * 140);
-
-    return score;
-}
-
-function formatReleaseDate(released?: string): string | null {
-    if (!released) return null;
-
-    const parsed = new Date(released);
-    if (Number.isNaN(parsed.getTime())) {
-        return released;
-    }
-
-    return parsed.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    });
 }
 
 export interface PlayMediaTool {
@@ -578,7 +519,7 @@ export const navigateToEpisode = tool({
 
 export const findEpisodeByTitle = tool({
     description:
-    "Return compact, ranked NON-special episode candidates (season > 0) for a resolved TV series so the model can choose the best match.",
+    "Legacy episode lookup. Returns only supported metadata matches. Prefer findEpisode for semantic discovery and optional web evidence.",
     inputSchema: z.object({
         seriesQuery: z.string().describe("Series name to resolve to a series ID"),
         seasonNumber: z.number().int().min(1).optional().describe("Search only this season when known; avoids fetching every season"),
@@ -591,132 +532,8 @@ export const findEpisodeByTitle = tool({
             .optional()
             .describe("Maximum number of ranked episode candidates to return (default: 10)"),
     }),
-    execute: async ({ seriesQuery, episodeTitle, seasonNumber, limit = 10 }, { abortSignal }) => {
-        abortSignal?.throwIfAborted();
-        console.log("🔎📺 [findEpisodeByTitle] Tool called with:", {
-            seriesQuery,
-            episodeTitle,
-        });
-
-        try {
-            const results = await searchTitles(seriesQuery, abortSignal, "series");
-            const seriesCandidates = results.filter((item) => item.type === "series");
-
-            if (seriesCandidates.length === 0) {
-                return {
-                    success: false,
-                    message: "Series not found.",
-                    error: "No matching TV series found.",
-                } satisfies EpisodeLookupTool;
-            }
-
-            const bestSeries = seriesCandidates
-                .map((item) => ({
-                    item,
-                    score: scoreSeriesMatch(seriesQuery, item.name),
-                }))
-                .sort((a, b) => b.score - a.score)[0]?.item;
-
-            if (!bestSeries) {
-                return {
-                    success: false,
-                    message: "Series not found.",
-                    error: "Could not resolve a series ID.",
-                } satisfies EpisodeLookupTool;
-            }
-
-            const seasons = seasonNumber !== undefined ? [{ number: seasonNumber }] : (await fetchSeasons(bestSeries.id, abortSignal)).filter(season => season.number > 0);
-            if (seasons.length === 0) {
-                return {
-                    success: false,
-                    seriesId: bestSeries.id,
-                    seriesName: bestSeries.name,
-                    message: "No non-special seasons found for the series.",
-                    error: "Only specials (season 0) are available for lookup.",
-                } satisfies EpisodeLookupTool;
-            }
-
-            const seasonEpisodes = await mapTMDBSeasons(seasons.map(season => season.number),
-                async number => ({ episodes: await fetchEpisodes(bestSeries.id, number, abortSignal) }), abortSignal);
-
-            const flattened = seasonEpisodes.flatMap((entry) =>
-                entry.episodes.filter((episode) => episode.season > 0).map((episode) => ({
-                    id: episode.id,
-                    type: "Episode" as const,
-                    seriesId: bestSeries.id,
-                    seriesName: bestSeries.name,
-                    name: episode.title,
-                    title: episode.title,
-                    seasonNumber: episode.season,
-                    episodeNumber: episode.episode,
-                    overview: truncateText(episode.overview),
-                    releaseInfo: formatReleaseDate(episode.released),
-                    thumbnail: episode.thumbnail ?? null,
-                    poster: episode.thumbnail ?? null,
-                    background: null,
-                }))
-            );
-
-            const ranked = flattened
-                .map((episode) => {
-                    const semanticScore = scoreEpisodeSemanticMatch(
-                        episodeTitle,
-                        episode.title,
-                        episode.overview
-                    );
-                    const episodeHintMatch = /s(\d+)\s*e(\d+)/i.exec(episodeTitle);
-                    let hintScore = 0;
-                    if (episodeHintMatch) {
-                        const hintedSeason = Number(episodeHintMatch[1]);
-                        const hintedEpisode = Number(episodeHintMatch[2]);
-                        if (episode.seasonNumber === hintedSeason) hintScore += 120;
-                        if (episode.episodeNumber === hintedEpisode) hintScore += 180;
-                    }
-                    return {
-                        episode,
-                        score: semanticScore + hintScore,
-                    };
-                })
-                .sort((a, b) => {
-                    if (b.score !== a.score) return b.score - a.score;
-                    if (a.episode.seasonNumber !== b.episode.seasonNumber) {
-                        return a.episode.seasonNumber - b.episode.seasonNumber;
-                    }
-                    return a.episode.episodeNumber - b.episode.episodeNumber;
-                })
-                .slice(0, limit)
-                .map((entry) => entry.episode);
-
-            if (ranked.length === 0) {
-                return {
-                    success: false,
-                    seriesId: bestSeries.id,
-                    seriesName: bestSeries.name,
-                    message: "No regular episodes found in non-special seasons.",
-                    error: "No episodes are available after excluding season 0 specials.",
-                } satisfies EpisodeLookupTool;
-            }
-
-            return {
-                success: true,
-                source: "TMDB",
-                seriesId: bestSeries.id,
-                seriesName: bestSeries.name,
-                episodes: ranked,
-                message: `Resolved ${ranked.length} ranked episode candidates for "${episodeTitle}".`,
-            } satisfies EpisodeLookupTool;
-        } catch (error) {
-            abortSignal?.throwIfAborted();
-            return {
-                success: false,
-                message: "Episode lookup failed.",
-                error:
-          error instanceof Error
-              ? error.message
-              : "Failed to resolve episode by title.",
-            } satisfies EpisodeLookupTool;
-        }
-    },
+    execute: async ({ seriesQuery, episodeTitle, seasonNumber }, { abortSignal }) =>
+        resolveEpisode({ seriesQuery, episodeQuery: episodeTitle, seasonNumber }, { signal: abortSignal }),
 });
 
 export const navigateToMediaByQuery = tool({
@@ -801,72 +618,74 @@ export const navigateToMediaByQuery = tool({
     },
 });
 
+export const playMediaInputSchema = z.object({
+    mediaId: z.string().describe("Known TMDB/IMDb title ID, retaining the tmdb: prefix. For episodes, a series ID plus seasonNumber/episodeNumber is sufficient; an encoded episode ID also works."),
+    mediaName: z.string().describe("The name of the media item"),
+    mediaType: z
+        .enum(["Movie", "Series", "Episode"])
+        .describe("The type of media - Movie, Series (TV Show), or Episode"),
+    streamId: z
+        .string()
+        .optional()
+        .describe(
+            "Short stream reference ID returned by getMediaStreams (preferred over streamUrl)"
+        ),
+    selectionId: z
+        .string()
+        .optional()
+        .describe("Selection group ID returned by getMediaStreams"),
+    streamChoice: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Numeric stream choice from getMediaStreams (1-based)"),
+    streamUrl: z
+        .string()
+        .optional()
+        .describe("Direct stream URL (legacy fallback; prefer streamId)"),
+    mediaSourceId: z
+        .string()
+        .optional()
+        .describe("Source-specific ID for playback (e.g. episode ID)"),
+    subtitleFilename: z
+        .string()
+        .optional()
+        .describe("Subtitle hint filename from the selected stream"),
+    subtitleVideoSize: z
+        .number()
+        .optional()
+        .describe("Subtitle hint video size from the selected stream"),
+    seriesId: z
+        .string()
+        .optional()
+        .describe("Series ID for episode playback context"),
+    showName: z
+        .string()
+        .optional()
+        .describe("Series name for episode playback context"),
+    episodeTitle: z
+        .string()
+        .optional()
+        .describe("Episode title when mediaType is Episode"),
+    seasonNumber: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Episode season number when available"),
+    episodeNumber: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Episode number when available"),
+});
+
 export const playMedia = tool({
     description:
     "For ordinary playback from the start/resume position. For a requested scene, use skipToSubtitleContent instead. Open the player immediately for a known title. The player fetches and selects streams itself, just like pressing Play on a media card. Do not call getMediaStreams first unless the user requests stream choices or a specific version/quality. For 'first episode', pass the known series mediaId, mediaType Episode, seasonNumber 1, episodeNumber 1; no season/episode listing is needed. Reuse IDs from prior search or filmography results.",
-    inputSchema: z.object({
-        mediaId: z.string().describe("Known TMDB/IMDb title ID, retaining the tmdb: prefix. For episodes, a series ID plus seasonNumber/episodeNumber is sufficient; an encoded episode ID also works."),
-        mediaName: z.string().describe("The name of the media item"),
-        mediaType: z
-            .enum(["Movie", "Series", "Episode"])
-            .describe("The type of media - Movie, Series (TV Show), or Episode"),
-        streamId: z
-            .string()
-            .optional()
-            .describe(
-                "Short stream reference ID returned by getMediaStreams (preferred over streamUrl)"
-            ),
-        selectionId: z
-            .string()
-            .optional()
-            .describe("Selection group ID returned by getMediaStreams"),
-        streamChoice: z
-            .number()
-            .int()
-            .min(1)
-            .optional()
-            .describe("Numeric stream choice from getMediaStreams (1-based)"),
-        streamUrl: z
-            .string()
-            .optional()
-            .describe("Direct stream URL (legacy fallback; prefer streamId)"),
-        mediaSourceId: z
-            .string()
-            .optional()
-            .describe("Source-specific ID for playback (e.g. episode ID)"),
-        subtitleFilename: z
-            .string()
-            .optional()
-            .describe("Subtitle hint filename from the selected stream"),
-        subtitleVideoSize: z
-            .number()
-            .optional()
-            .describe("Subtitle hint video size from the selected stream"),
-        seriesId: z
-            .string()
-            .optional()
-            .describe("Series ID for episode playback context"),
-        showName: z
-            .string()
-            .optional()
-            .describe("Series name for episode playback context"),
-        episodeTitle: z
-            .string()
-            .optional()
-            .describe("Episode title when mediaType is Episode"),
-        seasonNumber: z
-            .number()
-            .int()
-            .min(0)
-            .optional()
-            .describe("Episode season number when available"),
-        episodeNumber: z
-            .number()
-            .int()
-            .min(1)
-            .optional()
-            .describe("Episode number when available"),
-    }),
+    inputSchema: playMediaInputSchema,
     execute: async ({
         mediaId,
         mediaName,

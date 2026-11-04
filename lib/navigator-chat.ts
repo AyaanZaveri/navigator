@@ -41,6 +41,12 @@ export function modelToolOutput(name: string, value: unknown): unknown {
         preparedToolCallId: output.preparedToolCallId, success: output.success,
         status: output.status, message: output.message,
     };
+    if (["findEpisode", "findEpisodeByTitle"].includes(name) || output.status === "ambiguous" || (output.evidence && !actionToolNames.has(name))) {
+        const { thumbnail: _thumbnail, poster: _poster, background: _background, ...result } = output;
+        return { ...result, ...(Array.isArray(result.episodes) ? { episodes: result.episodes.map((item: unknown) => {
+            const { thumbnail: _image, ...episode } = record(item); return episode;
+        }) } : {}) };
+    }
     if (output.success === false) return { success: false, error: output.error, message: output.message };
     const fields: Record<string, string[]> = {
         searchMedia: ["id", "tmdbId", "name", "type", "year", "overview", "communityRating", "source"],

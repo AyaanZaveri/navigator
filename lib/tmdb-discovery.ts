@@ -41,6 +41,8 @@ interface TMDBSeasonRecord {
 interface TMDBEpisodeRecord {
     id: number; name: string; season_number: number; episode_number: number;
     overview?: string; air_date?: string; still_path?: string | null; vote_average?: number; runtime?: number;
+    guest_stars?: { name: string; character?: string }[];
+    crew?: { name: string; job?: string }[];
 }
 interface TMDBTitleDetails extends TMDBTitleRecord {
     imdb_id?: string | null;
@@ -200,6 +202,9 @@ export async function getTMDBEpisodes(seriesId: string, season: number, signal?:
         name: episode.name, season: episode.season_number, episode: episode.episode_number,
         overview: episode.overview, thumbnail: tmdbImage(episode.still_path), released: episode.air_date,
         communityRating: episode.vote_average, runtime: episode.runtime, source: "TMDB",
+        guestStars: episode.guest_stars?.map(person => ({ name: person.name, character: person.character })) || [],
+        crew: episode.crew?.filter(person => ["Director", "Writer", "Story", "Teleplay"].includes(person.job || ""))
+            .map(person => ({ name: person.name, job: person.job })) || [],
     }));
 }
 

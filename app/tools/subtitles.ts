@@ -8,6 +8,7 @@ import { getSubtitleTracks } from "@/app/actions/utils";
 import type { CurrentMediaWithSource } from "@/lib/atoms";
 import { matchedSubtitle, sceneSubtitles, sceneSubtitleCandidates } from "@/lib/navigator-subtitles";
 import type { SceneProgress } from "@/lib/navigator-scene-progress";
+import { createEpisodeTools } from "./episodes";
 
 interface ParsedSubtitleEntry {
   timestamp: number;
@@ -260,12 +261,37 @@ async function loadParsedSubtitles(
     const auth = (await cookies()).get("stremio-auth");
     const userId = auth?.value ? JSON.parse(auth.value).user?._id : undefined;
     if (!userId) return { success: false, subtitles: [], error: "Not authenticated" };
-    const tracks = await getSubtitleTracks(streamSourceId, mediaType, {
+    let tracks = await getSubtitleTracks(streamSourceId, mediaType, {
         filename: currentMedia.subtitleFilename,
         videoSize: currentMedia.subtitleVideoSize,
         signal: abortSignal,
     });
     if (!tracks.length) return { success: false, subtitles: [], error: `No subtitle tracks found for ${currentMedia.name}.` };
+
+    // Subtitle releases can count specials differently from the canonical video catalog.
+    // Match the verified episode title before accepting a neighboring subtitle bucket;
+    // never change the video ID or infer a timestamp from those coordinates.
+    const normalizeRelease = (value: string) => value.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const episodeTitle = normalizeRelease(currentMedia.episodeTitle || "");
+    const episodeId = /^(tt\d+|tmdb:\d+):(\d+):(\d+)$/.exec(streamSourceId);
+    if (episodeId && episodeTitle && !/^episode \d+$/.test(episodeTitle) && tracks.some(track => track.filename)) {
+        const matchesTitle = (track: typeof tracks[number]) => !!track.filename &&
+            ` ${normalizeRelease(track.filename)} `.includes(` ${episodeTitle} `);
+        let matching = tracks.filter(matchesTitle);
+        if (!matching.some(track => scoreEnglishTrack(track) >= ENGLISH_TRACK_MIN_SCORE)) {
+            const episodeNumber = Number(episodeId[3]);
+            const nearby = await Promise.all([episodeNumber - 1, episodeNumber + 1].filter(number => number > 0).map(async number => {
+                try {
+                    return await getSubtitleTracks(`${episodeId[1]}:${episodeId[2]}:${number}`, mediaType, { signal: abortSignal });
+                } catch {
+                    abortSignal?.throwIfAborted();
+                    return [];
+                }
+            }));
+            matching = [...matching, ...nearby.flat().filter(matchesTitle)];
+        }
+        if (matching.length) tracks = matching;
+    }
 
     const preferredIndex = pickPreferredSubtitleTrackIndex(tracks, subtitleIndex);
     const preferred = tracks[preferredIndex];
@@ -371,7 +397,7 @@ export const skipToSubtitleContent = (
 ) =>
     tool({
         description:
-      "Go to, play, or skip to a described scene/moment. For a named movie/show, pass mediaQuery (title only) and userDescription (scene only): this tool searches TMDB, reads subtitles, and plays/seeks the matching timestamp in one call. No searchMedia, navigateToMediaByQuery, or playMedia call is needed first. For the current video, omit mediaQuery and IDs. If a verified title ID is already known, use mediaId + mediaName + mediaType instead. Episodes require known episode coordinates. Never guess timestamps.",
+      "Go to, play, or skip to a described scene/moment. For a named movie/show, pass mediaQuery (title only) and userDescription (scene only): this tool searches TMDB, reads subtitles, and plays/seeks the matching timestamp in one call. For a described episode, also pass episodeQuery preserving the episode's plot/event/guest description; this verifies the episode before searching its subtitles. No searchMedia, navigateToMediaByQuery, or playMedia call is needed first. For the current video, omit mediaQuery and IDs. If a verified title ID is already known, use mediaId + mediaName + mediaType instead. Episodes require verified coordinates or episodeQuery. Never guess timestamps.",
         inputExamples: [
             { input: { mediaQuery: "Interstellar", userDescription: "black hole scene" } },
             { input: { userDescription: "the docking scene" } },
@@ -383,6 +409,7 @@ export const skipToSubtitleContent = (
                     "The user's description of what scene/moment they want to skip to"
                 ),
             mediaQuery: z.string().min(1).max(300).optional().describe("Named title to find internally, e.g. Interstellar. Omit when seeking the current video or supplying a known mediaId."),
+            episodeQuery: z.string().min(1).max(1500).optional().describe("Remembered episode title, plot, guest or event. Resolve this episode within mediaQuery (show title) or mediaId (series ID) before matching userDescription within its subtitles."),
             mediaId: z.string().optional().describe("Known TMDB/IMDb title ID, exactly as returned by discovery"),
             mediaName: z.string().optional().describe("Title name, required with mediaId"),
             mediaType: z.enum(["Movie", "Episode"]).optional().describe("Target kind; episodes require seasonNumber and episodeNumber or an encoded episode ID"),
@@ -395,7 +422,7 @@ export const skipToSubtitleContent = (
                 .optional()
                 .describe("The subtitle stream index (default: 0)"),
         }),
-        execute: async ({ userDescription, subtitleIndex = DEFAULT_SUBTITLE_INDEX, mediaQuery, mediaId, mediaName, mediaType, seasonNumber, episodeNumber }, options) => {
+        execute: async ({ userDescription, subtitleIndex = DEFAULT_SUBTITLE_INDEX, mediaQuery, episodeQuery, mediaId, mediaName, mediaType, seasonNumber, episodeNumber }, options) => {
             let activeStage: SceneProgress["stage"] = "title";
             const report = (progress: SceneProgress) => {
                 activeStage = progress.stage;
@@ -415,6 +442,25 @@ export const skipToSubtitleContent = (
                 report({ stage: "title", state: "running", detail: mediaQuery || mediaName || currentMedia?.name });
                 const normalizeTitle = (value: string) => value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
                 let selectedTitle: SceneProgress["media"];
+                if (episodeQuery) {
+                    if (episodeNumber !== undefined || mediaType === "Movie") return { success: false, error: "Provide an episode description or explicit coordinates, not both." };
+                    if (!mediaQuery && !mediaId) return { success: false, error: "Which TV show is that episode from?" };
+                    const resolved = await createEpisodeTools(analysisModel).findEpisode.execute!({
+                        seriesId: mediaId, seriesQuery: mediaQuery, episodeQuery, seasonNumber,
+                    }, options);
+                    if (Symbol.asyncIterator in resolved) throw new Error("Expected a single episode resolution");
+                    if (!resolved.success) return resolved;
+                    const episode = resolved.episodes[0];
+                    mediaId = episode.id;
+                    mediaName = episode.seriesName;
+                    mediaType = "Episode";
+                    seasonNumber = episode.seasonNumber;
+                    episodeNumber = episode.episodeNumber;
+                    mediaQuery = undefined;
+                    selectedTitle = { id: episode.id, name: episode.title, type: "episode", source: episode.source,
+                        thumbnail: episode.thumbnail, seriesId: episode.seriesId, seriesName: episode.seriesName,
+                        seasonNumber, episodeNumber };
+                }
                 if (mediaQuery) {
                     if (mediaId || mediaName) return { success: false, error: "Use either a title query or a known title ID, not both." };
                     if (currentMedia && normalizeTitle(mediaQuery) === normalizeTitle(currentMedia.showName || currentMedia.name)
@@ -458,7 +504,8 @@ export const skipToSubtitleContent = (
                 // Reuse an already-playing copy instead of opening/fetching the same movie again.
                 if (playback && currentMedia && (playback.mediaSourceId || playback.mediaId) === (currentMedia.mediaSourceId || currentMedia.id)) playback = null;
                 const targetMedia = playback ? { id: playback.mediaId!, name: playback.mediaName!, type: playback.mediaType === "Movie" ? "movie" as const : "series" as const,
-                    mediaSourceId: playback.mediaSourceId, seasonNumber: playback.seasonNumber, episodeNumber: playback.episodeNumber } : currentMedia;
+                    mediaSourceId: playback.mediaSourceId, seasonNumber: playback.seasonNumber, episodeNumber: playback.episodeNumber,
+                    episodeTitle: playback.episodeTitle, showName: playback.showName } : currentMedia;
                 timings.resolveTitleMs = Date.now() - resolveStartedAt;
                 const loadStartedAt = Date.now();
                 report({ stage: "title", state: "completed", detail: targetMedia?.name,

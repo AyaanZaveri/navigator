@@ -15,6 +15,7 @@ import { actionToolNames, record, compactNavigatorMessages, pageTargetFromPath, 
 import { scenePlaybackResponse } from "@/app/tools/scene-workflow";
 import { navigatorRoutingSettings } from "@/lib/navigator-model-settings";
 import type { SceneProgress } from "@/lib/navigator-scene-progress";
+import type { EpisodeProgress } from "@/lib/episode-discovery";
 import { createOpenCodeGoModel } from "@/lib/opencode-go";
 import { getTMDBTitle, getTMDBEpisodes } from "@/lib/tmdb-discovery";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
@@ -283,7 +284,7 @@ export async function POST(req: Request) {
 
         const tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal);
         // Retain the old handoff schema for saved chats, without advertising it to models.
-        const { completeAction: _legacyAction, ...generationTools } = tools;
+        const { completeAction: _legacyAction, findEpisodeByTitle: _legacyEpisodes, ...generationTools } = tools;
         let validatedMessages;
         try {
             validatedMessages = await validateUIMessages({ messages, tools });
@@ -359,6 +360,20 @@ export async function POST(req: Request) {
                         return output;
                     },
                 } };
+                for (const name of ["findEpisode", "findEpisodeByTitle", "navigateToEpisode", "playMedia", "searchMediaWeb", "skipToSubtitleContent"]) {
+                    const definition = progressTools[name];
+                    if (!definition?.execute) continue;
+                    progressTools[name] = { ...definition, execute: async (input, options) => {
+                        let latest: EpisodeProgress | undefined;
+                        const onEpisodeProgress = (progress: EpisodeProgress) => {
+                            latest = progress;
+                            writer.write({ type: "data-episodeProgress", id: `${options.toolCallId}-${progress.stage}`, data: { ...progress, toolCallId: options.toolCallId } });
+                        };
+                        const output = await definition.execute!(input, { ...options, context: { ...record(options.context), onEpisodeProgress } });
+                        if (record(output).success === false && latest?.state === "running") onEpisodeProgress({ ...latest, state: "error", detail: record(output).error });
+                        return output;
+                    } };
+                }
                 const result = streamText({
             model,
             messages: modelMessages,

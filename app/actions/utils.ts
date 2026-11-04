@@ -153,7 +153,7 @@ export async function getSubtitleTracks(
           for (const sub of data.subtitles) {
             addonTracks.push({
               id: sub.id,
-              filename: typeof sub.filename === "string" ? sub.filename : undefined,
+              filename: [sub.filename, sub.subtitleFileName, sub.movieReleaseName].find(value => typeof value === "string" && value.trim()),
               provider: addon.manifest.name,
               kind: "subtitles",
               label: sub.label || sub.name || sub.lang || "Unknown",

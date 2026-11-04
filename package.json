@@ -32,7 +32,7 @@
     "test:home-pagination": "node scripts/test-home-pagination.cjs",
     "test:gradient": "node scripts/test-gradient-lifecycle.cjs",
     "test:home-palette": "node scripts/test-home-palette.cjs && node scripts/test-home-dominant-colors.cjs && node scripts/test-home-palette-worker.cjs && node scripts/test-home-logo-canvas.cjs",
-    "test:navigator": "node scripts/test-navigator.cjs && node scripts/test-tmdb-discovery.cjs && node scripts/test-navigator-presentation.cjs",
+    "test:navigator": "node scripts/test-navigator.cjs && node scripts/test-tmdb-discovery.cjs && node scripts/test-navigator-presentation.cjs && node scripts/test-episode-discovery.cjs && node scripts/test-opencode-continuation.cjs",
     "test:episode-continuation": "node scripts/test-episode-continuation.cjs && node scripts/test-series-playback.cjs",
     "cloudflare:build": "opennextjs-cloudflare build",
     "cloudflare:deploy": "npm run cloudflare:build && opennextjs-cloudflare deploy",

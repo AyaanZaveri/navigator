@@ -9,6 +9,7 @@ export interface SceneProgress {
         year?: number;
         communityRating?: number;
         poster?: string;
+        thumbnail?: string;
         source?: string;
         seriesId?: string;
         seriesName?: string;

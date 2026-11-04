@@ -11,6 +11,7 @@ async function main() {
   let activeModel;
   let authenticated = true;
   let subtitleTracks = [];
+  let subtitleTracksForId;
   let subtitleContent = "";
   let subtitleTrackLookups = 0;
   let subtitleUserId = "test-user";
@@ -64,7 +65,7 @@ async function main() {
     },
     '@/app/actions/tv-shows': { fetchEpisodes: async () => [], fetchSeasons: async () => [], fetchEpisodeDetails: async () => ({ id: 'show:1:2', title: 'Selected episode' }) },
     '@/app/actions/subtitles': { fetchSubtitleFileContent: async url => { subtitleDownloads.push(url); return brokenSubtitleUrls.has(url) ? { success: false, error: 'Subtitle download failed (404)' } : ({ success: true, content: subtitleContent }); } },
-    '@/app/actions/utils': { getSubtitleTracks: async () => { subtitleTrackLookups++; return subtitleTracks; } },
+    '@/app/actions/utils': { getSubtitleTracks: async id => { subtitleTrackLookups++; return subtitleTracksForId ? subtitleTracksForId(id) : subtitleTracks; } },
   };
   function load(file) {
     const absolute = path.resolve(file);
@@ -343,10 +344,34 @@ async function main() {
   assert.equal(idleScene.mediaId, 'tt123', 'Resolve the TMDB ID before requesting subtitles');
   assert.equal(idleScene.resumePositionTicks, 5, 'Open playback directly at the evidence timestamp');
   assert.equal(idleScene.execution, 'prepared');
+  tmdbSearchFixtures = [{ id: 114294, name: 'The Curse', media_type: 'tv' }];
+  const descriptiveEpisodeScene = await idleTools.skipToSubtitleContent.execute({
+    mediaQuery: 'The Curse', episodeQuery: 'Land of Enchantment', userDescription: 'Earlier evidence',
+  }, toolOptions);
+  assert.equal(descriptiveEpisodeScene.success, true, 'Resolve a described episode before seeking its scene, without asking the user for coordinates');
+  assert.equal(descriptiveEpisodeScene.mediaId, 'tt13623608:1:1');
+  assert.equal(descriptiveEpisodeScene.resumePositionTicks, 5);
+  const lookupsBeforeUnresolvedEpisode = subtitleTrackLookups;
+  const unresolvedEpisodeScene = await idleTools.skipToSubtitleContent.execute({
+    mediaQuery: 'The Curse', episodeQuery: 'an unsupported episode description', userDescription: 'Earlier evidence',
+  }, toolOptions);
+  assert.equal(unresolvedEpisodeScene.success, false, 'Unsupported episode evidence must not fall back to a guessed episode');
+  assert.equal(unresolvedEpisodeScene.action, undefined);
+  assert.equal(subtitleTrackLookups, lookupsBeforeUnresolvedEpisode, 'Resolve the episode before requesting its subtitles');
+  tmdbSearchFixtures = undefined;
   const episodeScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence', mediaId: 'tmdb:114294', mediaName: 'The Curse', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1 }, toolOptions);
   assert.equal(episodeScene.success, true);
   assert.equal(episodeScene.mediaSourceId, 'tt13623608:1:1');
   assert.equal(episodeScene.resumePositionTicks, 5);
+  subtitleTracksForId = id => [{ language: 'en', label: 'English',
+    src: id === 'tt13623608:1:2' ? 'https://example.test/right-episode.srt' : 'https://example.test/wrong-episode.srt',
+    filename: id === 'tt13623608:1:2' ? 'The.Curse.S01E02.Land.of.Enchantment.srt' : 'The.Curse.S01E01.Other.Episode.srt' }];
+  const shiftedSubtitlesScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence',
+    mediaId: 'tmdb:114294', mediaName: 'The Curse', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1 }, toolOptions);
+  assert.equal(shiftedSubtitlesScene.success, true);
+  assert.equal(subtitleDownloads.at(-1), 'https://example.test/right-episode.srt', 'Use episode-title evidence when the subtitle provider has shifted numbering');
+  assert.equal(shiftedSubtitlesScene.mediaSourceId, 'tt13623608:1:1', 'Subtitle provider numbering must not change the video playback target');
+  subtitleTracksForId = undefined;
   const sceneCardsProgress = [];
   const queryScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence', mediaQuery: 'Example' },
     { ...toolOptions, context: { onSceneProgress: progress => sceneCardsProgress.push(progress) } });
@@ -487,6 +512,33 @@ async function main() {
   assert.deepEqual(Array.from(streamedProgress, part => part.data.stage), ['title', 'subtitles', 'scene']);
   assert.ok(streamedProgress.every(part => part.data.state === 'completed'), 'SDK must update each stage in place rather than append duplicate traces');
   assert.ok(streamedProgress.every(part => part.data.toolCallId === directScenePart.toolCallId));
+  const previousCompoundSubtitles = subtitleContent;
+  subtitleContent = '1\n00:00:05,000 --> 00:00:08,000\nEarlier evidence\n';
+  tmdbSearchFixtures = [{ id: 114294, name: 'The Curse', media_type: 'tv' }];
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor',
+    doStream: async () => { throw new Error('Combined episode/scene requests stay in the scene workflow'); },
+    doGenerate: async options => {
+      if (JSON.stringify(options.prompt).includes('Extract a scene-playback request')) {
+        const schema = options.responseFormat.schema;
+        assert.deepEqual([...schema.required].sort(), Object.keys(schema.properties).sort(), 'Muse strict intent schemas require every property; unused fields must be nullable');
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(
+      JSON.stringify(options.prompt).includes('Extract a scene-playback request')
+        ? { mediaQuery: 'The Curse', episodeQuery: 'Land of Enchantment', userDescription: 'Earlier evidence', seasonNumber: null, episodeNumber: null }
+        : { candidate: 1, confidence: 'high' }
+    ) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }; },
+  });
+  const compoundEpisodeResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('episode-and-scene', 'Play the episode of The Curse called Land of Enchantment and then skip to the scene with earlier evidence')] })));
+  const compoundEpisodePart = compoundEpisodeResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
+  assert.equal(compoundEpisodePart.input.episodeQuery, 'Land of Enchantment', 'Intent extraction preserves the episode clue separately from the scene');
+  assert.equal(compoundEpisodePart.output.success, true);
+  assert.equal(compoundEpisodePart.output.resumePositionTicks, 5, 'One prepared action starts at the matched scene');
+  assert.equal(compoundEpisodePart.output.mediaId, 'tt13623608:1:1');
+  assert.ok(compoundEpisodeResponse.parts.some(part => part.type === 'data-episodeProgress' && part.data.catalog?.seriesName === 'The Curse'), 'Combined requests stream episode lookup cards');
+  subtitleContent = previousCompoundSubtitles;
+  tmdbSearchFixtures = undefined;
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
     doStream: async () => stream([{ type: 'tool-call', toolCallId: 'luna-scene-progress', toolName: 'skipToSubtitleContent', input: JSON.stringify({ mediaQuery: 'Example', userDescription: 'a fresh semantic scene for Luna' }) }], 'tool-calls'),
     doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }),
@@ -500,7 +552,7 @@ async function main() {
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async () => {
     freeformCalls++;
     return { content: [{ type: 'text', text: JSON.stringify(freeformCalls === 1
-      ? { mediaQuery: 'Example', userDescription: 'a barn scene with a fresh description', seasonNumber: null, episodeNumber: null }
+      ? { mediaQuery: 'Example', userDescription: 'a barn scene with a fresh description', seasonNumber: null, episodeNumber: null, episodeQuery: null }
       : { candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
   } });
   const freeformScene = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
@@ -534,8 +586,10 @@ async function main() {
   assert.equal(pendingProviders.length, 2, 'Subtitle providers must start concurrently instead of waiting for one another');
   assert.ok(pendingProviders.every(p => p.init.signal), 'Every provider request must have a timeout/cancellation signal');
   pendingProviders[1].resolve(new Response(JSON.stringify({ subtitles: [{ id: 'second', lang: 'eng', url: 'https://files.test/second.srt' }] }), { status: 200 }));
-  pendingProviders[0].resolve(new Response(JSON.stringify({ subtitles: [{ id: 'first', lang: 'eng', url: 'https://files.test/first.srt' }] }), { status: 200 }));
-  assert.deepEqual(clone((await trackDiscovery).map(track => track.id)), ['first', 'second'], 'Provider completion order must not randomly change subtitle preference');
+  pendingProviders[0].resolve(new Response(JSON.stringify({ subtitles: [{ id: 'first', lang: 'eng', url: 'https://files.test/first.srt', subtitleFileName: 'The.Anecdote.srt' }] }), { status: 200 }));
+  const discoveredTracks = await trackDiscovery;
+  assert.deepEqual(clone(discoveredTracks.map(track => track.id)), ['first', 'second'], 'Provider completion order must not randomly change subtitle preference');
+  assert.equal(discoveredTracks[0].filename, 'The.Anecdote.srt', 'Preserve provider subtitle release names for episode identity checks');
   subtitleTransportFetch = undefined;
   activeModel = new MockLanguageModelV4({ doStream: async () => { throw new ai.APICallError({ message: 'rate limited', url: 'https://example.test', requestBodyValues: {}, statusCode: 429 }); } });
   const limited = await POST(request(payload));

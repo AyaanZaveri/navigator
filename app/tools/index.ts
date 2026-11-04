@@ -3,6 +3,7 @@ import type { JSONValue, LanguageModel, ToolSet } from "ai";
 import { actionToolNames, modelToolOutput, record } from "@/lib/navigator-chat";
 import { completeAction } from "./browser-action";
 import { searchPeople, getPersonDetails, getFilmography } from "./people";
+import { createEpisodeTools } from "./episodes";
 import {
     searchMedia,
     navigateToMedia,
@@ -99,6 +100,7 @@ export function createAllTools(
 
     const definitions: ToolSet = {
         ...baseTools,
+        ...createEpisodeTools(analysisModel),
         // Keep schemas stable when replaying a conversation after playback closes.
         skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal),
         explainScene: createExplainScene(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),
