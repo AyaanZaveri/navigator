@@ -30,7 +30,12 @@ html[data-native-platform="windows"] [data-slot="media-player-controls"] {
 
 /* The native macOS buttons occupy the leading side of the app's header.
    AppKit hides them in fullscreen, where the usual page gutter is restored. */
-html[data-native-platform="macos"] { --window-controls-inset: 88px; }
+html[data-native-platform="macos"] {
+  --window-controls-inset: 88px;
+  /* A 44px control plus 8px on each side centers with AppKit's 30px inset. */
+  --app-header-navigation-padding: .5rem;
+  --app-header-height: 3.75rem;
+}
 html[data-native-platform="macos"][data-desktop-fullscreen="true"] { --window-controls-inset: 0px; }
 html[data-native-platform="windows"][data-desktop-fullscreen="false"] { --window-controls-right-inset: 154px; }
 @media (width < 48rem) {

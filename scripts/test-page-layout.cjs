@@ -37,6 +37,7 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   assert.equal(find(mains[0], node => node.type === Header).length, 0, `${path}: scrolling page content must not contain the navbar`);
   assert.ok(find(mains[0], node => node.type === "p" && node.props.children === "Page content").length, `${path}: page content remains in the scrollport`);
   assert.equal(headers[0].props.overlay, /^\/(movie|series)(?:\/|$)/.test(path), `${path}: media pages retain adaptive backdrop presentation`);
+  assert.equal(mains[0].props['data-header-overlay'], /^\/(movie|series)(?:\/|$)/.test(path) ? 'true' : 'false', `${path}: Mac scrollport geometry follows route changes without double-insetting media pages`);
 }
 
 // Native scrolling can move the page before its JS scroll listener runs.

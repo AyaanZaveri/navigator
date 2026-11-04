@@ -75,7 +75,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
                 <ScrollAreaRoot type="scroll" scrollHideDelay={900} asChild>
                     <div data-desktop-app-content data-playback-hidden={isPlayerVisible ? "" : undefined} inert={isPlayerVisible} className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
                         <AppHeader email={email} overlay={overlayHeader} />
-                        <ScrollAreaViewport role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
+                        <ScrollAreaViewport role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
                             <PersistentAuroraBackground />
                             {children}
                         </ScrollAreaViewport>
