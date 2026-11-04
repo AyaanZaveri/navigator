@@ -27,6 +27,21 @@ const PROPERTIES: &[(&str, Kind)] = &[
     ("decoder-frame-drop-count", Kind::Double),
 ];
 
+// Bitmap codecs have no `sub-text`: let mpv composite their original images.
+// Text codecs keep using the shared React subtitle renderer.
+fn bitmap_subtitles_selected(tracks: &Value) -> bool {
+    tracks.as_array().is_some_and(|tracks| tracks.iter().any(|track| {
+        track["type"] == "sub" && track["selected"] == true
+            && matches!(track["codec"].as_str(), Some("hdmv_pgs_subtitle" | "dvd_subtitle" | "dvb_subtitle" | "xsub"))
+    }))
+}
+
+fn sync_subtitle_visibility(mpv: &Mpv) -> Result<Value, String> {
+    let tracks = mpv.get_property("track-list", Kind::Json).unwrap_or(json!([]));
+    mpv.set_property("sub-visibility", if bitmap_subtitles_selected(&tracks) { "yes" } else { "no" })?;
+    Ok(tracks)
+}
+
 fn video_colour(mpv: &Mpv) -> (Option<String>, Option<String>) {
     let text = |name| {
         mpv.get_property(name, Kind::String)
@@ -51,7 +66,7 @@ impl Player {
         emit: impl Fn(Value) + Send + Sync + 'static,
         colour: impl Fn(Option<String>, Option<String>) + Send + 'static,
     ) -> Result<Self, String> {
-        // Keep subtitle decoding active; React draws the cues above the video.
+        // Text cues are drawn by React. Bitmap track selection enables native drawing.
         mpv.set_property("sub-visibility", "no")?;
         let emit = Arc::new(emit);
         for (id, (name, kind)) in PROPERTIES.iter().enumerate() {
@@ -100,6 +115,8 @@ impl Player {
                             }).collect::<Vec<_>>().join(",");
                             let result = client.set_property("http-header-fields", &fields)
                                 .and_then(|_| client.set_property("pause", "no"))
+                                .and_then(|_| client.set_property("sub-visibility", "no"))
+                                .and_then(|_| client.set_property("sid", "no"))
                                 .and_then(|_| client.command(&["loadfile", &url, "replace"]));
                             if result.is_ok() {
                                 if let Some(id) = client.get_property("playlist/0/id", Kind::Double).and_then(|v| v.as_f64()) {
@@ -122,7 +139,10 @@ impl Player {
                             glass_control.invalidate();
                             result
                         }
-                        Command::Track { kind, id, .. } => client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id),
+                        Command::Track { kind, id, .. } => {
+                            client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id)
+                                .and_then(|_| sync_subtitle_visibility(&client).map(|_| ()))
+                        },
                         Command::Stop { .. } => {
                             #[cfg(windows)]
                             glass_control.source(String::new());
@@ -161,6 +181,11 @@ impl Player {
                         if let Some((named, url, headers)) = preview_source.take() {
                             if named == desired { previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone())); }
                         }
+                        // Publish the complete track snapshot before loadedmetadata so an
+                        // external subtitle default cannot win a delayed embedded-track event.
+                        if let Ok(tracks) = sync_subtitle_visibility(&client) {
+                            emit(json!({"type":"tracks","session":session,"tracks":tracks}));
+                        }
                         // Metadata must precede loadedmetadata: the React handler resumes here.
                         for (name, key, kind) in [("duration", "duration", Kind::Double), ("time-pos", "position", Kind::Double), ("video-params/w", "width", Kind::Double), ("video-params/h", "height", Kind::Double)] {
                             if let Some(value) = client.get_property(name, kind) { state[key] = value; }
@@ -192,7 +217,14 @@ impl Player {
                         emit(json!({"type":"subtitle","session":session,"text":value.as_str().unwrap_or("")}));
                     }
                     Some(Event::Property { name, value, .. }) if !value.is_null() => {
-                        if name == "track-list" { emit(json!({"type":"tracks","session":session,"tracks":value})); continue; }
+                        if name == "track-list" {
+                            // Query current selection: queued observations can predate Off
+                            // or a newer selection and must not re-enable a bitmap overlay.
+                            if let Ok(tracks) = sync_subtitle_visibility(&client) {
+                                emit(json!({"type":"tracks","session":session,"tracks":tracks}));
+                            }
+                            continue;
+                        }
                         let key = match name.as_str() {
                             "time-pos" => "position", "duration" => "duration", "pause" => "paused", "volume" => "volume",
                             "mute" => "muted", "speed" => "rate", "paused-for-cache" => "buffering", "seeking" => "seeking",
@@ -469,8 +501,21 @@ mod tests {
     }
 
     #[test]
+    fn bitmap_track_visibility_policy() {
+        for codec in ["hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle", "xsub"] {
+            assert!(bitmap_subtitles_selected(&json!([{"type":"sub","selected":true,"codec":codec}])));
+            assert!(!bitmap_subtitles_selected(&json!([{"type":"sub","selected":false,"codec":codec}])));
+        }
+        for codec in ["subrip", "ass", "webvtt", "mov_text", "unknown"] {
+            assert!(!bitmap_subtitles_selected(&json!([{"type":"sub","selected":true,"codec":codec}])));
+        }
+        assert!(!bitmap_subtitles_selected(&json!([])));
+        assert!(!bitmap_subtitles_selected(&json!([{"type":"audio","selected":true,"codec":"hdmv_pgs_subtitle"}])));
+    }
+
+    #[test]
     #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_HDR_DIR"]
-    fn headless_text_subtitles_with_native_drawing_hidden() {
+    fn headless_bitmap_and_text_subtitle_routing() {
         let library = std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap();
         let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_HDR_DIR").unwrap());
         let subtitle =
@@ -514,8 +559,34 @@ mod tests {
         wait_for(&inbox, |v| {
             v["type"] == "loaded" && v["session"] == "captions"
         });
+        // A tiny authored PGS display set: opaque white 40x10 bitmap at (20,20).
+        // This exercises the actual bundled pgssub decoder without private media.
+        let bitmap = std::env::temp_dir().join(format!("navigator-subtitles-{}.sup", std::process::id()));
+        let mut sup = Vec::new();
+        let mut segment = |kind: u8, data: &[u8]| {
+            sup.extend_from_slice(b"PG");
+            sup.extend_from_slice(&0u32.to_be_bytes()); // PTS
+            sup.extend_from_slice(&0u32.to_be_bytes()); // DTS
+            sup.push(kind);
+            sup.extend_from_slice(&(data.len() as u16).to_be_bytes());
+            sup.extend_from_slice(data);
+        };
+        segment(0x16, &[0x07,0x80,0x04,0x38,0x10,0,0,0x80,0,0,1,0,0,0,0,0,20,0,20]);
+        segment(0x17, &[1,0,0,20,0,20,0,40,0,10]);
+        segment(0x14, &[0,0,0,16,128,128,0,1,235,128,128,255]);
+        let mut object = vec![0,0,0,0xc0,0,1,0xa8,0,40,0,10]; // 424 bytes: dimensions + RLE
+        for _ in 0..10 { object.extend_from_slice(&[1;40]); object.extend_from_slice(&[0,0]); }
+        segment(0x15, &object);
+        segment(0x80, &[]);
+        std::fs::write(&bitmap, sup).unwrap();
+        mpv.command(&["sub-add", &bitmap.to_string_lossy(), "select"]).unwrap();
+        wait_for(&inbox, |v| v["type"] == "tracks" && bitmap_subtitles_selected(&v["tracks"]));
+        assert_eq!(mpv.get_property("sub-visibility", Kind::Flag), Some(json!(true)));
+        assert_eq!(mpv.get_property("sub-text", Kind::String).and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default(), "");
         mpv.command(&["sub-add", &subtitle.to_string_lossy(), "select"])
             .unwrap();
+        wait_for(&inbox, |v| v["type"] == "tracks" && v["tracks"].as_array().is_some_and(|tracks| tracks.iter().any(|t| t["selected"] == true && t["codec"] == "subrip")));
+        assert_eq!(mpv.get_property("sub-visibility", Kind::Flag), Some(json!(false)));
         wait_for(&inbox, |v| {
             v["type"] == "subtitle"
                 && v["text"].as_str().is_some_and(|text| {
@@ -527,5 +598,6 @@ mod tests {
         player.begin_shutdown();
         player.join();
         std::fs::remove_file(subtitle).unwrap();
+        std::fs::remove_file(bitmap).unwrap();
     }
 }
