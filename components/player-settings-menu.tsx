@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent,
-  DropdownMenuOptions, DropdownMenuItem, type DropdownOption,
+  DropdownMenuOptions, type DropdownOption,
 } from "@/components/arc/dropdown-menu/dropdown-menu";
 import styles from "./player-settings-menu.module.css";
 
@@ -64,15 +64,5 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
       {row.label === "Subtitles" && row.options.length === 1 && <p className={styles.empty}>No subtitle tracks available.</p>}
     </DropdownMenuSubContent>
   </DropdownMenuSub>)}
-    {subtitleTiming && <DropdownMenuItem disabled={disabled} data-slot="media-player-subtitle-timing"
-      aria-haspopup="dialog" aria-expanded={Boolean(subtitleTiming.open)} onSelect={event => {
-        // This is an interactive picker, not a command that dismisses Settings.
-        event.preventDefault();
-        setOpenSubmenu(null);
-        if (subtitleTiming.open) subtitleTiming.onClose(); else subtitleTiming.onOpen();
-      }}>
-      <span className={styles.rowLabel}>Subtitle timing</span>
-      <span className={styles.summary}>{subtitleTiming.seconds > 0 ? "+" : ""}{subtitleTiming.seconds.toFixed(1)} s</span>
-    </DropdownMenuItem>}
   </>;
 }

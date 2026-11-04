@@ -140,13 +140,9 @@ const settingsMenu = PlayerSettingsMenu(panel.props);
 assert.deepEqual(find(settingsMenu, 'SubTrigger').map(node => node.props.children[0].props.children), ['Speed', 'Quality']);
 assert.equal(find(settingsMenu, 'SubContent').length, 2, 'Every setting opens a side submenu');
 assert.ok(find(settingsMenu, 'SubContent').every(node => node.props.container === root), 'Nested windows remain in the fullscreen player');
-let timingOpened = false, selectionPrevented = false;
-const timingMenu = PlayerSettingsMenu({ ...panel.props, subtitleTiming: { seconds: 1.2, onOpen: () => { timingOpened = true; }, onClose() {} } });
-const timingItem = find(timingMenu, 'Item')[0];
-assert.ok(timingItem, 'Subtitle timing is an action, not a numeric form inside the menu');
-timingItem.props.onSelect({ preventDefault() { selectionPrevented = true; } });
-assert.ok(selectionPrevented, "Selecting Timing must keep Settings mounted"); assert.equal(timingOpened, true);
-assert.equal(find(timingMenu, 'SubTrigger').length, 2, 'Timing preserves the existing submenu layout');
+const timingMenu = PlayerSettingsMenu({ ...panel.props, subtitleTiming: { seconds: 1.2, onOpen() {}, onClose() {} } });
+assert.equal(find(timingMenu, 'Item').length, 0, 'Subtitle timing belongs only in the dedicated captions menu');
+assert.equal(find(timingMenu, 'SubTrigger').length, 2, 'Keep the existing speed and quality submenus');
 const primitive = new Proxy({}, { get: (_, key) => key === '__esModule' ? true : `Primitive${key}` });
 const dropdown = load('components/arc/dropdown-menu/dropdown-menu.tsx', {
   react: { ...React, useId: () => 'track-description' }, 'react/jsx-runtime': require('react/jsx-runtime'),
@@ -279,7 +275,8 @@ assert.equal(timingPinned, false, 'Explicit subtitle activation closes timing');
 exclusiveProps.subtitleTiming.open = timingPinned;
 exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
 assert.deepEqual(find(exclusiveMenu, 'Sub').map(node => node.props.open), [false, false, true]);
-find(exclusiveMenu, 'Item')[0].props.onSelect({ preventDefault() {} });
+// The separate captions menu can pin Timing while Settings is open.
+timingPinned = true;
 exclusiveProps.subtitleTiming.open = timingPinned;
 exclusiveMenu = PlayerSettingsMenu(exclusiveProps);
 assert.ok(timingPinned);
