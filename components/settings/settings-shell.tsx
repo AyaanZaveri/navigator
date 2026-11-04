@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Select } from "@/components/arc/select/select";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
 import { SETTINGS_CATEGORIES, settingsCategoryFromPath } from "@/lib/settings-navigation";
+import { motionTokens } from "@/components/arc/lib/motion-tokens";
 import styles from "@/app/(main)/settings/settings.module.css";
 
 export function SettingsShell({ children }: { children: ReactNode }) {
@@ -15,6 +17,9 @@ export function SettingsShell({ children }: { children: ReactNode }) {
     const category = SETTINGS_CATEGORIES.find(category => category.id === active)!;
     const titleRef = useRef<HTMLHeadingElement>(null);
     const previousPath = useRef(pathname);
+    const selectionId = useId();
+    const reducedMotion = useReducedMotion();
+    const [animateSelection, setAnimateSelection] = useState(true);
 
     useEffect(() => {
         document.title = `${category.label} settings · Navigator`;
@@ -29,12 +34,20 @@ export function SettingsShell({ children }: { children: ReactNode }) {
         <HomeGradientBackground />
         <div className={`${styles.content} ${styles.workspace}`}>
             <aside className={styles.sidebar}>
-                <nav aria-label="Settings">
-                    <ul className={styles.navigationList}>
+                <nav aria-label="Settings"
+                    onKeyDownCapture={() => setAnimateSelection(false)}
+                    onPointerDownCapture={() => setAnimateSelection(true)}>
+                    <LayoutGroup id={selectionId}><ul className={styles.navigationList}>
                         {SETTINGS_CATEGORIES.map(item => <li key={item.id}>
-                            <Link className={styles.navigationLink} href={`/settings/${item.id}`} aria-current={active === item.id ? "page" : undefined}>{item.label}</Link>
+                            <Link className={styles.navigationLink} href={`/settings/${item.id}`} aria-current={active === item.id ? "page" : undefined}>
+                                {active === item.id && <motion.span className={styles.navigationSelection}
+                                    layoutId="settings-selection" layoutDependency={active} initial={false}
+                                    transition={reducedMotion || !animateSelection ? { duration: 0 } : motionTokens.spring.snappy}
+                                    aria-hidden="true" />}
+                                <span className={styles.navigationLabel}>{item.label}</span>
+                            </Link>
                         </li>)}
-                    </ul>
+                    </ul></LayoutGroup>
                 </nav>
             </aside>
             <div className={styles.mobileNavigation}>

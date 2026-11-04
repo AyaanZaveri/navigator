@@ -31,6 +31,7 @@
 }
 
 .navigationList {
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: .25rem;
@@ -40,6 +41,7 @@
 }
 
 .navigationLink {
+  position: relative;
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -59,8 +61,21 @@
 
 .navigationLink[aria-current="page"] {
   color: var(--foreground);
+}
+
+.navigationSelection {
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border: 1px solid;
   border-color: var(--border);
+  border-radius: inherit;
   background: color-mix(in oklab, var(--surface) 85%, transparent);
+  pointer-events: none;
+}
+
+.navigationLabel {
+  position: relative;
 }
 
 .navigationLink:focus-visible {
@@ -325,12 +340,12 @@
   .section button[role="combobox"] { font-size: 1rem; }
 }
 
-:global(html:not(.dark)) .navigationLink[aria-current="page"] { background: color-mix(in oklab, var(--surface) 98%, transparent); }
+:global(html:not(.dark)) .navigationSelection { background: color-mix(in oklab, var(--surface) 98%, transparent); }
 
 @media (prefers-reduced-transparency: reduce) {
   .sidebar,
-  .navigationLink[aria-current="page"],
-  :global(html:not(.dark)) .navigationLink[aria-current="page"] {
+  .navigationSelection,
+  :global(html:not(.dark)) .navigationSelection {
     background: var(--surface);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
