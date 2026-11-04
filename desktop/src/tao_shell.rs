@@ -12,6 +12,7 @@ use wry::{NewWindowResponse, Rect, WebContext, WebViewBuilder};
 enum UserEvent {
     Emit(Value),
     Fullscreen(bool),
+    WindowControlsVisible(bool),
     DragWindow,
     Close,
     SyncFullscreen,
@@ -83,6 +84,9 @@ pub fn run(mut app: App) -> Result<(), String> {
                 Ok(protocol::Command::Fullscreen { value }) => {
                     let _ = ipc_proxy.send_event(UserEvent::Fullscreen(value));
                 }
+                Ok(protocol::Command::WindowControlsVisible { visible }) => {
+                    let _ = ipc_proxy.send_event(UserEvent::WindowControlsVisible(visible));
+                }
                 Ok(protocol::Command::WindowDrag {}) => {
                     let _ = ipc_proxy.send_event(UserEvent::DragWindow);
                 }
@@ -140,6 +144,7 @@ pub fn run(mut app: App) -> Result<(), String> {
     surface.resize(window.inner_size().width, window.inner_size().height);
     let mut closing = false;
     let mut fullscreen = false;
+    let mut window_controls_visible = true;
     event_loop.run(move |event, _, flow| {
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
         // Stop the owned backend here rather than relying on process-exit drops.
@@ -172,7 +177,14 @@ pub fn run(mut app: App) -> Result<(), String> {
                 let _ = webview.evaluate_script(&receive(&value));
             }
             Event::UserEvent(UserEvent::Fullscreen(value)) => {
+                #[cfg(target_os = "macos")]
+                platform::set_window_controls_visible(&window, value || window_controls_visible);
                 window.set_fullscreen(value.then_some(Fullscreen::Borderless(None)));
+            }
+            Event::UserEvent(UserEvent::WindowControlsVisible(visible)) => {
+                window_controls_visible = visible;
+                #[cfg(target_os = "macos")]
+                platform::set_window_controls_visible(&window, visible || window.fullscreen().is_some());
             }
             Event::UserEvent(UserEvent::DragWindow) => {
                 if window.fullscreen().is_none() {
@@ -180,6 +192,10 @@ pub fn run(mut app: App) -> Result<(), String> {
                 }
             }
             Event::UserEvent(UserEvent::SyncFullscreen) => {
+                // A document reload must not leave playback-only chrome hidden.
+                window_controls_visible = true;
+                #[cfg(target_os = "macos")]
+                platform::set_window_controls_visible(&window, true);
                 let _ = webview.evaluate_script(&receive(
                     &json!({"type":"fullscreen","value":window.fullscreen().is_some()}),
                 ));
@@ -225,6 +241,8 @@ pub fn run(mut app: App) -> Result<(), String> {
         let actual = window.fullscreen().is_some();
         if fullscreen != actual {
             fullscreen = actual;
+            #[cfg(target_os = "macos")]
+            platform::set_window_controls_visible(&window, actual || window_controls_visible);
             #[cfg(target_os = "macos")]
             surface.refresh_hdr();
             let _ = webview.evaluate_script(&receive(&json!({"type":"fullscreen","value":actual})));

@@ -32,6 +32,19 @@ use std::time::{Duration, Instant};
 use tao::platform::macos::WindowExtMacOS;
 use tao::window::Window;
 
+/// Called only on Tao's AppKit event-loop thread. Fullscreen callers restore the
+/// buttons so AppKit's native titlebar container owns the top-edge reveal.
+pub fn set_window_controls_visible(window: &Window, visible: bool) {
+    use objc2_app_kit::{NSWindow, NSWindowButton};
+    // SAFETY: Tao owns this live NSWindow and this function runs on its main thread.
+    let native = unsafe { &*window.ns_window().cast::<NSWindow>() };
+    for kind in [NSWindowButton::CloseButton, NSWindowButton::MiniaturizeButton, NSWindowButton::ZoomButton] {
+        if let Some(button) = native.standardWindowButton(kind) {
+            button.setHidden(!visible);
+        }
+    }
+}
+
 /// WKWebView uses AppKit's Edit menu to implement standard clipboard shortcuts.
 pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Result<muda::Menu, String> {
     use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};

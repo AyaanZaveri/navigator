@@ -97,7 +97,7 @@ impl Player {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
                         | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
-                        Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => continue,
+                        Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
                     let target = target.clone();
@@ -155,7 +155,7 @@ impl Player {
                             Ok(())
                         }
                         Command::Thumbnail { request, position, .. } => { if let Some(previews) = &previews { previews.want(request, position); } Ok(()) },
-                        Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => unreachable!(),
+                        Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => unreachable!(),
                     };
                     if let Err(message) = result { emit(json!({"type":"error","session":target,"message":message})); }
                 }

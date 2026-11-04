@@ -51,7 +51,7 @@ import {
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
-import { desktopBridge } from "@/lib/desktop/bridge";
+import { desktopBridge, setMacOSWindowControlsVisible } from "@/lib/desktop/bridge";
 import { createDesktopMediaStore } from "@/lib/desktop/media-store";
 import { SeekPreview } from "@/components/seek-preview";
 import { PreviewImage } from "@/components/preview-image";
@@ -322,6 +322,15 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const store = useStoreContext(ROOT_NAME);
 
   const controlsVisible = useStoreSelector((state) => state.controlsVisible);
+
+  React.useEffect(() => {
+    setMacOSWindowControlsVisible(controlsVisible);
+  }, [controlsVisible]);
+  React.useEffect(() => () => {
+    // Returning to browsing must always restore the native window buttons.
+    setMacOSWindowControlsVisible(true);
+  }, []);
+
   const dragging = useStoreSelector((state) => state.dragging);
   const seekMode = useStoreSelector((state) => state.seekMode);
   const menuOpen = useStoreSelector((state) => state.menuOpen);
