@@ -10,9 +10,11 @@ export function SubtitleTrackCard({ track }: { track: NonNullable<SceneProgress[
   return <ResultCard
     title={details.label}
     iconContent={details.flag
-      ? <img src={details.flag} width={20} height={20} alt="" draggable={false} className="size-5 rounded-full" />
+      ? <img src={details.flag} width={24} height={24} alt="" draggable={false} className="block size-6 shrink-0 rounded-full object-cover" />
       : <Languages className="size-4" />}
-    metadata={<ResultMeta>{track.lineCount.toLocaleString("en-US")} lines</ResultMeta>}
-    description={details.description}
+    metadata={<>
+      {track.provider && <ResultMeta>{track.provider}</ResultMeta>}
+      <ResultMeta>{track.lineCount.toLocaleString("en-US")} lines</ResultMeta>
+    </>}
   />;
 }

@@ -14,7 +14,7 @@ import { isAIAskOpenAtom, currentTimestampAtom } from "@/lib/atoms";
 import { useSettings } from "@/contexts/settings-context";
 import { NavigatorFocus } from "./focus";
 import { preloadPlayer } from "@/lib/preload-tools";
-import { isNavigatorRequestComplete, navigatorResponseDurations } from "@/lib/navigator-timing";
+import { isNavigatorRequestSettled, navigatorResponseDurations } from "@/lib/navigator-timing";
 
 const AIAsk = ({ userId }: { userId: string }) => {
     const playbackStore = useStore();
@@ -190,7 +190,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
                 if (shouldContinueAfterNavigatorAction(nextMessages)
                     && lastAssistantMessageIsCompleteWithToolCalls({ messages: nextMessages }) && continuationCountRef.current < 8) return;
             }
-            finalizeRequestDuration(!isAbort && !isError && isNavigatorRequestComplete(nextMessages), nextMessages);
+            finalizeRequestDuration(!isAbort && !isError && isNavigatorRequestSettled(nextMessages), nextMessages);
             activeTaskUserMessageIdRef.current = null;
             awaitingTaskUserMessageRef.current = false;
         },
@@ -292,6 +292,14 @@ const AIAsk = ({ userId }: { userId: string }) => {
     useEffect(() => {
         messagesRef.current = messages as any[];
     }, [messages]);
+
+    useEffect(() => {
+        // Tool-output updates can finish a browser action without another network onFinish.
+        if (isBusy || taskStartTimeRef.current == null || !isNavigatorRequestSettled(messages)) return;
+        if (shouldContinueAfterNavigatorAction(messages)
+            && lastAssistantMessageIsCompleteWithToolCalls({ messages }) && continuationCountRef.current < 8) return;
+        finalizeRequestDuration(true, messages);
+    }, [messages, isBusy]);
 
     useEffect(() => {
         if (!awaitingTaskUserMessageRef.current) return;

@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import "./focus.css";
 import floatingSurface from "@/components/arc/floating-surface.module.css";
 import { navigatorBeamColors } from "@/lib/navigator-beam";
+import { isNavigatorRequestComplete } from "@/lib/navigator-timing";
 
 function ActivityPill({
   label,
@@ -396,7 +397,7 @@ export function NavigatorFocus({
                             ? clearedMessages
                             : { opacity: 1, transform: "translateY(0)" }
                         }
-                        className="-mx-2 mb-3 h-fit max-h-72 space-y-5 px-3 py-2 sm:max-h-[min(26rem,calc(100dvh-12rem))]"
+                        className="-mx-2 mb-3 h-fit max-h-72 space-y-4 px-3 py-2 sm:max-h-[min(26rem,calc(100dvh-12rem))]"
                         initial={false}
                         onScroll={handleMessageScroll}
                         onAnimationComplete={finishNewChat}
@@ -446,16 +447,20 @@ export function NavigatorFocus({
                             );
                           }
 
-                          if (!segments.length) return null;
+                          if (!segments.length && responseDurations[message.id] === undefined) return null;
 
                           return (
-                            <div className="w-full" key={message.id}>
+                            <div className={cn("w-full", messages[messageIndex - 1]?.role === "assistant" && "mt-2!")} key={message.id}>
                               {segments.map((segment, index) => {
                                 const previous = segments[index - 1];
                                 const spacing = !previous
                                   ? ""
                                   : previous.kind === "trace" && segment.kind === "results"
                                     ? ""
+                                  : previous.kind === "trace" && segment.kind === "trace"
+                                    ? ""
+                                  : previous.kind === "results" && segment.kind === "trace"
+                                    ? "mt-2"
                                   : previous.kind === "lookup" || segment.kind === "lookup" ||
                                       previous.kind === "trace" || segment.kind === "trace" ||
                                       previous.kind === "results" || segment.kind === "results"
@@ -518,13 +523,13 @@ export function NavigatorFocus({
                               {responseDurations[message.id] !== undefined ? (
                                 <p
                                   className="mt-2 flex items-center gap-1.5 px-2 text-[0.8125rem] font-normal leading-4 text-muted-foreground tabular-nums"
-                                  aria-label={`Done in ${Math.max(1, Math.round(responseDurations[message.id]))} seconds`}
+                                  aria-label={`${isNavigatorRequestComplete(messages.slice(0, messageIndex + 1)) ? "Done" : "Finished"} in ${Math.max(1, Math.round(responseDurations[message.id]))} seconds`}
                                 >
                                   <TimerIcon
                                     aria-hidden="true"
                                     className="size-3.5"
                                   />
-                                  Done in {Math.max(1, Math.round(responseDurations[message.id]))}s
+                                  {isNavigatorRequestComplete(messages.slice(0, messageIndex + 1)) ? "Done" : "Finished"} in {Math.max(1, Math.round(responseDurations[message.id]))}s
                                 </p>
                               ) : null}
                             </div>

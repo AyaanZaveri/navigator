@@ -42,6 +42,7 @@ export function ResultCard({
   error,
   children,
   href,
+  external = false,
   onClick,
   className,
   index = 0,
@@ -57,6 +58,7 @@ export function ResultCard({
   error?: string;
   children?: ReactNode;
   href?: string;
+  external?: boolean;
   onClick?: () => void;
   className?: string;
   index?: number;
@@ -114,18 +116,29 @@ export function ResultCard({
   };
   return (
     <motion.div
-      animate={{ opacity: 1, transform: "translateY(0)" }}
+      animate={{ opacity: 1, transform: reduceMotion ? "none" : "translateY(0)" }}
       initial={animateEntrance ? {
         opacity: 0,
         transform: reduceMotion ? "none" : "translateY(10px)",
       } : false}
       transition={{
-        delay: reduceMotion ? 0 : index * 0.05,
+        delay: reduceMotion ? 0 : Math.min(index * 0.05, 0.15),
         duration: 0.18,
         ease: [0.23, 1, 0.32, 1],
       }}
     >
-      {href ? (
+      {href && external ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={rowClass}
+          draggable={false}
+          onDragStart={(event) => event.preventDefault()}
+        >
+          {content}
+        </a>
+      ) : href ? (
         <Link
           href={href}
           prefetch={!href.startsWith("/api/navigator/title")}

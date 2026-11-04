@@ -25,6 +25,8 @@ const cardModules = {
     './scene-explain-card': { SceneExplainCard: widget('scene') },
     './media-analysis-card': { MediaAnalysisCard: widget('analysis') },
     './person-card': { PersonCard: widget('person') },
+    './web-source-card': { WebSourceCard: widget('web-source') },
+    './episode-metadata-card': { EpisodeMetadataCard: widget('episode-metadata') },
 };
 function load(file, dependencies) {
     const context = { exports: {}, URLSearchParams, require: name => dependencies[name] || require(name) };
@@ -42,6 +44,12 @@ const timingResult = timing.navigatorResponseDurations([timedUser, timedLookup, 
 assert.equal(timingResult['timed-answer'], 7.123);
 assert.equal(timingResult['timed-lookup'], undefined, 'Only the final reply gets a completion timer');
 assert.equal(timing.isNavigatorRequestComplete([timedUser, timedAnswer]), true);
+assert.equal(timing.isNavigatorRequestSettled([timedUser, timedAnswer]), true);
+const noMatchTurn = [timedUser, { ...timedAnswer, parts: [{ type: 'tool-skipToSubtitleContent', state: 'output-available', output: { success: false, error: 'No confident match' } }] }];
+assert.equal(timing.isNavigatorRequestSettled(noMatchTurn), true, 'A completed no-match lookup still receives elapsed time');
+assert.equal(timing.isNavigatorRequestComplete(noMatchTurn), false, 'Elapsed time must not turn a no-match into success');
+assert.equal(timing.isNavigatorRequestSettled([timedUser, { ...timedAnswer, parts: [{ type: 'tool-findEpisode', state: 'input-available' }] }]), false, 'An active lookup cannot finish its timer');
+assert.equal(timing.isNavigatorRequestSettled([timedUser, { ...timedAnswer, parts: [{ type: 'tool-playMedia', state: 'output-available', output: { success: true, execution: 'prepared', preparedToolCallId: 'play-1' } }] }]), false, 'Wait for browser execution before finalizing action timing');
 for (const output of [
     { success: true, execution: 'prepared', preparedToolCallId: 'play-1' },
     { success: true, execution: 'completed', status: 'requested', preparedToolCallId: 'play-1' },
@@ -73,10 +81,11 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     'next-themes': { useTheme: () => ({ resolvedTheme: 'dark' }) },
     './focus-ui/button': { Button: 'button' }, './launcher': { NavigatorLauncher: 'button' },
     './focus-ui/input-group': { InputGroup: 'div', InputGroupAddon: 'div', InputGroupButton: 'button', InputGroupInput: 'input' },
-    './activity-status': { NavigatorActivityStatus: 'span' }, './focus-results': {}, './focus.css': {},
+    './activity-status': { NavigatorActivityStatus: 'span' }, './focus-results': { toNavigatorSegments: () => [], isPlaybackRequest: () => false }, './focus.css': {},
     '@/components/arc/floating-surface.module.css': { surface: 'sampled-surface' },
     '@/lib/navigator-activity-label': { getNavigatorActivityLabel: () => '', NAVIGATOR_ACTIVITY_VARIANT_COUNT: 1 },
     '@/lib/navigator-beam': { navigatorBeamColors: {} }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+    '@/lib/navigator-timing': timing,
 });
 const focusTree = NavigatorFocus({ open: true, showLauncher: true, messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: 'Play a show' }] }], input: '', isBusy: false, responseDurations: {} });
 function findTranscript(node) {
@@ -105,8 +114,71 @@ assert.equal(playerSurface.props['data-player-native-glass'], '', 'Ask Navigator
 assert.ok(playerSurface.props.className.split(' ').includes('sampled-surface'), 'Reuse the player menu material');
 assert.ok(playerSurface.props.className.split(' ').includes('relative'), 'Keep sampled canvas clipped after backdrop-filter takeover');
 
+function findDuration(node) {
+    if (!node || typeof node !== 'object') return;
+    if (/^(Done|Finished) in /.test(node.props?.['aria-label'] || '')) return node;
+    for (const child of focusReact.Children.toArray(node.props?.children)) {
+        const found = findDuration(child); if (found) return found;
+    }
+}
+focusHookIndex = 0;
+const timerOnlyTree = NavigatorFocus({ open: true, showLauncher: true, messages: [timedUser, timedAnswer], input: '', isBusy: false, responseDurations: { 'timed-answer': 7.123 } });
+assert.equal(findDuration(timerOnlyTree).props['aria-label'], 'Done in 7 seconds', 'A final assistant message with no visible segments still displays its completion timer');
+focusHookIndex = 0;
+const noMatchTimerTree = NavigatorFocus({ open: true, showLauncher: true, messages: noMatchTurn, input: '', isBusy: false, responseDurations: { 'timed-answer': 7.123 } });
+assert.equal(findDuration(noMatchTimerTree).props['aria-label'], 'Finished in 7 seconds', 'A no-match response displays elapsed time without claiming success');
+
 
 const { toNavigatorSegments } = load('components/navigator/focus-results.tsx', { ...cardModules, '@/lib/navigator-chat': chat });
+
+const episodeLookupParts = [
+    { type: 'tool-navigateToEpisode', toolCallId: 'episode-cards', state: 'output-available', input: { seriesQuery: 'Nathan for You' },
+        output: { success: true, mediaName: 'The Anecdote', mediaType: 'Episode', seriesId: 'tmdb:58957',
+            evidence: [{ url: 'https://example.com/recap', title: 'Episode recap' }] } },
+    { type: 'data-episodeProgress', id: 'catalog', data: { toolCallId: 'episode-cards', stage: 'episodes', state: 'completed',
+        catalog: { seriesId: 'tmdb:58957', seriesName: 'Nathan for You', episodeCount: 32, seasonCount: 4 } } },
+    { type: 'data-episodeProgress', id: 'web', data: { toolCallId: 'episode-cards', stage: 'web', state: 'completed' } },
+];
+const episodeLookupCards = toNavigatorSegments(episodeLookupParts).filter(segment => segment.kind === 'results');
+assert.equal(episodeLookupCards.length, 3, 'Catalog, web sources, and navigation each get their own result group');
+assert.equal(episodeLookupCards[0].results.cards.type, widgets['episode-metadata']);
+assert.equal(episodeLookupCards[0].results.cards.props.catalog.episodeCount, 32);
+assert.equal(episodeLookupCards[1].results.cards[0].type, widgets['web-source']);
+assert.equal(episodeLookupCards[1].results.cards[0].props.source.title, 'Episode recap', 'Older saved progress uses final evidence for source cards');
+assert.equal(episodeLookupCards[2].results.cards.type, widgets.navigation, 'The final episode has no duplicate source list');
+const streamingWebCards = toNavigatorSegments([
+    { ...episodeLookupParts[0], state: 'input-available', output: undefined },
+    { ...episodeLookupParts[2], data: { ...episodeLookupParts[2].data, state: 'running', sources: [{ url: 'https://example.com/recap', title: 'Episode recap' }] } },
+]).filter(segment => segment.kind === 'results');
+assert.equal(streamingWebCards[0].results.cards[0].type, widgets['web-source'], 'Fetched sources appear before verification finishes');
+const matchedEpisode = { id: 'tmdb:58957:4:4', name: 'The Anecdote', title: 'The Anecdote', seriesId: 'tmdb:58957', seriesName: 'Nathan for You', seasonNumber: 4, episodeNumber: 4, type: 'Episode' };
+// Scene title was first inserted while running, then updated in place after lookup.
+const combinedEpisodeParts = [
+    { type: 'tool-skipToSubtitleContent', toolCallId: 'episode-cards', state: 'input-available', input: {} },
+    { type: 'data-sceneProgress', id: 'scene-title', data: { toolCallId: 'episode-cards', stage: 'title', state: 'completed', media: matchedEpisode } },
+    episodeLookupParts[1], episodeLookupParts[2],
+    { type: 'data-episodeProgress', id: 'episode-verify', data: { toolCallId: 'episode-cards', stage: 'verify', state: 'completed', episode: matchedEpisode, detail: 'Found The Anecdote (S4E4).' } },
+    { type: 'data-sceneProgress', id: 'scene-subtitles', data: { toolCallId: 'episode-cards', stage: 'subtitles', state: 'completed', subtitles: { index: 0, lineCount: 525 } } },
+    { type: 'data-sceneProgress', id: 'scene-match', data: { toolCallId: 'episode-cards', stage: 'scene', state: 'completed', scene: { timestamp: 1059, timestampFormatted: '00:17:39', text: 'Welcome Nathan Fielder' } } },
+];
+const combinedSegments = toNavigatorSegments(combinedEpisodeParts);
+assert.deepEqual(Array.from(combinedSegments.filter(segment => segment.kind === 'trace'), segment => segment.trace.label),
+    ['Read episode metadata', 'Checked web sources', 'Found the episode', 'Loaded subtitles', 'Found the scene'],
+    'Show dependency order without an early title claim or a duplicate episode sentence');
+const verifiedIndex = combinedSegments.findIndex(segment => segment.trace?.label === 'Found the episode');
+assert.equal(combinedSegments[verifiedIndex + 1].results.cards.type, widgets.media, 'The verified episode has its card directly beneath the status');
+assert.equal(combinedSegments[verifiedIndex + 1].results.cards.props.item.name, 'The Anecdote');
+assert.equal(combinedSegments.filter(segment => segment.kind === 'results' && segment.results.cards?.type === widgets.media).length, 1, 'Show the episode once');
+const legacyCombinedParts = combinedEpisodeParts.map(part => part.id === 'episode-verify' ? { ...part, data: { ...part.data, episode: undefined } } : part);
+const legacyCombinedSegments = toNavigatorSegments(legacyCombinedParts);
+assert.equal(legacyCombinedSegments.find(segment => segment.kind === 'results' && segment.results.cards?.type === widgets.media).results.cards.props.item.name, 'The Anecdote', 'Saved conversations reuse the stored scene title card at the verified stage');
+const { EpisodeMetadataCard } = load('components/navigator/episode-metadata-card.tsx', {
+    '@/lib/artwork': load('lib/artwork.ts', {}),
+    '@/lib/navigator-title-path': { navigatorTitlePath: () => '/api/navigator/title?id=tmdb:58957&type=series' },
+    './result-card': { ResultCard: widget('catalog-card'), ResultMeta: widget('catalog-meta') },
+});
+const catalogCard = EpisodeMetadataCard({ catalog: { seriesId: 'tmdb:58957', seriesName: 'Nathan for You', year: 2013 } });
+assert.ok(catalogCard.props.image?.includes('id=tmdb%3A58957'), 'Show posters resolve directly from the show identity, including redirect destinations');
 
 const sceneAction = { type: 'tool-skipToSubtitleContent', toolCallId: 'scene-progress-test', state: 'input-available', input: {} };
 const sceneProgress = (stage, state, detail) => ({ type: 'data-sceneProgress', id: `scene-${stage}`, data: { toolCallId: sceneAction.toolCallId, stage, state, detail } });
@@ -160,10 +232,12 @@ assert.equal(subtitleRow.type, widgets['result-row']);
 assert.equal(subtitleRow.props.title, 'English');
 assert.equal(subtitleRow.props.iconContent.type, 'img');
 assert.equal(subtitleRow.props.iconContent.props.src, '/flags/circle/language/en.svg');
-assert.equal(subtitleRow.props.iconContent.props.width, 20);
+assert.equal(subtitleRow.props.iconContent.props.width, 24);
 assert.equal(subtitleRow.props.icon, undefined, "A language flag does not need a second boxed icon");
-assert.equal(subtitleRow.props.metadata.type, widgets["result-meta"], "Subtitle metadata is a line count without a language badge");
-assert.equal(subtitleRow.props.description, 'Knives.Out.2019.srt · OpenSubtitles');
+assert.equal(subtitleRow.props.metadata.props.children[0].props.children, 'OpenSubtitles');
+assert.equal(subtitleRow.props.metadata.props.children[1].props.children.join(''), '2,111 lines');
+assert.equal(subtitleRow.props.description, undefined, 'Keep provider and line count on one metadata row instead of adding a release filename row');
+assert.equal(subtitleRow.props.className, undefined, 'Use the same vertical centering as shared favicon cards');
 const unknownSubtitleRow = SubtitleTrackCard({ track: { language: 'und', index: 0, lineCount: 1 } });
 assert.equal(unknownSubtitleRow.props.title, 'Unknown language');
 assert.notEqual(unknownSubtitleRow.props.iconContent.type, 'img', 'Unknown languages use a Lucide fallback instead of a broken flag');
@@ -207,7 +281,10 @@ const allCards = browsing.find(segment => segment.kind === 'results').results.ca
 assert.equal(allCards.length, 39, 'Presentation must not remove candidates from tool output');
 let preview = presentation.NavigatorResultCards({ cards: allCards });
 assert.equal(preview.props.children[0].props.children.length, 5);
-assert.equal(preview.props.children[0].props.children[0].props.initial, false, 'The initial preview appears immediately');
+assert.equal(preview.props.children[0].props.children[0].props.initial.opacity, 0, 'New result cards fade in from their first appearance');
+assert.equal(preview.props.children[0].props.children[0].props.initial.transform, 'translateY(10px)', 'A straight vertical entrance avoids lateral movement from scaling wide cards');
+assert.equal(preview.props.children[0].props.children[1].props.transition.delay, 0.05, 'Initial cards reuse the historical 50ms stagger');
+assert.ok(preview.props.children[0].props.children[4].props.transition.delay <= 0.15, 'Stagger stays bounded');
 assert.equal(preview.props.children[0].props.children[0].props.animate.opacity, 1);
 const previewKey = preview.props.children[0].props.children[0].key;
 let expandButton = preview.props.children[1].props.children;
@@ -218,10 +295,10 @@ expandButton.props.onClick();
 preview = presentation.NavigatorResultCards({ cards: allCards });
 assert.equal(preview.props.children[0].props.children.length, 39);
 assert.equal(preview.props.children[0].props.children[0].key, previewKey, 'Existing cards keep their identity when expanding');
-assert.equal(preview.props.children[0].props.children[5].props.initial.opacity, 0, 'Only newly revealed cards get a mount entrance');
-assert.equal(preview.props.children[0].props.children[5].props.initial.transform, 'translateY(4px)');
-assert.equal(preview.props.children[0].props.children[5].props.transition.duration, 0.15);
-assert.equal(preview.props.children[0].props.children[5].props.transition.delay, undefined, 'Long lists must never wait for a stagger');
+assert.equal(preview.props.children[0].props.children[5].props.initial.opacity, 0, 'Newly revealed cards get the same mount entrance');
+assert.equal(preview.props.children[0].props.children[5].props.initial.transform, 'translateY(10px)');
+assert.equal(preview.props.children[0].props.children[5].props.transition.duration, 0.18);
+assert.equal(preview.props.children[0].props.children[5].props.transition.delay, 0, 'Expanded long lists must never wait for a stagger');
 assert.equal(preview.props.children[1].props.children.props['aria-expanded'], true);
 preview.props.children[1].props.children.props.onClick();
 assert.equal(presentation.NavigatorResultCards({ cards: allCards }).props.children[0].props.children.length, 5);
@@ -234,6 +311,7 @@ const reducedPreview = presentation.NavigatorResultCards({ cards: allCards });
 assert.equal(reducedPreview.props.children[0].props.children[5].props.initial.transform, 'none');
 assert.equal(reducedPreview.props.children[0].props.children[5].props.animate.transform, 'none');
 assert.equal(reducedPreview.props.children[0].props.children[5].props.initial.opacity, 0, 'Reduced motion keeps the fade');
+assert.equal(reducedPreview.props.children[0].props.children[1].props.transition.delay, 0, 'Reduced motion removes stagger delays');
 prefersReducedMotion = false;
 resultsExpanded = false;
 const playbackLookup = presentation.toNavigatorSegments([credits], { playbackRequest: true });

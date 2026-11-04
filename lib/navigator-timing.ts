@@ -1,6 +1,19 @@
 import type { UIMessage } from "ai";
 import { actionToolNames, record } from "./navigator-chat";
 
+/** A finished lookup can have no match; only browser actions still awaiting execution block timing. */
+export function isNavigatorRequestSettled(messages: UIMessage[]): boolean {
+    const turn = messages.slice(messages.findLastIndex(message => message.role === "user") + 1);
+    return turn.some(message => message.role === "assistant") && turn.every(message => message.parts.every(raw => {
+        const part = record(raw);
+        if (part.type !== "dynamic-tool" && !String(part.type).startsWith("tool-")) return true;
+        if (!["output-available", "output-error", "output-denied"].includes(String(part.state))) return false;
+        const output = record(part.output);
+        const name = part.type === "dynamic-tool" ? part.toolName : String(part.type).slice(5);
+        return !actionToolNames.has(name) || output.success !== true || !output.preparedToolCallId || output.execution === "completed";
+    }));
+}
+
 /** A generated reply does not confirm a pending or merely requested action. */
 export function isNavigatorRequestComplete(messages: UIMessage[]): boolean {
     const turn = messages.slice(messages.findLastIndex(message => message.role === "user") + 1);

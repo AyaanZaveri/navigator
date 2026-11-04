@@ -29,6 +29,8 @@ import { SubtitleSkipCard } from "./subtitle-skip-card";
 import { SceneExplainCard } from "./scene-explain-card";
 import { MediaAnalysisCard } from "./media-analysis-card";
 import { PersonCard } from "./person-card";
+import { WebSourceCard } from "./web-source-card";
+import { EpisodeMetadataCard } from "./episode-metadata-card";
 import { actionToolNames } from "@/lib/navigator-chat";
 import { sceneProgressLabel, type SceneProgress } from "@/lib/navigator-scene-progress";
 import { Accordion } from "@/components/arc/accordion/accordion";
@@ -63,7 +65,7 @@ export type NavigatorSegment =
 
 const lookupTools = new Set([
   "searchPeople", "getPersonDetails", "getFilmography", "searchMedia",
-  "getMediaDetails", "getSeasons", "getEpisodes", "findEpisodeByTitle",
+  "getMediaDetails", "getSeasons", "getEpisodes", "findEpisodeByTitle", "findEpisode", "searchMediaWeb",
 ]);
 
 export function isPlaybackRequest(value: string): boolean {
@@ -79,6 +81,8 @@ const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   getSeasons: ["Getting seasons", "Found seasons", Layers],
   getEpisodes: ["Getting episodes", "Found episodes", List],
   findEpisodeByTitle: ["Finding the episode", "Found the episode", Search],
+  findEpisode: ["Finding the episode", "Found the episode", Search],
+  searchMediaWeb: ["Checking web sources", "Checked web sources", Search],
   getMediaStreams: ["Finding streams", "Found streams", Radio],
   navigateToMedia: ["Opening title", "Opened title", ArrowUpRight],
   navigateToEpisode: ["Opening episode", "Opened episode", ArrowUpRight],
@@ -94,7 +98,7 @@ const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   themeToggle: ["Changing theme", "Theme changed", Palette],
 };
 
-function toolCards(
+function baseToolCards(
   name: string,
   output: RecordValue,
   input: RecordValue,
@@ -179,7 +183,7 @@ function toolCards(
       ));
     }
     default: {
-      if (output.success === false) return null;
+      if (output.success === false && output.status !== "ambiguous") return null;
       const items = Array.isArray(output.results)
         ? list(output.results)
         : list(output.episodes);
@@ -202,11 +206,39 @@ function toolCards(
   }
 }
 
+function toolCards(name: string, output: RecordValue, input: RecordValue): ReactNode {
+  const cards = baseToolCards(name, output, input);
+  if (["findEpisode", "findEpisodeByTitle", "navigateToEpisode", "playMedia", "searchMediaWeb"].includes(name)) return cards;
+  const sources = [...list(output.evidence), ...list(output.sources)].filter((item, index, all) =>
+    /^https:\/\//.test(text(item.url)) && all.findIndex(other => other.url === item.url) === index);
+  if (!sources.length) return cards;
+  return [cards, ...sources.map((source, index) => (
+    <WebSourceCard
+      key={text(source.url)}
+      source={{ url: text(source.url), title: text(source.title) }}
+      index={index}
+    />
+  ))];
+}
+
 export function toNavigatorSegments(
   parts: ReadonlyArray<unknown>,
   options: { playbackRequest?: boolean } = {},
 ): NavigatorSegment[] {
   const segments: NavigatorSegment[] = [];
+  const records = parts.map(record);
+  const verifiedEpisode = (toolCallId: unknown) => {
+    const verification = records.find(part => part.type === "data-episodeProgress" &&
+      record(part.data).toolCallId === toolCallId && record(part.data).stage === "verify" && record(part.data).state === "completed");
+    if (!verification) return null;
+    const episode = record(record(verification.data).episode);
+    if (episode.id) return episode;
+    // Saved messages from before episode progress carried its own result.
+    const sceneTitle = records.find(part => part.type === "data-sceneProgress" &&
+      record(part.data).toolCallId === toolCallId && record(part.data).stage === "title" && record(part.data).state === "completed");
+    const media = record(record(sceneTitle?.data).media);
+    return media.id ? media : null;
+  };
   const collapseLookups = options.playbackRequest || parts.some(raw => {
     const part = record(raw);
     return part.type === "tool-playMedia" || (part.type === "dynamic-tool" && part.toolName === "playMedia");
@@ -214,15 +246,63 @@ export function toNavigatorSegments(
   // Progress belongs before its final playback card, even though the tool input arrived first.
   const ordered = parts.flatMap(raw => {
     const part = record(raw);
-    if (part.type === "data-sceneProgress") return [];
-    const progress = parts.filter(candidate => record(candidate).type === "data-sceneProgress" && record(record(candidate).data).toolCallId === part.toolCallId);
+    if (part.type === "data-sceneProgress" || part.type === "data-episodeProgress") return [];
+    const progress = records.filter(candidate => ["data-sceneProgress", "data-episodeProgress"].includes(text(candidate.type)) && record(candidate.data).toolCallId === part.toolCallId);
+    if (progress.some(candidate => candidate.type === "data-episodeProgress")) {
+      // Updated streaming parts retain their first insertion position. Display the
+      // dependency order so a completed title never jumps ahead of its evidence.
+      const rank = (candidate: RecordValue) => {
+        const stage = text(record(candidate.data).stage);
+        return candidate.type === "data-episodeProgress" ? ["episodes", "web", "verify"].indexOf(stage)
+          : 3 + ["title", "subtitles", "scene"].indexOf(stage);
+      };
+      progress.sort((a, b) => rank(a) - rank(b));
+    }
     return [...progress, raw];
   });
   ordered.forEach((raw, index) => {
     const part = record(raw);
+    if (part.type === "data-episodeProgress") {
+      const progress = record(part.data);
+      const labels: Record<string, string[]> = { episodes: ["Reading episode metadata", "Read episode metadata"], web: ["Checking web sources", "Checked web sources"], verify: ["Verifying the episode", "Found the episode"] };
+      const labelsForStage = labels[text(progress.stage)];
+      if (!labelsForStage || !["running", "completed", "error"].includes(text(progress.state))) return;
+      segments.push({ kind: "trace", key: `episode-progress-${text(part.id) || index}`, trace: {
+        label: progress.state === "error" ? text(progress.detail) || "Could not verify the episode" : labelsForStage[progress.state === "completed" ? 1 : 0],
+        phase: progress.state as Trace["phase"], icon: Search,
+      } });
+      const toolPart = parts.map(record).find(candidate => candidate.toolCallId === progress.toolCallId &&
+        (text(candidate.type).startsWith("tool-") || candidate.type === "dynamic-tool"));
+      const output = record(toolPart?.output);
+      const input = record(toolPart?.input);
+      const episode = progress.stage === "verify" && progress.state === "completed" ? verifiedEpisode(progress.toolCallId) : null;
+      if (episode) segments.push({ kind: "results", key: `episode-match-${text(part.id) || index}`, results: {
+        cards: <MediaLinkCard item={{ ...episode, type: "Episode" } as ComponentProps<typeof MediaLinkCard>["item"]} />,
+      } });
+      if (progress.stage === "episodes" && progress.state === "completed") {
+        const catalog = Object.keys(record(progress.catalog)).length ? record(progress.catalog) : {
+          seriesId: output.seriesId || input.seriesId,
+          seriesName: output.seriesName || input.seriesQuery,
+        };
+        segments.push({ kind: "results", key: `episode-catalog-${index}`, results: {
+          cards: <EpisodeMetadataCard catalog={catalog} />,
+        } });
+      }
+      if (progress.stage === "web") {
+        const sources = (Array.isArray(progress.sources) ? list(progress.sources) : [...list(output.sources), ...list(output.evidence)])
+          .filter((source, index, all) => /^https:\/\//.test(text(source.url)) &&
+            all.findIndex(other => other.url === source.url) === index);
+        if (sources.length) segments.push({ kind: "results", key: `episode-sources-${index}`, results: {
+          cards: sources.map(source => <WebSourceCard key={text(source.url)} source={{ url: text(source.url), title: text(source.title) }} />),
+        } });
+      }
+      return;
+    }
     if (part.type === "data-sceneProgress") {
       const progress = record(part.data) as unknown as SceneProgress;
       if (!["title", "subtitles", "scene"].includes(progress.stage) || !["running", "completed", "error"].includes(progress.state)) return;
+      if (progress.stage === "title" && records.some(candidate => candidate.type === "data-episodeProgress" &&
+        record(candidate.data).toolCallId === record(part.data).toolCallId)) return;
       segments.push({ kind: "trace", key: `progress-${text(part.id) || index}`, trace: {
         label: progress.state === "error" ? progress.detail || sceneProgressLabel(progress) : sceneProgressLabel(progress), detail: progress.detail,
         phase: progress.state, icon: progress.stage === "title" ? Search : Subtitles,
@@ -269,6 +349,11 @@ export function toNavigatorSegments(
       const failed = part.state === "output-error" || part.state === "output-denied" || result.success === false;
       if (failed) {
         if (parts.some(candidate => record(candidate).type === "data-sceneProgress" && record(record(candidate).data).toolCallId === part.toolCallId && record(record(candidate).data).state === "error")) return;
+        if (parts.some(candidate => record(candidate).type === "data-episodeProgress" && record(record(candidate).data).toolCallId === part.toolCallId && record(record(candidate).data).state === "error")) {
+          const cards = toolCards(name, result, input);
+          if (cards) segments.push({ kind: "results", key: `results-${index}`, results: { cards } });
+          return;
+        }
         const detail = text(part.errorText || result.error || result.message) || "Unable to complete this action";
         segments.push({ kind: "trace", key: `trace-${index}`, trace: {
           label: detail, detail, phase: "error", icon: toolLabels[name]?.[2] || Search,
@@ -283,7 +368,8 @@ export function toNavigatorSegments(
         return record(candidate).type === "data-sceneProgress" && data.toolCallId === part.toolCallId
           && data.stage === "scene" && data.state === "completed" && !!data.scene;
       });
-      const cards = !sceneAlreadyShown && (name !== "themeToggle" || applied) ? toolCards(name, result, input) : null;
+      const episodeAlreadyShown = ["navigateToEpisode", "playMedia"].includes(name) && !!verifiedEpisode(part.toolCallId);
+      const cards = !sceneAlreadyShown && !episodeAlreadyShown && (name !== "themeToggle" || applied) ? toolCards(name, result, input) : null;
       if (cards) segments.push({ kind: "results", key: `results-${index}`, results: { cards } });
       const hasAnswer = parts.some(rawPart => record(rawPart).type === "text" && text(record(rawPart).text).trim());
       if (applied && name !== "themeToggle" && result.message && !hasAnswer) {
@@ -291,6 +377,7 @@ export function toNavigatorSegments(
       }
       return;
     }
+    if (["findEpisode", "findEpisodeByTitle"].includes(name) && verifiedEpisode(part.toolCallId)) return;
     const failed = part.state === "output-error" || part.state === "output-denied" || output.success === false;
     const complete = part.state === "output-available" || failed;
     const [running, completed, icon] = toolLabels[name] ?? [
@@ -326,7 +413,9 @@ export function toNavigatorSegments(
     if (collapseLookups && complete && !failed && cards && lookupTools.has(name) && Children.count(cards) > 3) {
       segments.push({ kind: "lookup", key: `lookup-${index}`, trace, cards });
     } else {
-      segments.push({ kind: "trace", key: `trace-${index}`, trace });
+      const hasProgressError = failed && parts.some(candidate => record(candidate).type === "data-episodeProgress"
+        && record(record(candidate).data).toolCallId === part.toolCallId && record(record(candidate).data).state === "error");
+      if (!hasProgressError) segments.push({ kind: "trace", key: `trace-${index}`, trace });
       if (cards) {
         segments.push({
           kind: "results",
@@ -360,7 +449,7 @@ export function NavigatorTraceRow({ trace }: { trace: Trace }) {
     <p
       aria-busy={trace.phase === "running"}
       aria-live={trace.phase === "running" ? "off" : "polite"}
-      className={`flex min-h-10 items-center gap-2 px-2 py-2 text-sm font-medium leading-[1.4] text-muted-foreground ${trace.phase === "error" ? "text-destructive" : ""}`}
+      className={`flex min-h-7 items-center gap-2 px-2 py-1 text-sm font-medium leading-[1.4] text-muted-foreground ${trace.phase === "error" ? "text-destructive" : ""}`}
       role="status"
       title={trace.detail}
     >
@@ -393,7 +482,7 @@ export function NavigatorResultCards({ cards, revealed = true }: { cards: ReactN
   const listId = useId();
   const items = Children.toArray(cards);
   const remaining = items.length - 5;
-  const hidden = { opacity: 0, transform: reduced ? "none" : "translateY(4px)" };
+  const hidden = { opacity: 0, transform: reduced ? "none" : "translateY(10px)" };
   const visible = { opacity: 1, transform: reduced ? "none" : "translateY(0)" };
   return (
     <div className="flex w-full flex-col gap-0.5">
@@ -401,9 +490,13 @@ export function NavigatorResultCards({ cards, revealed = true }: { cards: ReactN
         {(expanded ? items : items.slice(0, 5)).map((card, index) => (
           <motion.div
             key={typeof card === "object" && card !== null && "key" in card ? card.key : index}
-            initial={index >= 5 ? hidden : false}
+            initial={hidden}
             animate={revealed ? visible : hidden}
-            transition={{ duration: 0.15, ease: motionTokens.ease.out }}
+            transition={{
+              duration: 0.18,
+              ease: motionTokens.ease.out,
+              delay: !reduced && revealed && index < 5 ? Math.min(index * 0.05, 0.15) : 0,
+            }}
           >
             <ResultCardEntranceContext.Provider value={false}>{card}</ResultCardEntranceContext.Provider>
           </motion.div>
