@@ -74,6 +74,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     './focus-ui/button': { Button: 'button' }, './launcher': { NavigatorLauncher: 'button' },
     './focus-ui/input-group': { InputGroup: 'div', InputGroupAddon: 'div', InputGroupButton: 'button', InputGroupInput: 'input' },
     './activity-status': { NavigatorActivityStatus: 'span' }, './focus-results': {}, './focus.css': {},
+    '@/components/arc/floating-surface.module.css': { surface: 'sampled-surface' },
     '@/lib/navigator-activity-label': { getNavigatorActivityLabel: () => '', NAVIGATOR_ACTIVITY_VARIANT_COUNT: 1 },
     '@/lib/navigator-beam': { navigatorBeamColors: {} }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
 });
@@ -89,6 +90,21 @@ function findTranscript(node) {
 const transcript = findTranscript(focusTree);
 assert.ok(transcript, 'Inspect the rendered transcript, not an unrelated wrapper');
 assert.equal(transcript.props.style.overflowY, 'auto', 'A child accordion must be able to create scroll overflow without new messages');
+function findAskSurface(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.props?.['aria-label'] === 'Ask Navigator') return node;
+    for (const child of focusReact.Children.toArray(node.props?.children)) {
+        const found = findAskSurface(child); if (found) return found;
+    }
+}
+assert.equal(findAskSurface(focusTree).props['data-player-native-glass'], undefined, 'Browsing must not request native video samples');
+focusHookIndex = 0;
+const playerFocus = NavigatorFocus({ open: true, showLauncher: false, messages: [], input: '', isBusy: false, responseDurations: {} });
+const playerSurface = findAskSurface(playerFocus);
+assert.equal(playerSurface.props['data-player-native-glass'], '', 'Ask Navigator over native playback must request sampled video');
+assert.ok(playerSurface.props.className.split(' ').includes('sampled-surface'), 'Reuse the player menu material');
+assert.ok(playerSurface.props.className.split(' ').includes('relative'), 'Keep sampled canvas clipped after backdrop-filter takeover');
+
 
 const { toNavigatorSegments } = load('components/navigator/focus-results.tsx', { ...cardModules, '@/lib/navigator-chat': chat });
 
