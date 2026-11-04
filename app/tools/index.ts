@@ -102,7 +102,7 @@ export function createAllTools(
 
     const definitions: ToolSet = {
         ...baseTools,
-        ...createEpisodeTools(analysisModel),
+        ...createEpisodeTools(analysisModel, sceneContext?.originalRequest),
         // Keep schemas stable when replaying a conversation after playback closes.
         skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal, sceneContext),
         explainScene: createExplainScene(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),

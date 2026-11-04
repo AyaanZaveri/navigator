@@ -65,7 +65,7 @@ export type NavigatorSegment =
 
 const lookupTools = new Set([
   "searchPeople", "getPersonDetails", "getFilmography", "searchMedia",
-  "getMediaDetails", "getSeasons", "getEpisodes", "findEpisodeByTitle", "findEpisode", "searchMediaWeb", "readMediaWebSources",
+  "getMediaDetails", "getSeasons", "getEpisodes", "findEpisodeByTitle", "findEpisode", "getEpisodeCatalog", "verifyEpisode", "searchMediaWeb", "readMediaWebSources",
 ]);
 
 export function isPlaybackRequest(value: string): boolean {
@@ -82,6 +82,8 @@ const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   getEpisodes: ["Getting episodes", "Found episodes", List],
   findEpisodeByTitle: ["Finding the episode", "Found the episode", Search],
   findEpisode: ["Finding the episode", "Found the episode", Search],
+  getEpisodeCatalog: ["Reading episode catalog", "Read episode catalog", List],
+  verifyEpisode: ["Verifying episode evidence", "Verified episode evidence", Search],
   searchMediaWeb: ["Searching the web", "Found web results", Search],
   readMediaWebSources: ["Reading web pages", "Read web pages", BookOpen],
   getMediaStreams: ["Finding streams", "Found streams", Radio],
@@ -212,7 +214,7 @@ function baseToolCards(
 
 function toolCards(name: string, output: RecordValue, input: RecordValue): ReactNode {
   const cards = baseToolCards(name, output, input);
-  if (["findEpisode", "findEpisodeByTitle", "navigateToEpisode", "playMedia", "searchMediaWeb", "readMediaWebSources"].includes(name)) return cards;
+  if (["findEpisode", "findEpisodeByTitle", "getEpisodeCatalog", "verifyEpisode", "navigateToEpisode", "playMedia", "searchMediaWeb", "readMediaWebSources"].includes(name)) return cards;
   const sources = [...list(output.evidence), ...list(output.sources)].filter((item, index, all) =>
     /^https:\/\//.test(text(item.url)) && all.findIndex(other => other.url === item.url) === index);
   if (!sources.length) return cards;
