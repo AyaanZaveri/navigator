@@ -112,7 +112,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             clearTimeout(searchTimeout.current);
         }
 
-        if (searchQuery.trim().length > 2) {
+        if (searchQuery.trim().length > 0) {
             setIsLoading(true);
             const requestId = ++searchRequestIdRef.current;
             searchTimeout.current = setTimeout(async () => {
@@ -215,7 +215,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         searchRequestIdRef.current += 1;
         setSearchQuery(query);
         setSuggestions([]);
-        setIsLoading(query.trim().length > 2);
+        setIsLoading(query.trim().length > 0);
     };
 
     const handleSearch = (query: string) => {
@@ -265,7 +265,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             items={items}
             loading={isLoading}
             filterResults={false}
-            minQueryLength={3}
+            minQueryLength={1}
             onSelect={handleSelect}
             onSubmit={handleSearch}
             emptyHint={searchError || "Try another title, or press Enter to see all results."}

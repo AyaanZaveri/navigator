@@ -4,7 +4,7 @@ import { searchTMDBMedia } from "@/lib/tmdb-discovery";
 /** One TMDB multi-search; the NDJSON envelope keeps the existing suggestion reader. */
 export async function GET(request: Request) {
     const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-    if (query.length < 3 || query.length > 300) return new Response(null, { status: 400 });
+    if (!query || query.length > 300) return new Response(null, { status: 400 });
     try { await getAuthData(); } catch { return new Response(null, { status: 401 }); }
     try {
         const result = await searchTMDBMedia(query, request.signal);

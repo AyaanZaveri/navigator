@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { load } = require('./test-support/react-hooks.cjs');
+const { load, hooks } = require('./test-support/react-hooks.cjs');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream, TextEncoder, TextDecoder, AbortController, AbortSignal };
 (async () => {
@@ -14,10 +14,22 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
     } },
     '@/app/actions/search': new Proxy({}, { get() { throw Error('Search must never call a Stremio add-on'); } }),
   }, globals);
-  assert.equal((await GET(new Request('http://app/api/search/suggestions?q=hi'))).status, 400);
+  for (const query of ['', '   ', 'a'.repeat(301)]) {
+    assert.equal((await GET(new Request(`http://app/api/search/suggestions?${new URLSearchParams({ q: query })}`))).status, 400);
+  }
   assert.equal((await GET(new Request('http://app/api/search/suggestions?q=test'))).status, 401);
   assert.equal(calls.length, 0);
   signedIn = true;
+  for (const query of ['f1', 'it', 'x']) {
+    const shortSearch = GET(new Request(`http://app/api/search/suggestions?q=${query}`));
+    await tick();
+    assert.equal(calls.at(-1), query, 'Short titles must reach TMDB');
+    finish({ results: [{ id: 'tmdb:911430', type: 'movie', name: query }] });
+    const shortResponse = await shortSearch;
+    assert.equal(shortResponse.status, 200);
+    assert.equal(JSON.parse(await shortResponse.text()).sections[0].items[0].name, query);
+  }
+  calls.length = 0;
   const pending = GET(new Request('http://app/api/search/suggestions?q=Interstellar'));
   await tick();
   assert.deepEqual(calls, ['Interstellar'], 'One TMDB multi-search, with no add-on fan-out or per-result lookups');
@@ -67,5 +79,41 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   await tick(); abort.abort();
   await assert.rejects(work);
   assert.equal(upstreamSignal.aborted, true);
+
+  const h = hooks(), timers = new Map(), suggestions = [];
+  let timerId = 0;
+  const { SearchBar } = load('components/search-component.tsx', {
+    react: h.react, 'react/jsx-runtime': h.jsx,
+    '@/components/artwork-image': { ArtworkImage: 'artwork' },
+    'lucide-react': { Film: 'film', Star: 'star', Tv: 'tv' },
+    'next/navigation': { useRouter: () => ({ prefetch() {} }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
+    '@/lib/search-catalog-stream': { fetchSearchSuggestions: async (query, publish, signal) => {
+      suggestions.push({ query, signal });
+      publish([{ catalogType: 'movie', items: [{ id: 'tmdb:911430', type: 'movie', name: 'F1' }] }]);
+    } },
+    '@/components/arc/expanding-search/expanding-search': { ExpandingSearch: 'search' },
+    '@/contexts/MediaPlayerContext': { useIsPlayerVisible: () => false },
+  }, { AbortController, document: { addEventListener() {}, removeEventListener() {} },
+    setTimeout(fn, delay) { assert.equal(delay, 300); timers.set(++timerId, fn); return timerId; },
+    clearTimeout(id) { timers.delete(id); },
+  });
+  const render = () => { const tree = h.render(SearchBar, {}); h.flush(); return tree; };
+  let tree = render();
+  tree.props.onValueChange(' f1 ');
+  tree = render();
+  assert.equal(tree.props.loading, true);
+  assert.ok((tree.props.minQueryLength ?? 1) <= 2, 'The dropdown must display short-query results');
+  assert.equal(suggestions.length, 0, 'Short queries retain the debounce');
+  for (const [id, run] of timers) { timers.delete(id); await run(); }
+  tree = render();
+  assert.equal(suggestions[0].query, 'f1');
+  assert.equal(tree.props.items[0].title, 'F1');
+  tree.props.onValueChange('   ');
+  tree = render();
+  assert.equal(tree.props.loading, false);
+  assert.equal(tree.props.items.length, 0);
+  assert.equal(timers.size, 0, 'Blank input must not schedule a search');
+  assert.equal(suggestions[0].signal.aborted, true);
+  h.unmount();
   console.log('PASS: TMDB-only authenticated suggestions, one-request lookup, cancellation, token errors, split UTF-8 chunks and reader cleanup.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
