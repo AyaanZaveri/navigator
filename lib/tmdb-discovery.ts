@@ -73,6 +73,7 @@ async function request<T>(path: string, params: Params = {}, signal?: AbortSigna
     try {
         const timeout = AbortSignal.timeout(8000);
         const response = await fetch(`https://api.themoviedb.org/3/${path}?${query}`, {
+            redirect: "manual",
             headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
             signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
             next: { revalidate: path.startsWith("search/") ? 3600 : 86400 },

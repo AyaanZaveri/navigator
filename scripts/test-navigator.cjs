@@ -50,7 +50,14 @@ async function main() {
   const modules = new Map();
   const overrides = {
     ai, zod,
+    '@/lib/server/outbound-fetch': { outboundFetch: (...args) => tmdbFetch(...args), providerFetch: (...args) => tmdbFetch(...args), outboundUrl: value => new URL(value) },
+    '@/lib/server/auth': { getAuthData: async () => {
+      if (!authenticated) throw new Error('Not authenticated');
+      return { user: { _id: subtitleUserId } };
+    } },
     "server-only": {},
+    "@/lib/server/auth": { getAuthData: async () => { if (!authenticated) throw Error("Not authenticated"); return { user: { _id: subtitleUserId } }; } },
+    "@/lib/server/outbound-fetch": { outboundUrl: value => new URL(value), OutboundRequestError: class extends Error {}, providerFetch: fetch, outboundFetch: (...args) => tmdbFetch(...args) },
     "@/lib/tmdb-credentials": { getTMDBToken: async () => tmdbToken },
     '@ai-sdk/google': { google: provider, createGoogle: () => provider },
     '@ai-sdk/openai': { openai: provider, createOpenAI: () => provider },
@@ -130,6 +137,15 @@ async function main() {
   assert.equal(navigatorRoutingSettings(museTransport).providerOptions.openai.reasoningEffort, 'minimal', 'Simple routing uses the shortest supported reasoning level');
   assert.equal(reasoningRequest.reasoning.effort, 'minimal', 'The actual SDK must send minimal reasoning for the custom Muse model ID');
   assert.equal(navigatorRoutingSettings({ modelId: 'gpt-6-luna', provider: 'opencode-responses.responses' }).providerOptions, undefined, 'Do not override other models');
+  const { createOpenAICompatible: actualCompatible } = await import('@ai-sdk/openai-compatible');
+  let compatibleReasoningRequest;
+  const deepseekTransport = actualCompatible({ name: 'opencode', apiKey: 'fixture-key', baseURL: 'https://provider.test/v1', fetch: async (_url, init) => {
+    compatibleReasoningRequest = JSON.parse(init.body);
+    throw new Error('Captured compatible transport');
+  } })('deepseek-v4.1-flash');
+  await assert.rejects(deepseekTransport.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'Select evidence' }] }],
+    ...navigatorRoutingSettings(deepseekTransport) }), /Captured compatible transport/);
+  assert.equal(compatibleReasoningRequest.reasoning_effort, 'low', 'OpenCode compatible extraction requests actually send low reasoning effort');
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const user = (id, text) => ({ id, role: 'user', parts: [{ type: 'text', text }] });
@@ -138,6 +154,22 @@ async function main() {
   history[0] = { id: 'old', role: 'assistant', parts: [{ type: 'tool-searchMedia', state: 'output-available', toolCallId: 'old-search', input: {}, output: { success: true, results: [{ id: 'remember-this', name: 'Chosen title', type: 'movie' }] } }] };
   history.push(user('latest', latestQuestion));
   const compacted = chat.compactNavigatorMessages(history);
+  const { sceneRequestContext } = load('lib/navigator-scene-context.ts');
+  const originalSceneRequest = 'play that one episode in nathan for you where he goes on jimmy kimmel, and skip to the scene where he goes on';
+  const sceneHistory = [
+    { id: 'earlier-title', role: 'assistant', parts: [{ type: 'tool-playMedia', state: 'output-available', toolCallId: 'old-play', input: {}, output: { success: true, mediaId: 'tt2297757:4:4', mediaName: 'Nathan for You', episodeTitle: 'The Anecdote', streamUrl: 'SIGNED_SECRET', authKey: 'AUTH_SECRET' } }] },
+    ...Array.from({ length: 30 }, (_, index) => user(`context-${index}`, 'Older conversation')),
+    user('prior-reference', 'By "goes on" I mean his appearance on Jimmy Kimmel, not planning it.'),
+    user('verbatim-request', `${originalSceneRequest}\n${'more context '.repeat(500)}Keep this final constraint: “the actual interview”.`),
+  ];
+  const historyBeforeContext = clone(sceneHistory);
+  const sceneContext = sceneRequestContext(sceneHistory);
+  assert.equal(sceneContext.originalRequest, sceneHistory.at(-1).parts[0].text, 'The original request survives verbatim, including a long tail and Unicode');
+  assert.match(JSON.stringify(sceneContext.conversation), /Jimmy Kimmel/, 'Retain earlier dialogue resolving references');
+  assert.match(JSON.stringify(sceneContext.titleReferences), /The Anecdote/, 'Keep older selected episode identities beyond the recent-text window');
+  assert.doesNotMatch(JSON.stringify(sceneContext), /SIGNED_SECRET|AUTH_SECRET/, 'Do not forward private tool transport fields');
+  assert.ok(sceneContext.conversation.length <= 12);
+  assert.deepEqual(sceneHistory, historyBeforeContext, 'Context collection never mutates saved history');
   assert.equal(compacted.at(-1).parts[0].text, latestQuestion, 'Latest question must never be silently truncated');
   assert.match(compacted[0].parts[0].text, /remember-this/, 'Older selected title IDs survive compaction');
   assert.equal(history.length, 51, 'Compaction must not mutate the saved transcript');
@@ -373,6 +405,7 @@ async function main() {
   assert.equal(idleScene.resumePositionTicks, 5, 'Open playback directly at the evidence timestamp');
   assert.equal(idleScene.execution, 'prepared');
   tmdbSearchFixtures = [{ id: 114294, name: 'The Curse', media_type: 'tv' }];
+  let compoundMatchPrompt;
   const descriptiveEpisodeScene = await idleTools.skipToSubtitleContent.execute({
     mediaQuery: 'The Curse', episodeQuery: 'Land of Enchantment', userDescription: 'Earlier evidence',
   }, toolOptions);
@@ -450,7 +483,7 @@ async function main() {
   const analysisAfterScene = subtitleAnalysisCalls;
   await idleTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
   assert.equal(subtitleTrackLookups, lookupsAfterScene + 1, 'Every scene request discovers current subtitle tracks');
-  assert.equal(subtitleAnalysisCalls, analysisAfterScene + 1, 'Repeated scene requests must run fresh analysis without saved matches');
+  assert.equal(subtitleAnalysisCalls, analysisAfterScene + 2, 'Repeated scene requests must freshly select and verify the scene without saved matches');
   assert.equal(streamLookups, 0, 'Finding a scene must not wait for stream enumeration');
   subtitleUserId = 'another-user';
   await idleTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
@@ -502,7 +535,7 @@ async function main() {
   const adaptiveTools = createAllTools({ id: 'tt-adaptive', name: 'Adaptive', type: 'movie' }, 0, adaptiveMuse, new AbortController().signal);
   const adaptiveMatch = await adaptiveTools.skipToSubtitleContent.execute({ userDescription: 'blackhole scene' }, toolOptions);
   assert.equal(adaptiveMatch.success, true);
-  assert.deepEqual(museAttempts, ['minimal', 'low'], 'An uncertain minimal Muse pass gets one bounded deeper pass');
+  assert.deepEqual(museAttempts, ['minimal', 'low', 'minimal'], 'An uncertain minimal Muse pass gets one bounded deeper pass, followed by local verification');
   assert.equal(adaptiveMatch.timings.matchPasses, 2);
   const missingMuse = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async () => ({
     content: [{ type: 'text', text: JSON.stringify({ candidate: null, confidence: 'none' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' },
@@ -513,6 +546,31 @@ async function main() {
   assert.equal(stillMissing.action, undefined, 'Two uncertain passes must never prepare playback');
   assert.equal(missingMuse.doGenerateCalls.length, 1, 'Definite no-match must not repeat the same full subtitle analysis');
   assert.equal(stillMissing.timings.matchReasoningTokens, 0);
+
+  const beforeVerificationFixture = subtitleContent;
+  subtitleContent = '1\n00:00:05,000 --> 00:00:08,000\nI am going to tell him the truth tomorrow.\n\n2\n00:00:20,000 --> 00:00:23,000\nI lied to you. I was the one who took it.\n\n3\n00:00:30,000 --> 00:00:33,000\nDid you take it?\n';
+  let verificationCalls = 0;
+  const narrativeVerifier = new MockLanguageModelV4({ doGenerate: async options => {
+    verificationCalls++;
+    const verify = JSON.stringify(options.prompt).includes('Task: Verify');
+    return { content: [{ type: 'text', text: JSON.stringify({ candidate: verify ? 2 : 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
+  } });
+  const verifiedScene = await createAllTools({ id: 'tt-verification', name: 'Narrative fixture', type: 'movie' }, 0, narrativeVerifier, new AbortController().signal)
+    .skipToSubtitleContent.execute({ userDescription: 'the confession' }, toolOptions);
+  assert.equal(verifiedScene.timestamp, 20, 'Verification can replace a confident planning/recap passage with the actual event elsewhere in the timeline');
+  assert.equal(verificationCalls, 2, 'A valid selection requires one independent narrative check');
+  let rejectedSceneCalls = 0;
+  const rejectingVerifier = new MockLanguageModelV4({ doGenerate: async options => {
+    rejectedSceneCalls++;
+    const verify = JSON.stringify(options.prompt).includes('Task: Verify');
+    return { content: [{ type: 'text', text: JSON.stringify(verify ? { candidate: null, confidence: 'none' } : { candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
+  } });
+  const rejectedScene = await createAllTools({ id: 'tt-rejected', name: 'Narrative fixture', type: 'movie' }, 0, rejectingVerifier, new AbortController().signal)
+    .skipToSubtitleContent.execute({ userDescription: 'an unsupported event' }, toolOptions);
+  assert.equal(rejectedScene.success, false, 'High confidence cannot bypass a failed narrative check');
+  assert.equal(rejectedScene.action, undefined, 'Failed verification must never start playback at zero or the rejected timestamp');
+  assert.equal(rejectedSceneCalls, 4, 'Allow at most one scene correction with verification, not an unbounded retry loop');
+  subtitleContent = beforeVerificationFixture;
 
 
   assert.equal(chat.requestsScenePlayback([user('scene-intent', 'go to the blackhole scene in interstellar')]), true);
@@ -543,7 +601,7 @@ async function main() {
     aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
     messages: [user('compound-scene', 'Go to a scene in Example')] })));
   assert.equal(sceneRouterCalls, 0, 'Explicit Muse scene requests use structured intent plus server execution, not free-form claims');
-  assert.equal(scenePlanCalls, 1, 'Explicit scene/title grammar needs only the subtitle-matching model call');
+  assert.equal(scenePlanCalls, 2, 'Explicit scene/title grammar needs selection and local verification, not another routing call');
   const directScenePart = directSceneResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
   assert.equal(directScenePart.output.success, true);
   assert.equal(chat.attemptedScenePlayback([user('compound-scene', 'Go to a scene in Example'), directSceneResponse]), true, 'The completed/prepared action must not be forced again on continuation');
@@ -556,6 +614,13 @@ async function main() {
   assert.ok(streamedProgress.every(part => part.data.state === 'completed'), 'SDK must update each stage in place rather than append duplicate traces');
   assert.ok(streamedProgress.every(part => part.data.toolCallId === directScenePart.toolCallId));
   const previousCompoundSubtitles = subtitleContent;
+  const modelPromptText = options => options.prompt.flatMap(message => Array.isArray(message.content) ? message.content.filter(part => part.type === 'text').map(part => part.text) : []).join('\n');
+  const assertOriginalSceneRequest = (prompt, expected) => {
+    const line = prompt.split('\n').find(line => line.startsWith('Original user request (verbatim JSON string): '));
+    assert.ok(line, 'The final subtitle-model call must receive the original user request');
+    assert.equal(JSON.parse(line.slice('Original user request (verbatim JSON string): '.length)), expected);
+    assert.match(prompt, /By.*goes on.*Jimmy Kimmel/, 'The final model receives earlier reference-resolving dialogue');
+  };
   subtitleContent = '1\n00:00:05,000 --> 00:00:08,000\nEarlier evidence\n';
   tmdbSearchFixtures = [{ id: 114294, name: 'The Curse', media_type: 'tv' }];
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor',
@@ -565,6 +630,7 @@ async function main() {
         const schema = options.responseFormat.schema;
         assert.deepEqual([...schema.required].sort(), Object.keys(schema.properties).sort(), 'Muse strict intent schemas require every property; unused fields must be nullable');
       }
+      if (JSON.stringify(options.prompt).includes('Task: Select the one-based candidate')) compoundMatchPrompt = modelPromptText(options);
       return { content: [{ type: 'text', text: JSON.stringify(
       JSON.stringify(options.prompt).includes('Extract a scene-playback request')
         ? { mediaQuery: 'The Curse', episodeQuery: 'Land of Enchantment', userDescription: 'Earlier evidence', seasonNumber: 0, episodeNumber: null }
@@ -575,11 +641,14 @@ async function main() {
   activeModel.modelId = sceneModel;
   const compoundEpisodeResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
     aiProvider: 'opencode', opencodeModel: sceneModel, opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
-    messages: [user('episode-and-scene', 'Play the episode of The Curse called Land of Enchantment and then skip to the scene with earlier evidence')] })));
+     messages: [sceneHistory.at(-2), user('episode-and-scene', `${originalSceneRequest}\n${'additional context '.repeat(300)}Only the actual appearance — not rehearsal.`)] })));
   const compoundEpisodePart = compoundEpisodeResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
   assert.equal(compoundEpisodePart.input.seasonNumber, undefined, 'The planner cannot add a season the user did not specify');
   assert.equal(compoundEpisodePart.input.episodeQuery, 'Land of Enchantment', 'Intent extraction preserves the episode clue separately from the scene');
   assert.equal(compoundEpisodePart.output.success, true);
+  assert.match(compoundMatchPrompt, /Episode request context:.*Land of Enchantment/, 'Episode clues must reach scene matching, not disappear after episode discovery');
+  assertOriginalSceneRequest(compoundMatchPrompt, `${originalSceneRequest}\n${'additional context '.repeat(300)}Only the actual appearance — not rehearsal.`);
+  assert.match(compoundMatchPrompt, /Resolved media metadata:.*Land of Enchantment/, 'Resolved episode metadata reaches scene matching');
   assert.equal(compoundEpisodePart.output.resumePositionTicks, 5, 'One prepared action starts at the matched scene');
   assert.equal(compoundEpisodePart.output.mediaId, 'tt13623608:1:1');
   assert.ok(compoundEpisodeResponse.parts.some(part => part.type === 'data-episodeProgress' && part.data.catalog?.seriesName === 'The Curse'), 'Combined requests stream episode lookup cards');
@@ -588,11 +657,14 @@ async function main() {
   tmdbSearchFixtures = undefined;
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
     doStream: async () => stream([{ type: 'tool-call', toolCallId: 'luna-scene-progress', toolName: 'skipToSubtitleContent', input: JSON.stringify({ mediaQuery: 'Example', userDescription: 'a fresh semantic scene for Luna' }) }], 'tool-calls'),
-    doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }),
+    doGenerate: async options => {
+      assertOriginalSceneRequest(modelPromptText(options), 'I would like a fresh semantic scene in Example');
+      return { content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
+    },
   });
   const lunaSceneProgress = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
     aiProvider: 'opencode', opencodeModel: 'gpt-6-luna', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
-    messages: [user('luna-scene-progress-user', 'I would like a fresh semantic scene in Example')] })));
+    messages: [sceneHistory.at(-2), user('luna-scene-progress-user', 'I would like a fresh semantic scene in Example')] })));
   assert.deepEqual(Array.from(lunaSceneProgress.parts.filter(part => part.type === 'data-sceneProgress'), part => part.data.stage), ['title', 'subtitles', 'scene'], 'Normal agent tools stream the same stages as the fast Muse workflow');
   assert.equal(lunaSceneProgress.parts.find(part => part.type === 'tool-skipToSubtitleContent').output.execution, 'prepared');
   let failedEpisodeSteps = 0;
@@ -627,7 +699,7 @@ async function main() {
   const freeformPart = freeformScene.parts.find(part => part.type === 'tool-skipToSubtitleContent');
   assert.equal(freeformPart.output.success, true);
   assert.equal(freeformPart.output.timings.intentSource, 'model');
-  assert.equal(freeformCalls, 2, 'Ambiguous boundaries use one structured intent call and one scene match');
+  assert.equal(freeformCalls, 3, 'Ambiguous boundaries use structured intent, scene selection, and local verification');
   tmdbSearchFixtures = [movieFixture, { ...movieFixture, id: 124, release_date: '2021-01-01' }];
   const ambiguousWorkflow = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
     aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',

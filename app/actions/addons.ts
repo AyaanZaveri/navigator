@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getAuthData, invalidateAddonCollection } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
+import { invalidateAddonCollection } from "@/app/actions/auth";
 import { addonLinks, findInstalledAddon, readAddonCollection, removeInstalledAddon } from "@/lib/addon-management";
 
 function errorMessage(error: unknown) {

@@ -483,6 +483,7 @@ assert.equal(selected, 'light');
 
 const configured = [];
 const { createOpenCodeGoModel } = load('lib/opencode-go.ts', {
+    '@/lib/server/outbound-fetch': { providerFetch: () => { throw new Error('Unexpected network request in presentation test'); } },
     '@ai-sdk/openai': { createOpenAI: settings => ({ responses: modelId => { configured.push({ ...settings, modelId, protocol: 'responses' }); return {}; } }) },
     '@ai-sdk/openai-compatible': { createOpenAICompatible: settings => modelId => { configured.push({ ...settings, modelId, protocol: 'chat' }); return {}; } },
 });

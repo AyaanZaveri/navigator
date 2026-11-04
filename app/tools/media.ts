@@ -18,8 +18,20 @@ import {
     parseSeriesRouteId,
 } from "@/lib/series-route";
 
+async function searchTitlePage(query: string, signal?: AbortSignal, type?: "movie" | "series", page = 1) {
+    const found = await searchTMDBMedia(query, signal, type, page);
+    if (found.results.length) return found;
+    // Some models append the release year to the title. Repair an empty search
+    // within the same tool call, while retaining the year as a hard constraint.
+    // Never strip a number from a title that already has real search results.
+    const dated = /^(.+?)\s+\(?((?:19|20)\d{2})\)?$/.exec(query.trim());
+    if (!dated || Number(dated[2]) > new Date().getFullYear() + 1) return found;
+    const fallback = await searchTMDBMedia(dated[1], signal, type, page);
+    return { ...fallback, results: fallback.results.filter(item => String(item.year) === dated[2]) };
+}
+
 async function searchTitles(query: string, signal?: AbortSignal, type?: "movie" | "series") {
-    return (await searchTMDBMedia(query, signal, type)).results;
+    return (await searchTitlePage(query, signal, type)).results;
 }
 
 async function playbackId(id: string, type: "Movie" | "Series" | "Episode", signal?: AbortSignal) {
@@ -324,7 +336,7 @@ export const searchMedia = tool({
         abortSignal?.throwIfAborted();
         console.log("🔍 [searchMedia] Tool called with query:", query);
         try {
-            const found = await searchTMDBMedia(query, abortSignal, mediaType === "Movie" ? "movie" : mediaType === "Series" ? "series" : undefined, page);
+            const found = await searchTitlePage(query, abortSignal, mediaType === "Movie" ? "movie" : mediaType === "Series" ? "series" : undefined, page);
             const results = found.results;
             console.log("🔍 [searchMedia] Search results:", results);
             const ranked = results
@@ -538,7 +550,7 @@ export const findEpisodeByTitle = tool({
 
 export const navigateToMediaByQuery = tool({
     description:
-    "Open a title details page; scene/moment requests belong to skipToSubtitleContent instead. Resolve a movie or series title to the best match and navigate in one step. Prefer this for commands like 'go to Interstellar' or 'open The Rookie'.",
+    "Open a title DETAILS PAGE, without playing it. Use for 'go to Interstellar' or 'open The Rookie'. Never use for play/watch/start requests: resolve the title with searchMedia and use playMedia instead. Scene/moment requests use skipToSubtitleContent. Resolve a movie or series title and navigate in one step.",
     inputSchema: z.object({
         mediaQuery: z.string().describe("Movie or series title to navigate to"),
         preferredType: z

@@ -10,6 +10,7 @@ async function main() {
     const { z } = await import('zod');
     const requests = [];
     const context = { exports: {}, require: name => {
+        if (name === '@/lib/server/outbound-fetch') return { providerFetch: fetch };
         if (name === 'ai') return ai;
         if (name === '@ai-sdk/openai-compatible') return { createOpenAICompatible: settings => compatible.createOpenAICompatible({ ...settings, fetch: async (_url, init) => {
             const body = JSON.parse(init.body); requests.push(body);

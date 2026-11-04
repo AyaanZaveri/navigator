@@ -23,15 +23,13 @@ console.log('PASS: rendered login and referenced production asset');
 const protectedPage = await request('/settings');
 assert.ok([302, 307].includes(protectedPage.status));
 assert.equal(new URL(protectedPage.headers.get('location'), origin).pathname, '/login');
-// Test only the proxy's cookie-routing branch; never submit this synthetic token
-// to Stremio or follow the redirect into authenticated data requests.
+// An unsigned synthetic cookie must not establish a session or reach authenticated data.
 const syntheticCookie = encodeURIComponent(JSON.stringify({
   authKey: 'deployment-smoke-not-a-real-token', user: { _id: 'deployment-smoke' },
 }));
 const cookieRouting = await request('/login', { headers: { Cookie: `stremio-auth=${syntheticCookie}` } });
-assert.ok([302, 307].includes(cookieRouting.status));
-assert.equal(new URL(cookieRouting.headers.get('location'), origin).pathname, '/');
-console.log('PASS: proxy redirects for anonymous pages and a synthetic cookie, without authenticated data requests');
+assert.equal(cookieRouting.status, 200, 'An unsigned cookie must remain on the public login page');
+console.log('PASS: anonymous redirects and forged-cookie rejection');
 
 await Promise.all([
   ['/api/search/suggestions?q=modern%20family', 401],
@@ -65,12 +63,6 @@ assert.equal(new URL(episode.headers.get('location'), origin).pathname, '/series
 console.log('PASS: legacy episode redirect');
 
 const artwork = await request('/api/artwork?id=tt0816692&type=movie&kind=poster');
-assert.equal(artwork.status, 307, 'TMDB runtime credentials must resolve real artwork');
-assert.equal(new URL(artwork.headers.get('location')).hostname, 'image.tmdb.org');
-const sample = await request('/api/artwork?id=tt0816692&type=movie&kind=poster&sample=1&palette=1');
-assert.equal(sample.status, 200, 'Server-side artwork byte proxy must work');
-assert.match(sample.headers.get('content-type') ?? '', /^image\//);
-assert.match(sample.headers.get('cache-control') ?? '', /private/);
-assert.ok((await sample.arrayBuffer()).byteLength > 100);
-console.log('PASS: TMDB runtime settings, artwork redirect and private image proxy');
+assert.equal(artwork.status, 401, 'Shared TMDB credentials require a verified session');
+console.log('PASS: anonymous artwork requests cannot use shared server credentials');
 console.log(`PASS: deployment smoke checks for ${origin.origin}`);

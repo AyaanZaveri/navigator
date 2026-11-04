@@ -34,21 +34,22 @@ async function main() {
             if (options.prompt.startsWith('Write one complementary')) return { output: { query: '"Late Bloomer" translated dialogue scene' } };
             const isWeb = options.prompt.includes('web:1');
             const eligible = options.prompt.split('Evidence sources:')[0].includes('tmdb:58957:4:4');
-            if (mode === 'clue-only' && isWeb) return { output: { status: 'not_found', evidence: [], clueEvidence: [{ sourceId: 'web:1', quote: source.text }] } };
-            if (mode === 'fake') return { output: { status: 'matched', evidence: [{ episodeId: 'tmdb:58957:4:4', sourceId: 'web:1', quote: 'a fabricated quote' }] } };
-            if (mode === 'wrong-id') return { output: { status: 'matched', evidence: [{ episodeId: 'tmdb:58957:4:5', sourceId: 'web:1', quote: source.text }] } };
-            if (mode === 'metadata-ambiguous' && !isWeb && eligible) return { output: { status: 'ambiguous', evidence: episodes.slice(-2).map(ep => ({ episodeId: ep.id, sourceId: ep.id, quote: ep.title })) } };
-            if (mode === 'ambiguous' && isWeb) return { output: { status: 'ambiguous', evidence: [
-                { episodeId: 'tmdb:58957:4:4', sourceId: 'web:1', quote: source.text },
-                { episodeId: 'tmdb:58957:4:7', sourceId: 'web:1', quote: source.text },
+            if (mode === 'clue-only' && isWeb) return { output: { status: 'not_found', evidence: [], clueEvidence: [{ passageId: 'web:1:p1' }] } };
+            if (mode === 'fake') return { output: { status: 'matched', clueEvidence: [], evidence: [{ episodeId: 'tmdb:58957:4:4', passageId: 'web:1:p999' }] } };
+            if (mode === 'wrong-id') return { output: { status: 'matched', clueEvidence: [], evidence: [{ episodeId: 'tmdb:58957:4:5', passageId: 'web:1:p1' }] } };
+            if (mode === 'metadata-ambiguous' && !isWeb && eligible) return { output: { status: 'ambiguous', clueEvidence: [], evidence: episodes.slice(-2).map(ep => ({ episodeId: ep.id, passageId: `${ep.id}:p1` })) } };
+            if (mode === 'ambiguous' && isWeb) return { output: { status: 'ambiguous', clueEvidence: [], evidence: [
+                { episodeId: 'tmdb:58957:4:4', passageId: 'web:1:p1' },
+                { episodeId: 'tmdb:58957:4:7', passageId: 'web:1:p1' },
             ] } };
-            if (mode === 'late-clue' && eligible) return { output: { status: 'matched', evidence: [{ episodeId: 'tmdb:58957:4:4', sourceId: 'tmdb:58957:4:4', quote: extraOverview }] } };
-            return { output: { status: isWeb && eligible && mode !== 'none' ? 'matched' : 'not_found', evidence: isWeb && eligible && mode !== 'none'
-                ? [{ episodeId: 'tmdb:58957:4:4', sourceId: source.id, quote: source.text }] : [] } };
+            if (mode === 'late-clue' && eligible) return { output: { status: 'matched', clueEvidence: [], evidence: [{ episodeId: 'tmdb:58957:4:4', passageId: 'tmdb:58957:4:4:p1' }] } };
+            return { output: { status: isWeb && eligible && mode !== 'none' ? 'matched' : 'not_found', clueEvidence: [], evidence: isWeb && eligible && mode !== 'none'
+                ? [{ episodeId: 'tmdb:58957:4:4', passageId: `${source.id}:p1` }] : [] } };
         } },
         zod,
         'next/headers': { cookies: async () => ({ get: key => jar.get(key), set: (key, value, options) => jar.set(key, { value, options }), delete: key => jar.delete(key) }) },
         '@/app/actions/auth': { getUser: async () => signedIn ? { _id: 'test' } : null },
+        '@/lib/server/auth': { getAuthData: async () => { if (!signedIn) throw new Error('Sign in'); return { user: { _id: 'test' } }; } },
         '@/lib/tmdb-discovery': {
             getTMDBTitle: async () => ({ id: 'tmdb:58957', name: catalogName, poster: 'https://image.tmdb.org/t/p/w500/show.jpg', year: 2013, genres: ['Comedy'], communityRating: 8.1 }),
             searchTMDBMedia: async query => { titleSearches.push(query); return { results: query === 'Late Bloomers' ? [] : showCandidates }; },
@@ -61,7 +62,7 @@ async function main() {
         const absolute = path.resolve(file);
         if (modules.has(absolute)) return modules.get(absolute).exports;
         const module = { exports: {} }; modules.set(absolute, module);
-        const context = { module, exports: module.exports, process: { env }, console, URL, URLSearchParams, AbortSignal, AbortController,
+        const context = { module, exports: module.exports, process: { env }, console, URL, URLSearchParams, AbortSignal, AbortController, setTimeout, clearTimeout,
             fetch: async (url, init) => { requests.push({ url, init }); return new Response(JSON.stringify(typeof fetchBody === 'function' ? await fetchBody(url) : fetchBody || { results: [{ title: 'Guide', url: 'https://example.com/guide' }] }), { status }); },
             require: name => overrides[name] || (name.startsWith('@/') ? load(name.slice(2) + '.ts') : require(name)),
         };
@@ -69,6 +70,14 @@ async function main() {
         return module.exports;
     }
     const { resolveEpisode } = load('lib/episode-discovery.ts');
+    const { indexEvidence, resolveEvidencePassage } = load('lib/navigator-evidence.ts');
+    const longEvidence = [{ id: 'long:source', title: 'Full source', url: 'https://example.com/full', text: `${'αβγ '.repeat(1400)}TAIL_MARKER` }];
+    const indexedLong = indexEvidence(longEvidence);
+    assert.equal(indexedLong[0].passages.map(passage => passage.text).join(''), longEvidence[0].text, 'Passage indexing must preserve long evidence, Unicode, and late clues without truncation');
+    assert.equal(indexedLong[0].passages.every(passage => passage.text.length <= 1200), true);
+    assert.equal(resolveEvidencePassage(longEvidence, indexedLong, 'invented:p1'), null, 'Only server-issued source passage IDs can resolve to quotations');
+    const lastPassage = indexedLong[0].passages.at(-1);
+    assert.equal(resolveEvidencePassage(longEvidence, indexedLong, lastPassage.id).quote.endsWith('TAIL_MARKER'), true);
     const input = { seriesQuery: 'Nathan for You', episodeQuery: 'where he goes on Jimmy Kimmel' };
     let webCalls = 0;
     const research = async () => { webCalls++; return [source]; };
@@ -81,6 +90,7 @@ async function main() {
     assert.equal(catalog.genres[0], 'Comedy');
     assert.equal(result.status, 'matched');
     assert.equal(result.episodes[0].id, 'tmdb:58957:4:4', 'Map identity/title to TMDB, not the external S4E5');
+    assert.equal(result.evidence[0].quote, source.text, 'The server reconstructs the original source quotation from a supplied passage ID');
     assert.equal(webCalls, 1);
     assert.ok(prompts.some(prompt => prompt.includes('Early episode 44')), 'Episodes beyond the first 40 must be assessed');
     assert.ok(!result.episodes.some(ep => ep.id.endsWith(':4:7')), 'Finding Frances must never be a filler candidate');

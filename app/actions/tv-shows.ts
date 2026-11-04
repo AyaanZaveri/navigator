@@ -1,11 +1,14 @@
 "use server";
 
+import { outboundFetch } from "@/lib/server/outbound-fetch";
+
 import { artworkUrl, mediaArtwork } from "@/lib/artwork";
 import { pickRandomEpisode } from "@/lib/media/shuffle-episode";
 
 import type { MediaItem, StremioMeta, StremioMetaResponse
 } from "@/types/stremio";
-import { getAuthData, getInstalledAddons } from "./auth";
+import { getAuthData } from "@/lib/server/auth";
+import { getInstalledAddons } from "./auth";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -15,9 +18,10 @@ async function fetchAddonResource<T>(
   signal?: AbortSignal
 ): Promise<T | null> {
   try {
+    await getAuthData();
     const base = transportUrl.replace(/\/manifest\.json$/, "");
     const url = `${base}/${path}`;
-    const response = await fetch(url, { next: { revalidate: 300 }, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000) });
+    const response = await outboundFetch(url, { next: { revalidate: 300 }, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000) });
     if (!response.ok) return null;
     return response.json();
   } catch {

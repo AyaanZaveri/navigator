@@ -140,10 +140,10 @@ function controller(overrides={}) {
   onEnded({currentTarget:{}});assert.equal(h.played.length,0,'Detached old video events are ignored');
   onEnded({currentTarget:video});onEnded({currentTarget:video});await tick();assert.equal(h.played.length,1);h.host.unmount();
 
-  const {GET}=load('app/api/playback/next-episode/route.ts',{'@/app/actions/auth':{getAuthData:async()=>({})},'@/app/actions/tv-shows':{getFollowingEpisodeForSeries:async()=>next}},globals);
+  const {GET}=load('app/api/playback/next-episode/route.ts',{'@/app/actions/auth':{getAuthData:async()=>({})}, "@/lib/server/auth": { getAuthData:async()=>({}) },'@/app/actions/tv-shows':{getFollowingEpisodeForSeries:async()=>next}},globals);
   assert.equal((await GET(new Request('http://test/api/playback/next-episode?id=tt1442437&season=6&episode=6'))).status,200);
   assert.equal((await GET(new Request('http://test/api/playback/next-episode?id=bad/id&season=6&episode=6'))).status,400);
-  const unauthorized=load('app/api/playback/next-episode/route.ts',{'@/app/actions/auth':{getAuthData:async()=>{throw Error('signed out');}},'@/app/actions/tv-shows':{getFollowingEpisodeForSeries:async()=>{throw Error('Must authenticate first');}}},globals);
+  const unauthorized=load('app/api/playback/next-episode/route.ts',{'@/app/actions/auth':{getAuthData:async()=>{throw Error('signed out');}}, "@/lib/server/auth": { getAuthData:async()=>{throw Error('signed out');} },'@/app/actions/tv-shows':{getFollowingEpisodeForSeries:async()=>{throw Error('Must authenticate first');}}},globals);
   assert.equal((await unauthorized.GET(new Request('http://test/api/playback/next-episode?id=tt1442437&season=6&episode=6'))).status,401);
   console.log('PASS: episode autoplay on/off, Next parity, one-shot preparation, bounds, expiration, cancellation, stale callbacks, Strict Mode, movie/finale guards, bounded range warming and authenticated endpoint validation');
 })().catch(error=>{console.error(error);process.exitCode=1});

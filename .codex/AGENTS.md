@@ -10,15 +10,15 @@ Navigator is a modern streaming media client built on the **Stremio addon protoc
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 16.1.6 (App Router, Turbopack, React 19) |
+| Framework | Next.js 16.4.4 (App Router, Turbopack, React 19) |
 | Language | TypeScript (strict mode, ESNext target) |
 | Styling | Tailwind CSS v4, CSS variables for theming |
 | UI Components | shadcn/ui (New York style), Radix UI primitives, Lucide icons |
 | Animations | Framer Motion / Motion, tw-animate-css |
 | State Management | Jotai (atoms) + React Context (settings, auth) |
-| AI | Vercel AI SDK v5 (`ai` package) — Gemini, Ollama, Groq, OpenRouter providers |
+| AI | Vercel AI SDK v7 (`ai` package) — Gemini, Ollama, Groq, OpenRouter providers |
 | Video | `hls-video-element`, `dash-video-element`, `media-chrome`, `react-player` |
-| Auth | Stremio API + httpOnly=false cookie (`stremio-auth`) |
+| Auth | Official Stremio login + encrypted HttpOnly session (`stremio-auth`) |
 | Package Manager | npm (lockfile: `package-lock.json`), bun also available (`bun.lock`) |
 | Desktop | Electron (macOS hiddenInset title bar) |
 | Analytics | Vercel Analytics + Speed Insights |
@@ -106,7 +106,7 @@ contexts/                   # React Contexts
 └── settings-context.tsx    # Settings with localStorage persistence
 
 hooks/                      # Custom React hooks
-├── useAuth.ts              # Client-side auth from cookie
+├── useAuth.ts              # Client-side public profile from `/api/auth/session`
 ├── useAI.ts                # AI chat integration
 ├── useKeyboardShortcut.ts  # Declarative keyboard shortcuts
 └── use-mobile.ts           # Mobile breakpoint detection
@@ -153,9 +153,11 @@ Helper functions in `app/actions/media.ts`: `addonSupportsResource()`, `addonSup
 
 1. Login via `OnboardingFlow` → `authenticateUser(email, password)` server action
 2. POST to `https://api.strem.io/api/login` with Stremio web headers
-3. Set `stremio-auth` cookie (JSON with `authKey`, `user`, `timestamp`, 30-day expiry)
-4. `proxy.ts` middleware enforces auth — redirects unauthenticated users to `/login`
-5. Client reads cookie via `useAuth()` hook (polls every 5s)
+3. Issue an authenticated/encrypted 30-day JWE in an HttpOnly, SameSite=Lax cookie; hosted production requires `NAVIGATOR_SESSION_SECRET`.
+4. `lib/server/auth.ts` verifies the session in protected data access and handlers; `proxy.ts` uses the same verifier for routing. Never export credential-bearing helpers from a `"use server"` module.
+5. `useAuth()` reads only a public profile through `/api/auth/session`, refreshing on focus and once per minute. It never reads or writes the bearer cookie.
+
+See `docs/security-hardening.md` for runtime key storage, outbound DNS/redirect policies, Cloudflare public-network egress, migration and research sources. Unsigned legacy JSON cookies are rejected.
 
 ### Caching Strategy
 

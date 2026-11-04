@@ -1,13 +1,13 @@
 "use server";
 
+import { outboundFetch } from "@/lib/server/outbound-fetch";
+
 import { subtitleAddonBaseUrl } from "@/lib/subtitle-provider";
 import { matchEpisodeSubtitleTracks } from "@/lib/media/subtitle-episode-identity";
 
 import type { MediaItem, StremioAddon, StremioStream } from "@/types/stremio";
-import {
-  getAuthData as getAuthDataFromAuth,
-  getInstalledAddons,
-} from "./auth";
+import { getAuthData as getAuthDataFromAuth } from "@/lib/server/auth";
+import { getInstalledAddons } from "./auth";
 
 // ─── Image URL helpers ──────────────────────────────────────────
 
@@ -40,7 +40,7 @@ export async function getStreamUrl(
 
     try {
       const base = addon.transportUrl.replace(/\/manifest\.json$/, "");
-      const response = await fetch(
+      const response = await outboundFetch(
         `${base}/stream/${type}/${itemId}.json`
       );
       if (!response.ok) continue;
@@ -136,13 +136,13 @@ export async function getSubtitleTracks(
       try {
         const base = subtitleAddonBaseUrl(addon.transportUrl, addon.manifest.id);
         const hintedPath = buildSubtitlePath();
-        let response = await fetch(`${base}/${hintedPath}`, {
+        let response = await outboundFetch(`${base}/${hintedPath}`, {
           signal,
           headers: subtitleRequestHeaders,
           cache: "no-store",
         });
         if (!response.ok && hintedPath.includes("/filename=")) {
-          response = await fetch(`${base}/subtitles/${type}/${itemId}.json`, {
+          response = await outboundFetch(`${base}/subtitles/${type}/${itemId}.json`, {
             signal,
             headers: subtitleRequestHeaders,
             cache: "no-store",
@@ -308,9 +308,4 @@ export async function fetchLogs(): Promise<any[]> {
 
 export async function fetchLogContent(_logName?: string): Promise<string> {
   return "";
-}
-
-// Backward-compat shim for callers importing from this module.
-export async function getAuthData(): ReturnType<typeof getAuthDataFromAuth> {
-  return getAuthDataFromAuth();
 }

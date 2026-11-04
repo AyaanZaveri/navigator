@@ -1,6 +1,6 @@
 "use server";
 
-import { getAuthData } from "./auth";
+import { getAuthData } from "@/lib/server/auth";
 import { fetchEpisodes } from "./tv-shows";
 import { orderedEpisodeIds, setVideoWatched, watchedVideoIds } from "@/lib/stremio-watched";
 import { watchHistoryKey, type WatchHistoryItem, type WatchHistoryRequest, type WatchStatusInput } from "@/lib/watch-history";
@@ -14,7 +14,7 @@ export async function fetchWatchedItems(requests: WatchHistoryRequest[]): Promis
     try {
         const { authKey } = await getAuthData();
         const response = await fetch("https://api.strem.io/api/datastoreGet", {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", redirect: "manual", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ authKey, collection: "libraryItem", ids: [...new Set(selected.map(item => item.id))], all: false }),
             cache: "no-store", signal: AbortSignal.timeout(10_000),
         });
@@ -58,7 +58,7 @@ export async function setWatchedStatus(input: WatchStatusInput): Promise<WatchHi
     try {
         const { authKey } = await getAuthData();
         const response = await fetch("https://api.strem.io/api/datastoreGet", {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", redirect: "manual", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ authKey, collection: "libraryItem", ids: [input.id], all: false }),
             cache: "no-store", signal: AbortSignal.timeout(10_000),
         });
@@ -122,7 +122,7 @@ export async function setWatchedStatus(input: WatchStatusInput): Promise<WatchHi
             removed: true, temp: true, _ctime: now, ...existing, _mtime: now, state,
         };
         const write = await fetch("https://api.strem.io/api/datastorePut", {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", redirect: "manual", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ authKey, collection: "libraryItem", changes: [payload] }),
             cache: "no-store", signal: AbortSignal.timeout(10_000),
         });

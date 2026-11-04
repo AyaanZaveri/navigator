@@ -1,7 +1,9 @@
 import { artworkUrl, type ArtworkKind } from "@/lib/artwork";
 import { getTMDBArtwork } from "@/lib/tmdb-artwork";
+import { getAuthData } from "@/lib/server/auth";
 
 export async function GET(request: Request) {
+    try { await getAuthData(); } catch { return new Response(null, { status: 401, headers: { "Cache-Control": "no-store" } }); }
     const params = new URL(request.url).searchParams;
     const id = params.get("id") ?? "";
     const type = params.get("type");

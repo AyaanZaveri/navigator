@@ -1,5 +1,8 @@
 "use server";
 
+import { getAuthData } from "@/lib/server/auth";
+import { outboundFetch } from "@/lib/server/outbound-fetch";
+
 import type { StremioSubtitle, StremioSubtitleResponse } from "@/types/stremio";
 import { getInstalledAddons } from "./auth";
 
@@ -11,9 +14,10 @@ async function fetchAddonResource<T>(
   init?: RequestInit
 ): Promise<T | null> {
   try {
+    await getAuthData();
     const base = transportUrl.replace(/\/manifest\.json$/, "");
     const url = `${base}/${path}`;
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       ...(init ?? {}),
       ...(init?.cache || init?.next ? {} : { next: { revalidate: 300 } }),
     });
@@ -110,11 +114,12 @@ export async function fetchSubtitleFileContent(
   signal?: AbortSignal
 ): Promise<{ success: boolean; content: string; error?: string }> {
   try {
+    await getAuthData();
     if (!subtitleUrl) {
       return { success: false, content: "", error: "Missing subtitle URL" };
     }
 
-    const response = await fetch(subtitleUrl, {
+    const response = await outboundFetch(subtitleUrl, {
       signal,
       headers: {
         Accept: "*/*",
@@ -124,7 +129,7 @@ export async function fetchSubtitleFileContent(
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
       },
       cache: "no-store",
-    });
+    }, { maxBytes: 2 * 1024 * 1024, timeoutMs: 15_000 });
 
     if (!response.ok) {
       return {

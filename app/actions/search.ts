@@ -1,5 +1,8 @@
 "use server";
 
+import { getAuthData } from "@/lib/server/auth";
+import { outboundFetch } from "@/lib/server/outbound-fetch";
+
 import { artworkUrl } from "@/lib/artwork";
 
 import type {
@@ -25,9 +28,10 @@ async function fetchAddonResource<T>(
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+    await getAuthData();
         const base = transportUrl.replace(/\/manifest\.json$/, "");
         const url = `${base}/${path}`;
-        const response = await fetch(url, {
+        const response = await outboundFetch(url, {
             next: { revalidate: 60 },
             signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
         });

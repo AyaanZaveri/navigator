@@ -3,10 +3,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookieRequiresHttps } from "@/lib/cookie-policy";
+import { getAuthData } from "@/lib/server/auth";
+import { createSession, readSession, publicUser, SESSION_COOKIE, SESSION_SECONDS, type SessionUser } from "@/lib/server/session";
 import type {
   StremioAuthData,
-  StremioUser,
-  StremioUserWithToken,
   StremioAddon,
 } from "@/types/stremio";
 
@@ -32,30 +32,13 @@ let addonCollectionRequest:
 
 async function setAuthCookie(data: StremioAuthData) {
   const cookieStore = await cookies();
-  cookieStore.set("stremio-auth", JSON.stringify(data), {
+  cookieStore.set(SESSION_COOKIE, await createSession(data.authKey, data.user), {
     path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: SESSION_SECONDS,
     sameSite: "lax",
     secure: cookieRequiresHttps(),
-    httpOnly: false,
+    httpOnly: true,
   });
-}
-
-export async function getAuthData(): Promise<{
-  authKey: string;
-  user: StremioUser;
-}> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get("stremio-auth");
-
-  if (!raw?.value) {
-    const err = new Error("Not authenticated");
-    (err as any).isAuthError = true;
-    throw err;
-  }
-
-  const parsed: StremioAuthData = JSON.parse(raw.value);
-  return { authKey: parsed.authKey, user: parsed.user };
 }
 
 // ─── Authentication ──────────────────────────────────────────────
@@ -64,11 +47,15 @@ export async function authenticateUser(
   email: string,
   password: string
 ): Promise<boolean> {
+  if (typeof email !== "string" || typeof password !== "string" || !email.trim() || email.length > 320 || !password || password.length > 4096) return false;
   try {
     const response = await fetch(`${STREMIO_API}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, facebook: false }),
+      cache: "no-store",
+      redirect: "manual",
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
@@ -88,7 +75,7 @@ export async function authenticateUser(
       return true;
     }
 
-    console.error("Stremio login error:", data.result);
+    console.error("Stremio rejected sign-in.");
     return false;
   } catch (error) {
     console.error("Authentication failed:", error);
@@ -96,41 +83,36 @@ export async function authenticateUser(
   }
 }
 
-export async function logout() {
+export async function endSession() {
   const cookieStore = await cookies();
 
   try {
-    const raw = cookieStore.get("stremio-auth");
-    if (raw?.value) {
-      const parsed: StremioAuthData = JSON.parse(raw.value);
+    const session = await readSession(cookieStore.get(SESSION_COOKIE)?.value);
+    if (session) {
       await fetch(`${STREMIO_API}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ authKey: parsed.authKey }),
+        body: JSON.stringify({ authKey: session.authKey }),
+        cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(5000),
       }).catch(() => {});
     }
   } catch {
     // Ignore cleanup errors
   }
 
-  cookieStore.delete("stremio-auth");
+  cookieStore.delete(SESSION_COOKIE);
   addonCollectionCache = null;
   addonCollectionRequest = null;
+}
+
+export async function logout() {
+  await endSession();
   redirect("/login");
 }
 
-export async function getUser(): Promise<StremioUserWithToken | null> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get("stremio-auth");
-
-  if (!raw?.value) return null;
-
-  try {
-    const parsed: StremioAuthData = JSON.parse(raw.value);
-    return { ...parsed.user, authKey: parsed.authKey };
-  } catch {
-    return null;
-  }
+export async function getUser(): Promise<SessionUser | null> {
+  const session = await readSession((await cookies()).get(SESSION_COOKIE)?.value);
+  return session ? publicUser(session.user) : null;
 }
 
 export async function isAuthenticated(): Promise<boolean> {
@@ -204,7 +186,7 @@ export async function invalidateAddonCollection() {
 // Server Action to clear invalid auth data
 export async function clearAuthData() {
   const cookieStore = await cookies();
-  cookieStore.delete("stremio-auth");
+  cookieStore.delete(SESSION_COOKIE);
   addonCollectionCache = null;
   addonCollectionRequest = null;
 }

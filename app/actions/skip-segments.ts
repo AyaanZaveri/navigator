@@ -1,6 +1,6 @@
 "use server";
 
-import { getAuthData } from "./auth";
+import { getAuthData } from "@/lib/server/auth";
 import { getTMDBToken } from "@/lib/tmdb-credentials";
 import { fetchTMDB } from "@/lib/tmdb";
 

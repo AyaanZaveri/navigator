@@ -29,7 +29,7 @@ async function request(authKey: string, method: string, body: Record<string, unk
     const response = await fetch(`${API}/${method.charAt(0).toLowerCase() + method.slice(1)}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: method, authKey, ...body }),
-        cache: "no-store", signal: AbortSignal.timeout(15_000),
+        cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error("Stremio is unavailable. Please try again.");
     const data = await response.json();

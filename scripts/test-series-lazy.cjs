@@ -67,8 +67,10 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   const shuffleSeasons = [];
   const shuffle = load('lib/media/shuffle-episode.ts');
   const nativeActions = load('app/actions/tv-shows.ts', {
+    '@/lib/server/outbound-fetch': { outboundFetch: async () => { throw Error('Unexpected addon request'); } },
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture' }) },
     '@/lib/artwork': {}, '@/lib/media/shuffle-episode': shuffle,
-    './auth': { getAuthData: async () => ({}) },
+    './auth': { getAuthData: async () => ({}) }, "@/lib/server/auth": { getAuthData: async () => ({}) },
     '@/lib/tmdb-discovery': {
       getTMDBSeasons: async () => seasonList,
       getTMDBEpisodes: async (_id, season) => { shuffleSeasons.push(season); return [episode(season)]; },
@@ -81,7 +83,7 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
 
   let authorized = false, serverCalls = 0;
   const api = load('app/api/series/episodes/route.ts', {
-    '@/app/actions/auth': { getAuthData: async () => { if (!authorized) throw Error('auth'); } },
+    '@/app/actions/auth': { getAuthData: async () => { if (!authorized) throw Error('auth'); } }, "@/lib/server/auth": { getAuthData: async () => { if (!authorized) throw Error('auth'); } },
     '@/lib/tmdb-discovery': { getTMDBEpisodes: async (id, season, signal) => { serverCalls++; assert.equal(id, 'tmdb:20'); assert.ok(signal); return [episode(season)]; } },
   }, { Request, Response, URL });
   assert.equal((await api.GET(new Request('http://app/api/series/episodes?id=unknown&season=1'))).status, 400);

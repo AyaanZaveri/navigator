@@ -1,3 +1,4 @@
+import { collectThirdPartyNotices } from "./collect-third-party-notices.mjs";
 import { spawn } from "node:child_process";
 import { cp, mkdir, access, writeFile, chmod } from "node:fs/promises";
 import { resolve, dirname, join, basename } from "node:path";
@@ -66,6 +67,11 @@ try {
         else if (process.platform !== "linux") throw new Error(`A portable libmpv bundle is required at ${vendor}. Use npm run desktop:fetch-libs first.`);
         await cp(join(desktop, "licenses"), join(resources, "licenses"), { recursive: true });
         await cp(join(desktop, "THIRD-PARTY.md"), join(resources, "THIRD-PARTY.md"));
+        await cp(join(root, "LICENSE"), join(resources, "licenses", "Navigator-GPL-3.0.txt"));
+        await cp(join(root, "LICENSE"), join(resources, "LICENSE"));
+        await cp(join(root, "THIRD-PARTY.md"), join(resources, "NAVIGATOR-THIRD-PARTY.md"));
+        await cp(join(root, "licenses"), join(resources, "licenses"), { recursive: true });
+        await collectThirdPartyNotices(join(root, "node_modules"), join(resources, "licenses", "npm"));
         if (mac) {
             await run("sh", [join(root, "scripts", "generate-macos-icon.sh")]);
             await cp(join(root, "build", "icon.icns"), join(resources, "Navigator.icns"));

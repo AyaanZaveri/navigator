@@ -1,10 +1,31 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
+const path = require('node:path');
 
 function load(file, dependencies = {}, globals = {}) {
   const context = { exports: {}, console, setTimeout, clearTimeout, queueMicrotask, ...globals,
-    require: name => name in dependencies ? dependencies[name] : require(name) };
+    require: name => {
+      if (name in dependencies) {
+        const dependency = dependencies[name];
+        if (name === '@/lib/server/outbound-fetch' && dependency.outboundFetch === 'fixture-fetch') {
+          if (!globals.fetch) throw new Error('The fixture must supply fetch');
+          return { outboundFetch: globals.fetch };
+        }
+        return dependency;
+      }
+      // Existing behavioral fixtures mock the previous auth module; preserve that boundary after its server-only split.
+      if (name === '@/lib/server/auth') {
+        const fixture = dependencies['@/app/actions/auth'] || dependencies['./auth'];
+        if (fixture?.getAuthData) return { getAuthData: fixture.getAuthData };
+      }
+      if (name.startsWith('@/') || name.startsWith('.')) {
+        const base = name.startsWith('@/') ? path.resolve(name.slice(2)) : path.resolve(path.dirname(file), name);
+        const resolved = [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+        if (resolved) return load(resolved, dependencies, globals);
+      }
+      return require(name);
+    } };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText, context);

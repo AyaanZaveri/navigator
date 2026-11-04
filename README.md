@@ -13,6 +13,14 @@ The [Android app](android/README.md) loads the hosted website and plays video
 through native ExoPlayer beneath the same controls. The **Android APK** GitHub
 workflow builds an installable APK and uploads it directly, without a ZIP.
 
+## Security and licensing
+
+Hosted production requires `NAVIGATOR_SESSION_SECRET`. Existing users must sign
+in again after the encrypted-session update. Public addons and subtitle CDNs
+do not require a domain allowlist. See
+[security configuration and research](docs/security-hardening.md), the sanitized
+[environment example](.env.example), and [third-party licenses](THIRD-PARTY.md).
+
 ## Development
 
 ```bash

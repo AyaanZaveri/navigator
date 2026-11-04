@@ -26,7 +26,7 @@ async function request(url: string, apiKey: string, signal: AbortSignal | undefi
             method: body ? "POST" : "GET",
             headers: { "X-API-Key": apiKey, Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
             ...(body ? { body: JSON.stringify(body) } : {}),
-            cache: "no-store", signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+            cache: "no-store", redirect: "manual", signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         });
         if (response.status === 401 || response.status === 403) throw new Error("TinyFish rejected the API key or access. Check TinyFish in Settings.");
         if (response.status === 402 || response.status === 429) throw new Error("TinyFish has reached its usage allowance. Try again later or check your TinyFish account.");

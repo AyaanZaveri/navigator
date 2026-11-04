@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";
+import { providerFetch } from "@/lib/server/outbound-fetch";
 
 export const OPENCODE_GO_BASE_URL = "https://opencode.ai/inference/go/openai/v1";
 
@@ -9,6 +10,7 @@ export function createOpenCodeGoModel(modelId: string, apiKey: string, sessionId
     const settings = {
         baseURL: OPENCODE_GO_BASE_URL,
         apiKey,
+        fetch: providerFetch,
         headers: { "x-opencode-session": sessionId.trim(), "user-agent": "navigator/1.0" },
     };
     if (/^(gpt-|muse-spark-|grok-)/.test(modelId)) {

@@ -5,6 +5,8 @@ import { once } from 'node:events';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
+import { randomBytes } from 'node:crypto';
+import { EncryptJWT } from 'jose';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const fixture = fileURLToPath(new URL('./navigation-fixture.cjs', import.meta.url));
@@ -14,15 +16,15 @@ await once(socket, 'listening');
 const { port } = socket.address();
 await new Promise((resolve) => socket.close(resolve));
 const origin = `http://127.0.0.1:${port}`;
-const cookie = `stremio-auth=${encodeURIComponent(JSON.stringify({
-    authKey: 'navigation-perf-fixture',
-    user: { _id: 'navigation-fixture', email: 'fixture@example.invalid' },
-    timestamp: Date.now(),
-}))}`;
+const sessionSecret = randomBytes(32);
+const token = await new EncryptJWT({ authKey: 'navigation-perf-fixture', user: { _id: 'navigation-fixture', email: 'fixture@example.invalid' } })
+    .setProtectedHeader({ alg: 'dir', enc: 'A256GCM', typ: 'JWT' }).setIssuer('navigator').setAudience('navigator-session')
+    .setSubject('navigation-fixture').setIssuedAt().setExpirationTime('1h').encrypt(sessionSecret);
+const cookie = `stremio-auth=${token}`;
 const server = spawn(process.execPath, [
     '--require', fixture, 'node_modules/next/dist/bin/next',
     'start', '--hostname', '127.0.0.1', '--port', String(port),
-], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+], { cwd: root, env: { ...process.env, NAVIGATOR_SESSION_SECRET: sessionSecret.toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] });
 let logs = '';
 server.stdout.on('data', (chunk) => { logs += chunk; });
 server.stderr.on('data', (chunk) => { logs += chunk; });

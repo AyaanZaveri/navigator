@@ -6,7 +6,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   let signedIn = false, upstream, finish, fail;
   const calls = [];
   const { GET } = load('app/api/search/suggestions/route.ts', {
-    '@/app/actions/auth': { getAuthData: async () => { if (!signedIn) throw Error('unauthorized'); } },
+    '@/app/actions/auth': { getAuthData: async () => { if (!signedIn) throw Error('unauthorized'); } }, "@/lib/server/auth": { getAuthData: async () => { if (!signedIn) throw Error('unauthorized'); } },
     '@/lib/tmdb-discovery': { searchTMDBMedia: (query, signal) => {
       calls.push(query); upstream = signal;
       return new Promise((resolve, reject) => { finish = resolve; fail = reject;
@@ -66,6 +66,8 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
 
   let upstreamSignal;
   const actions = load('app/actions/search.ts', {
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
+    '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
     react: { cache: fn => fn }, '@/lib/artwork': { artworkUrl: () => '/poster' },
     './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://addon.test', manifest: {
       id: 'one', name: 'One', catalogs: [{ id: 'top', type: 'movie', extra: [{ name: 'search' }] }],

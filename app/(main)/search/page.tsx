@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { searchTMDBMedia } from "@/lib/tmdb-discovery";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { MediaCard } from "@/components/media-card";

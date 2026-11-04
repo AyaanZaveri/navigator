@@ -14,7 +14,7 @@ function load(file, globals) {
     let authorized = true;
     const episode = { id: 'tt1442437:8:16', title: 'Basketball', season: 8, episode: 16 };
     const { GET } = load('app/api/playback/episode/route.ts', { require(name) {
-        if (name === '@/app/actions/auth') return { getAuthData: async () => { if (!authorized) throw new Error('Not authenticated'); } };
+        if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getAuthData: async () => { if (!authorized) throw new Error('Not authenticated'); } };
         if (name === '@/app/actions/tv-shows') return { fetchEpisodeDetails: async (...args) => { calls.push(args); return episode; } };
         throw new Error(name);
     } });

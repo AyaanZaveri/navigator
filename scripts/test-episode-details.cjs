@@ -7,7 +7,8 @@ const calls = [];
 const context = { exports: {}, console, AbortSignal,
     fetch: async () => ({ ok: true, json: async () => ({ meta: { videos: [{ id: 'tt1442437:8:16', name: 'Addon episode name', season: 8, episode: 16 }] } }) }),
     require(name) {
-        if (name === './auth') return { getAuthData: async () => ({}), getInstalledAddons: async () => [{ manifest: { resources: ['meta'] }, transportUrl: 'https://addon.test/manifest.json' }] };
+        if (name === "@/lib/server/outbound-fetch") return { outboundFetch: (...args) => context.fetch(...args) };
+        if (name === './auth' || name === '@/lib/server/auth') return { getAuthData: async () => ({}), getInstalledAddons: async () => [{ manifest: { resources: ['meta'] }, transportUrl: 'https://addon.test/manifest.json' }] };
         if (name === '@/lib/tmdb-discovery') return { getTMDBEpisode: async (...args) => {
             calls.push(args);
             if (unavailable) throw new Error('Metadata unavailable');

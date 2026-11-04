@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { readSession, SESSION_COOKIE } from "@/lib/server/session";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname;
     const isStaticAsset =
         path.startsWith("/_next/") ||
@@ -10,8 +11,9 @@ export function proxy(request: NextRequest) {
         path === "/manifest.json" ||
         path === "/apple-icon.png" ||
         path === "/icon0.svg" ||
-        path === "/icon1.png" ||
-        /\.[a-zA-Z0-9]+$/.test(path);
+        path === "/icon1.png" || path === "/manifest.webmanifest" ||
+        ["/logo/", "/flags/", "/images/"].some(prefix => path.startsWith(prefix)) ||
+        ["/file.svg", "/next.svg", "/globe.svg", "/window.svg", "/vercel.svg"].includes(path);
 
     if (isStaticAsset) {
         return NextResponse.next();
@@ -19,18 +21,7 @@ export function proxy(request: NextRequest) {
 
     const isPublicPath = path === "/login" || path.startsWith("/logo/");
 
-    // Get the token from the Stremio auth cookie
-    const token = request.cookies.get("stremio-auth")?.value || "";
-
-    let isAuthenticated = false;
-    if (token) {
-        try {
-            const authData = JSON.parse(token);
-            isAuthenticated = !!(authData.authKey && authData.user);
-        } catch {
-            isAuthenticated = false;
-        }
-    }
+    const isAuthenticated = !!await readSession(request.cookies.get(SESSION_COOKIE)?.value);
 
     if (isPublicPath && isAuthenticated && path === "/login") {
         return NextResponse.redirect(new URL("/", request.nextUrl));
@@ -51,8 +42,8 @@ export const config = {
      * - api (API routes)
      * - _next (Next.js internals)
      * - _vercel (Vercel analytics/speed-insights scripts)
-     * - files with an extension (assets, icons, manifests, etc)
+     * Public assets are enumerated above; a dot in a media ID must not bypass authentication.
      */
-        "/((?!api|_next|_vercel|.*\\..*).*)",
+        "/((?!api|_next|_vercel).*)",
     ],
 };

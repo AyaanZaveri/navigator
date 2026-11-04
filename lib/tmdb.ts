@@ -3,7 +3,7 @@ import "server-only";
 export async function fetchTMDB<T>(path: string, token: string): Promise<T | null> {
   try {
     const response = await fetch(`https://api.themoviedb.org/3/${path}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      redirect: "manual", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       next: { revalidate: 86400 },
       signal: AbortSignal.timeout(3000),
     });

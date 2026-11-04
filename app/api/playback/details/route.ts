@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { fetchMediaDetails } from "@/app/actions/media";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 

@@ -2,14 +2,14 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import type { StremioUserWithToken } from '@/types/stremio';
+import type { StremioUser } from '@/types/stremio';
 
 interface AuthContextType {
-  user: StremioUserWithToken | null;
+  user: StremioUser | null;
   timestamp: number | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (user: StremioUserWithToken) => void;
+  login: (user: StremioUser) => void;
   logout: () => void;
   refreshAuthData: () => void;
   isTokenExpired: () => boolean;

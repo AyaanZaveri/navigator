@@ -26,7 +26,7 @@ export async function saveArtworkToken(input: string): Promise<ArtworkSettingsRe
     try {
         const response = await fetch("https://api.themoviedb.org/3/authentication", {
             headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-            cache: "no-store",
+            cache: "no-store", redirect: "manual",
             signal: AbortSignal.timeout(5000),
         });
         if (response.status === 401 || response.status === 403) {

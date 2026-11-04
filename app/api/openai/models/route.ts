@@ -1,7 +1,10 @@
+import { getAuthData } from "@/lib/server/auth";
+import { outboundFetch } from "@/lib/server/outbound-fetch";
 import { NextResponse } from "next/server";
 import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
 
 export async function POST(req: Request) {
+    try { await getAuthData(); } catch { return new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } }); }
     const respond = (body: unknown, status = 200) => NextResponse.json(body, {
         status,
         headers: { "Cache-Control": "no-store" },
@@ -28,12 +31,12 @@ export async function POST(req: Request) {
         || (officialOpenAI ? process.env.OPENAI_API_KEY?.trim() : "");
     const timeout = AbortSignal.timeout(10_000);
     try {
-        const upstream = await fetch(endpoint, {
+        const upstream = await outboundFetch(endpoint, {
             headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
             cache: "no-store",
             redirect: "error",
             signal: AbortSignal.any([req.signal, timeout]),
-        });
+        }, { provider: true, maxBytes: 1024 * 1024, timeoutMs: 10_000 });
         if (!upstream.ok) {
             const error = upstream.status === 401
                 ? "The API key was rejected. Check the key for this base URL."

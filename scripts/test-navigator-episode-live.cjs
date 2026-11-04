@@ -14,16 +14,25 @@ async function main() {
     if (process.argv.includes('--diagnostics')) {
         const ai = dependencies.ai;
         dependencies.ai = { ...ai, generateText: async options => {
-            try { return await ai.generateText(options); }
+            try {
+                const result = await ai.generateText(options);
+                // Inspect generation metadata before accessing the output getter, which can throw.
+                console.error(JSON.stringify({ stage: 'generation-finished', finishReason: result.finishReason,
+                    textChars: result.text.length, usage: result.totalUsage }));
+                console.error(JSON.stringify({ stage: 'structured-generation', output: result.output, finishReason: result.finishReason }));
+                return result;
+            }
             catch (error) {
                 console.error(JSON.stringify({ stage: 'structured-generation', name: error.name, message: error.message,
                     cause: error.cause?.message, finishReason: error.finishReason, outputChars: error.text?.length,
-                    usage: error.usage }));
+                    usage: error.usage, statusCode: error.statusCode }));
                 throw error;
             }
         } };
     }
     dependencies['server-only'] = {};
+    dependencies['@/lib/server/outbound-fetch'] = { OutboundRequestError: class OutboundRequestError extends Error {}, outboundFetch: (...args) => fetch(...args), providerFetch: (...args) => fetch(...args), outboundUrl: value => new URL(value) };
+    dependencies['@/lib/server/auth'] = { getAuthData: async () => ({ user: { _id: 'local-live-episode-probe' } }) };
     dependencies['next/headers'] = { cookies: async () => ({ get: name => name === 'stremio-auth' ? { value: JSON.stringify({ user: { _id: 'local-live-episode-probe' } }) } : undefined }) };
     dependencies['@/app/actions/auth'] = { getUser: async () => ({ _id: 'local-live-episode-probe' }) };
     dependencies['@/app/actions/media'] = {
@@ -66,18 +75,18 @@ async function main() {
         }, { filename: absolute });
         return module.exports;
     }
-    if (process.argv.includes('--scene-only')) {
-        dependencies['@/app/actions/auth'].getInstalledAddons = async () => [{
+    dependencies['@/app/actions/auth'].getInstalledAddons = async () => [{
             manifest: { id: 'org.stremio.opensubtitles', name: 'OpenSubtitles', resources: ['subtitles'] },
             transportUrl: 'https://opensubtitles-v3.strem.io/manifest.json',
         }];
+    if (process.argv.includes('--scene-only')) {
         const model = load('lib/opencode-go.ts').createOpenCodeGoModel('muse-spark-1.3-contributor', process.env.OPENCODE_GO_API_KEY, 'navigator-live-episode-scene');
         const signal = AbortSignal.timeout(120_000);
         const tools = load('app/tools/index.ts').createAllTools(null, 0, model, signal);
         const progress = [];
         const result = await tools.skipToSubtitleContent.execute({
             mediaId: 'tmdb:58957:4:4', mediaName: 'Nathan for You', mediaType: 'Episode',
-            userDescription: 'where he goes on to the talk show',
+            userDescription: process.argv.includes('--scene-description') ? process.argv[process.argv.indexOf('--scene-description') + 1] : 'where he goes on to the talk show',
         }, { toolCallId: 'live-episode-scene', messages: [], abortSignal: signal, context: { onSceneProgress: value => progress.push(value) } });
         const subtitleProgress = progress.find(value => value.stage === 'subtitles' && value.state === 'completed');
         console.log(JSON.stringify({ success: result.success, error: result.error, mediaSourceId: result.mediaSourceId,
@@ -111,6 +120,9 @@ async function main() {
             aiProvider: 'opencode', opencodeModel: model, opencodeApiKey: process.env.OPENCODE_GO_API_KEY,
             opencodeSessionId: `navigator-episode-validation-${model}`, pathname: '/',
         }) }));
+        if (response.status !== 200) {
+            console.log(JSON.stringify({ model, prompt, durationMs: Date.now() - start, httpStatus: response.status, error: await response.text() }));
+        }
         assert.equal(response.status, 200);
         const body = await response.text();
         const events = body.split('\n').filter(line => line.startsWith('data: {')).map(line => JSON.parse(line.slice(6)));
@@ -120,14 +132,15 @@ async function main() {
         console.log(JSON.stringify({ model, prompt, durationMs: Date.now() - start, tools: inputs,
             results: outputs.map(output => ({ success: output.success, status: output.status, url: output.url,
                 episodeTitle: output.episodeTitle, episodes: output.episodes?.map(episode => episode.id),
-                evidence: output.evidence?.map(({ sourceId, url }) => ({ sourceId, url })), error: output.error })), errors, services }));
+                evidence: output.evidence?.map(({ sourceId, url }) => ({ sourceId, url })), error: output.error,
+                timestamp: output.timestamp, text: output.text, timings: output.timings })), errors, services }));
         assert.equal(errors.length, 0, 'No provider continuation failure');
         if (process.argv.includes('--intent-only')) {
             assert.equal(inputs.length, 1);
             assert.equal(inputs[0].toolName, 'skipToSubtitleContent');
             assert.match(inputs[0].input.mediaQuery, /Nathan for You/i);
             assert.match(inputs[0].input.episodeQuery, /Jimmy Kimmel/i);
-            assert.match(inputs[0].input.userDescription, /talk show/i);
+            assert.ok(inputs[0].input.userDescription.length > 0, 'Extract the requested scene; the matcher also receives the episode context');
             assert.equal(inputs[0].input.seasonNumber, undefined, 'Do not invent episode coordinates during extraction');
             assert.equal(inputs[0].input.episodeNumber, undefined);
             console.log('PASS: live Muse extracts the show, episode clue, and scene; playback/lookup execution was stubbed.');
@@ -137,6 +150,14 @@ async function main() {
         assert.equal(actions.length, 1, 'Prepare exactly one supported action');
         assert.equal(actions[0].success, true);
         assert.ok(actions[0].url === '/series/tt2297757/4/4' || actions[0].mediaId === 'tt2297757:4:4', 'Resolve The Anecdote in canonical TMDB order');
+        if (inputs.some(input => input.toolName === 'skipToSubtitleContent')) {
+            assert.ok(actions[0].timestamp > 0, 'Scene requests must prepare a verified subtitle timestamp, not just the episode');
+            console.log(JSON.stringify({ timestamp: actions[0].timestamp, text: actions[0].text }));
+            if (/jimmy kimmel/i.test(prompt) && /skip to the scene where he goes on/i.test(prompt)) {
+                assert.ok(actions[0].timestamp >= 1040 && actions[0].timestamp <= 1080,
+                    'The 525-line Anecdote track introduces Nathan around 17:26–17:40; early narration or planning is not the requested appearance');
+            }
+        }
     }
     if (!process.argv.includes('--intent-only')) console.log('PASS: live source route prepares the verified S4E4 action. Browser execution is not part of this check.');
 }

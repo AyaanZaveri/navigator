@@ -1,5 +1,6 @@
 import "server-only";
-import { getAuthData, getInstalledAddons } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
+import { getInstalledAddons } from "@/app/actions/auth";
 import { fetchLibraryItems } from "@/app/actions/media";
 import { selectLibraryPage, type LibraryQuery } from "@/lib/library-page";
 import type { MediaItem } from "@/types/stremio";

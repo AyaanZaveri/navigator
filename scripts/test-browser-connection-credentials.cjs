@@ -14,7 +14,7 @@ async function main() {
         set: (name, value, options) => { jar.set(name, value); writes.push({ name, value, options }); },
         delete: name => jar.delete(name),
     };
-    const dependencies = { 'server-only': {}, 'next/headers': { cookies: async () => cookieStore } };
+    const dependencies = { 'server-only': {}, '@/lib/server/auth': { getAuthData: async () => ({ user: { _id: 'fixture' } }) }, 'next/headers': { cookies: async () => cookieStore } };
     const tmdb = load('lib/tmdb-credentials.ts', dependencies, { process: { env } });
     const tinyfish = load('lib/tinyfish-credentials.ts', dependencies, { process: { env } });
     let signedIn = true;

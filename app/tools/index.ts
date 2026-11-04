@@ -1,5 +1,6 @@
 // Import and re-export all tools
 import type { JSONValue, LanguageModel, ToolSet } from "ai";
+import type { SceneRequestContext } from "@/lib/navigator-scene-context";
 import { actionToolNames, modelToolOutput, record } from "@/lib/navigator-chat";
 import { completeAction } from "./browser-action";
 import { searchPeople, getPersonDetails, getFilmography } from "./people";
@@ -74,7 +75,8 @@ export function createAllTools(
     currentMedia: any,
     currentTimestamp?: number,
     analysisModel?: LanguageModel,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    sceneContext?: SceneRequestContext
 ): ToolSet {
     const baseTools = {
     // Media tools
@@ -102,7 +104,7 @@ export function createAllTools(
         ...baseTools,
         ...createEpisodeTools(analysisModel),
         // Keep schemas stable when replaying a conversation after playback closes.
-        skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal),
+        skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal, sceneContext),
         explainScene: createExplainScene(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),
         analyzeMedia: createAnalyzeMedia(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),
     };

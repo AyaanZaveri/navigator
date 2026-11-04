@@ -1,26 +1,30 @@
-import { google, createGoogle } from "@ai-sdk/google";
-import { openai, createOpenAI } from "@ai-sdk/openai";
+import { providerFetch, outboundUrl, outboundFetch, OutboundRequestError } from "@/lib/server/outbound-fetch";
+import { createGoogle } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
-    openrouter,
     createOpenRouter,
     type OpenRouterSharedSettings,
 } from "@openrouter/ai-sdk-provider";
-import { groq, createGroq } from "@ai-sdk/groq";
-import { cerebras, createCerebras } from "@ai-sdk/cerebras";
+import { createGroq } from "@ai-sdk/groq";
+import { createCerebras } from "@ai-sdk/cerebras";
 import { createOllama } from "ai-sdk-ollama";
 import { APICallError, NoObjectGeneratedError, RetryError, convertToModelMessages, streamText, isStepCount, validateUIMessages, toUIMessageStream, createUIMessageStreamResponse, createUIMessageStream } from "ai";
 import { z } from "zod";
 import { actionToolNames, record, compactNavigatorMessages, pageTargetFromPath, requestsScenePlayback, attemptedScenePlayback, requestsWebSearchResults } from "@/lib/navigator-chat";
 import { scenePlaybackResponse } from "@/app/tools/scene-workflow";
 import { navigatorRoutingSettings } from "@/lib/navigator-model-settings";
+import { sceneRequestContext } from "@/lib/navigator-scene-context";
+import { NavigatorStructuredOutputError } from "@/lib/navigator-structured-output";
+import { navigatorToolPolicy } from "@/lib/navigator-tool-policy";
+import { needsTextToolLoop, runTextToolLoop } from "@/app/tools/text-tool-loop";
 import type { SceneProgress } from "@/lib/navigator-scene-progress";
 import type { EpisodeProgress } from "@/lib/episode-discovery";
 import { createOpenCodeGoModel } from "@/lib/opencode-go";
 import { getTMDBTitle, getTMDBEpisodes } from "@/lib/tmdb-discovery";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
 import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
-import { cookies } from "next/headers";
+import { getAuthData } from "@/lib/server/auth";
 
 type OpenRouterReasoningEffort =
   | "default"
@@ -46,6 +50,10 @@ const contextSchema = z.object({
 });
 
 function chatError(error: unknown): { status: number; message: string } {
+    if (error instanceof OutboundRequestError) return { status: 400, message: error.message };
+    if (error instanceof NavigatorStructuredOutputError) return { status: 502, message: error.kind === "timeout"
+        ? "The analysis model took too long to finish. Try again or choose a faster model in Settings."
+        : "The model could not produce a valid final answer. Try again or choose another model in Settings." };
     if (RetryError.isInstance(error) && error.errors.length) return chatError(error.errors.at(-1));
     if (error instanceof z.ZodError || error instanceof SyntaxError) return { status: 400, message: "This request could not be read. Start a new chat and try again." };
     if (NoObjectGeneratedError.isInstance(error)) return { status: 502, message: "The AI endpoint returned an invalid structured response. Check its JSON Schema support or choose another model." };
@@ -62,18 +70,6 @@ function chatError(error: unknown): { status: number; message: string } {
     }
     if (error instanceof Error && /API key is required|requires a stable session|Unsupported AI provider/.test(error.message)) return { status: 400, message: error.message };
     return { status: 500, message: "Navigator could not complete this request. Please try again." };
-}
-
-async function getAuthData() {
-    const cookieStore = await cookies();
-    const authData = cookieStore.get("stremio-auth");
-
-    if (!authData?.value) {
-        throw new Error("Not authenticated");
-    }
-
-    const parsed = JSON.parse(authData.value);
-    return { user: parsed.user };
 }
 
 export async function POST(req: Request) {
@@ -107,6 +103,11 @@ export async function POST(req: Request) {
             opencodeSessionId,
         } = requestPayload;
         const { currentMedia, currentTimestamp, pathname } = context;
+        if (aiProvider === "openai") outboundUrl(openaiBaseUrl, { provider: true });
+        if (aiProvider === "ollama") outboundUrl(ollamaBaseUrl, { provider: true });
+        if (aiProvider === "openai" && openaiBaseUrl !== OPENAI_DEFAULT_BASE_URL && !openaiApiKey) {
+            return new Response("A custom AI endpoint requires its own API key in Settings.", { status: 400 });
+        }
 
         if (!Array.isArray(messages)) {
             return new Response("Invalid messages payload", { status: 400 });
@@ -131,10 +132,8 @@ export async function POST(req: Request) {
 
         console.log({
             aiProvider,
-            openaiBaseUrl,
             openaiModel,
             geminiModel,
-            ollamaBaseUrl,
             ollamaModel,
             groqModel,
             openrouterModel,
@@ -170,7 +169,7 @@ export async function POST(req: Request) {
                 if (openaiApiKey) {
                     if (openaiBaseUrl === OPENAI_DEFAULT_BASE_URL) {
                         const openaiProvider = createOpenAI({
-                            apiKey: openaiApiKey,
+                            apiKey: openaiApiKey, fetch: providerFetch,
                             baseURL: openaiBaseUrl,
                         });
                         model = openaiProvider((modelOverride || openaiModel));
@@ -178,22 +177,13 @@ export async function POST(req: Request) {
                         const openaiCompatibleProvider = createOpenAICompatible({
                             name: "openai-compatible",
                             supportsStructuredOutputs: true,
-                            apiKey: openaiApiKey,
+                            apiKey: openaiApiKey, fetch: providerFetch,
                             baseURL: openaiBaseUrl,
                         });
                         model = openaiCompatibleProvider((modelOverride || openaiModel));
                     }
                 } else if (process.env.OPENAI_API_KEY) {
-                    const openaiProvider =
-            openaiBaseUrl && openaiBaseUrl !== "https://api.openai.com/v1"
-                ? createOpenAICompatible({
-                    name: "openai-compatible",
-                    supportsStructuredOutputs: true,
-                    apiKey: process.env.OPENAI_API_KEY,
-                    baseURL: openaiBaseUrl,
-                })
-                : openai;
-                    model = openaiProvider((modelOverride || openaiModel));
+                    model = createOpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: providerFetch })((modelOverride || openaiModel));
                 } else {
                     throw new Error(
                         "OpenAI API key is required for OpenAI provider. Please set your API key in settings."
@@ -203,12 +193,12 @@ export async function POST(req: Request) {
             case "gemini":
                 if (googleApiKey) {
                     const googleProvider = createGoogle({
-                        apiKey: googleApiKey,
+                        apiKey: googleApiKey, fetch: providerFetch,
                     });
                     model = googleProvider((modelOverride || geminiModel));
                 } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
                     // Fallback to environment variable
-                    model = google((modelOverride || geminiModel));
+                    model = createGoogle({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY, fetch: providerFetch })((modelOverride || geminiModel));
                 } else {
                     throw new Error(
                         "Google API key is required for Gemini provider. Please set your API key in settings."
@@ -217,7 +207,7 @@ export async function POST(req: Request) {
                 break;
             case "ollama": {
                 const ollamaProvider = createOllama({
-                    baseURL: ollamaBaseUrl,
+                    baseURL: ollamaBaseUrl, fetch: providerFetch,
                     headers: ollamaApiKey?.trim() ? { Authorization: `Bearer ${ollamaApiKey.trim()}` } : undefined,
                 });
                 model = ollamaProvider((modelOverride || ollamaModel));
@@ -226,11 +216,11 @@ export async function POST(req: Request) {
             case "groq":
                 if (groqApiKey) {
                     const groqProvider = createGroq({
-                        apiKey: groqApiKey,
+                        apiKey: groqApiKey, fetch: providerFetch,
                     });
                     model = groqProvider((modelOverride || groqModel));
                 } else if (process.env.GROQ_API_KEY) {
-                    model = groq((modelOverride || groqModel));
+                    model = createGroq({ apiKey: process.env.GROQ_API_KEY, fetch: providerFetch })((modelOverride || groqModel));
                 } else {
                     throw new Error(
                         "Groq API key is required for Groq provider. Please set your API key in settings."
@@ -240,11 +230,11 @@ export async function POST(req: Request) {
             case "openrouter":
                 if (openrouterApiKey) {
                     const openrouterProvider = createOpenRouter({
-                        apiKey: openrouterApiKey,
+                        apiKey: openrouterApiKey, fetch: providerFetch,
                     });
                     model = openrouterProvider((modelOverride || openrouterModel), openrouterModelSettings);
                 } else if (process.env.OPENROUTER_API_KEY) {
-                    model = openrouter.chat((modelOverride || openrouterModel), openrouterModelSettings);
+                    model = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY, fetch: providerFetch })((modelOverride || openrouterModel), openrouterModelSettings);
                 } else {
                     throw new Error(
                         "OpenRouter API key is required for OpenRouter provider. Please set your API key in settings."
@@ -254,11 +244,11 @@ export async function POST(req: Request) {
             case "cerebras":
                 if (cerebrasApiKey) {
                     const cerebrasProvider = createCerebras({
-                        apiKey: cerebrasApiKey,
+                        apiKey: cerebrasApiKey, fetch: providerFetch,
                     });
                     model = cerebrasProvider((modelOverride || cerebrasModel));
                 } else if (process.env.CEREBRAS_API_KEY) {
-                    model = cerebras((modelOverride || cerebrasModel));
+                    model = createCerebras({ apiKey: process.env.CEREBRAS_API_KEY, fetch: providerFetch })((modelOverride || cerebrasModel));
                 } else {
                     throw new Error(
                         "Cerebras API key is required for Cerebras provider. Please set your API key in settings."
@@ -287,9 +277,7 @@ export async function POST(req: Request) {
         const model = selectModel();
         const analysisModel = context.analysisModel?.trim() ? selectModel(context.analysisModel.trim()) : model;
 
-        const tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal);
-        // Retain the old handoff schema for saved chats, without advertising it to models.
-        const { completeAction: _legacyAction, findEpisodeByTitle: _legacyEpisodes, ...generationTools } = tools;
+        let tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal);
         let validatedMessages;
         try {
             validatedMessages = await validateUIMessages({ messages, tools });
@@ -299,6 +287,10 @@ export async function POST(req: Request) {
         if (validatedMessages.some(message => message.role === "system")) {
             return new Response("Invalid message role", { status: 400 });
         }
+        // Bind validated, uncompacted user context outside the model-controlled tool schema.
+        tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, sceneRequestContext(validatedMessages));
+        // Retain the old handoff schema for saved chats, without advertising it to models.
+        const { completeAction: _legacyAction, findEpisodeByTitle: _legacyEpisodes, ...generationTools } = tools;
         const compactedMessages = compactNavigatorMessages(validatedMessages);
         const modelMessages = await convertToModelMessages(compactedMessages, { tools, ignoreIncompleteToolCalls: true });
         const pageTarget = pathname ? pageTargetFromPath(pathname) : null;
@@ -319,6 +311,7 @@ export async function POST(req: Request) {
             }
         }
         const systemPrompt = createSystemPrompt(currentMedia, currentTimestamp, pageContext);
+        const toolPolicy = navigatorToolPolicy(validatedMessages);
         if (requestsScenePlayback(validatedMessages) && !attemptedScenePlayback(validatedMessages)) {
             return scenePlaybackResponse({ model, messages: modelMessages, originalMessages: validatedMessages, tools, context: { currentMedia, viewedTitle: pageContext }, signal: req.signal, onError: error => chatError(error).message });
         }
@@ -351,7 +344,7 @@ export async function POST(req: Request) {
         return createUIMessageStreamResponse({ stream: createUIMessageStream({
             originalMessages: validatedMessages,
             onError: error => chatError(error).message,
-            execute: ({ writer }) => {
+            execute: async ({ writer }) => {
                 const progressTools: typeof generationTools = { ...generationTools, skipToSubtitleContent: {
                     ...generationTools.skipToSubtitleContent,
                     execute: async (input: unknown, options: Parameters<NonNullable<typeof generationTools.skipToSubtitleContent.execute>>[1]) => {
@@ -379,7 +372,27 @@ export async function POST(req: Request) {
                         return output;
                     } };
                 }
+                const stepPolicy = (steps: Array<{ toolResults: Array<{ toolName: string }> }>) => {
+                    const evidenceAttempted = steps.some(step => step.toolResults.some(result => toolPolicy.evidenceTools.includes(result.toolName)));
+                    const needEvidence = toolPolicy.evidenceTools.length > 0 && !evidenceAttempted;
+                    const activeTools = Object.keys(generationTools).filter(name =>
+                        (currentMedia || !["explainScene", "analyzeMedia"].includes(name))
+                        && (!toolPolicy.playback || !["navigateToMedia", "navigateToEpisode", "navigateToMediaByQuery"].includes(name))
+                        && (!toolPolicy.initialTools || steps.length > 0 || toolPolicy.initialTools.includes(name))
+                        && (!needEvidence || toolPolicy.evidenceLookupTools.includes(name)));
+                    return { activeTools, toolChoice: needEvidence || (steps.length === 0 && toolPolicy.requireInitialTool) ? "required" as const : "auto" as const };
+                };
+                if (needsTextToolLoop(model)) {
+                    await runTextToolLoop({ model, messages: modelMessages, tools: progressTools, instructions: systemPrompt,
+                        signal: req.signal, writer, policy: stepPolicy });
+                    return;
+                }
                 const result = streamText({
+            experimental_download: async files => Promise.all(files.map(async ({ url }) => {
+                const response = await outboundFetch(url, { signal: req.signal }, { maxBytes: 2 * 1024 * 1024 });
+                if (!response.ok) throw new Error("The attached file could not be downloaded.");
+                return { data: new Uint8Array(await response.arrayBuffer()), mediaType: response.headers.get("Content-Type") || undefined };
+            })),
             model,
             messages: modelMessages,
             stopWhen: [isStepCount(8), ({ steps }) => steps.at(-1)?.toolResults.some(result =>
@@ -389,9 +402,7 @@ export async function POST(req: Request) {
             ...streamSettings,
             tools: progressTools,
             instructions: systemPrompt,
-            prepareStep: () => ({
-                activeTools: Object.keys(generationTools).filter(name => currentMedia || !["explainScene", "analyzeMedia"].includes(name)),
-            }),
+            prepareStep: ({ steps }) => stepPolicy(steps),
             onStepEnd: (stepResult) => {
                 console.log("[chat] step-finish", {
                     finishReason: stepResult.finishReason,

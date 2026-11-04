@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 import { JotaiProvider } from "@/components/jotai-provider";
 import { FullscreenDetector } from "@/components/fullscreen-detector";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
@@ -13,6 +14,7 @@ export default async function MainLayout({
   children: ReactNode;
 }) {
     const user = await getUser();
+    if (!user) redirect("/login");
 
     return (
         <JotaiProvider>

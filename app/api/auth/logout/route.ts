@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { logout } from '@/app/actions/auth';
+import { endSession } from '@/app/actions/auth';
 
 export async function POST() {
   try {
-    await logout();
+    await endSession();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Logout API error:', error);

@@ -1,10 +1,12 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { getAuthData } from "@/lib/server/auth";
 
 export const TMDB_TOKEN_COOKIE = "navigator-tmdb-token";
 
 /** Saved credentials stay out of artwork URLs and client JavaScript. */
 export async function getTMDBToken(): Promise<string | undefined> {
+    try { await getAuthData(); } catch { return undefined; }
     const token = (await cookies()).get(TMDB_TOKEN_COOKIE)?.value.trim();
     if (token) return token;
     // Desktop users configure artwork in Settings. Hosted sites can still

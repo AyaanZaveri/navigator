@@ -1,5 +1,7 @@
 "use server";
 
+import { outboundFetch } from "@/lib/server/outbound-fetch";
+
 import { artworkUrl, mediaArtwork } from "@/lib/artwork";
 import { getTMDBArtwork } from "@/lib/tmdb-artwork";
 
@@ -13,7 +15,8 @@ import type {
   StremioMetaResponse,
   StremioStreamResponse,
 } from "@/types/stremio";
-import { getAuthData, getInstalledAddons } from "./auth";
+import { getAuthData } from "@/lib/server/auth";
+import { getInstalledAddons } from "./auth";
 import { completeMediaDescription } from "@/lib/media-description";
 import { mergePlaybackDetails } from "@/lib/media/playback-details";
 import { markVideoWatched, orderedEpisodeIds } from "@/lib/stremio-watched";
@@ -55,13 +58,14 @@ async function fetchAddonResource<T>(
   const timeout = setTimeout(() => controller.abort(), ADDON_RESOURCE_TIMEOUT_MS);
 
   try {
+    await getAuthData();
     // The transport URL may already end with /manifest.json — strip to base
     const base = transportUrl.replace(/\/manifest\.json$/, "");
     const url = `${base}/${path}`;
 
     const shouldBypassDataCache = path.startsWith("catalog/");
 
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       ...(init ?? {}),
       signal: init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
       ...(init?.cache || init?.next
@@ -595,7 +599,7 @@ async function upsertPlaybackState(
     const durationMs = toMilliseconds(input.durationSeconds);
 
     const existingResponse = await fetch(`${STREMIO_API}/datastoreGet`, {
-      method: "POST",
+      method: "POST", redirect: "manual",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         authKey,
@@ -720,7 +724,7 @@ async function upsertPlaybackState(
     };
 
     const writeResponse = await fetch(`${STREMIO_API}/datastorePut`, {
-      method: "POST",
+      method: "POST", redirect: "manual",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         authKey,
@@ -774,7 +778,7 @@ export async function fetchPlaybackProgress(
   try {
     const { authKey } = await getAuthData();
     const response = await fetch(`${STREMIO_API}/datastoreGet`, {
-      method: "POST",
+      method: "POST", redirect: "manual",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         authKey,
@@ -861,7 +865,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
   try {
     const { authKey } = await getAuthData();
     const response = await fetch(`${STREMIO_API}/datastoreGet`, {
-      method: "POST",
+      method: "POST", redirect: "manual",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         authKey,

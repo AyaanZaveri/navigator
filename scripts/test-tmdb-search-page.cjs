@@ -11,7 +11,7 @@ const { default: Page } = load('app/(main)/search/page.tsx', {
     '@/components/vibrant-aurora-background': { VibrantAuroraBackground: 'aurora' },
     '@/components/media-card': { MediaCard: 'media-card' },
     '@/components/search-section-loading': { SearchSectionLoading: 'loading' },
-    '@/app/actions/auth': { getAuthData: async () => ({}) },
+    '@/app/actions/auth': { getAuthData: async () => ({}) }, "@/lib/server/auth": { getAuthData: async () => ({}) },
     '@/lib/tmdb-discovery': { searchTMDBMedia: async (query, _signal, type, page) => {
         calls.push({ query, type, page });
         if (fail) throw new Error('Add your TMDB read access token in Settings → TMDB.');

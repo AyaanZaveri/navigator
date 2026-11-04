@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { resolveTMDBPlaybackId } from "@/lib/tmdb-discovery";
 
 /** Resolve only the selected TMDB title; search results need no per-card lookups. */

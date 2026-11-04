@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { addonLinks, findInstalledAddon, readAddonCollection } from "@/lib/addon-management";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ key: string }> }) {

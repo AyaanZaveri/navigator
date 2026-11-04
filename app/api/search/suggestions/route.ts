@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { searchTMDBMedia } from "@/lib/tmdb-discovery";
 
 /** One TMDB multi-search; the NDJSON envelope keeps the existing suggestion reader. */

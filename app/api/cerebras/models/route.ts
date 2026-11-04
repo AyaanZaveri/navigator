@@ -1,3 +1,5 @@
+import { getAuthData } from "@/lib/server/auth";
+import { outboundFetch } from "@/lib/server/outbound-fetch";
 import { NextResponse } from "next/server";
 
 type CerebrasModelResponse = {
@@ -7,6 +9,7 @@ type CerebrasModelResponse = {
 };
 
 export async function GET(req: Request) {
+    try { await getAuthData(); } catch { return new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } }); }
   try {
     const apiKey =
       req.headers.get("x-cerebras-api-key")?.trim() ||
@@ -19,12 +22,12 @@ export async function GET(req: Request) {
       );
     }
 
-    const upstream = await fetch("https://api.cerebras.ai/v1/models", {
+    const upstream = await outboundFetch("https://api.cerebras.ai/v1/models", {
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },
-      cache: "no-store",
-    });
+      cache: "no-store", redirect: "error",
+    }, { provider: true, maxBytes: 1024 * 1024, timeoutMs: 10_000 });
 
     if (!upstream.ok) {
       const errorBody = await upstream.text();

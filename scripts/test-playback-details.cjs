@@ -21,7 +21,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   let authenticated = true, calls = [];
   const details = { ...merged, runtime: '21 min', cast: ['Actor'], videos: Array.from({ length: 250 }, (_, i) => ({ id: `tt1442437:8:${i + 1}`, season: 8, episode: i + 1 })) };
   const { GET } = load('app/api/playback/details/route.ts', {
-    '@/app/actions/auth': { getAuthData: async () => { if (!authenticated) throw Error('auth'); } },
+    '@/app/actions/auth': { getAuthData: async () => { if (!authenticated) throw Error('auth'); } }, "@/lib/server/auth": { getAuthData: async () => { if (!authenticated) throw Error('auth'); } },
     '@/app/actions/media': { fetchMediaDetails: async (...args) => { calls.push(args); return details; } },
     '@/lib/media/playback-details': metadata,
   }, { Request, Response, URL });
@@ -56,6 +56,8 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 
   const pending = [];
   const media = load('app/actions/media.ts', {
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
+    '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
     '@/lib/artwork': artwork, '@/lib/media/playback-details': metadata,
     '@/lib/media-description': { completeMediaDescription() { throw Error('Playback must not wait for synopsis repair'); } },
     '@/lib/tmdb-artwork': {}, '@/lib/stremio-watched': {}, './tv-shows': {},

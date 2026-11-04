@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { loadLibraryPage, LibraryNotFound } from "@/lib/server/library-page";
 import { parseLibraryQuery } from "@/lib/library-page";
 

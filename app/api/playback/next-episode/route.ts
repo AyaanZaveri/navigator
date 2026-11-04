@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { getFollowingEpisodeForSeries } from "@/app/actions/tv-shows";
 
 /** A small read endpoint avoids the browser's serialized Server Action queue. */

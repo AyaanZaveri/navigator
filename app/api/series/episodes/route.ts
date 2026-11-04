@@ -1,4 +1,4 @@
-import { getAuthData } from "@/app/actions/auth";
+import { getAuthData } from "@/lib/server/auth";
 import { getTMDBEpisodes } from "@/lib/tmdb-discovery";
 
 export async function GET(request: Request) {

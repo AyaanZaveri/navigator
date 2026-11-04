@@ -35,7 +35,7 @@ async function run() {
     ];
     const globals = {
         require: name => {
-            if (name === './auth') return { getAuthData: async () => ({ authKey: 'test-only' }) };
+            if (name === './auth' || name === '@/lib/server/auth') return { getAuthData: async () => ({ authKey: 'test-only' }) };
             if (name === './tv-shows') return { fetchEpisodes: async id => {
                 metadataCalls.push(id);
                 return id === 'tt2934286' ? ids.map((id, i) => ({ id, season: 1, episode: i + 1 })) : episodes;

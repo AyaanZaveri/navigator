@@ -30,9 +30,10 @@ async function run() {
         process: { env }, AbortSignal,
         require(name) {
             if (name === "server-only") return {};
+            if (name === "@/lib/server/auth") return { getAuthData: async () => ({ user: { _id: "fixture" } }) };
             if (name === "next/headers") return { cookies: async () => store };
             if (name === "next/cache") return { revalidatePath: (...args) => invalidated.push(args) };
-            if (name === "@/app/actions/auth") return { getUser: async () => signedIn ? { _id: "fixture" } : null };
+            if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getUser: async () => signedIn ? { _id: "fixture" } : null };
             if (name === "@/lib/tmdb-credentials") return credentials;
             if (name === "@/lib/cookie-policy") return policy;
             throw new Error(`Unexpected import: ${name}`);

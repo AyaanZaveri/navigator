@@ -5,6 +5,7 @@ const ts = require('typescript');
 
 function load(file, globals = {}) {
   const context = { exports: {}, URLSearchParams, AbortController, setTimeout, clearTimeout, console, ...globals };
+  if (context.require) { const original = context.require; context.require = name => name === "@/lib/server/outbound-fetch" ? { outboundFetch: context.fetch } : original(name); }
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, context);
@@ -16,7 +17,8 @@ function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 
   const calls = [], pending = [];
   const actions = load('app/actions/media.ts', {
     require(name) {
-      if (name === './auth') return {
+      if (name === "@/lib/server/outbound-fetch") return { outboundFetch: (...args) => context.fetch(...args) };
+      if (name === './auth' || name === '@/lib/server/auth') return {
         getAuthData: async () => ({ authKey: 'test-only' }),
         getInstalledAddons: async () => {
           calls.push('addons');
@@ -107,18 +109,26 @@ async function run() {
     require(name) {
       if (name === 'react') return React;
       if (name === 'react/jsx-runtime') return require(name);
+      if (name === '@/lib/artwork') return artwork;
       if (name === '@/app/actions/media') return {
         fetchResumeItems: async () => [items[0], { ...items[0], id: 'missing', year: undefined }, filtered[0]],
         fetchResumeMovieYear: async () => { yearCalls++; return 2014; },
       };
-      if (name === '@/app/actions/auth') return { getInstalledAddons: async () => [] };
+      if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getInstalledAddons: async () => [] };
       if (name === '@/lib/home-catalogs') return { INITIAL_CATALOG_COUNT: 4, CATALOG_BATCH_SIZE: 2 };
       return new Proxy({}, { get: (_, key) => key });
     },
   }).default;
   const page = Home();
-  const resumeBoundary = page.props.children.props.children[1];
-  const section = await resumeBoundary.props.children.type(resumeBoundary.props.children.props);
+  const find = (node, predicate) => {
+    if (!node || typeof node !== 'object') return undefined;
+    if (Array.isArray(node)) return node.map(item => find(item, predicate)).find(Boolean);
+    return predicate(node) ? node : find(node.props?.children, predicate);
+  };
+  const resumeBoundary = find(page, node => node.type === React.Suspense && node.props.children?.type?.name === 'ContinueWatchingSection');
+  assert.ok(resumeBoundary, 'The resume row has an independent streaming boundary');
+  const renderedSection = await resumeBoundary.props.children.type(resumeBoundary.props.children.props);
+  const section = find(renderedSection, node => node.props?.sectionName === 'Continue Watching');
   assert.equal(yearCalls, 0, 'Producing the row does not await or start optional captions');
   assert.equal(section.props.cardSubtitles[0], undefined, 'Known years need no additional lookup');
   assert.equal(section.props.cardSubtitles[2], undefined, 'Episode labels need no metadata request');

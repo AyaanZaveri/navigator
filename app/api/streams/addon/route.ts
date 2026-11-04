@@ -1,3 +1,4 @@
+import { outboundFetch } from "@/lib/server/outbound-fetch";
 import { NextResponse } from "next/server";
 import { getInstalledAddons } from "@/app/actions/auth";
 import type { StremioAddon, StremioStreamResponse } from "@/types/stremio";
@@ -20,7 +21,7 @@ async function fetchAddonStreams(
   type: string
 ) {
   const base = transportUrl.replace(/\/manifest\.json$/, "");
-  const response = await fetch(`${base}/stream/${type}/${mediaItemId}.json`, {
+  const response = await outboundFetch(`${base}/stream/${type}/${mediaItemId}.json`, {
     headers: {
       Referer: "https://web.stremio.com/",
       "User-Agent":

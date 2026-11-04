@@ -1,3 +1,4 @@
+import { getAuthData } from "@/lib/server/auth";
 import { fetchCatalogItems } from "@/app/actions/media";
 import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
 import { NextResponse } from "next/server";
@@ -39,6 +40,7 @@ async function loadCatalogSection(
 }
 
 export async function POST(request: Request) {
+  try { await getAuthData(); } catch { return new Response("Unauthorized", { status: 401 }); }
   try {
     const payload = (await request.json()) as { entries?: unknown };
     const entriesRaw = Array.isArray(payload.entries) ? payload.entries : [];

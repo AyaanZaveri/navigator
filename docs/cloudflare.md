@@ -5,6 +5,17 @@ retaining its normal Vercel deployment. This is a full Next.js deployment:
 server-rendered routes, API handlers, cookies, Server Actions and streaming chat
 remain server-side. It is not a static export or a proxy to Vercel.
 
+## Security prerequisites
+
+Before deploying the encrypted-session update, configure the secret
+`NAVIGATOR_SESSION_SECRET`. Existing sessions require a new sign-in. Guarded
+provider/addon/subtitle requests allow arbitrary public destinations while
+blocking private literal URLs and validating every redirect; Cloudflare provides
+connection-level public-network isolation. No per-domain allowlist is required.
+The public HTTP smoke test now rejects forged cookies and anonymous artwork.
+See [the security deployment guide](security-hardening.md) for the rationale,
+configuration and verification limits.
+
 ## Configuration
 
 - Worker name: `navigator-strm`.

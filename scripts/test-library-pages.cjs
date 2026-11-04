@@ -19,7 +19,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   let account = 'A', calls = 0, clock = 0, installed = true;
   const core = load('lib/server/library-page.ts', {
     'server-only': {},
-    '@/app/actions/auth': { getAuthData: async () => ({ authKey: account }), getInstalledAddons: async () => installed ? [{ transportUrl: 'addon', manifest: { catalogs: [{ id: 'top' }] } }] : [] },
+    '@/app/actions/auth': { getAuthData: async () => ({ authKey: account }), getInstalledAddons: async () => installed ? [{ transportUrl: 'addon', manifest: { catalogs: [{ id: 'top' }] } }] : [] }, "@/lib/server/auth": { getAuthData: async () => ({ authKey: account }) },
     '@/app/actions/media': { fetchLibraryItems: async () => { calls++; await tick(); return { items: account === 'empty' ? [] : items, totalRecordCount: items.length }; } },
     '@/lib/library-page': pure,
   }, { Date: { now: () => clock } });
@@ -47,6 +47,9 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const jobs = new Map();
   const addon = { transportUrl: 'https://addon.test', manifest: { catalogs: Array.from({ length: 6 }, (_, i) => ({ id: String(i), type: 'movie' })) } };
   const actions = load('app/actions/media.ts', {
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
+    '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
+    '@/lib/media/playback-details': load('lib/media/playback-details.ts'),
     './auth': { getInstalledAddons: async () => [addon] }, './tv-shows': {}, '@/lib/artwork': { mediaArtwork: () => ({}) }, '@/lib/tmdb-artwork': {}, '@/lib/media-description': {}, '@/lib/stremio-watched': {},
   }, { AbortController, AbortSignal, fetch: url => new Promise(resolve => {
     active++; peak = Math.max(peak, active);

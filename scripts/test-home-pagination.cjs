@@ -109,6 +109,8 @@ function harness(count = 100) {
   // The client cancellation must reach the add-on fetch, not just stop rendering.
   let providerSignal;
   const { POST } = load('app/api/home/catalogs/route.ts', {
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
+    '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
     'next/server': { NextResponse: { json: Response.json } },
     '@/app/actions/media': { fetchCatalogItems: async (_type, _id, _url, signal) => { providerSignal = signal; signal.throwIfAborted(); return []; } },
   }, { Response });

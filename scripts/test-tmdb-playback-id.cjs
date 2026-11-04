@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 let authenticated = true;
 const { GET } = load('app/api/playback/id/route.ts', {
-    '@/app/actions/auth': { getAuthData: async () => { if (!authenticated) throw Error('unauthorized'); } },
+    '@/app/actions/auth': { getAuthData: async () => { if (!authenticated) throw Error('unauthorized'); } }, "@/lib/server/auth": { getAuthData: async () => { if (!authenticated) throw Error('unauthorized'); } },
     '@/lib/tmdb-discovery': { resolveTMDBPlaybackId: async (id, type) => { assert.equal(id, 'tmdb:123'); assert.equal(type, 'movie'); return 'tt123'; } },
 }, { Error, URL, Response });
 function utility(file) {
@@ -23,6 +23,7 @@ function utility(file) {
     assert.equal((await (await GET(new Request('http://app/api/playback/id?id=tmdb:123&type=movie'))).json()).id, 'tt123');
     const addonCalls = [];
     const streamRoute = load('app/api/streams/addon/route.ts', {
+        '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
         'next/server': { NextResponse: Response },
         '@/app/actions/auth': { getInstalledAddons: async () => [{ manifest: { id: 'test-addon', resources: ['stream'] }, transportUrl: 'https://addon.test/manifest.json' }] },
         '@/lib/tmdb-discovery': { resolveAddonMediaId: async id => { assert.equal(id, 'tmdb:123:8:16'); return 'tt123:8:16'; } },

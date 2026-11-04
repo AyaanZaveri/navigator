@@ -6,6 +6,8 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 
 function route(fetch, env = {}, signal = AbortSignal) {
     return load('app/api/openai/models/route.ts', {
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
+    '@/lib/server/outbound-fetch': { outboundFetch: fetch },
         'next/server': { NextResponse: { json: (value, init) => Response.json(value, init) } },
         '@/lib/models-dev': constants,
     }, { Request, Response, URL, AbortSignal: signal, fetch, process: { env } }).POST;

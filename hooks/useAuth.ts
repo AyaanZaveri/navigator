@@ -1,142 +1,50 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import type { StremioUser, StremioAuthData } from "@/types/stremio";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { StremioUser } from "@/types/stremio";
 
 interface AuthState {
-  user: (StremioUser & { authKey: string }) | null;
-  timestamp: number | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
+    user: StremioUser | null;
+    timestamp: number | null;
+    isAuthenticated: boolean;
+    isLoading: boolean;
 }
 
-interface UseAuthReturn extends AuthState {
-  login: (user: StremioUser & { authKey: string }) => void;
-  logout: () => void;
-  refreshAuthData: () => void;
-  isTokenExpired: () => boolean;
-}
-
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    return parts.pop()?.split(";").shift() || null;
-  }
-  return null;
-}
-
-function parseAuthData(): {
-  user: (StremioUser & { authKey: string }) | null;
-  timestamp: number | null;
-} {
-  try {
-    const authCookie = getCookie("stremio-auth");
-    if (!authCookie) return { user: null, timestamp: null };
-
-    const decoded = decodeURIComponent(authCookie);
-    const authData: StremioAuthData = JSON.parse(decoded);
-
-    if (!authData.authKey || !authData.user) {
-      return { user: null, timestamp: null };
-    }
-
-    return {
-      user: { ...authData.user, authKey: authData.authKey },
-      timestamp: authData.timestamp || null,
-    };
-  } catch {
-    return { user: null, timestamp: null };
-  }
-}
-
-export function useAuth(): UseAuthReturn {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    timestamp: null,
-    isAuthenticated: false,
-    isLoading: true,
-  });
-
-  const refreshAuthData = useCallback(() => {
-    const data = parseAuthData();
-    setAuthState({
-      user: data.user,
-      timestamp: data.timestamp,
-      isAuthenticated: !!data.user,
-      isLoading: false,
-    });
-  }, []);
-
-  const login = useCallback((user: StremioUser & { authKey: string }) => {
-    const timestamp = Date.now();
-    const authData: StremioAuthData = {
-      authKey: user.authKey,
-      user,
-      timestamp,
-    };
-
-    const maxAge = 60 * 60 * 24 * 30;
-    const cookieOptions = `path=/; max-age=${maxAge}; samesite=lax${
-      process.env.NODE_ENV === "production" ? "; secure" : ""
-    }`;
-    document.cookie = `stremio-auth=${encodeURIComponent(
-      JSON.stringify(authData)
-    )}; ${cookieOptions}`;
-
-    setAuthState({
-      user,
-      timestamp,
-      isAuthenticated: true,
-      isLoading: false,
-    });
-  }, []);
-
-  const logout = useCallback(() => {
-    document.cookie =
-      "stremio-auth=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-
-    setAuthState({
-      user: null,
-      timestamp: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-
-    window.location.href = "/login";
-  }, []);
-
-  const isTokenExpired = useCallback((): boolean => {
-    if (!authState.timestamp) return true;
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-    return Date.now() - authState.timestamp > thirtyDaysMs;
-  }, [authState.timestamp]);
-
-  useEffect(() => {
-    refreshAuthData();
-  }, [refreshAuthData]);
-
-  useEffect(() => {
-    const checkCookieChanges = () => {
-      const currentAuth = parseAuthData();
-      if (
-        currentAuth.user?.email !== authState.user?.email ||
-        currentAuth.timestamp !== authState.timestamp
-      ) {
-        refreshAuthData();
-      }
-    };
-
-    const interval = setInterval(checkCookieChanges, 5000);
-    return () => clearInterval(interval);
-  }, [refreshAuthData, authState.user?.email, authState.timestamp]);
-
-  return {
-    ...authState,
-    login,
-    logout,
-    refreshAuthData,
-    isTokenExpired,
-  };
+/** The browser receives a public profile, never the Stremio bearer credential. */
+export function useAuth() {
+    const [authState, setAuthState] = useState<AuthState>({ user: null, timestamp: null, isAuthenticated: false, isLoading: true });
+    const pending = useRef<AbortController | null>(null);
+    const refreshAuthData = useCallback(async () => {
+        pending.current?.abort();
+        const controller = new AbortController();
+        pending.current = controller;
+        try {
+            const response = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store", signal: controller.signal });
+            if (!response.ok && response.status !== 401) throw new Error("Session unavailable");
+            const { user, timestamp } = await response.json();
+            if (!controller.signal.aborted) setAuthState({ user, timestamp, isAuthenticated: !!user, isLoading: false });
+        } catch {
+            if (!controller.signal.aborted) setAuthState(previous => ({ ...previous, isLoading: false }));
+        }
+    }, []);
+    // Login is performed on the server; this compatibility callback refreshes only the profile.
+    const login = useCallback((_user?: StremioUser) => { void refreshAuthData(); }, [refreshAuthData]);
+    const logout = useCallback(async () => {
+        const response = await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+        if (!response.ok) throw new Error("Could not sign out. Try again.");
+        pending.current?.abort();
+        setAuthState({ user: null, timestamp: null, isAuthenticated: false, isLoading: false });
+        // A full navigation drops retained account/RSC state after the API clears its HttpOnly cookie.
+        window.location.replace(new URL("/login", window.location.origin).href);
+    }, []);
+    const isTokenExpired = useCallback(() => !authState.timestamp || Date.now() - authState.timestamp > 30 * 24 * 60 * 60 * 1000, [authState.timestamp]);
+    useEffect(() => {
+        let disposed = false;
+        queueMicrotask(() => { if (!disposed) void refreshAuthData(); });
+        const refresh = () => { void refreshAuthData(); };
+        const interval = window.setInterval(refresh, 60_000);
+        window.addEventListener("focus", refresh);
+        return () => { disposed = true; window.clearInterval(interval); window.removeEventListener("focus", refresh); pending.current?.abort(); };
+    }, [refreshAuthData]);
+    return { ...authState, login, logout, refreshAuthData, isTokenExpired };
 }
