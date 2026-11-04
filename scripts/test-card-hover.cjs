@@ -19,10 +19,15 @@ assert.equal(declaration('.playOverlay', 'pointer-events'), 'none', 'The overlay
 console.log('PASS: continuous Play-surface fade, stable blur layer, hover/focus/touch reveal, and hit-testing');
 
 const resume = '.card[data-continue-watching] .artwork';
-assert.equal(declaration(resume, 'filter'), 'brightness(0.65)', 'Continue Watching dimming must belong to the artwork itself');
+assert.equal(declaration(resume, 'filter'), undefined, 'The zooming image must not also own a brightness filter in WebKit');
+const shade = '.card[data-continue-watching] .frame::before';
+assert.equal(declaration(shade, 'background'), 'rgb(0 0 0 / 35%)');
+assert.equal(declaration(shade, 'pointer-events'), 'none');
+assert.equal(declaration(shade, 'z-index'), '20', 'Base shade stays below the wordmark and hover scrim');
+assert.equal(declaration(':global(html[data-native-platform="macos"]) .wordmark', 'transform'), 'translateZ(0)', 'Keep the filtered wordmark layer stable while artwork zoom starts and stops');
 assert.equal(declaration(resume, 'transform'), undefined, 'Continue Watching keeps the shared hover zoom');
 assert.equal(declaration('.card:hover .artwork', 'transform'), 'scale(1.02)');
 assert.equal(declaration('.card:hover .playOverlay::before', 'opacity'), '1');
 assert.notEqual(declaration('.card[data-continue-watching] .playOverlay::before', 'display'), 'none', 'Continue Watching retains hover dimming');
 assert.equal(declaration('.artwork', 'filter'), undefined, 'Ordinary posters keep their existing brightness');
-console.log('PASS: stable base brightness with restored Continue Watching hover dimming and zoom');
+console.log('PASS: fixed base shade, stable macOS wordmark layer and shared Continue Watching hover dimming and zoom');

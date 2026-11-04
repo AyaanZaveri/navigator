@@ -126,8 +126,19 @@
   .playButton { transition: none; }
 }
 
-/* Keep the base logo shade stable on the artwork. Hover uses the same zoom and
-   sibling scrim as other cards, without changing the image's filter. */
-.card[data-continue-watching] .artwork {
-  filter: brightness(0.65);
+/* A static shade has the same appearance as brightness(0.65), without asking
+   WebKit to recompose a filtered image beneath the logo and blur as it zooms. */
+.card[data-continue-watching] .frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  background: rgb(0 0 0 / 35%);
+}
+
+/* Keep the small filtered logo composited before hover starts. Its layer must
+   not be rebuilt when WebKit promotes the zooming artwork underneath it. */
+:global(html[data-native-platform="macos"]) .wordmark {
+  transform: translateZ(0);
 }
