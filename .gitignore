@@ -54,3 +54,9 @@ public/_next-video
 /desktop/vendor/
 
 .git.backup-*/
+
+# Cloudflare generated output and local secrets
+.open-next/
+.wrangler/
+.dev.vars*
+cloudflare-env.d.ts

@@ -47,7 +47,7 @@ import {
   useMediaFullscreenRef,
   useMediaRef,
   useMediaSelector,
-} from "media-chrome/dist/react/media-store";
+} from "media-chrome/react/media-store";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
