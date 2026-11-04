@@ -1,0 +1,9 @@
+.gradle/
+build/
+app/build/
+local.properties
+web/.next/
+web/out/
+web/node_modules/
+web/public/navigator.png
+app/src/main/assets/web/

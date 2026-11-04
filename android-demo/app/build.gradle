@@ -1,0 +1,41 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.navigator.playbackdemo'
+    compileSdk 36
+    buildFeatures { buildConfig true }
+    defaultConfig {
+        applicationId 'app.navigator.playbackdemo'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '0.1-demo'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    androidResources {
+        noCompress += ['mp4']
+        // AAPT's default pattern excludes _next/ and __next.* static export files.
+        ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+    lint { abortOnError true }
+}
+
+tasks.register('verifyWebAssets') {
+    doLast {
+        if (!file('src/main/assets/web/index.html').isFile()) {
+            throw new GradleException('Build the bundled Next.js UI first: node scripts/build-web.mjs')
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'verifyWebAssets' }
+
+dependencies {
+    implementation 'androidx.media3:media3-exoplayer:1.11.1'
+    implementation 'androidx.webkit:webkit:1.14.0'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
