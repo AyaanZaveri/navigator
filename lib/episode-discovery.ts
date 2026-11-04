@@ -79,6 +79,37 @@ function batches<T>(items: T[], size: number): T[][] {
     return Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, (index + 1) * size));
 }
 
+/** Verify agent-selected, already-fetched pages. This boundary never plans searches or fetches URLs. */
+export async function verifyEpisodeSources(episodes: EpisodeCandidate[], sources: WebEvidence[], query: string,
+    options: Pick<Options, "model" | "signal" | "onProgress"> = {}): Promise<EpisodeResolution> {
+    const { model, signal, onProgress } = options;
+    const base = { source: "TMDB" as const, seriesId: episodes[0]?.seriesId, seriesName: episodes[0]?.seriesName };
+    if (!model || !episodes.length || !sources.length) {
+        return { ...base, success: false, status: "not_found", episodes: [], evidence: [],
+            message: "Load the episode catalog and read supporting pages before verifying an episode." };
+    }
+    signal?.throwIfAborted();
+    onProgress?.({ stage: "verify", state: "running" });
+    const evidence: EpisodeEvidence[] = [];
+    const clues: Omit<EpisodeEvidence, "episodeId">[] = [];
+    let ambiguous = false;
+    for (const group of batches(batches(episodes, 40), 2)) {
+        const results = await Promise.all(group.map(batch => assess(batch, sources, query, model, signal)));
+        evidence.push(...results.flatMap(result => result.evidence));
+        clues.push(...results.flatMap(result => result.clueEvidence));
+        ambiguous ||= results.some(result => result.ambiguous);
+    }
+    const ids = new Set(evidence.map(item => item.episodeId));
+    const matches = episodes.filter(episode => ids.has(episode.id));
+    const status = matches.length > 1 || (ambiguous && matches.length > 0) ? "ambiguous" : matches.length === 1 ? "matched" : "not_found";
+    const message = status === "matched" ? `Verified ${matches[0].title} (S${matches[0].seasonNumber}E${matches[0].episodeNumber}).`
+        : status === "ambiguous" ? "The sources support more than one episode. Ask which one the user means."
+            : "These pages do not substantiate the requested episode. Research another source or ask for a detail.";
+    onProgress?.({ stage: "verify", state: status === "matched" ? "completed" : "error", episode: status === "matched" ? matches[0] : undefined });
+    return { ...base, success: status === "matched", status, episodes: matches, evidence, message,
+        ...(clues.length ? { clueEvidence: clues } : {}), ...(status === "matched" ? {} : { error: message }) };
+}
+
 export async function resolveEpisode(input: EpisodeQuery, options: Options = {}): Promise<EpisodeResolution> {
     const { model, signal, onProgress, research } = options;
     const failure = (status: EpisodeResolution["status"], message: string): EpisodeResolution => ({
