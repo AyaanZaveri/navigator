@@ -870,6 +870,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   return (
     <div data-player-shell="" data-native-player-shell={nativePlayback ? "" : undefined} data-player-enter={playbackRequest?.animateEntrance ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
+        autoFocus
         autoHide
         onEnded={handleVideoEnded}
         className="w-screen"

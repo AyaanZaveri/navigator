@@ -284,6 +284,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     tooltipDelayDuration = 600,
     tooltipSideOffset = FLOATING_MENU_SIDE_OFFSET,
     asChild,
+    autoFocus = false,
     autoHide = false,
     disabled = false,
     withoutTooltip = false,
@@ -305,6 +306,12 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const fullscreenRef = useMediaFullscreenRef();
   const composedRef = useComposedRefs(ref, rootRef, fullscreenRef);
+
+  // Focus the playback surface once on opening, before its media loads.
+  // Later playback updates must leave menus and text fields in control.
+  React.useEffect(() => {
+    if (autoFocus && !disabled) rootRef.current?.focus({ preventScroll: true });
+  }, [autoFocus, disabled]);
 
   const dir = useDirection(dirProp);
   const dispatch = useMediaDispatch();
