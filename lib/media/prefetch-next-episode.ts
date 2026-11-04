@@ -17,10 +17,12 @@ export async function fetchFollowingEpisode(id: string, season: number, episode:
 export async function prepareNextEpisode(media: MediaToPlay, native: boolean, signal: AbortSignal): Promise<MediaToPlay> {
   signal.throwIfAborted();
   const streamRequest = createPlaybackStreamRequest(media.mediaSourceId || media.id, media.type, signal);
-  const probe = !native && typeof document !== "undefined" ? document.createElement("video") : null;
+  const preferences = readPlaybackPreferences();
+  const probe = !native && preferences.autoSelectWebStream && typeof document !== "undefined" ? document.createElement("video") : null;
   const [resolved, details] = await Promise.all([
     resolvePlayback({ ...media, streamRequest }, {
-      environment: native ? "native" : "web", preferredAudioLanguage: readPlaybackPreferences().audioLanguage,
+      environment: native ? "native" : "web", preferredAudioLanguage: preferences.audioLanguage,
+      autoSelectWebStream: preferences.autoSelectWebStream,
       fetchStreams: () => streamRequest.promise, getNextEpisodeForSeries: async () => null,
       canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
       inspectStream: probe ? stream => probeStreamMetadata(stream, { signal }) : undefined,

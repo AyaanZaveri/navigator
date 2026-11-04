@@ -6,6 +6,7 @@ import type { StremioStream } from "@/types/stremio";
 export type PlaybackPhase = "finding-episode" | "fetching-streams" | "loading-stream";
 
 interface PlaybackDependencies {
+    autoSelectWebStream?: boolean;
     preferredAudioLanguage?: string;
     resolveId?: (_id: string, _type: "movie" | "series") => Promise<string>;
     environment?: "web" | "native";
@@ -102,7 +103,7 @@ function audioCodecString(track: StreamTrackMetadata): string | null {
     return null;
 }
 
-/** Prefer the requested audio language; retain add-on order within native language tiers and rank web compatibility. */
+/** Prefer the requested audio language; retain add-on order within language tiers unless web compatibility selection is enabled. */
 export async function resolvePlayback(
     request: MediaToPlay,
     dependencies: PlaybackDependencies,
@@ -148,7 +149,8 @@ export async function resolvePlayback(
         return true;
     });
     const languagePreferences = new Map(candidates.map(candidate => [candidate, streamLanguagePreference(candidate, preferredAudioLanguage)]));
-    if (dependencies.environment === "web") {
+    const autoSelectWebStream = dependencies.environment === "web" && dependencies.autoSelectWebStream === true;
+    if (autoSelectWebStream) {
         const scores = new Map(candidates.map(candidate => [candidate, scoreWebStream(candidate, dependencies.canPlayType, preferredAudioLanguage)]));
         candidates.sort((a, b) => scores.get(b)! - scores.get(a)!);
         if (dependencies.inspectStream && dependencies.canPlayType) {
@@ -174,7 +176,7 @@ export async function resolvePlayback(
             candidates.sort((a, b) => inspectedScore(b) - inspectedScore(a));
         }
     }
-    if (dependencies.environment !== "web") {
+    if (!autoSelectWebStream) {
         candidates.sort((a, b) => languagePreferences.get(b)! - languagePreferences.get(a)!);
     }
     dependencies.onCandidates?.(candidates);

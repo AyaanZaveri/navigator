@@ -311,7 +311,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [sendPlaybackUpdate]);
 
   const tryNextWebStream = useCallback((element: HTMLVideoElement, noAudio = false) => {
-    if (nativePlayback || !currentMedia || !streamUrl || element !== videoRef.current) return;
+    if (nativePlayback || !playbackPreferencesRef.current.autoSelectWebStream || !currentMedia || !streamUrl || element !== videoRef.current) return;
     failedStreamUrlsRef.current.add(streamUrl);
     const position = element.currentTime > 0 ? element.currentTime : currentMedia.resumePositionTicks;
     toast(noAudio ? "That stream has no supported audio. Trying another one…" : "That stream failed. Trying another one…", { id: WEB_RECOVERY_TOAST_ID });
@@ -334,11 +334,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     if (event.currentTarget !== videoRef.current) return;
     setVideoReady(true);
     setPlaybackError(null);
-    audioCheckRef.current ??= { start: event.currentTarget.currentTime, startedAt: Date.now(), complete: false };
+    if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream) {
+      audioCheckRef.current ??= { start: event.currentTarget.currentTime, startedAt: Date.now(), complete: false };
+    }
     if (!nativePlayback) toast.dismiss(WEB_RECOVERY_TOAST_ID);
     const element = event.currentTarget as HTMLVideoElement & { webkitAudioDecodedByteCount?: number };
     // A Chromium "playing" event can mean silent video. Confirm audible playback when decoder evidence is available.
-    if (nativePlayback || element.muted || element.volume === 0 || typeof element.webkitAudioDecodedByteCount !== "number" || element.webkitAudioDecodedByteCount > 0) {
+    if (nativePlayback || !playbackPreferencesRef.current.autoSelectWebStream || element.muted || element.volume === 0 || typeof element.webkitAudioDecodedByteCount !== "number" || element.webkitAudioDecodedByteCount > 0) {
       reportNavigatorPlayback("playing");
     }
   }, [nativePlayback, reportNavigatorPlayback]);
@@ -349,7 +351,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const error = element.error;
     if (!error || error.code === 1) return;
 
-    if (!nativePlayback && currentMedia && streamUrl && error.code >= 2 && error.code <= 4) {
+    if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream && currentMedia && streamUrl && error.code >= 2 && error.code <= 4) {
       tryNextWebStream(element);
       return;
     }
@@ -380,7 +382,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const element = videoRef.current;
       const time = element.currentTime;
       const audioCheck = audioCheckRef.current;
-      if (!nativePlayback && audioCheck && !audioCheck.complete && !element.paused) {
+      if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream && audioCheck && !audioCheck.complete && !element.paused) {
         const decoder = element as HTMLVideoElement & { webkitAudioDecodedByteCount?: number; webkitVideoDecodedByteCount?: number };
         // Chromium can play the picture while silently dropping an unsupported audio codec.
         // Use decoder evidence only where exposed; other browsers retain metadata-based ranking.
@@ -670,8 +672,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     }).catch(() => {});
 
     try {
-      const probe = !nativePlayback && typeof document.createElement === "function" ? document.createElement("video") : null;
+      const probe = !nativePlayback && playbackPreferencesRef.current.autoSelectWebStream && typeof document.createElement === "function" ? document.createElement("video") : null;
       const media = await resolvePlayback(request, {
+        autoSelectWebStream: playbackPreferencesRef.current.autoSelectWebStream,
         preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage,
         resolveId: (id, type) => fetchPlaybackId(id, type, metadataAbort.signal),
         fetchStreams: fallback && webStreamsRef.current.length

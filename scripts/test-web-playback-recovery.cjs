@@ -35,7 +35,7 @@ class Media extends EventTarget {
     duration = 600;
     play() { return Promise.resolve(); }
 }
-function harness({ native = false, automatic = false, streams: customStreams } = {}) {
+function harness({ native = false, automatic = false, autoSelectWebStream = true, streams: customStreams } = {}) {
     const source = 'https://stream.example/Buddy.2160p.mkv';
     let request = { id: 'buddy', type: 'movie', name: 'Buddy', detailsPath: '/movie/buddy', navigatorActionId: 'test-playback-ack', resumePositionTicks: 42, ...(automatic ? {} : { streamUrl: source }) };
     let visible = true, dirty = true, index = 0, tree, renderedVideo, media, timerId = 0, streamFetches = 0, wallTime = 0;
@@ -95,7 +95,10 @@ function harness({ native = false, automatic = false, streams: customStreams } =
             if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
             if (name === '@/lib/desktop/bridge') return { desktopBridge: () => native ? {} : null, recordDesktopStage() {} };
             if (name === '@/lib/media/playback-source') return utility('lib/media/playback-source.ts');
-            if (name === '@/lib/media/playback-preferences') return utility('lib/media/playback-preferences.ts');
+            if (name === '@/lib/media/playback-preferences') {
+                const preferences = utility('lib/media/playback-preferences.ts');
+                return { ...preferences, readPlaybackPreferences: () => ({ ...preferences.DEFAULT_PLAYBACK_PREFERENCES, autoSelectWebStream }) };
+            }
     if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
             if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
@@ -147,6 +150,27 @@ function harness({ native = false, automatic = false, streams: customStreams } =
 }
 
 async function run() {
+    for (const automatic of [false, true]) {
+        const direct = harness({ automatic, autoSelectWebStream: false });
+        await direct.settle();
+        assert.equal(direct.video.props.src, direct.source, 'With selection off, web uses the first stream or explicit choice');
+        direct.fail(); await direct.settle();
+        assert.equal(direct.errorVisible, true, 'With selection off, a decoder error is shown without switching files');
+        assert.equal(direct.video.props.src, direct.source);
+        assert.equal(direct.toasts.length, 0);
+        assert.equal(direct.streamFetches, automatic ? 1 : 0, 'Disabled recovery never fetches alternatives');
+    }
+    const unverified = harness({ automatic: true, autoSelectWebStream: false });
+    await unverified.settle();
+    unverified.media.webkitVideoDecodedByteCount = 20000;
+    unverified.media.webkitAudioDecodedByteCount = 0;
+    unverified.media.volume = 1;
+    unverified.media.paused = false;
+    unverified.playing(); await unverified.settle();
+    unverified.advance(4); await unverified.settle();
+    assert.equal(unverified.video.props.src, unverified.source, 'With selection off, silent decoding does not switch streams');
+    assert.ok(unverified.events.some(event => event.state === 'playing'), 'Disabled audio checking does not withhold playing reports');
+    assert.equal(unverified.toasts.length, 0);
     for (const automatic of [false, true]) {
         const player = harness({ automatic });
         await player.settle();

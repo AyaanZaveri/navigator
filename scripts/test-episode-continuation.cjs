@@ -107,7 +107,9 @@ function controller(overrides={}) {
 
   const audio=load('lib/media/audio-language.ts');
   const resolver=load('lib/media/resolve-playback.ts',{'@/lib/media/audio-language':audio});
-  const shared={id:next.id,type:'series',canonicalId:Promise.resolve(next.id),promise:Promise.resolve([{url:'https://test/next.mp4',title:'English H264 AAC'}])};
+  const shared={id:next.id,type:'series',canonicalId:Promise.resolve(next.id),promise:Promise.resolve([
+    {url:'https://test/first.mkv',title:'English HEVC DTS'}, {url:'https://test/next.mp4',title:'English H264 AAC'},
+  ])};
   let preparations=0;
   const preparedApi=load('lib/media/prefetch-next-episode.ts',{
     './fetch-playback-streams':{createPlaybackStreamRequest:(id,type,signal)=>{assert.equal(id,next.id);assert.equal(type,'series');assert.equal(signal.aborted,false);preparations++;return shared;}},
@@ -119,6 +121,13 @@ function controller(overrides={}) {
   assert.equal(ready.mediaSourceId,next.id);assert.equal(ready.streamRequest,shared);assert.equal(ready.details.logo,'/prepared-logo.png');assert.equal(ready.detailsLoaded,true);
   await resolver.resolvePlayback(ready,{fetchStreams(){throw Error('Prepared playback must not refetch streams');}},()=>{});
   assert.equal(preparations,1);
+  for (const autoSelectWebStream of [false,true]) {
+    prefs.savePlaybackPreferences({...prefs.DEFAULT_PLAYBACK_PREFERENCES,autoSelectWebStream});
+    const prepared=await preparedApi.prepareNextEpisode(target,false,new AbortController().signal);
+    assert.equal(prepared.streamUrl,autoSelectWebStream?'https://test/next.mp4':'https://test/first.mkv',
+      'Preloaded episodes honor the same web stream selection preference');
+  }
+  prefs.savePlaybackPreferences(prefs.DEFAULT_PLAYBACK_PREFERENCES);
 
   // Execute the actual GlobalMediaPlayer ended handler with the hook result.
   const source=fs.readFileSync('components/global-media-player.tsx','utf8');

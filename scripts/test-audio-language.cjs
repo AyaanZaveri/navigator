@@ -41,7 +41,7 @@ const { resolvePlayback } = load('lib/media/resolve-playback.ts', () => language
         assert.equal(result.streamUrl, streams[1].url);
     }
     const result = await resolvePlayback({ id: 'movie', type: 'movie' }, {
-        environment: 'web', fetchStreams: async () => streams.map(s => ({ ...s, title: 'H264 AAC' })), canPlayType: () => true,
+        environment: 'web', autoSelectWebStream: true, fetchStreams: async () => streams.map(s => ({ ...s, title: 'H264 AAC' })), canPlayType: () => true,
         inspectStream: async s => ({ video: { codec: 'h264', codecString: 'avc1.640028' }, audio: [{ codec: 'aac', codecString: 'mp4a.40.2', language: s.url.includes('Russian') ? 'rus' : 'eng', primary: true }] }),
     }, () => {});
     assert.equal(result.streamUrl, streams[1].url, 'Container audio language repairs absent release labels');

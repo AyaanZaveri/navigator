@@ -62,8 +62,18 @@ async function test() {
         { url: 'https://example.test/header.mp4', title: '2160p H264 AAC', behaviorHints: { proxyHeaders: { request: { Referer: 'https://example.test' } } } },
     ];
     let candidates;
-    const webDeps = { ...deps, environment: 'web', fetchStreams: async () => browserStreams,
+    const webDeps = { ...deps, environment: 'web', autoSelectWebStream: true, fetchStreams: async () => browserStreams,
         onCandidates: streams => { candidates = streams; } };
+    for (const autoSelectWebStream of [undefined, false]) {
+        let inspections = 0;
+        const first = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie' }, {
+            ...webDeps, autoSelectWebStream, canPlayType: () => false,
+            inspectStream: async () => { inspections++; return undefined; },
+        }, () => {});
+        assert.equal(inspections, 0, 'Default playback must not inspect candidates');
+        assert.equal(first.streamUrl, browserStreams[0].url, 'Automatic selection is off by default and retains desktop ordering');
+        assert.equal(candidates.length, browserStreams.length, 'Default playback does not filter unsupported candidates');
+    }
     const web = await resolvePlayback({ id: 'movie', name: 'Movie', type: 'movie', resumePositionTicks: 8228 }, webDeps, () => {});
     assert.equal(web.streamUrl, 'https://example.test/best.mp4', 'Web must prioritize supported video AND audio over the first add-on file, silent video, and headers it cannot send');
     assert.equal(web.resumePositionTicks, 8228);
