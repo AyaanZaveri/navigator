@@ -10,6 +10,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { DesktopWindowControls } from "@/components/desktop/window-controls";
 import { DesktopAppReady } from "@/components/desktop/app-ready";
+import { BrowserConnectionSync } from "@/components/browser-connection-sync";
 
 const sunghyunSans = localFont({
     src: [
@@ -73,6 +74,7 @@ export default function RootLayout({
         >
           <DesktopAppReady />
           <DesktopWindowControls />
+          <BrowserConnectionSync />
           <SettingsProvider>{children}</SettingsProvider>
           <Toaster />
         </ThemeProvider>
