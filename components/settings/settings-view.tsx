@@ -216,7 +216,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
             setState({ configured: result.configured, personal: result.personal, enabled: result.enabled });
             if (operation === "save") persistKey(key.trim());
             if (operation === "remove") persistKey("");
-            setStatus(operation === "save" ? "Key saved." : operation === "remove" ? "Key removed." : result.enabled ? "Web search enabled." : "Web search disabled.");
+            setStatus(operation === "save" ? "Key saved." : operation === "remove" ? "Key removed." : "");
         } catch { setError("Couldn’t update web search. Try again."); }
         finally { setPending(false); }
     }
@@ -240,9 +240,9 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
                         onValueChange={value => { setKey(value); setError(null); setStatus(""); }} keyUrl="https://tinyfish.ai" keyLinkLabel="Get a TinyFish key"
                         placeholder="API key"
                         disabled={loading || pending} error={error} />
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-1">
                         <Button type="submit" variant="outline" size="sm" disabled={loading || pending || !key.trim()}>{pending ? "Updating…" : "Save key"}</Button>
-                        {(state.personal || key) && <Button type="button" variant="ghost" disabled={loading || pending} onClick={() => void update("remove")}>Remove key</Button>}
+                        {(state.personal || key) && <Button type="button" variant="ghost" size="sm" disabled={loading || pending} onClick={() => void update("remove")}>Remove key</Button>}
                     </div>
                 </FieldGroup>
             </form>}
@@ -303,9 +303,9 @@ function ArtworkSettings() {
                         disabled={loading || !!pending}
                         error={error}
                     />
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-1">
                         <Button type="submit" variant="outline" size="sm" disabled={loading || !!pending || !token.trim()}>{pending === "save" ? "Checking token…" : "Save token"}</Button>
-                        {(state.personal || token) && <Button type="button" variant="ghost" disabled={loading || !!pending} onClick={() => void update("remove")}>{pending === "remove" ? "Removing…" : "Remove token"}</Button>}
+                        {(state.personal || token) && <Button type="button" variant="ghost" size="sm" disabled={loading || !!pending} onClick={() => void update("remove")}>{pending === "remove" ? "Removing…" : "Remove token"}</Button>}
                     </div>
                     <p role="status" className={styles.feedback}>{status}</p>
                 </FieldGroup>

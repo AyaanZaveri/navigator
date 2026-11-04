@@ -2,7 +2,7 @@
 
 import { useSettings } from "@/contexts/settings-context";
 import { Switch } from "@/components/arc/switch/switch";
-import { Field, FieldGroup, FieldLabel, FieldDescription, FieldContent } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldContent } from "@/components/ui/field";
 import styles from "@/app/(main)/settings/settings.module.css";
 
 export function PlaybackSettings() {
@@ -19,7 +19,6 @@ export function PlaybackSettings() {
       <Field orientation="horizontal">
         <FieldContent>
           <FieldLabel htmlFor="episode-prefetch">Preload next episode</FieldLabel>
-          <FieldDescription>Uses extra data.</FieldDescription>
         </FieldContent>
         <Switch id="episode-prefetch" checked={playbackPreferences.episodePrefetch}
           onCheckedChange={episodePrefetch => updatePlaybackPreferences({ episodePrefetch })} />
