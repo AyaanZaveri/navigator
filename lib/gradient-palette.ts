@@ -54,12 +54,12 @@ export function hexRgb(hex: string): number[] {
     return [(value >> 16) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
 }
 
-/** Theme-specific luminance keeps the wash subdued; the artwork supplies hue. */
-export function homeWash(ramp: Float32Array, count: number, light: boolean, out: Float32Array) {
+/** Both broad washes follow the dominant hue; secondary colors remain glyph
+ * accents. Theme-specific luminance keeps the background subdued and readable. */
+export function homeWash(ramp: Float32Array, light: boolean, out: Float32Array) {
     for (let i = 0; i < 2; i++) {
-        const offset = (i ? count - 1 : 0) * 3;
         const scale = light ? (i ? .1 : .2) : (i ? .3 : .65);
-        const rgb = labToRgb([light ? (i ? .98 : .96) : (i ? .24 : .32), ramp[offset + 1] * scale, ramp[offset + 2] * scale]);
+        const rgb = labToRgb([light ? (i ? .98 : .96) : (i ? .24 : .32), ramp[1] * scale, ramp[2] * scale]);
         out.set(rgb, i * 3);
     }
     return out;

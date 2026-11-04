@@ -42,7 +42,6 @@
         "@types/react-syntax-highlighter": "^15.5.13",
         "@vercel/analytics": "^1.5.0",
         "@vercel/speed-insights": "^1.2.0",
-        "@vibrant/generator-default": "4.0.3",
         "@vibrant/quantizer-mmcq": "4.0.0",
         "ai": "^7.0.159",
         "ai-sdk-ollama": "^4.6.1",

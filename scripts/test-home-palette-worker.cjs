@@ -4,12 +4,13 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const { load } = require('./test-support/react-hooks.cjs');
 const helpers = load('lib/aurora-palette.ts');
+const homeColors = load('lib/home-palette-colors.ts', { './aurora-palette': helpers });
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 async function realPipeline() {
     const messages = [];
     const self = { postMessage: value => messages.push(value) };
-    load('lib/palette.worker.ts', { './aurora-palette': helpers }, { self });
+    load('lib/palette.worker.ts', { './home-palette-colors': homeColors }, { self });
     const pixels = new Uint8ClampedArray(160 * 90 * 4);
     for (let i = 0; i < pixels.length; i += 4) pixels.set(i % 3 ? [230, 60, 20, 255] : [20, 50, 210, 255], i);
     await self.onmessage({ data: { id: 9, pixels } });
@@ -94,17 +95,26 @@ async function client() {
 }
 async function cache() {
     const calls = [], artwork = load('lib/artwork.ts', {}, { URLSearchParams });
+    const vibrant = { from: () => ({ maxDimension() { return this; },
+        getPalette: async () => ({ Vibrant: { hex: '#ffcc00', population: 500 } }),
+    }) };
     const loader = load('lib/aurora-palette-loader.ts', {
         '@/lib/artwork': artwork, '@/lib/aurora-palette': helpers,
+        'node-vibrant/browser': { Vibrant: vibrant },
         './palette-worker-client': { extractHomePalette: sources => { calls.push(sources); return Promise.resolve(['#ff0000', '#aa0000', '#880000']); } },
-    }, { URLSearchParams });
+    }, { URLSearchParams, Image: class {} });
+    const aurora = await loader.loadAuroraPalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=780');
     const a = loader.loadHomePalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=780');
     assert.equal(a, loader.loadHomePalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=1280'));
     const colors = await a;
+    assert.notEqual(colors[0], aurora[0], 'A cached vibrant Aurora palette must not replace Home dominant colors');
     assert.equal(await loader.loadHomePalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=300'), colors);
     assert.equal(calls.length, 1); assert.ok(!calls[0][0].includes('width='));
     assert.ok(calls[0][0].includes('sample=1') && calls[0][0].includes('palette=1'));
     assert.equal(await loader.loadHomePalette(), null, 'No artwork retains home emerald rather than an unrelated Aurora default');
+    const source = '/api/artwork?id=tt2&type=movie&kind=backdrop';
+    const homeFirst = await loader.loadHomePalette(source);
+    assert.notEqual((await loader.loadAuroraPalette(source))[0], homeFirst[0], 'Detail pages also retain vibrant selection after a Home visit');
 }
 (async () => {
     await realPipeline(); await client(); await cache();

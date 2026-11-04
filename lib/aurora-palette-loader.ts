@@ -23,14 +23,16 @@ function loadPalette(backdrop: string | undefined, poster: string | undefined, h
         ...(poster && poster !== backdrop ? [{ url: poster, size: "w342" }] : []),
     ];
     if (!sources.length) return Promise.resolve(DEFAULT_AURORA_COLORS);
-    const key = JSON.stringify(sources.flatMap(sampleSources));
+    // Home uses population-based colors; detail pages retain their vibrant
+    // Aurora palettes. A visit to either surface must not seed the other's cache.
+    const key = `${home ? "home" : "aurora"}:${JSON.stringify(sources.flatMap(sampleSources))}`;
     const cached = palettes.get(key);
     if (cached) {
         palettes.delete(key);
         palettes.set(key, cached);
         return Promise.resolve(cached);
     }
-    const pendingKey = `${home ? "home" : "aurora"}:${key}`;
+    const pendingKey = key;
     if (home && homeRequestKey !== pendingKey) {
         // A → B → A must be allowed to resubmit A after B superseded its job.
         pending.delete(homeRequestKey);
