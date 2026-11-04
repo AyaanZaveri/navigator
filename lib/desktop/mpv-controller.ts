@@ -250,7 +250,12 @@ export class MpvController extends EventTarget {
         if (previous.volume !== this.state.volume || previous.muted !== this.state.muted) this.fire("volumechange");
         if (previous.rate !== this.state.rate) this.fire("ratechange");
         if (previous.seeking !== this.state.seeking) this.fire(this.state.seeking ? "seeking" : "seeked");
-        if (previous.buffering !== this.state.buffering) this.fire(this.state.buffering ? "waiting" : "canplay");
+        if (previous.buffering !== this.state.buffering) {
+          if (this.state.buffering) this.fire("waiting");
+          // Cache/metadata updates can arrive before the replacement stream's
+          // first frame. Only its session-scoped ready event can uncover video.
+          else if (this.ready) this.fire("canplay");
+        }
         if (previous.width !== this.state.width || previous.height !== this.state.height) this.fire("resize");
         if (previous.buffered !== this.state.buffered) this.fire("progress");
         if (this.ready && !this.state.paused && !this.state.buffering && !this.state.seeking &&
