@@ -11,13 +11,28 @@ export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
 };
 export const PLAYBACK_PREFERENCES_KEY = "navigator-playback-preferences";
-// ISO 639-1 languages, with the same names/flags used by the player's tracks.
-export const PLAYBACK_LANGUAGES = "aa ab ae af ak am an ar as av ay az ba be bg bh bi bm bn bo br bs ca ce ch co cr cs cu cv cy da de dv dz ee el en eo es et eu fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu ja jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zh zu".split(" ");
+// Retain valid preferences from earlier versions without offering every ISO code.
+const supportedLanguageCodes = "aa ab ae af ak am an ar as av ay az ba be bg bh bi bm bn bo br bs ca ce ch co cr cs cu cv cy da de dv dz ee el en eo es et eu fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu ja jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zh zu".split(" ");
+// A practical shortlist for playback preferences. Explicit names keep this
+// menu usable even in browsers with a smaller Intl.DisplayNames database.
+export const PLAYBACK_LANGUAGE_LABELS: Record<string, string> = {
+  en: "English", ar: "Arabic", bn: "Bengali", bs: "Bosnian", bg: "Bulgarian",
+  ca: "Catalan", zh: "Chinese", hr: "Croatian", cs: "Czech", da: "Danish",
+  nl: "Dutch", et: "Estonian", fi: "Finnish", fr: "French", de: "German",
+  el: "Greek", he: "Hebrew", hi: "Hindi", hu: "Hungarian", is: "Icelandic",
+  id: "Indonesian", it: "Italian", ja: "Japanese", ko: "Korean", lv: "Latvian",
+  lt: "Lithuanian", ms: "Malay", no: "Norwegian", fa: "Persian", pl: "Polish",
+  pt: "Portuguese", "pt-BR": "Portuguese (Brazil)", ro: "Romanian", ru: "Russian",
+  sr: "Serbian", sk: "Slovak", sl: "Slovenian", es: "Spanish", sv: "Swedish",
+  tl: "Tagalog", ta: "Tamil", te: "Telugu", th: "Thai", tr: "Turkish",
+  uk: "Ukrainian", ur: "Urdu", vi: "Vietnamese",
+};
+export const PLAYBACK_LANGUAGES = Object.keys(PLAYBACK_LANGUAGE_LABELS);
 function language(value: unknown): string {
   if (typeof value !== "string") return "en";
   try {
     const canonical = Intl.getCanonicalLocales(value.trim().replaceAll("_", "-"))[0];
-    return canonical && PLAYBACK_LANGUAGES.includes(canonical.split("-")[0]) ? canonical : "en";
+    return canonical && supportedLanguageCodes.includes(canonical.split("-")[0]) ? canonical : "en";
   } catch { return "en"; }
 }
 export function normalizePlaybackPreferences(value: unknown): PlaybackPreferences {

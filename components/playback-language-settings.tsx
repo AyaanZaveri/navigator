@@ -2,7 +2,8 @@
 
 import { ChevronDown, Globe2 } from "lucide-react";
 import { useSettings } from "@/contexts/settings-context";
-import { PLAYBACK_LANGUAGES } from "@/lib/media/playback-preferences";
+import { PLAYBACK_LANGUAGES, PLAYBACK_LANGUAGE_LABELS } from "@/lib/media/playback-preferences";
+import { trackFlagPath } from "@/lib/media/track-flags";
 import { trackLanguage } from "@/lib/media/track-label";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuOptions } from "@/components/arc/dropdown-menu/dropdown-menu";
 import { Select } from "@/components/arc/select/select";
@@ -12,13 +13,20 @@ import { Badge } from "@/components/ui/badge";
 import { Field, FieldGroup, FieldLabel, FieldDescription, FieldContent } from "@/components/ui/field";
 import styles from "@/app/(main)/settings/settings.module.css";
 
-const languages = PLAYBACK_LANGUAGES.map(value => ({ value, ...trackLanguage(value), isLanguage: true }))
+function languageOption(value: string) {
+  const track = trackLanguage(value);
+  return {
+    value, label: PLAYBACK_LANGUAGE_LABELS[value] || (track.badge ? track.label : value.toUpperCase()),
+    badge: track.badge || value.toUpperCase(), flag: track.flag || trackFlagPath(value), isLanguage: true,
+  };
+}
+const languages = PLAYBACK_LANGUAGES.map(languageOption)
   .sort((a, b) => Number(b.value === "en") - Number(a.value === "en") || a.label.localeCompare(b.label));
 
 function LanguageSelect({ id, label, value, onChange }: { id: string; label: string; value: string; onChange(value: string): void }) {
-  const language = trackLanguage(value);
+  const language = languageOption(value);
   // Retain a stored regional language (e.g. pt-BR) alongside the base languages.
-  const options = languages.some(option => option.value === value) ? languages : [{ value, ...language, isLanguage: true }, ...languages];
+  const options = languages.some(option => option.value === value) ? languages : [language, ...languages];
   return <Field>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
     <DropdownMenu modal={false}>

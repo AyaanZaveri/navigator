@@ -156,3 +156,38 @@ const selectSubtitle = compile(selection, {
 
   console.log('PASS: persisted language/default preferences, corrupt storage recovery, normal/forced matching, web/native audio ranking, delayed native tracks, manual Off and subtitle request races');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+// Preference menus stay useful when the browser cannot name a language.
+// Use the real component with an incomplete display-name provider.
+assert.ok(preferences.PLAYBACK_LANGUAGES.length >= 30 && preferences.PLAYBACK_LANGUAGES.length <= 50);
+assert.ok(!preferences.PLAYBACK_LANGUAGES.includes('aa'), 'Do not offer the full ISO language catalogue');
+assert.equal(preferences.normalizePlaybackPreferences({ subtitleLanguage: 'eo' }).subtitleLanguage, 'eo', 'Preserve a valid preference saved by an earlier version');
+const flags = load('lib/media/track-flags.ts');
+const ui = hooks();
+const { PlaybackLanguageSettings } = load('components/playback-language-settings.tsx', {
+  'react/jsx-runtime': ui.jsx,
+  '@/contexts/settings-context': { useSettings: () => ({ playbackPreferences: defaults, updatePlaybackPreferences() {} }) },
+  '@/lib/media/playback-preferences': preferences,
+  '@/lib/media/track-label': { trackLanguage: () => ({ label: 'Unknown language' }) },
+  '@/lib/media/track-flags': flags,
+  '@/components/arc/dropdown-menu/dropdown-menu': { DropdownMenu: 'Menu', DropdownMenuTrigger: 'Trigger', DropdownMenuContent: 'Content', DropdownMenuGroup: 'Group', DropdownMenuOptions: 'Options' },
+  '@/components/arc/select/select': { Select: 'Select' }, '@/components/arc/switch/switch': { Switch: 'Switch' },
+  '@/components/ui/button': { Button: 'Button' }, '@/components/ui/badge': { Badge: 'Badge' },
+  '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup', FieldLabel: 'FieldLabel', FieldDescription: 'FieldDescription', FieldContent: 'FieldContent' },
+  '@/app/(main)/settings/settings.module.css': {},
+});
+function find(node, predicate) {
+  if (Array.isArray(node)) return node.flatMap(child => find(child, predicate));
+  if (!node || typeof node !== 'object') return [];
+  return [...(predicate(node) ? [node] : []), ...find(node.props?.children, predicate)];
+}
+const languageField = find(PlaybackLanguageSettings(), node => node.props?.id === 'preferred-subtitle-language')[0];
+const rows = find(languageField.type(languageField.props), node => node.type === 'Options')[0].props.options;
+assert.equal(rows[0].label, 'English');
+assert.equal(rows.length, preferences.PLAYBACK_LANGUAGES.length);
+assert.ok(rows.every(row => row.label && row.label !== 'Unknown language' && row.badge && row.flag));
+assert.equal(rows.find(row => row.value === 'bs').label, 'Bosnian');
+assert.equal(rows.find(row => row.value === 'pt-BR').label, 'Portuguese (Brazil)');
+const legacy = find(languageField.type({ ...languageField.props, value: 'eo' }), node => node.type === 'Options')[0].props.options;
+assert.equal(legacy[0].value, 'eo'); assert.notEqual(legacy[0].label, 'Unknown language');
+console.log(`PASS: ${rows.length} named common-language choices with flags, incomplete browser dictionary fallback and saved preference compatibility`);
