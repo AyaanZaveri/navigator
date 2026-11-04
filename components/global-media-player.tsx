@@ -701,8 +701,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const streamSourceId = media.mediaSourceId || media.id;
 
       // Subtitles load independently; the player can start as soon as its source is ready.
-      void getSubtitleTracks(streamSourceId, media.type, {
-        filename: media.subtitleFilename, videoSize: media.subtitleVideoSize,
+      const subtitleTitle = resolvedEpisodeTitle || getPlaybackTitles(activeMedia, latestDetails).episodeTitle;
+      const subtitleEpisodeTitle = isMeaningfulEpisodeTitle(subtitleTitle) ? Promise.resolve(subtitleTitle)
+        : media.seasonNumber !== undefined && media.episodeNumber !== undefined
+          ? loadEpisode(media.seriesId || media.id, media.seasonNumber, media.episodeNumber).then(episode => episode?.title).catch(() => undefined)
+          : Promise.resolve(undefined);
+      void subtitleEpisodeTitle.then(episodeTitle => {
+        if (!isCurrent()) return [];
+        return getSubtitleTracks(streamSourceId, media.type, {
+          filename: media.subtitleFilename, videoSize: media.subtitleVideoSize, episodeTitle,
+        });
       }).then(tracks => {
         if (isCurrent()) {
           setSubtitleTracks(tracks.map(track => ({ ...track, active: false })));

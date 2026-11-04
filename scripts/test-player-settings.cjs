@@ -237,11 +237,31 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   assert.equal(nextTracks[1].active, false);
   const utils = load('app/actions/utils.ts', {
     '@/lib/subtitle-provider': load('lib/subtitle-provider.ts'),
+    '@/lib/media/subtitle-episode-identity': load('lib/media/subtitle-episode-identity.ts'),
     './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://addon.test/manifest.json', manifest: { id: 'fixture', name: 'Subtitle provider', resources: ['subtitles'] } }] },
   }, { AbortSignal, fetch: async () => ({ ok: true, json: async () => ({ subtitles: [{ id: 'track', lang: 'eng', filename: 'Actual.release.srt', url: 'https://files.test/123' }] }) }) });
   const discovered = await utils.getSubtitleTracks('tt123', 'movie');
   assert.equal(discovered[0].filename, 'Actual.release.srt');
   assert.equal(discovered[0].provider, 'Subtitle provider');
+  const episodeRequests = [];
+  const identityUtils = load('app/actions/utils.ts', {
+    '@/lib/subtitle-provider': load('lib/subtitle-provider.ts'),
+    '@/lib/media/subtitle-episode-identity': load('lib/media/subtitle-episode-identity.ts'),
+    './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://addon.test/manifest.json', manifest: { id: 'fixture', name: 'Subtitle provider', resources: ['subtitles'] } }] },
+  }, { AbortSignal, fetch: async url => {
+    episodeRequests.push(url);
+    const rightEpisode = url.includes('tt2297757:4:8.json');
+    return { ok: true, json: async () => ({ subtitles: [{ id: rightEpisode ? 'frances' : 'computer-repair', lang: 'eng',
+      subtitleFileName: rightEpisode ? 'Nathan.For.You.S04E08.Finding.Frances.srt' : 'Nathan.For.You.S04E07.Computer.Repair.Psychic.srt',
+      url: rightEpisode ? 'https://files.test/frances.srt' : 'https://files.test/computer-repair.srt' }] }) };
+  } });
+  const matchingEpisode = await identityUtils.getSubtitleTracks('tt2297757:4:7', 'series', { episodeTitle: 'Finding Frances' });
+  assert.equal(matchingEpisode.length, 1);
+  assert.equal(matchingEpisode[0].src, 'https://files.test/frances.srt', 'Normal playback resolves subtitle identity by the verified episode title rather than the release number');
+  assert.equal(episodeRequests.length, 3, 'Provider mismatch recovery is bounded to adjacent subtitle entries');
+  episodeRequests.length = 0;
+  await identityUtils.getSubtitleTracks('tt2297757:4:8', 'series', { episodeTitle: 'Finding Frances' });
+  assert.equal(episodeRequests.length, 1, 'Matching episode titles need no neighboring lookups');
   console.log('PASS: language names/codes, safe filenames, original track indices, distinct English files, Off, speed/quality actions, fullscreen submenu portals and UIArc dropdown choices.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 

@@ -65,7 +65,10 @@ async function main() {
     },
     '@/app/actions/tv-shows': { fetchEpisodes: async () => [], fetchSeasons: async () => [], fetchEpisodeDetails: async () => ({ id: 'show:1:2', title: 'Selected episode' }) },
     '@/app/actions/subtitles': { fetchSubtitleFileContent: async url => { subtitleDownloads.push(url); return brokenSubtitleUrls.has(url) ? { success: false, error: 'Subtitle download failed (404)' } : ({ success: true, content: subtitleContent }); } },
-    '@/app/actions/utils': { getSubtitleTracks: async id => { subtitleTrackLookups++; return subtitleTracksForId ? subtitleTracksForId(id) : subtitleTracks; } },
+    '@/app/actions/utils': { getSubtitleTracks: async (id, _type, options = {}) => {
+      const raw = sourceId => { subtitleTrackLookups++; return subtitleTracksForId ? subtitleTracksForId(sourceId) : subtitleTracks; };
+      return load('lib/media/subtitle-episode-identity.ts').matchEpisodeSubtitleTracks(id, options.episodeTitle, raw(id), async sourceId => raw(sourceId), options.signal);
+    } },
   };
   function load(file) {
     const absolute = path.resolve(file);

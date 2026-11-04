@@ -26,6 +26,7 @@ function utility(file) {
     return context.exports;
 }
 const callbacks = [], changes = [], requests = [];
+const subtitleRequests = [];
 const ordinarySeries = process.argv.includes("--series");
 const onPage = process.argv.includes("--page");
 const provided = process.argv.includes("--provided") || onPage;
@@ -75,7 +76,7 @@ const context = { exports: {}, AbortController, console, document: { createEleme
         return canonical ? { id: ordinarySeries ? 'show:1:1' : 'show:1:3', title: 'Canonical episode title', season: 1, episode: ordinarySeries ? 1 : 3 } : null;
     } };
     if (name === '@/app/actions/tv-shows') return { fetchEpisodeDetails: () => { throw new Error('Client must not queue episode Server Actions'); } };
-    if (name === '@/app/actions/utils') return { getSubtitleTracks: async () => [] };
+    if (name === '@/app/actions/utils') return { getSubtitleTracks: async (id, type, options) => { subtitleRequests.push({ id, type, options }); return []; } };
     if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
     return require(name);
 } };
@@ -93,8 +94,12 @@ assert.ok(load, 'Exercise the actual player loading callback');
     assert.ok(changes.some(value => value?.year === 2009 && value?.imdbRating === '8.5' && value?.logo === '/logo.svg'), 'All player metadata must publish while streams remain pending');
     finishStreams([{ url: 'https://example.test/top.mp4' }]);
     await pending;
+    await new Promise(resolve => setImmediate(resolve));
     const lastPrepared = changes.filter(value => value?.media).at(-1);
     assert.equal(lastPrepared.media.episodeTitle, expectedTitle, 'Source completion must preserve the early title');
     assert.equal(lastPrepared.media.streamUrl, 'https://example.test/top.mp4');
+    assert.equal(subtitleRequests.length, 1);
+    assert.equal(subtitleRequests[0].options.episodeTitle, expectedTitle, 'Normal playback supplies the resolved episode title to shared subtitle discovery');
+    assert.equal(Object.hasOwn(subtitleRequests[0].options, 'signal'), false, 'Server Action arguments must stay serializable');
     console.log(onPage ? 'PASS: actual player starts from page title/artwork/metadata and joins its stream request with zero duplicate reads.' : 'PASS: actual player requests missing metadata and streams concurrently, publishes the episode title first, and preserves it when playback becomes ready.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,6 +1,7 @@
 "use server";
 
 import { subtitleAddonBaseUrl } from "@/lib/subtitle-provider";
+import { matchEpisodeSubtitleTracks } from "@/lib/media/subtitle-episode-identity";
 
 import type { MediaItem, StremioAddon, StremioStream } from "@/types/stremio";
 import {
@@ -64,6 +65,7 @@ export async function getSubtitleTracks(
   options?: {
     filename?: string;
     videoSize?: number;
+    episodeTitle?: string;
     signal?: AbortSignal;
   }
 ): Promise<
@@ -171,7 +173,8 @@ export async function getSubtitleTracks(
     }));
     tracks.push(...groups.flat());
 
-    return tracks;
+    return await matchEpisodeSubtitleTracks(itemId, options?.episodeTitle, tracks,
+      nearbyId => getSubtitleTracks(nearbyId, type, { signal: options?.signal }), options?.signal);
   } catch (error) {
     options?.signal?.throwIfAborted();
     console.error("Failed to fetch subtitle tracks:", error);

@@ -261,37 +261,14 @@ async function loadParsedSubtitles(
     const auth = (await cookies()).get("stremio-auth");
     const userId = auth?.value ? JSON.parse(auth.value).user?._id : undefined;
     if (!userId) return { success: false, subtitles: [], error: "Not authenticated" };
-    let tracks = await getSubtitleTracks(streamSourceId, mediaType, {
+    const tracks = await getSubtitleTracks(streamSourceId, mediaType, {
         filename: currentMedia.subtitleFilename,
         videoSize: currentMedia.subtitleVideoSize,
+        episodeTitle: currentMedia.episodeTitle,
         signal: abortSignal,
     });
     if (!tracks.length) return { success: false, subtitles: [], error: `No subtitle tracks found for ${currentMedia.name}.` };
 
-    // Subtitle releases can count specials differently from the canonical video catalog.
-    // Match the verified episode title before accepting a neighboring subtitle bucket;
-    // never change the video ID or infer a timestamp from those coordinates.
-    const normalizeRelease = (value: string) => value.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-    const episodeTitle = normalizeRelease(currentMedia.episodeTitle || "");
-    const episodeId = /^(tt\d+|tmdb:\d+):(\d+):(\d+)$/.exec(streamSourceId);
-    if (episodeId && episodeTitle && !/^episode \d+$/.test(episodeTitle) && tracks.some(track => track.filename)) {
-        const matchesTitle = (track: typeof tracks[number]) => !!track.filename &&
-            ` ${normalizeRelease(track.filename)} `.includes(` ${episodeTitle} `);
-        let matching = tracks.filter(matchesTitle);
-        if (!matching.some(track => scoreEnglishTrack(track) >= ENGLISH_TRACK_MIN_SCORE)) {
-            const episodeNumber = Number(episodeId[3]);
-            const nearby = await Promise.all([episodeNumber - 1, episodeNumber + 1].filter(number => number > 0).map(async number => {
-                try {
-                    return await getSubtitleTracks(`${episodeId[1]}:${episodeId[2]}:${number}`, mediaType, { signal: abortSignal });
-                } catch {
-                    abortSignal?.throwIfAborted();
-                    return [];
-                }
-            }));
-            matching = [...matching, ...nearby.flat().filter(matchesTitle)];
-        }
-        if (matching.length) tracks = matching;
-    }
 
     const preferredIndex = pickPreferredSubtitleTrackIndex(tracks, subtitleIndex);
     const preferred = tracks[preferredIndex];
