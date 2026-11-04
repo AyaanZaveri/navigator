@@ -48,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import "./focus.css";
 import floatingSurface from "@/components/arc/floating-surface.module.css";
+import { motionTokens } from "@/components/arc/motion-tokens";
 import { navigatorBeamColors } from "@/lib/navigator-beam";
 import { isNavigatorRequestComplete } from "@/lib/navigator-timing";
 
@@ -291,21 +292,26 @@ export function NavigatorFocus({
                   focusState === "panel-exiting"
                     ? {
                         opacity: 0,
-                        transform: reduceMotion ? "none" : "translateY(6px)",
+                        transform: reduceMotion ? "none" : "translateY(24px)",
                       }
                     : { opacity: 1, transform: "translateY(0)" }
                 }
                 className="mb-2 w-full"
                 initial={{
                   opacity: 0,
-                  transform: reduceMotion ? "none" : "translateY(6px)",
+                  transform: reduceMotion ? "none" : "translateY(24px)",
                 }}
                 onAnimationComplete={() => {
                   if (focusState === "panel-exiting") {
                     setFocusState("closed");
                   }
                 }}
-                transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+                transition={{
+                  duration: focusState === "panel-exiting"
+                    ? motionTokens.duration.exit
+                    : motionTokens.duration.standard,
+                  ease: motionTokens.ease.out,
+                }}
               >
                 {(showTopActivity ||
                   (!isBusy && messages.length > 0) ||

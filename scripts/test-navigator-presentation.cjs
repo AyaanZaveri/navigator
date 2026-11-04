@@ -72,11 +72,14 @@ assert.equal(timing.navigatorResponseDurations([greetingWithRequest, timedAnswer
 // Render the actual transcript with short content. It must remain scrollable
 // when a child later expands without changing the messages prop.
 let focusHookIndex = 0;
+let focusPhase = 'open', focusReducedMotion = true, completedFocusPhase;
 const focusReact = require('react');
 const { NavigatorFocus } = load('components/navigator/focus.tsx', {
-    react: { ...focusReact, useState: value => [focusHookIndex++ === 0 ? 'open' : value, () => {}],
+    react: { ...focusReact, useState: value => focusHookIndex++ === 0
+        ? [focusPhase, value => { completedFocusPhase = value; }]
+        : [value, () => {}],
         useRef: value => ({ current: value }), useCallback: value => value, useEffect: () => {}, useLayoutEffect: () => {} },
-    'framer-motion': { motion: { div: 'div', section: 'section', span: 'span' }, AnimatePresence: 'div', LayoutGroup: 'div', useReducedMotion: () => true },
+    'framer-motion': { motion: { div: 'div', section: 'section', span: 'span' }, AnimatePresence: 'div', LayoutGroup: 'div', useReducedMotion: () => focusReducedMotion },
     'border-beam': { BorderBeam: 'div' }, streamdown: { Streamdown: 'div' },
     'next-themes': { useTheme: () => ({ resolvedTheme: 'dark' }) },
     './focus-ui/button': { Button: 'button' }, './launcher': { NavigatorLauncher: 'button' },
@@ -84,6 +87,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     './composer-input': { NavigatorComposerInput: 'textarea' },
     './activity-status': { NavigatorActivityStatus: 'span' }, './focus-results': { toNavigatorSegments: () => [], isPlaybackRequest: () => false }, './focus.css': {},
     '@/components/arc/floating-surface.module.css': { surface: 'sampled-surface' },
+    '@/components/arc/motion-tokens': load('components/arc/motion-tokens.ts', {}),
     '@/lib/navigator-activity-label': { getNavigatorActivityLabel: () => '', NAVIGATOR_ACTIVITY_VARIANT_COUNT: 1 },
     '@/lib/navigator-beam': { navigatorBeamColors: {} }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
     '@/lib/navigator-timing': timing,
@@ -114,6 +118,31 @@ const playerSurface = findAskSurface(playerFocus);
 assert.equal(playerSurface.props['data-player-native-glass'], '', 'Ask Navigator over native playback must request sampled video');
 assert.ok(playerSurface.props.className.split(' ').includes('sampled-surface'), 'Reuse the player menu material');
 assert.ok(playerSurface.props.className.split(' ').includes('relative'), 'Keep sampled canvas clipped after backdrop-filter takeover');
+
+function findPanelMotion(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.props?.className === 'mb-2 w-full' && node.props?.onAnimationComplete) return node;
+    for (const child of focusReact.Children.toArray(node.props?.children)) {
+        const found = findPanelMotion(child); if (found) return found;
+    }
+}
+for (const reduced of [false, true]) {
+    focusReducedMotion = reduced;
+    for (const phase of ['open', 'panel-exiting']) {
+        focusPhase = phase; focusHookIndex = 0; completedFocusPhase = undefined;
+        const panel = findPanelMotion(NavigatorFocus({ open: phase === 'open', showLauncher: false, messages: [], input: '', isBusy: false, responseDurations: {} }));
+        assert.ok(panel, 'The player panel remains rendered until its exit completes');
+        assert.equal(panel.props.initial.transform, reduced ? 'none' : 'translateY(24px)');
+        assert.equal(panel.props.animate.opacity, phase === 'open' ? 1 : 0);
+        assert.equal(panel.props.transition.duration, phase === 'open' ? 0.24 : 0.18);
+        if (phase === 'panel-exiting') {
+            assert.equal(panel.props.animate.transform, reduced ? 'none' : 'translateY(24px)');
+            panel.props.onAnimationComplete();
+            assert.equal(completedFocusPhase, 'closed', 'Unmount only after the downward exit finishes');
+        }
+    }
+}
+focusPhase = 'open'; focusReducedMotion = true;
 
 function findDuration(node) {
     if (!node || typeof node !== 'object') return;
