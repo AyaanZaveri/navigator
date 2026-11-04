@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   distDir: '.next',
   output: 'standalone',
+  // Signed desktop bundles are immutable; keep the bounded Next cache in memory.
+  experimental: {
+    isrFlushToDisk: process.env.NAVIGATOR_DESKTOP !== '1',
+  },
   turbopack: {
     root: process.cwd(),
   },
