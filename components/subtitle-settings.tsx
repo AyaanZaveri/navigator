@@ -14,11 +14,7 @@ import styles from "@/app/(main)/settings/settings.module.css";
 
 export function SubtitleSettings() {
   const { subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline, subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, subtitlePosition, setSubtitlePosition, resetSubtitleAppearance } = useSettings();
-  return <section aria-labelledby="subtitle-settings-title" className={styles.section}>
-    <div className="flex flex-col gap-2">
-      <h2 id="subtitle-settings-title" className="text-lg font-medium">Subtitles</h2>
-      <p className={styles.description}>Choose how subtitles look during playback. Changes are saved on this device.</p>
-    </div>
+  return <section aria-label="Subtitle appearance" className={styles.section}>
     <FieldGroup className="min-w-0 gap-6">
       <figure className={styles.subtitlePreviewFigure} aria-labelledby="subtitle-preview-title">
         <div className={styles.subtitlePreview}>
@@ -28,7 +24,7 @@ export function SubtitleSettings() {
             Every story starts somewhere.
           </SubtitleText>
         </div>
-        <figcaption id="subtitle-preview-title" className={styles.description}>Preview</figcaption>
+        <figcaption id="subtitle-preview-title" className="sr-only">Subtitle preview</figcaption>
       </figure>
       <Field>
         <FieldLabel asChild><span>Text size</span></FieldLabel>
@@ -47,12 +43,11 @@ export function SubtitleSettings() {
         <FieldLabel asChild><span>Outline</span></FieldLabel>
         <div className="flex"><SegmentedControl label="Subtitle outline" value={subtitleOutline}
           onValueChange={value => setSubtitleOutline(value as SubtitleOutline)} options={[...SUBTITLE_OUTLINES]} /></div>
-        <FieldDescription>A dark outline keeps text readable over light and dark scenes.</FieldDescription>
       </Field>
       <Field>
-        <Slider label="Subtitle height" value={subtitlePosition} onValueChange={setSubtitlePosition}
+        <Slider label="Position from bottom" value={subtitlePosition} onValueChange={setSubtitlePosition}
           min={SUBTITLE_POSITION.min} max={SUBTITLE_POSITION.max} step={1} largeStep={5} format={value => `${value}%`} />
-        <FieldDescription>Distance from the bottom of the screen. Subtitles authored at the top keep their original position.</FieldDescription>
+        <FieldDescription>Top-positioned captions stay at the top.</FieldDescription>
       </Field>
       <div className="flex"><Button type="button" variant="ghost" size="sm" onClick={resetSubtitleAppearance}
         disabled={subtitleSize === "standard" && subtitleOutline === "thin" && subtitleWeight === "medium" && subtitleColor === "white" && subtitlePosition === SUBTITLE_POSITION.default}>

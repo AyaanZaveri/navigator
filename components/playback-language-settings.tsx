@@ -36,26 +36,22 @@ function LanguageSelect({ id, label, value, onChange }: { id: string; label: str
 export function PlaybackLanguageSettings() {
   const { playbackPreferences: preferences, updatePlaybackPreferences: update } = useSettings();
   return <section aria-labelledby="playback-language-title" className={styles.section}>
-    <div className="flex flex-col gap-2">
-      <h2 id="playback-language-title" className="text-lg font-medium">Playback languages</h2>
-      <p className={styles.description}>Choose your preferred tracks when a video starts. Saved on this device.</p>
-    </div>
+    <h2 id="playback-language-title" className="text-lg font-medium">Languages</h2>
     <FieldGroup className="min-w-0 gap-6">
       <FieldGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <LanguageSelect id="preferred-audio-language" label="Preferred audio language" value={preferences.audioLanguage}
+        <LanguageSelect id="preferred-audio-language" label="Audio language" value={preferences.audioLanguage}
           onChange={audioLanguage => update({ audioLanguage })} />
-        <LanguageSelect id="preferred-subtitle-language" label="Preferred subtitle language" value={preferences.subtitleLanguage}
+        <LanguageSelect id="preferred-subtitle-language" label="Subtitle language" value={preferences.subtitleLanguage}
           onChange={subtitleLanguage => update({ subtitleLanguage })} />
       </FieldGroup>
       <Field><Select id="preferred-subtitle-type" label="Subtitle type" value={preferences.subtitleMode}
         options={[{ value: "normal", label: "Normal subtitles" }, { value: "forced", label: "Forced subtitles only" }]}
         onValueChange={value => update({ subtitleMode: value === "forced" ? "forced" : "normal" })} />
-        <FieldDescription>Forced subtitles usually translate foreign dialogue or on-screen text.</FieldDescription>
+        {preferences.subtitleMode === "forced" && <FieldDescription>Foreign dialogue and on-screen text only.</FieldDescription>}
       </Field>
       <Field orientation="horizontal">
         <FieldContent>
-          <FieldLabel htmlFor="subtitles-on-by-default">Always enable subtitles</FieldLabel>
-          <FieldDescription>Automatically select a matching track. Turn off to enable subtitles yourself.</FieldDescription>
+          <FieldLabel htmlFor="subtitles-on-by-default">Subtitles on by default</FieldLabel>
         </FieldContent>
         <Switch id="subtitles-on-by-default" checked={preferences.subtitlesEnabledByDefault}
           onCheckedChange={subtitlesEnabledByDefault => update({ subtitlesEnabledByDefault })} />
