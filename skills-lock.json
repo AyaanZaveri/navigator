@@ -103,6 +103,12 @@
       "skillPath": "skills/emil-design-eng/SKILL.md",
       "computedHash": "51f2537e04d15911b41d78e2de24c36a0e26d41beae15e82a954fe5496a5eda9"
     },
+    "explain-code": {
+      "source": "petalas/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/explain-code/skills/explain-code/SKILL.md",
+      "computedHash": "23351f1e5c7391475a0ba55b5ef43aaf19355e498e18b9d5f0fb8a9796fd317e"
+    },
     "explain-interface": {
       "source": "jakubkrehel/skills",
       "sourceType": "github",
@@ -163,6 +169,12 @@
       "skillPath": "skills/state-machine/SKILL.md",
       "computedHash": "f5b8d15d09ad91de8ad969fc6314f3e45a3cc625e0ea8046f109add9e86a33eb"
     },
+    "teach": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/teach/SKILL.md",
+      "computedHash": "81c196426808c270a9d4688be291405c038bba11f020b9fe10098ad0f1d8c132"
+    },
     "teardown": {
       "source": "jakubkrehel/skills",
       "sourceType": "github",
@@ -174,6 +186,12 @@
       "sourceType": "github",
       "skillPath": "skills/variant/SKILL.md",
       "computedHash": "c783573ebf39b02ed2dc393cc7fe3de0a2fafc5d10a9a3c76a8461889beb7c2d"
+    },
+    "wait-what": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/wait-what/SKILL.md",
+      "computedHash": "1921c02ea4046fd8f9c219140780233fe6e22e2fe4442961378da2ac31f3f403"
     },
     "write-swift": {
       "source": "emilkowalski/skills",
