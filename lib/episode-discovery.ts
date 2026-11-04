@@ -215,8 +215,8 @@ export async function resolveEpisode(input: EpisodeQuery, options: Options = {})
         const message = status === "matched" ? `Found ${matches[0].title} (S${matches[0].seasonNumber}E${matches[0].episodeNumber}).`
             : status === "ambiguous" ? "Several episodes match. Which of these do you mean?"
                 : clueEvidence.length ? "I found a source matching that scene, but it doesn’t identify a verifiable episode. Do you remember another scene from the episode?"
-                : research ? "I couldn’t substantiate a matching episode. Do you remember another detail?"
-                    : "The episode metadata doesn’t substantiate that description. Enable TinyFish web search in Settings, or share another detail.";
+                    : research ? "I couldn’t substantiate a matching episode. Do you remember another detail?"
+                        : "The episode metadata doesn’t substantiate that description. Enable TinyFish web search in Settings, or share another detail.";
         onProgress?.({ stage: "verify", state: status === "matched" ? "completed" : "error",
             episode: status === "matched" ? matches[0] : undefined });
         return { success: status === "matched", status, source: "TMDB", seriesId, seriesName, episodes: matches,

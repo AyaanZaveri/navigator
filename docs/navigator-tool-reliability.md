@@ -2,7 +2,7 @@
 
 ## Principles applied
 
-- **Choose workflows before autonomous loops.** Explicit episode coordinates and clearly parsed scene requests bypass unnecessary planning. Native tool calling remains the default; an endpoint-specific JSON protocol handles Iceman's observed malformed native calls without changing the selected model.
+- **Choose workflows before autonomous loops.** Explicit episode coordinates and clearly parsed scene requests bypass unnecessary planning. Native tool calling remains the default; an endpoint-specific JSON protocol handles Iceman's malformed native calls and DeepSeek's stalled/unavailable native tool streams without changing the selected model.
 - **Make tools distinguishable.** Navigation opens details; playback starts media. Narrow available tools only for clear task families, preserving compound requests. Metadata questions must attempt a details lookup, rather than answer solely from memory.
 - **Treat schemas as syntax checks, not proof.** All structured answers are locally validated. Episode citations select server-issued passage IDs; the server reconstructs exact quotes. The episode assessor still determines semantic support, so a valid ID alone does not establish truth.
 - **Verify event identity.** A high-confidence subtitle index can still point to narration, rehearsal, or an archival appearance. A second pass compares the proposed occurrence with the full timeline. This is an additional model check, not independent ground truth.
@@ -15,6 +15,7 @@
 - [Anthropic: Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents): realistic evaluations, clear tool responsibilities, meaningful context, and token-efficient outputs.
 - [Anthropic: Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): simpler composable workflows before unnecessary agent complexity.
 - [OpenAI: Function calling](https://platform.openai.com/docs/guides/function-calling): explicit tool definitions, constrained argument schemas, and application-side execution.
+- [DeepSeek: Chat Completions API](https://api-docs.deepseek.com/api/create-chat-completion/): `reasoning_effort: low` still enables thinking; `none` disables it. OpenCode DeepSeek structured extraction uses `none` to avoid exhausting short interactive generation budgets on hidden reasoning. Native streaming tool calls retain `low`: the gateway's tool stream stalled with `none` in live tests, so these paths are configured separately.
 - [AI SDK: Generating structured data](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data): structured generation and validation boundaries. Ketch returned incomplete content for this page in the current research pass; installed SDK types and real-SDK tests verify integration details.
 
 ## Reproducible checks
@@ -37,3 +38,11 @@ node scripts/test-navigator-episode-live.cjs --live --model MODEL --prompt 'play
 ```
 
 Small repeated samples cannot establish reliability across every task. Preserve strict failures and expand held-out coverage rather than weakening assertions until runs pass.
+
+## Observed validation — November 4, 2026
+
+- The 40-call matrix passed 39 cases: all 30 general tasks, with one DeepSeek scene-intent failure among ten scene runs. Later DeepSeek reruns exposed reasoning-budget exhaustion and native streaming failures; these were not counted as passes.
+- After separating structured generation from unreliable native tool streams, DeepSeek passed all six general tasks through the validated JSON tool adapter and three consecutive full scene workflows with thinking disabled (12.5–14.7 seconds).
+- The other four models each passed a final scene recheck: Luna 16.3s, Haiku 18.6s, Iceman 53.5s, GLM 11.6s. All selected the actual main-narrative appearance at approximately 17:36–17:39, not the opening recap.
+- These are successive diagnostic/recheck batches, not a claim that a single final 40-call batch passed unchanged. General tasks cover title navigation, title playback, explicit episode playback, episode identification, theme changes, and director metadata lookup.
+- `npm run test:navigator`, `npm run test:security`, TypeScript, and targeted helper/tool lint pass. Running-server checks covered the login page and anonymous authorization boundaries only. Authenticated browser playback remains untested.

@@ -145,7 +145,8 @@ async function main() {
   } })('deepseek-v4.1-flash');
   await assert.rejects(deepseekTransport.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'Select evidence' }] }],
     ...navigatorRoutingSettings(deepseekTransport) }), /Captured compatible transport/);
-  assert.equal(compatibleReasoningRequest.reasoning_effort, 'low', 'OpenCode compatible extraction requests actually send low reasoning effort');
+  assert.equal(compatibleReasoningRequest.reasoning_effort, 'none', 'OpenCode DeepSeek extraction requests actually disable thinking rather than merely lowering its effort');
+  assert.equal(navigatorRoutingSettings(deepseekTransport, 'minimal', 'tools').providerOptions.opencode.reasoningEffort, 'low', 'Native streaming tool calls retain their independently tested provider setting');
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const user = (id, text) => ({ id, role: 'user', parts: [{ type: 'text', text }] });
@@ -280,6 +281,24 @@ async function main() {
   assert.equal(sentBodies.length, 2);
   assert.equal(sentBodies.every(body => body.openaiApiKey === 'test-key' && body.pathname === '/movie/tt123'), true, 'Continuation must retain provider and page context');
   assert.match(JSON.stringify(client.messages.at(-1)), /Opening your selection/);
+  const beforeParallelModel = activeModel;
+  activeModel = new MockLanguageModelV4({ doStream: async () => stream([
+    { type: 'tool-call', toolCallId: 'theme-parallel-1', toolName: 'themeToggle', input: JSON.stringify({ action: 'light' }) },
+    { type: 'tool-call', toolCallId: 'theme-parallel-2', toolName: 'themeToggle', input: JSON.stringify({ action: 'light' }) },
+  ], 'tool-calls') });
+  const themeUser = user('theme-parallel', 'Switch to light mode');
+  const parallelTheme = await readResponse(await POST(request({ ...payload, messages: [themeUser] })));
+  const preparedThemes = parallelTheme.parts.filter(part => part.type === 'tool-themeToggle' && part.output?.execution === 'prepared');
+  assert.equal(preparedThemes.length, 1, 'Two native action calls in the same step must prepare only one action');
+  preparedThemes[0].output = { ...preparedThemes[0].output, execution: 'completed', success: true };
+  activeModel = new MockLanguageModelV4({ doStream: async options => {
+    assert.notEqual(options.toolChoice?.type, 'required', 'Acknowledgement must release forced initial tool choice');
+    assert.equal(options.tools.some(tool => tool.name === 'themeToggle'), false, 'Acknowledged action must not be advertised again');
+    return stream([{ type: 'text-start', id: 'theme-done' }, { type: 'text-delta', id: 'theme-done', delta: 'Theme changed.' }, { type: 'text-end', id: 'theme-done' }]);
+  } });
+  const finishedTheme = await readResponse(await POST(request({ ...payload, messages: [themeUser, parallelTheme] })));
+  assert.match(JSON.stringify(finishedTheme), /Theme changed/);
+  activeModel = beforeParallelModel;
   const tools = createAllTools(null, 0, activeModel);
   const beforeSearch = tmdbRequests.length;
   const search = await tools.searchMedia.execute({ query: 'Example' }, { toolCallId: 'search-tmdb', messages: [], abortSignal: new AbortController().signal });
@@ -653,6 +672,16 @@ async function main() {
   assert.equal(compoundEpisodePart.output.mediaId, 'tt13623608:1:1');
   assert.ok(compoundEpisodeResponse.parts.some(part => part.type === 'data-episodeProgress' && part.data.catalog?.seriesName === 'The Curse'), 'Combined requests stream episode lookup cards');
   }
+  const { scenePlaybackResponse } = load('app/tools/scene-workflow.ts');
+  const droppedEpisodeRequest = 'Play that one episode in The Curse where they discuss Land of Enchantment, and skip to the discussion';
+  let recoveredEpisodeInput;
+  const droppedEpisodeModel = new MockLanguageModelV4({ doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ mediaQuery: 'The Curse', userDescription: 'the discussion', episodeQuery: null, seasonNumber: null, episodeNumber: null }) }],
+    usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }) });
+  await readResponse(scenePlaybackResponse({ model: droppedEpisodeModel,
+    messages: [{ role: 'user', content: droppedEpisodeRequest }], originalMessages: [user('dropped-episode-context', droppedEpisodeRequest)],
+    tools: { skipToSubtitleContent: ai.tool({ inputSchema: zod.z.object({}), execute: async input => { recoveredEpisodeInput = input; return { success: false, error: 'Stubbed after context inspection' }; } }) },
+    context: {}, signal: new AbortController().signal, onError: error => String(error) }));
+  assert.equal(recoveredEpisodeInput.episodeQuery, droppedEpisodeRequest, 'A null extracted episode clue must not erase a user-supplied remembered-episode description');
   subtitleContent = previousCompoundSubtitles;
   tmdbSearchFixtures = undefined;
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',

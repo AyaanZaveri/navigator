@@ -79,6 +79,11 @@ export async function generateNavigatorObject<T>(options: NavigatorObjectOptions
         } as Request;
         if (textMode) delete (opts as Record<string, unknown>).output;
         const result = await generateText(opts);
+        // Log before reading the output getter: parsing can throw even though
+        // the provider completed and consumed reasoning/output tokens.
+        console.log("[navigator-structured-attempt]", { task, model: `${modelInfo.provider}/${modelInfo.modelId}`,
+            attempt: attempts, mode: textMode ? "json-text" : "native", finishReason: result.finishReason,
+            usage: minimalUsage(result.totalUsage ?? result.usage) });
         // Without Output.object the SDK's output getter returns TEXT, not an object.
         // Never validate that string as though the provider had supplied an object.
         const raw: unknown = textMode ? parseJson(result.text ?? "") : result.output;
@@ -91,7 +96,12 @@ export async function generateNavigatorObject<T>(options: NavigatorObjectOptions
         catch (error) {
             if (controller.signal.aborted || outerSignal?.aborted) throw error;
             if (!iceman && isUnsupported(error)) { mode = "json-text"; result = await call(true); }
-            else if ((NoOutputGeneratedError.isInstance(error) || NoObjectGeneratedError.isInstance(error) || error instanceof SyntaxError || (error as { name?: string })?.name === "ZodError") && attempts < 2) result = await call(iceman || mode === "json-text", true);
+            else if ((NoOutputGeneratedError.isInstance(error) || NoObjectGeneratedError.isInstance(error) || error instanceof SyntaxError || (error as { name?: string })?.name === "ZodError") && attempts < 2) {
+                // Change the failing protocol rather than blindly repeating native
+                // structured generation; local validation remains mandatory.
+                mode = "json-text";
+                result = await call(true, true);
+            }
             else throw error;
         }
         console.log("[navigator-structured-output]", { task, model: `${modelInfo.provider}/${modelInfo.modelId}`, durationMs: Date.now() - started, mode, finishReason: result.finishReason, usage: minimalUsage(result.totalUsage ?? result.usage), attempts });

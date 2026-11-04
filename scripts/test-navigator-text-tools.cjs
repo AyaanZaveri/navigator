@@ -44,12 +44,30 @@ async function main() {
     writer: { write: event => events.push(event) }, policy: () => ({ activeTools: ['lookup', 'playMedia'], toolChoice: 'required' }) };
   assert.equal(needsTextToolLoop(model), true);
   assert.equal(needsTextToolLoop({ provider: 'opencode.chat', modelId: 'claude-haiku-5-5' }), false);
+  assert.equal(needsTextToolLoop({ provider: 'opencode.chat', modelId: 'deepseek-v4.1-flash' }), true, 'Known stalled native tool streams use validated decisions, not a different model');
   await runTextToolLoop(options);
   assert.equal(calls, 3);
   assert.equal(lookups, 1, 'Invalid arguments must never reach execute');
   assert.equal(plays, 1, 'A prepared action ends the turn without replay');
   assert.equal(events.filter(event => event.type === 'tool-input-available').length, 2);
   assert.equal(events.at(-1).finishReason, 'tool-calls');
+
+  const answerEvents = [];
+  const answerModel = new MockLanguageModelV4({ provider: 'opencode.chat', modelId: 'iceman-contributor-free', doGenerate: async () => ({
+    content: [{ type: 'text', text: JSON.stringify({ kind: 'answer', text: 'A grounded answer.' }) }], warnings: [], usage, finishReason: { unified: 'stop', raw: 'stop' },
+  }) });
+  await runTextToolLoop({ ...options, model: answerModel, writer: { write: event => answerEvents.push(event) }, policy: () => ({ activeTools: ['lookup'], toolChoice: 'auto' }) });
+  assert.equal(answerEvents.filter(event => event.type === 'text-delta').map(event => event.delta).join(''), 'A grounded answer.');
+  assert.equal(answerEvents.at(-1).finishReason, 'stop');
+
+  let failedCalls = 0;
+  const failureModel = new MockLanguageModelV4({ provider: 'opencode.chat', modelId: 'iceman-contributor-free', doGenerate: async () => {
+    failedCalls++;
+    return { content: [{ type: 'text', text: JSON.stringify({ kind: 'tool', name: 'skipToSubtitleContent', arguments: {} }) }], warnings: [], usage, finishReason: { unified: 'stop', raw: 'stop' } };
+  } });
+  await runTextToolLoop({ ...options, model: failureModel, tools: { skipToSubtitleContent: ai.tool({ inputSchema: zod.z.object({}), execute: async () => ({ success: false, error: 'No matching scene.' }) }) },
+    policy: () => ({ activeTools: ['skipToSubtitleContent'], toolChoice: 'required' }) });
+  assert.equal(failedCalls, 1, 'A failed scene search cannot degrade into ordinary playback or a guessed timestamp');
 
   const controller = new AbortController(); controller.abort();
   await assert.rejects(runTextToolLoop({ ...options, signal: controller.signal }));
@@ -63,6 +81,10 @@ async function main() {
   assert.deepEqual([...navigatorToolPolicy(turn('Switch to light mode')).initialTools], ['themeToggle']);
   assert.equal(navigatorToolPolicy(turn('What is light mode?')).initialTools, undefined);
   assert.equal(navigatorToolPolicy(turn('Thanks!')).requireInitialTool, false);
+  const acknowledgedTheme = [...turn('Switch to light mode'), { id: 'a', role: 'assistant', parts: [{ type: 'tool-themeToggle', toolCallId: 'theme-1', state: 'output-available', input: { theme: 'light' }, output: { success: true, execution: 'completed' } }] }];
+  assert.equal(navigatorToolPolicy(acknowledgedTheme).requireInitialTool, false, 'The next HTTP request after acknowledgement must not force the same action again');
+  assert.equal(navigatorToolPolicy(acknowledgedTheme).initialTools, undefined);
+  assert.equal(navigatorToolPolicy(acknowledgedTheme).actionHandled, true);
   console.log('PASS: real SDK text tool protocol, schema validation before dispatch, exactly-once prepared actions, cancellation, and task-specific tool policy.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

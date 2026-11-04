@@ -4,9 +4,10 @@ import { generateNavigatorObject } from "@/lib/navigator-structured-output";
 import { actionToolNames, modelToolOutput, record } from "@/lib/navigator-chat";
 import { navigatorRoutingSettings } from "@/lib/navigator-model-settings";
 
-/** Some endpoints advertise native tools but emit broken/incomplete native calls. */
+/** Some endpoints advertise native tools but emit malformed calls or stall their tool stream. */
 export function needsTextToolLoop(model: LanguageModel) {
-    return typeof model !== "string" && model.provider.startsWith("opencode.") && model.modelId === "iceman-contributor-free";
+    return typeof model !== "string" && model.provider.startsWith("opencode.")
+        && ["iceman-contributor-free", "deepseek-v4.1-flash"].includes(model.modelId);
 }
 
 type Step = { toolResults: Array<{ toolName: string }> };

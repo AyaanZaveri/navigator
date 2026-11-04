@@ -96,7 +96,7 @@ async function main() {
         assert.equal(result.mediaSourceId, 'tt2297757:4:4', 'Keep the canonical video target');
         assert.match(subtitleProgress.subtitles.filename, /the.anecdote/i, 'Select the episode by release title, not shifted provider numbering');
         assert.ok(result.timestamp > 0);
-        console.log('PASS: live Muse matches a scene using the correctly titled public subtitle track. Video playback was not executed.');
+        console.log('PASS: selected live model matches a scene using the correctly titled public subtitle track. Video playback was not executed.');
         return;
     }
     if (process.argv.includes('--intent-only')) {
@@ -143,7 +143,7 @@ async function main() {
             assert.ok(inputs[0].input.userDescription.length > 0, 'Extract the requested scene; the matcher also receives the episode context');
             assert.equal(inputs[0].input.seasonNumber, undefined, 'Do not invent episode coordinates during extraction');
             assert.equal(inputs[0].input.episodeNumber, undefined);
-            console.log('PASS: live Muse extracts the show, episode clue, and scene; playback/lookup execution was stubbed.');
+            console.log('PASS: selected live model extracts the show, episode clue, and scene; playback/lookup execution was stubbed.');
             continue;
         }
         const actions = outputs.filter(output => output.execution === 'prepared');

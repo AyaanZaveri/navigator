@@ -52,6 +52,7 @@ const success = () => ({ text: '{"name":"fine"}', output: { name: 'fine' }, fini
 
   calls = []; behavior = () => ({ text: 'not json', finishReason: 'stop' });
   await assert.rejects(generate(base)); assert.equal(calls.length, 2);
+  assert.equal(calls[1].output, undefined, 'Empty native generation recovers through the locally validated JSON protocol rather than repeating the same format');
   calls = []; behavior = () => ({ text: '{"name":2}', finishReason: 'stop' });
   await assert.rejects(generate(base)); assert.equal(calls.length, 2);
 
@@ -96,6 +97,18 @@ const success = () => ({ text: '{"name":"fine"}', output: { name: 'fine' }, fini
   } });
   assert.equal((await generate({ ...base, model: fallback })).output.name, 'fallback-sdk');
   assert.equal(fallbackCalls, 2);
+
+  let emptyNativeCalls = 0;
+  const emptyNative = new MockLanguageModelV4({ doGenerate: async options => {
+    emptyNativeCalls++;
+    if (emptyNativeCalls === 1) return { content: [{ type: 'reasoning', text: 'Hidden reasoning consumes the output budget.' }], warnings: [], usage,
+      finishReason: { unified: 'length', raw: 'length' } };
+    assert.equal(options.responseFormat, undefined, 'No final object changes protocol on its single recovery call');
+    assert.match(JSON.stringify(options.prompt), /previous attempt did not produce/);
+    return generated('{"name":"recovered-final-answer"}');
+  } });
+  assert.equal((await generate({ ...base, model: emptyNative })).output.name, 'recovered-final-answer');
+  assert.equal(emptyNativeCalls, 2);
 
   let deadlineCalls = 0;
   const deadlineModel = new MockLanguageModelV4({ doGenerate: async options => {

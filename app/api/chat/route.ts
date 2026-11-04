@@ -325,7 +325,7 @@ export async function POST(req: Request) {
     } = {
         maxOutputTokens: 1400,
         maxRetries: 2,
-        ...navigatorRoutingSettings(model),
+        ...navigatorRoutingSettings(model, "minimal", "tools"),
     };
 
         if (aiProvider === "cerebras") {
@@ -372,11 +372,31 @@ export async function POST(req: Request) {
                         return output;
                     } };
                 }
+                // A model can emit several action calls in one native step. Reserve
+                // preparation synchronously so parallel dispatch cannot launch twice.
+                let actionReserved = toolPolicy.actionHandled;
+                for (const name of actionToolNames) {
+                    const definition = progressTools[name];
+                    if (!definition?.execute) continue;
+                    progressTools[name] = { ...definition, execute: async (input, options) => {
+                        if (actionReserved) return { success: false, error: "An action has already been prepared or handled for this turn. Do not repeat it." };
+                        actionReserved = true;
+                        try {
+                            const output = await definition.execute!(input, options);
+                            if (record(output).execution !== "prepared") actionReserved = false;
+                            return output;
+                        } catch (error) {
+                            actionReserved = false;
+                            throw error;
+                        }
+                    } };
+                }
                 const stepPolicy = (steps: Array<{ toolResults: Array<{ toolName: string }> }>) => {
                     const evidenceAttempted = steps.some(step => step.toolResults.some(result => toolPolicy.evidenceTools.includes(result.toolName)));
                     const needEvidence = toolPolicy.evidenceTools.length > 0 && !evidenceAttempted;
                     const activeTools = Object.keys(generationTools).filter(name =>
                         (currentMedia || !["explainScene", "analyzeMedia"].includes(name))
+                        && (!actionReserved || !actionToolNames.has(name))
                         && (!toolPolicy.playback || !["navigateToMedia", "navigateToEpisode", "navigateToMediaByQuery"].includes(name))
                         && (!toolPolicy.initialTools || steps.length > 0 || toolPolicy.initialTools.includes(name))
                         && (!needEvidence || toolPolicy.evidenceLookupTools.includes(name)));

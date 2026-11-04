@@ -31,7 +31,7 @@ async function main() {
         ai: { ...ai, generateText: async options => {
             prompts.push(options.prompt);
             if (options.prompt.startsWith('Resolve a possibly misspelled')) return { output: { title: 'Late Bloomer', sourceId: 'web:1', quote: mode === 'title-repair-invalid' ? 'invented title evidence' : 'Late Bloomer' } };
-            if (options.prompt.startsWith('Write one complementary')) return { output: { query: '"Late Bloomer" translated dialogue scene' } };
+            if (options.prompt.startsWith('Write one complementary')) return { output: { query: mode === 'bad-refinement' ? '`' : '"Late Bloomer" translated dialogue scene' } };
             const isWeb = options.prompt.includes('web:1');
             const eligible = options.prompt.split('Evidence sources:')[0].includes('tmdb:58957:4:4');
             if (mode === 'clue-only' && isWeb) return { output: { status: 'not_found', evidence: [], clueEvidence: [{ passageId: 'web:1:p1' }] } };
@@ -70,6 +70,10 @@ async function main() {
         return module.exports;
     }
     const { resolveEpisode } = load('lib/episode-discovery.ts');
+    const { refineEpisodeWebQuery, episodeWebQuery } = load('lib/episode-web-plan.ts');
+    mode = 'bad-refinement';
+    assert.equal(await refineEpisodeWebQuery('Nathan for You', 'a remembered episode clue', [], { modelId: 'mock', provider: 'mock' }), episodeWebQuery('Nathan for You', 'a remembered episode clue'), 'Formatting-only refinements must retain the meaningful original search query');
+    mode = 'web';
     const { indexEvidence, resolveEvidencePassage } = load('lib/navigator-evidence.ts');
     const longEvidence = [{ id: 'long:source', title: 'Full source', url: 'https://example.com/full', text: `${'αβγ '.repeat(1400)}TAIL_MARKER` }];
     const indexedLong = indexEvidence(longEvidence);
