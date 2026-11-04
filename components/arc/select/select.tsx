@@ -6,6 +6,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { Variants } from "motion/react";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./select.module.css";
 
@@ -18,7 +19,7 @@ export interface SelectProps extends Omit<ComponentPropsWithoutRef<typeof Select
   placeholder?: string;
   id?: string;
   className?: string;
-  options: { value: string; label: string; disabled?: boolean; icon?: ReactNode }[];
+  options: { value: string; label: string; disabled?: boolean; icon?: ReactNode; badge?: string }[];
 }
 
 /** The shown value rolls in the direction of the list: a later option rises from below, an earlier one drops from above. */
@@ -65,6 +66,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                             <motion.span key={currentValue ? `value-${currentValue}` : "placeholder"} data-placeholder={currentValue ? undefined : ""} custom={direction} variants={reduceMotion ? valueFade : valueRoll} initial="enter" animate="center" exit="exit">{shown}</motion.span>
                         </AnimatePresence>
                     </span>
+                    {options[index]?.badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{options[index].badge}</Badge>}
                     <SelectPrimitive.Icon className={styles.chevron}>
                         <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
                     </SelectPrimitive.Icon>
@@ -79,6 +81,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                                 <SelectPrimitive.Item key={option.value} value={option.value} disabled={option.disabled} className={styles.item}>
                                     {option.icon && <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span>}
                                     <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                                    {option.badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{option.badge}</Badge>}
                                     <SelectPrimitive.ItemIndicator className={styles.indicator}>
                                         <Check size={16} strokeWidth={1.75} aria-hidden="true" />
                                     </SelectPrimitive.ItemIndicator>

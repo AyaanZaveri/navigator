@@ -1,15 +1,12 @@
 "use client";
 
-import { ChevronDown, Globe2 } from "lucide-react";
+import { Globe2 } from "lucide-react";
 import { useSettings } from "@/contexts/settings-context";
 import { PLAYBACK_LANGUAGES, PLAYBACK_LANGUAGE_LABELS } from "@/lib/media/playback-preferences";
 import { trackFlagPath } from "@/lib/media/track-flags";
 import { trackLanguage } from "@/lib/media/track-label";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuOptions } from "@/components/arc/dropdown-menu/dropdown-menu";
 import { Select } from "@/components/arc/select/select";
 import { Switch } from "@/components/arc/switch/switch";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Field, FieldGroup, FieldLabel, FieldDescription, FieldContent } from "@/components/ui/field";
 import styles from "@/app/(main)/settings/settings.module.css";
 
@@ -28,20 +25,11 @@ function LanguageSelect({ id, label, value, onChange }: { id: string; label: str
   // Retain a stored regional language (e.g. pt-BR) alongside the base languages.
   const options = languages.some(option => option.value === value) ? languages : [language, ...languages];
   return <Field>
-    <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button id={id} variant="outline" className="w-full justify-start" aria-label={`${label}: ${language.label}`}>
-          {language.flag ? <img src={language.flag} width={14} height={14} alt="" className="rounded-full" /> : <Globe2 aria-hidden="true" />}
-          <span className="min-w-0 truncate">{language.label}</span>
-          {language.badge && <Badge variant="outline">{language.badge}</Badge>}
-          <ChevronDown className="ms-auto" aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" style={{ width: "var(--radix-dropdown-menu-trigger-width)", minWidth: "min(18rem, calc(100vw - 24px))" }}>
-        <DropdownMenuGroup><DropdownMenuOptions value={value} onValueChange={onChange} options={options} /></DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Select id={id} label={label} value={value} onValueChange={onChange}
+      options={options.map(option => ({
+        ...option,
+        icon: option.flag ? <img src={option.flag} width={14} height={14} alt="" draggable={false} className="rounded-full" /> : <Globe2 aria-hidden="true" />,
+      }))} />
   </Field>;
 }
 

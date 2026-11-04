@@ -182,12 +182,12 @@ function find(node, predicate) {
   return [...(predicate(node) ? [node] : []), ...find(node.props?.children, predicate)];
 }
 const languageField = find(PlaybackLanguageSettings(), node => node.props?.id === 'preferred-subtitle-language')[0];
-const rows = find(languageField.type(languageField.props), node => node.type === 'Options')[0].props.options;
+const rows = find(languageField.type(languageField.props), node => node.type === 'Select')[0].props.options;
 assert.equal(rows[0].label, 'English');
 assert.equal(rows.length, preferences.PLAYBACK_LANGUAGES.length);
 assert.ok(rows.every(row => row.label && row.label !== 'Unknown language' && row.badge && row.flag));
 assert.equal(rows.find(row => row.value === 'bs').label, 'Bosnian');
 assert.equal(rows.find(row => row.value === 'pt-BR').label, 'Portuguese (Brazil)');
-const legacy = find(languageField.type({ ...languageField.props, value: 'eo' }), node => node.type === 'Options')[0].props.options;
+const legacy = find(languageField.type({ ...languageField.props, value: 'eo' }), node => node.type === 'Select')[0].props.options;
 assert.equal(legacy[0].value, 'eo'); assert.notEqual(legacy[0].label, 'Unknown language');
 console.log(`PASS: ${rows.length} named common-language choices with flags, incomplete browser dictionary fallback and saved preference compatibility`);

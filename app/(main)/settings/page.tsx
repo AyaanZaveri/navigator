@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
-import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
 import { OpenCodeIcon } from "@/components/opencode-icon";
 import { ModelIcon } from "@/components/model-icon";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
@@ -96,7 +96,7 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
     return (
         <Field>
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
-            <InputGroup>
+            <InputGroup className={styles.apiKeyInput}>
                 <InputGroupInput
                     id={id}
                     type={type}
@@ -108,6 +108,9 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
                     autoCapitalize="none"
                     spellCheck={false}
                 />
+                <InputGroupAddon align="inline-start">
+                    {type === "url" ? <Link2 aria-hidden="true" /> : <Cpu aria-hidden="true" />}
+                </InputGroupAddon>
             </InputGroup>
             <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
         </Field>
@@ -301,6 +304,7 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
     return (
         <Field data-disabled={unavailable || undefined}>
             <Combobox
+                className={styles.providerInput}
                 id={id}
                 label="Model"
                 value={value}
@@ -367,8 +371,6 @@ export default function SettingsPage() {
         setCerebrasApiKey,
         opencodeApiKey,
         setOpencodeApiKey,
-        analysisModel,
-        setAnalysisModel,
     } = useSettings();
 
     const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
@@ -783,15 +785,6 @@ export default function SettingsPage() {
                                         description={currentModel.description}
                                     />
                                 )}
-
-                                <SettingsInput
-                                    id="navigator-analysis-model"
-                                    label="Scene analysis model"
-                                    value={analysisModel}
-                                    onValueChange={setAnalysisModel}
-                                    placeholder="Same as response model"
-                                    description="Optional model ID from this provider for scene explanations and subtitle search. Leave blank to use your response model."
-                                />
 
                                 {aiProvider === "openrouter" && (
                                     <SettingsSelect
