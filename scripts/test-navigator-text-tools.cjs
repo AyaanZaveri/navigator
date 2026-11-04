@@ -44,7 +44,7 @@ async function main() {
     writer: { write: event => events.push(event) }, policy: () => ({ activeTools: ['lookup', 'playMedia'], toolChoice: 'required' }) };
   assert.equal(needsTextToolLoop(model), true);
   assert.equal(needsTextToolLoop({ provider: 'opencode.chat', modelId: 'claude-haiku-5-5' }), false);
-  assert.equal(needsTextToolLoop({ provider: 'opencode.chat', modelId: 'deepseek-v4.1-flash' }), true, 'Known stalled native tool streams use validated decisions, not a different model');
+  assert.equal(needsTextToolLoop({ provider: 'opencode.chat', modelId: 'deepseek-v4.1-flash' }), false, 'DeepSeek uses the native AI SDK tool loop');
   await runTextToolLoop(options);
   assert.equal(calls, 3);
   assert.equal(lookups, 1, 'Invalid arguments must never reach execute');
@@ -74,16 +74,8 @@ async function main() {
   assert.equal(calls, 3, 'User cancellation must not generate or execute anything');
 
   const turn = text => [{ id: 'u', role: 'user', parts: [{ type: 'text', text }] }];
-  assert.equal(navigatorToolPolicy(turn('Who directed Interstellar?')).evidenceTools.includes('getMediaDetails'), true);
-  assert.equal(navigatorToolPolicy(turn('Who created you?')).evidenceTools.length, 0);
-  assert.equal(navigatorToolPolicy(turn('Play Interstellar')).playback, true);
-  assert.equal(navigatorToolPolicy(turn('Play Interstellar and then open settings')).playback, false, 'Do not narrow compound requests into a different task');
-  assert.deepEqual([...navigatorToolPolicy(turn('Switch to light mode')).initialTools], ['themeToggle']);
-  assert.equal(navigatorToolPolicy(turn('What is light mode?')).initialTools, undefined);
-  assert.equal(navigatorToolPolicy(turn('Thanks!')).requireInitialTool, false);
+  assert.deepEqual(Object.keys(navigatorToolPolicy(turn('Who directed Interstellar?'))), ['actionHandled']);
   const acknowledgedTheme = [...turn('Switch to light mode'), { id: 'a', role: 'assistant', parts: [{ type: 'tool-themeToggle', toolCallId: 'theme-1', state: 'output-available', input: { theme: 'light' }, output: { success: true, execution: 'completed' } }] }];
-  assert.equal(navigatorToolPolicy(acknowledgedTheme).requireInitialTool, false, 'The next HTTP request after acknowledgement must not force the same action again');
-  assert.equal(navigatorToolPolicy(acknowledgedTheme).initialTools, undefined);
   assert.equal(navigatorToolPolicy(acknowledgedTheme).actionHandled, true);
   console.log('PASS: real SDK text tool protocol, schema validation before dispatch, exactly-once prepared actions, cancellation, and task-specific tool policy.');
 }

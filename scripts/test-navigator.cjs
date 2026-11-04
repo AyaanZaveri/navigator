@@ -393,6 +393,10 @@ async function main() {
   // Scene playback must resolve subtitles without an active player or stream lookup.
   structured = { candidate: 1, confidence: 'high' };
   const idleTools = createAllTools(null, 0, analysisModel, new AbortController().signal);
+  const unverifiedNavigation = await idleTools.navigateToEpisode.execute({ verifiedEpisodeId: 'tmdb:58957:2:5' }, toolOptions);
+  assert.equal(unverifiedNavigation.success, false, 'A fabricated verifiedEpisodeId cannot prepare navigation');
+  const unverifiedPlayback = await idleTools.playMedia.execute({ verifiedEpisodeId: 'tmdb:58957:2:5', mediaId: 'tmdb:58957', mediaName: 'Nathan for You', mediaType: 'Episode' }, toolOptions);
+  assert.equal(unverifiedPlayback.success, false, 'A fabricated verifiedEpisodeId cannot prepare playback');
   const tinyfishToolsModule = load('lib/tinyfish.ts');
   const oldSearch = tinyfishToolsModule.searchTinyfish, oldRead = tinyfishToolsModule.fetchMediaWebSources;
   let selectedReads = 0;
@@ -408,11 +412,14 @@ async function main() {
   let searchSteps = 0;
   const priorFastModel = activeModel;
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
-    doStream: async () => { searchSteps++; return stream([{ type: 'tool-call', toolCallId: 'fast-search-once', toolName: 'searchMediaWeb', input: JSON.stringify({ query: 'Example', question: 'Search results and links only' }) }], 'tool-calls'); },
+    doStream: async () => { searchSteps++; return searchSteps === 1
+      ? stream([{ type: 'tool-call', toolCallId: 'fast-search-once', toolName: 'searchMediaWeb', input: JSON.stringify({ query: 'Example', question: 'Search results and links only' }) }], 'tool-calls')
+      : stream([{ type: 'text-start', id: 'links-answer' }, { type: 'text-delta', id: 'links-answer', delta: '[Source 0](https://example.com/0)' }, { type: 'text-end', id: 'links-answer' }], 'stop'); },
   });
   await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
     messages: [user('links-only', 'Search the web for Example, links only; do not fetch pages')] })));
-  assert.equal(searchSteps, 1, 'A links-only request finishes after Search, without another model step or top-up search');
+  assert.equal(searchSteps, 2, 'The agent sees search results and chooses to answer, with no regex-forced stop');
+  assert.equal(selectedReads, 1, 'The links-only turn does not fetch any additional pages');
   activeModel = priorFastModel;
   tinyfishToolsModule.searchTinyfish = oldSearch;
   tinyfishToolsModule.fetchMediaWebSources = oldRead;
@@ -592,15 +599,6 @@ async function main() {
   subtitleContent = beforeVerificationFixture;
 
 
-  assert.equal(chat.requestsScenePlayback([user('scene-intent', 'go to the blackhole scene in interstellar')]), true);
-  assert.equal(chat.requestsScenePlayback([user('confession', 'Go to the confession in Knives Out 3')]), true);
-  assert.equal(chat.requestsScenePlayback([user('episode-only', 'go to the episode of Nathan for You where he goes on Jimmy Kimmel')]), false);
-  assert.equal(chat.requestsScenePlayback([user('fight', 'go to where he fights Conquest in Invincible')]), true);
-  assert.equal(chat.requestsScenePlayback([user('scene-question', 'What happens in the black hole scene?')]), false);
-  assert.equal(chat.requestsScenePlayback([user('discovery', 'Play movies like Interstellar')]), false);
-  assert.equal(chat.requestsScenePlayback([user('title-battle', 'Play Battle in Seattle')]), false);
-  assert.equal(chat.requestsScenePlayback([user('title-fight', 'Play Fight Club')]), false);
-  assert.equal(chat.requestsScenePlayback([user('title-when', 'Play When Harry Met Sally')]), false);
   const { explicitSceneCoordinates, parseScenePlaybackCommand } = load('lib/navigator-scene-intent.ts');
   assert.deepEqual(clone(explicitSceneCoordinates('Can you play that one episode of Nathan for You where he goes on Jimmy Kimmel')), {});
   assert.deepEqual(clone(explicitSceneCoordinates('go to the scene in S4E5')), { seasonNumber: 4, episodeNumber: 5 });
@@ -611,23 +609,20 @@ async function main() {
   assert.equal(parseScenePlaybackCommand('play the black hole scene in that movie'), null);
   assert.equal(parseScenePlaybackCommand('what happens in the black hole scene in Interstellar?'), null);
   assert.equal(parseScenePlaybackCommand('play the black hole scene in Interstellar and explain it'), null);
-  let sceneRouterCalls = 0, scenePlanCalls = 0;
+  let sceneRouterCalls = 0;
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor',
-    doStream: async () => { sceneRouterCalls++; throw new Error('A scene workflow must execute instead of generating an ungrounded confirmation'); },
-    doGenerate: async () => { scenePlanCalls++; return { content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }; },
+    doStream: async () => { sceneRouterCalls++; return stream([{ type: 'tool-call', toolCallId: 'agent-selected-scene', toolName: 'skipToSubtitleContent', input: JSON.stringify({ mediaQuery: 'Example', userDescription: 'a scene' }) }], 'tool-calls'); },
+    doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }),
   });
   const directSceneResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
     aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
     messages: [user('compound-scene', 'Go to a scene in Example')] })));
-  assert.equal(sceneRouterCalls, 0, 'Explicit Muse scene requests use structured intent plus server execution, not free-form claims');
-  assert.equal(scenePlanCalls, 2, 'Explicit scene/title grammar needs selection and local verification, not another routing call');
+  assert.equal(sceneRouterCalls, 1, 'The agent selects the scene tool through the native tool loop');
   const directScenePart = directSceneResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
   assert.equal(directScenePart.output.success, true);
-  assert.equal(chat.attemptedScenePlayback([user('compound-scene', 'Go to a scene in Example'), directSceneResponse]), true, 'The completed/prepared action must not be forced again on continuation');
   assert.equal(directScenePart.output.action, 'play');
   assert.equal(typeof directScenePart.output.timings.matchSceneMs, 'number', 'Scene results expose timings for diagnosis');
   assert.equal(chat.modelToolOutput('skipToSubtitleContent', directScenePart.output).timings, undefined, 'Timing diagnostics do not inflate future model context');
-  assert.equal(directScenePart.output.timings.intentSource, 'literal');
   const streamedProgress = directSceneResponse.parts.filter(part => part.type === 'data-sceneProgress');
   assert.deepEqual(Array.from(streamedProgress, part => part.data.stage), ['title', 'subtitles', 'scene']);
   assert.ok(streamedProgress.every(part => part.data.state === 'completed'), 'SDK must update each stage in place rather than append duplicate traces');
@@ -640,50 +635,16 @@ async function main() {
     assert.equal(JSON.parse(line.slice('Original user request (verbatim JSON string): '.length)), expected);
     assert.match(prompt, /By.*goes on.*Jimmy Kimmel/, 'The final model receives earlier reference-resolving dialogue');
   };
-  subtitleContent = '1\n00:00:05,000 --> 00:00:08,000\nEarlier evidence\n';
-  tmdbSearchFixtures = [{ id: 114294, name: 'The Curse', media_type: 'tv' }];
-  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor',
-    doStream: async () => { throw new Error('Combined episode/scene requests stay in the scene workflow'); },
-    doGenerate: async options => {
-      if (JSON.stringify(options.prompt).includes('Extract a scene-playback request')) {
-        const schema = options.responseFormat.schema;
-        assert.deepEqual([...schema.required].sort(), Object.keys(schema.properties).sort(), 'Muse strict intent schemas require every property; unused fields must be nullable');
-      }
-      if (JSON.stringify(options.prompt).includes('Task: Select the one-based candidate')) compoundMatchPrompt = modelPromptText(options);
-      return { content: [{ type: 'text', text: JSON.stringify(
-      JSON.stringify(options.prompt).includes('Extract a scene-playback request')
-        ? { mediaQuery: 'The Curse', episodeQuery: 'Land of Enchantment', userDescription: 'Earlier evidence', seasonNumber: 0, episodeNumber: null }
-        : { candidate: 1, confidence: 'high' }
-    ) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }; },
+  let typoEpisodeCalls = 0;
+  const typoPrompt = 'Go to the peisode of Nathan for u where he takes the paper frlm the laywer';
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
+    doStream: async () => { typoEpisodeCalls++; return stream([{ type: 'tool-call', toolCallId: 'agent-episode', toolName: 'navigateToEpisode', input: JSON.stringify({ seriesQuery: 'Nathan for You', episodeQuery: typoPrompt }) }], 'tool-calls'); },
   });
-  for (const sceneModel of ['muse-spark-1.3-contributor', 'gpt-6-luna']) {
-  activeModel.modelId = sceneModel;
-  const compoundEpisodeResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
-    aiProvider: 'opencode', opencodeModel: sceneModel, opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
-     messages: [sceneHistory.at(-2), user('episode-and-scene', `${originalSceneRequest}\n${'additional context '.repeat(300)}Only the actual appearance — not rehearsal.`)] })));
-  const compoundEpisodePart = compoundEpisodeResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
-  assert.equal(compoundEpisodePart.input.seasonNumber, undefined, 'The planner cannot add a season the user did not specify');
-  assert.equal(compoundEpisodePart.input.episodeQuery, 'Land of Enchantment', 'Intent extraction preserves the episode clue separately from the scene');
-  assert.equal(compoundEpisodePart.output.success, true);
-  assert.match(compoundMatchPrompt, /Episode request context:.*Land of Enchantment/, 'Episode clues must reach scene matching, not disappear after episode discovery');
-  assertOriginalSceneRequest(compoundMatchPrompt, `${originalSceneRequest}\n${'additional context '.repeat(300)}Only the actual appearance — not rehearsal.`);
-  assert.match(compoundMatchPrompt, /Resolved media metadata:.*Land of Enchantment/, 'Resolved episode metadata reaches scene matching');
-  assert.equal(compoundEpisodePart.output.resumePositionTicks, 5, 'One prepared action starts at the matched scene');
-  assert.equal(compoundEpisodePart.output.mediaId, 'tt13623608:1:1');
-  assert.ok(compoundEpisodeResponse.parts.some(part => part.type === 'data-episodeProgress' && part.data.catalog?.seriesName === 'The Curse'), 'Combined requests stream episode lookup cards');
-  }
-  const { scenePlaybackResponse } = load('app/tools/scene-workflow.ts');
-  const droppedEpisodeRequest = 'Play that one episode in The Curse where they discuss Land of Enchantment, and skip to the discussion';
-  let recoveredEpisodeInput;
-  const droppedEpisodeModel = new MockLanguageModelV4({ doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ mediaQuery: 'The Curse', userDescription: 'the discussion', episodeQuery: null, seasonNumber: null, episodeNumber: null }) }],
-    usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }) });
-  await readResponse(scenePlaybackResponse({ model: droppedEpisodeModel,
-    messages: [{ role: 'user', content: droppedEpisodeRequest }], originalMessages: [user('dropped-episode-context', droppedEpisodeRequest)],
-    tools: { skipToSubtitleContent: ai.tool({ inputSchema: zod.z.object({}), execute: async input => { recoveredEpisodeInput = input; return { success: false, error: 'Stubbed after context inspection' }; } }) },
-    context: {}, signal: new AbortController().signal, onError: error => String(error) }));
-  assert.equal(recoveredEpisodeInput.episodeQuery, droppedEpisodeRequest, 'A null extracted episode clue must not erase a user-supplied remembered-episode description');
-  subtitleContent = previousCompoundSubtitles;
-  tmdbSearchFixtures = undefined;
+  const typoEpisodeResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'gpt-6-luna', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('typo-episode', typoPrompt)] })));
+  assert.equal(typoEpisodeCalls, 1, 'The model, rather than a text regex, selects episode navigation for the misspelled request');
+  assert.equal(typoEpisodeResponse.parts.find(part => part.type === 'tool-navigateToEpisode').input.episodeQuery, typoPrompt);
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
     doStream: async () => stream([{ type: 'tool-call', toolCallId: 'luna-scene-progress', toolName: 'skipToSubtitleContent', input: JSON.stringify({ mediaQuery: 'Example', userDescription: 'a fresh semantic scene for Luna' }) }], 'tool-calls'),
     doGenerate: async options => {
@@ -715,29 +676,6 @@ async function main() {
     messages: [user('failed-scene-no-fallback', 'I would like a nonexistent scene in Example')] })));
   assert.equal(failedSceneTurn.parts.find(part => part.type === 'tool-skipToSubtitleContent').output.success, false);
   assert.equal(failedSceneSteps, 1, 'A failed scene seek must end the turn instead of giving the agent a chance to substitute navigation/playback');
-  let freeformCalls = 0;
-  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async () => {
-    freeformCalls++;
-    return { content: [{ type: 'text', text: JSON.stringify(freeformCalls === 1
-      ? { mediaQuery: 'Example', userDescription: 'a barn scene with a fresh description', seasonNumber: null, episodeNumber: null, episodeQuery: null }
-      : { candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
-  } });
-  const freeformScene = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
-    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
-    messages: [user('freeform-scene', 'Go to the scene in the barn from Example')] })));
-  const freeformPart = freeformScene.parts.find(part => part.type === 'tool-skipToSubtitleContent');
-  assert.equal(freeformPart.output.success, true);
-  assert.equal(freeformPart.output.timings.intentSource, 'model');
-  assert.equal(freeformCalls, 3, 'Ambiguous boundaries use structured intent, scene selection, and local verification');
-  tmdbSearchFixtures = [movieFixture, { ...movieFixture, id: 124, release_date: '2021-01-01' }];
-  const ambiguousWorkflow = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
-    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
-    messages: [user('ambiguous-once', 'play the confession scene in Example')] })));
-  const ambiguousPart = ambiguousWorkflow.parts.find(part => part.type === 'tool-skipToSubtitleContent');
-  assert.equal(ambiguousPart.output.success, false);
-  assert.equal(ambiguousWorkflow.parts.filter(part => part.type === 'text' && part.text === ambiguousPart.output.error).length, 0, 'The failed tool already displays its error; do not emit duplicate text');
-  tmdbSearchFixtures = undefined;
-
 
 
   activeModel = new MockLanguageModelV4({ provider: 'openai-compatible.chat', modelId: 'gpt-6-luna',

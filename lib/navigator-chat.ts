@@ -151,27 +151,3 @@ export function readNavigatorHistory(value: string | null): UIMessage[] {
       && message.parts.every((part: unknown) => typeof record(part).type === "string")).slice(-80);
     } catch { return []; }
 }
-
-/** Require execution for an explicit scene-playback command, while leaving questions/discovery unrestricted. */
-export function requestsScenePlayback(messages: UIMessage[]): boolean {
-    const lastUser = messages.findLast(message => message.role === "user");
-    const text = lastUser?.parts.filter(part => part.type === "text").map(part => record(part).text).join(" ").trim() || "";
-    return /^(?:(?:please|can you|could you|would you)\s+)*(?:go\s+to|jump\s+to|skip(?:\s+to)?|take\s+me\s+to|play|start)\b/i.test(text)
-        && (/\b(?:scene|moment)\b/i.test(text)
-            || (!/\bepisode\b/i.test(text)
-                && !/^(?:(?:please|can you|could you|would you)\s+)*(?:play|start)\b/i.test(text)
-                && /\b(?:where|when|confession|fight|fights|battle|kiss|kisses)\b/i.test(text)));
-}
-
-export function attemptedScenePlayback(messages: UIMessage[]): boolean {
-    const turn = messages.slice(messages.findLastIndex(message => message.role === "user") + 1);
-    return turn.some(message => message.role === "assistant" && message.parts.some(part => part.type === "tool-skipToSubtitleContent"));
-}
-
-/** Explicit link/result requests end at Search; factual research can choose selected pages afterward. */
-export function requestsWebSearchResults(messages: UIMessage[]): boolean {
-    const lastUser = messages.findLast(message => message.role === "user");
-    const text = lastUser?.parts.filter(part => part.type === "text").map(part => record(part).text).join(" ") || "";
-    return /\b(?:search|find|look up)\b/i.test(text)
-        && /\b(?:search results|results and links|links only|results only|do not (?:read|fetch)|don['’]t (?:read|fetch))\b/i.test(text);
-}

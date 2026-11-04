@@ -7,7 +7,7 @@ import { navigatorRoutingSettings } from "@/lib/navigator-model-settings";
 /** Some endpoints advertise native tools but emit malformed calls or stall their tool stream. */
 export function needsTextToolLoop(model: LanguageModel) {
     return typeof model !== "string" && model.provider.startsWith("opencode.")
-        && ["iceman-contributor-free", "deepseek-v4.1-flash"].includes(model.modelId);
+        && model.modelId === "iceman-contributor-free";
 }
 
 type Step = { toolResults: Array<{ toolName: string }> };

@@ -149,7 +149,10 @@ async function main() {
         const actions = outputs.filter(output => output.execution === 'prepared');
         assert.equal(actions.length, 1, 'Prepare exactly one supported action');
         assert.equal(actions[0].success, true);
-        assert.ok(actions[0].url === '/series/tt2297757/4/4' || actions[0].mediaId === 'tt2297757:4:4', 'Resolve The Anecdote in canonical TMDB order');
+        const expectedFlag = process.argv.indexOf('--expected-path');
+        const expectedPath = expectedFlag >= 0 ? process.argv[expectedFlag + 1] : '/series/tt2297757/4/4';
+        const [, , series, season, episode] = expectedPath.split('/');
+        assert.ok(actions[0].url === expectedPath || actions[0].mediaId === `${series}:${season}:${episode}`, `Resolve the expected episode ${expectedPath}`);
         if (inputs.some(input => input.toolName === 'skipToSubtitleContent')) {
             assert.ok(actions[0].timestamp > 0, 'Scene requests must prepare a verified subtitle timestamp, not just the episode');
             console.log(JSON.stringify({ timestamp: actions[0].timestamp, text: actions[0].text }));
@@ -159,6 +162,6 @@ async function main() {
             }
         }
     }
-    if (!process.argv.includes('--intent-only')) console.log('PASS: live source route prepares the verified S4E4 action. Browser execution is not part of this check.');
+    if (!process.argv.includes('--intent-only')) console.log('PASS: live source route prepares the expected verified episode action. Browser execution is not part of this check.');
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });
