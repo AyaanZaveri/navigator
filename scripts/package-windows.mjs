@@ -37,14 +37,14 @@ try {
 }
 
 export async function packageWindows(output, version) {
-  if (process.platform !== "win32" || process.arch !== "x64") throw new Error("The private Windows release must be packaged on Windows x64");
+  if (process.platform !== "win32" || process.arch !== "x64") throw new Error("The Windows release must be packaged on Windows x64");
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Windows packaging requires a numeric major.minor.patch version");
   const stem = join(dirname(output), `Navigator-${version}-windows-x64`);
   for (const path of [`${stem}-portable.zip`, `${stem}-setup.exe`]) {
     if (await access(path).then(() => true, () => false)) throw new Error(`Output already exists: ${path}`);
   }
   await copyFile(join(root, "assets/icons/windows/Navigator.ico"), join(output, "Navigator.ico"));
-  await writeFile(join(output, "WINDOWS-README.txt"), `Navigator ${version} — private Windows x64 build\r\n\r\nExtract the entire ZIP before opening navigator-desktop.exe.\r\nWindows 11 and Microsoft Edge WebView2 Evergreen Runtime are required.\r\nUse the setup.exe installer to install/repair a missing runtime automatically.\r\nSign-in and settings live in %LOCALAPPDATA%\\Navigator Desktop.\r\nStartup timings are in startup.jsonl in that folder.\r\nThis private build is unsigned; public signing and automatic updates are not included.\r\n`);
+  await writeFile(join(output, "WINDOWS-README.txt"), `Navigator ${version} — Windows x64 release\r\n\r\nExtract the entire ZIP before opening navigator-desktop.exe.\r\nWindows 11 and Microsoft Edge WebView2 Evergreen Runtime are required.\r\nUse the setup.exe installer to install/repair a missing runtime automatically.\r\nSign-in and settings live in %LOCALAPPDATA%\\Navigator Desktop.\r\nStartup timings are in startup.jsonl in that folder.\r\nThis build is unsigned; public signing and automatic updates are not included.\r\n`);
   await createWindowsZip(output, `${stem}-portable.zip`);
   const bootstrapper = join(dirname(output), "MicrosoftEdgeWebview2Setup.exe");
   const response = await fetch("https://go.microsoft.com/fwlink/p/?LinkId=2124703", { signal: AbortSignal.timeout(120000) });

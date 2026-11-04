@@ -14,7 +14,7 @@ Icon "${APP_ICON}"
 UninstallIcon "${APP_ICON}"
 VIProductVersion "${APP_VERSION}.0"
 VIAddVersionKey "ProductName" "Navigator"
-VIAddVersionKey "FileDescription" "Navigator private Windows installer"
+VIAddVersionKey "FileDescription" "Navigator Windows installer"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"
 VIAddVersionKey "LegalCopyright" "See bundled THIRD-PARTY.md and licenses"
 !define MUI_ABORTWARNING
