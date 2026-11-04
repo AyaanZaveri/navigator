@@ -34,6 +34,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
     const pathname = usePathname();
     const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat", body: () => requestBodyRef.current }), []);
     const taskStartTimeRef = useRef<number | null>(null);
+    const playbackHandoffTimeRef = useRef<number | null>(null);
     const activeTaskUserMessageIdRef = useRef<string | null>(null);
     const awaitingTaskUserMessageRef = useRef(false);
     const messagesRef = useRef<UIMessage[]>([]);
@@ -74,7 +75,8 @@ const AIAsk = ({ userId }: { userId: string }) => {
             return;
         }
 
-        const durationMs = Math.max(0, Date.now() - taskStartTimeRef.current);
+        // Playback loading and the confirmation reply do not measure Navigator's work.
+        const durationMs = Math.max(0, (playbackHandoffTimeRef.current ?? Date.now()) - taskStartTimeRef.current);
         const userIndex = taskMessages.findLastIndex(message => message.role === "user");
         const userMessageId = activeTaskUserMessageIdRef.current
             || (userIndex >= 0 ? getStableMessageId(taskMessages[userIndex], userIndex) : null);
@@ -238,6 +240,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
             case "play": {
                 if (!action.mediaId || !action.mediaName || !["Movie", "Series", "Episode"].includes(action.mediaType)) throw new Error("Missing playback details.");
                 const isEpisode = action.mediaType === "Episode";
+                playbackHandoffTimeRef.current = Date.now();
                 return await acknowledgePlayback(document, preparedToolCallId, () => playMedia({
                     navigatorActionId: preparedToolCallId,
                     resumePositionTicks: action.resumePositionTicks,
@@ -254,6 +257,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
             case "skipTo": {
                 if (!isPlayerVisible || !Number.isFinite(action.timestamp) || action.timestamp < 0) throw new Error("There is no active player to seek.");
                 skipToTimestamp(action.timestamp);
+                playbackHandoffTimeRef.current = Date.now();
                 setIsAskOpen(false);
                 return { success: true, status: "requested", message: `Requested a seek to ${action.timestampFormatted}.` };
             }
@@ -348,6 +352,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
             opencodeApiKey, opencodeSessionId,
         };
         taskStartTimeRef.current = Date.now();
+        playbackHandoffTimeRef.current = null;
         activeTaskUserMessageIdRef.current = null;
         awaitingTaskUserMessageRef.current = true;
         clearError();
