@@ -19,7 +19,7 @@ const segments = [
     { kind: 'credits', start: 1900, end: 2000, provider: 'theintrodb' },
 ];
 
-function harness() {
+function harness(initialSegments = segments) {
     const slots = [], effects = [];
     let cursor = 0;
     const element = new EventTarget();
@@ -29,7 +29,7 @@ function harness() {
     const hooks = {
         useState(initial) {
             const at = cursor++;
-            slots[at] ??= { value: at === 0 ? segments : typeof initial === 'function' ? initial() : initial };
+            slots[at] ??= { value: at === 0 ? initialSegments : typeof initial === 'function' ? initial() : initial };
             return [slots[at].value, value => { slots[at].value = typeof value === 'function' ? value(slots[at].value) : value; }];
         },
         useRef(initial) { return slots[cursor++] ??= { current: initial }; },
@@ -72,6 +72,15 @@ function harness() {
 }
 
 const player = harness();
+const approximate = harness([{ kind: 'intro', start: 72.7, end: 85.3, provider: 'skipdb', verification: 'unverified' }]);
+const approximateButton = approximate.render(73)('Skip Intro');
+assert.ok(approximateButton, 'Runtime-mismatched intros use the standard Skip Intro label');
+assert.equal(approximateButton.props.title, undefined);
+approximateButton.props.onClick({ stopPropagation() {} });
+assert.equal(approximate.element.currentTime, 85.3, 'A manual approximate skip uses the original boundary without a runtime-based shift');
+assert.equal(approximate.render(74)('Skip Intro'), null);
+const corroborated = harness([{ kind: 'intro', start: 72.7, end: 85.3, provider: 'skipdb', verification: 'corroborated' }]);
+assert.ok(corroborated.render(73)('Skip Intro'), 'Cross-provider agreement restores the normal label');
 const early = harness();
 assert.equal(early.render(27.99)('Skip Intro'), null);
 assert.ok(early.render(28)('Skip Intro'), 'An intro starting at 0:30 is offered two seconds early');

@@ -34,6 +34,12 @@ fn error(context: &str) -> String {
 
 impl Process {
     pub fn spawn(node: &Path, directory: &Path, port: u16) -> Result<Self, String> {
+        Self::spawn_script(node, directory, port, "server.js")
+    }
+    pub fn prepare_install(node: &Path, resources: &Path) -> Result<Self, String> {
+        Self::spawn_script(node, resources, 0, "prepare.cjs")
+    }
+    fn spawn_script(node: &Path, directory: &Path, port: u16, script: &str) -> Result<Self, String> {
         let overrides = [
             ("NODE_ENV", "production".to_string()),
             ("HOSTNAME", "127.0.0.1".into()),
@@ -63,7 +69,7 @@ impl Process {
         env.push(0);
         let executable = wide(node.as_os_str());
         let cwd = wide(directory.as_os_str());
-        let mut command = wide(OsStr::new(&format!("\"{}\" server.js", node.display())));
+        let mut command = wide(OsStr::new(&format!("\"{}\" {script}", node.display())));
         unsafe {
             let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
             if handle.is_null() {
@@ -141,6 +147,9 @@ impl Process {
         }
     }
     pub fn try_wait(&mut self) -> Result<Option<String>, String> {
+        self.try_exit_code().map(|code| code.map(|code| format!("exit code {code}")))
+    }
+    pub fn try_exit_code(&mut self) -> Result<Option<u32>, String> {
         unsafe {
             match WaitForSingleObject(self.process.as_raw_handle(), 0) {
                 WAIT_TIMEOUT => Ok(None),
@@ -149,7 +158,7 @@ impl Process {
                     if GetExitCodeProcess(self.process.as_raw_handle(), &mut code) == 0 {
                         return Err(error("Could not read backend status"));
                     }
-                    Ok(Some(format!("exit code {code}")))
+                    Ok(Some(code))
                 }
                 _ => Err(error("Could not wait for backend")),
             }

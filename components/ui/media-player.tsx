@@ -2704,7 +2704,7 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
         </Button>
       </DropdownMenuTrigger>
     </MediaPlayerTooltip>
-    <DropdownMenuContent container={context.rootRef.current ?? context.portalContainer} side="top" sideOffset={sideOffset}>
+    <DropdownMenuContent data-player-native-glass="" container={context.rootRef.current ?? context.portalContainer} side="top" sideOffset={sideOffset}>
       <DropdownMenuOptions value={String(mediaPlaybackRate)} onValueChange={value => onPlaybackRateChange(Number(value))}
         options={speeds.map(speed => ({ value: String(speed), label: `${speed}×` }))} />
     </DropdownMenuContent>
@@ -3099,9 +3099,10 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const onOpenChange = React.useCallback(
     (open: boolean) => {
       store.setState("menuOpen", open);
+      if (!open) context.subtitleTiming?.onClose();
       onOpenChangeProp?.(open);
     },
-    [store.setState, onOpenChangeProp]
+    [store.setState, onOpenChangeProp, context.subtitleTiming]
   );
 
   return (
@@ -3116,9 +3117,15 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
           </Button>
         </DropdownMenuTrigger>
       </MediaPlayerTooltip>
-      <DropdownMenuContent align="end" side="top" sideOffset={sideOffset}
+      <DropdownMenuContent data-player-native-glass="" align="end" side="top" sideOffset={sideOffset}
         container={context.rootRef.current ?? context.portalContainer}
         aria-label="Playback settings"
+        onInteractOutside={event => {
+          // The timing picker is a sibling portalled dialog. Keep this menu
+          // open while focus or the pointer moves into its controls.
+          const target = event.target as HTMLElement;
+          if (target.closest?.("[data-subtitle-timing]")) event.preventDefault();
+        }}
         className={playerSettingsStyles.settingsMenu}>
         <DropdownMenuLabel className="sr-only">Playback settings</DropdownMenuLabel>
         <DropdownMenuGroup>

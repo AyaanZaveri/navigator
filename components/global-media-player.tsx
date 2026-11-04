@@ -45,7 +45,7 @@ import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
 import { fetchPlaybackDetails } from "@/lib/media/fetch-playback-details";
 import { initialPlaybackDetails, mergePlaybackDetails } from "@/lib/media/playback-details";
-import { desktopBridge } from "@/lib/desktop/bridge";
+import { desktopBridge, recordDesktopStage } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
 import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
@@ -67,7 +67,7 @@ import {
 } from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
 import { SubtitleText } from "@/components/subtitle-text";
-import { SubtitleTimingDialog } from "@/components/subtitle-timing-dialog";
+import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
 import { useSubtitleTiming, subtitleTime } from "@/lib/media/subtitle-timing";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
@@ -108,6 +108,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
   const [nativePlayback] = useState(() => Boolean(desktopBridge()));
+  useEffect(() => { recordDesktopStage("player-mounted"); }, []);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
   const reportNavigatorPlayback = useCallback((state: "playing" | "error" | "closed", message?: string) => {
@@ -559,6 +560,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   );
 
   const loadMedia = useCallback(async (request: MediaToPlay, fallback = false) => {
+    recordDesktopStage("stream-resolving");
     const generation = ++loadGenerationRef.current;
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
@@ -663,6 +665,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
       if (!isCurrent()) return;
       // Keep an episode title that arrived while the source request was pending.
+      recordDesktopStage("stream-resolved");
       const earlyTitle = activeMedia.episodeTitle;
       activeMedia = { ...media, episodeTitle: earlyTitle || media.episodeTitle };
       sourceReady = true;
@@ -761,7 +764,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
-        subtitleTiming={{ seconds: subtitleTiming.seconds, onOpen: () => setTimingOpenKey(subtitleTiming.key) }}
+        subtitleTiming={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key), onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }}
         chapters={[]}
         onCustomSubtitleChange={(subtitleTrack) => {
           if (!subtitleTrack) {
@@ -805,7 +808,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           }
         }}
       >
-        <SubtitleTimingDialog open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
+        <SubtitleTimingPopover open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
           onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
           seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
           available={subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles}
@@ -888,7 +891,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
               data-player-loading-copy=""
-              className="absolute bottom-7 left-8 right-8"
+              className="absolute bottom-7 left-4 right-4"
             >
               <motion.div
                 initial={false}

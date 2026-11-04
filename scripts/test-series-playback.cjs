@@ -47,7 +47,7 @@ async function run() {
 
     const atoms = load('lib/atoms.ts', name => name === 'jotai'
         ? { atom: (initial, write) => ({ initial, write }) }
-        : name === '@/lib/media/playback-context' ? require('./test-support/playback-context.cjs') : artwork);
+        : name === '@/lib/media/playback-context' ? require('./test-support/playback-context.cjs') : name === '@/lib/desktop/bridge' ? { recordDesktopStage() {} } : artwork);
     const updates = new Map();
     const play = request => atoms.playMediaAtom.write(() => {}, (key, value) => updates.set(key, value), request);
     play({ id: 'tt123', type: 'series', mediaSourceId: 'tt123:0:1', backdropUrl: '/episode-still.jpg' });

@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-const css = new Map(), timers = new Map(), events = new Map(), sent = [];
+const css = new Map(), timers = new Map(), frames = new Map(), events = new Map(), sent = [];
 let mutation, insets, receive, callback, id = 0, reads = 0;
 function node(left, top, hidden) {
   const attrs = new Map(hidden ? [['aria-hidden', 'true']] : []);
@@ -19,6 +19,7 @@ const document = { hidden: false, body: {}, querySelectorAll: () => nodes,
 const bridge = { platform: 'android', capabilities: { glass: true }, send: message => sent.push(message), subscribe(fn) { receive = fn; return () => { receive = null; }; } };
 const context = { exports: {}, document, getComputedStyle: node => ({ visibility: node.visible ? 'visible' : 'hidden' }),
   window: { innerWidth: 1000, innerHeight: 500, addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) },
+  requestAnimationFrame(fn) { frames.set(++id, fn); return id; }, cancelAnimationFrame(id) { frames.delete(id); },
   setTimeout(fn) { timers.set(++id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe(target) { if (target === document.body) mutation = this.fn; else insets = this.fn; } disconnect() {} },
   require(name) { if (name === 'react') return { useEffect(fn) { callback = fn; } }; if (name.endsWith('/bridge')) return { desktopBridge: () => bridge }; return {}; } };
@@ -68,4 +69,18 @@ back.visible = true; mutation([{ type: 'attributes' }]);
 document.hidden = true; events.get('visibilitychange')();
 assert.equal(sent.at(-1).active, false, 'Backgrounding stops video readback');
 cleanup(); assert.equal(back.props.size, 0); assert.equal(preview.props.size, 0); assert.equal(skip.props.size, 0); assert.equal(css.size, 0); assert.equal(events.size, 0); assert.equal(timers.size, 0); assert.equal(receive, null);
+document.hidden = false;
+bridge.platform = 'windows';
+context.exports.NativePlayerGlass({ mediaRef: { current: { controller: { previewSession: 'current' } } }, sourceKey: 'windows', ready: true });
+const windowsCleanup = callback();
+assert.equal(sent.at(-1).active, true, 'Windows advertises and requests actual video glass');
+receive({ type: 'glass-frame', session: 'current', src: 'data:image/bmp;base64,Qk0=' });
+assert.equal(frames.size, 1);
+receive({ type: 'glass-frame', session: 'current', src: 'data:image/bmp;base64,LATEST' });
+assert.equal(frames.size, 1, 'A burst of Windows samples queues only one display frame');
+for (const [id, draw] of frames) { frames.delete(id); draw(); }
+assert.ok(back.props.get('--native-glass-image').includes('LATEST'), 'Only the newest Windows sample paints');
+receive({ type: 'glass-frame', session: 'current', src: 'data:image/bmp;base64,CANCEL' });
+windowsCleanup();
+assert.equal(frames.size, 0, 'Unmount cancels pending Windows glass paint');
 console.log('PASS: native glass demand, source isolation, bounded geometry updates, visibility/background cancellation and cleanup');

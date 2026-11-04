@@ -49,25 +49,94 @@ assert.equal(find(timing.subtitleTime(9,0)), null);
 assert.equal(find(timing.subtitleTime(9,-1)).text, 'Hello', 'Paused time can select a new cue after adjustment');
 assert.match(source, /\[currentTime, findCurrentSubtitle, subtitleTiming\.seconds\]/);
 
-const { SubtitleTimingDialog } = load('components/subtitle-timing-dialog.tsx', {
+
+const { SubtitleTimingPopover } = load('components/subtitle-timing-popover.tsx', {
+ react: { useId: () => 'timing-test-id', useRef: value => ({ current: value }) },
  'react/jsx-runtime': host.jsx,
- '@/components/arc/dialog/dialog': { Dialog: 'Dialog', DialogContent: 'DialogContent' },
- '@/components/arc/number-field/number-field': { NumberField: 'NumberField' },
+ '@/components/arc/popover/popover': { Popover: 'Popover', PopoverAnchor: 'PopoverAnchor', PopoverContent: 'PopoverContent', PopoverClose: 'PopoverClose' },
+ '@/components/arc/ruler-slider/ruler-slider': { RulerSlider: 'RulerSlider' },
  '@/components/ui/button': { Button: 'Button' },
- '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup' },
  '@/lib/media/subtitle-timing': timing,
+ './subtitle-timing-popover.module.css': {},
+ './arc/floating-surface.module.css': {},
 });
 function all(tree, type) {
  if (Array.isArray(tree)) return tree.flatMap(child => all(child, type));
  if (!tree || typeof tree !== 'object') return [];
  return [...(tree.type === type ? [tree] : []), ...all(tree.props?.children, type)];
 }
-let focused = false, prevented = false;
-const container = { querySelector: () => ({ focus: () => { focused = true; } }) };
-const dialog = SubtitleTimingDialog({ open: true, onOpenChange() {}, seconds: 1, onChange() {}, available: false, container });
-assert.equal(all(dialog,'DialogContent')[0].props.container, container, 'Dialog stays inside the fullscreen player');
-assert.equal(all(dialog,'NumberField')[0].props.disabled, true, 'Embedded tracks must not offer nonfunctional timing');
-assert.match(all(dialog,'NumberField')[0].props.description, /Embedded subtitle timing is not supported/);
-all(dialog,'DialogContent')[0].props.onCloseAutoFocus({ preventDefault() { prevented = true; } });
-assert.ok(focused && prevented, 'Closing the dialog returns focus to the persistent settings trigger');
-console.log('PASS: subtitle timing direction, cue boundaries, limits, reset and per-video isolation');
+let focused = false, prevented = false, changed;
+const menu = {};
+const anchor = { ownerDocument: { activeElement: null }, closest: () => menu, isConnected: true, contains: () => false, focus: () => { focused = true; } };
+const container = { querySelector: () => anchor };
+const renderPanel = (seconds, available = true) => SubtitleTimingPopover({
+ open: true, onOpenChange() {}, seconds, onChange: value => { changed = value; }, available, container,
+});
+let panel = renderPanel(1, false);
+assert.equal(panel.props.modal, false, 'Timing must not block or dim the video');
+assert.equal(all(panel,'PopoverContent')[0].props.container, container, 'Popover stays inside the fullscreen player');
+assert.equal(all(panel,'PopoverContent')[0].props.side, 'left', 'Timing opens beside Settings like the other nested panels');
+assert.equal(all(panel,'PopoverAnchor')[0].props.virtualRef.current, anchor, 'Anchor survives the settings menu unmount');
+assert.equal(all(panel,'RulerSlider')[0].props.disabled, true, 'Embedded tracks must not offer nonfunctional timing');
+assert.equal(all(panel,'p')[0].props.className, 'sr-only', 'Keep technical status out of the visible layout');
+assert.equal(all(panel,'RulerSlider')[0].props.hideLabel, true, 'Avoid repeating the heading above the ruler');
+all(panel,'PopoverContent')[0].props.onCloseAutoFocus({ preventDefault() { prevented = true; } });
+assert.ok(focused && prevented, 'Closing returns focus to the persistent settings trigger');
+let rulerFocused = false;
+all(panel,'PopoverContent')[0].props.onOpenAutoFocus({ currentTarget: { querySelector: () => ({ focus: () => { rulerFocused = true; } }) }, preventDefault() {} });
+assert.ok(rulerFocused, 'The ruler receives keyboard focus on open');
+panel = renderPanel(.3);
+const ruler = all(panel,'RulerSlider')[0];
+assert.equal(ruler.props.step, .1);
+assert.equal(ruler.props.largeStep, 1);
+assert.equal(ruler.props.min, -30);
+assert.equal(ruler.props.max, 30);
+assert.equal(ruler.props.format(.3), '+0.3');
+ruler.props.onValueChange(-.4); assert.equal(changed, -.4, 'Dragging updates the existing timing state immediately');
+const panelButtons = tree => [...all(tree,'Button'), ...all(all(tree,'RulerSlider')[0].props.valueStart,'Button'), ...all(all(tree,'RulerSlider')[0].props.valueEnd,'Button')];
+let buttons = panelButtons(panel);
+buttons.find(node => node.props['aria-label']?.endsWith('earlier')).props.onClick();
+assert.equal(changed, .2, 'Earlier nudges one tenth without floating-point drift');
+buttons.find(node => node.props['aria-label']?.endsWith('later')).props.onClick();
+assert.equal(changed, .4);
+buttons.find(node => node.props.children === 'Reset').props.onClick();
+assert.equal(changed, 0);
+assert.ok(all(panel,'p').some(node => String(node.props.children).includes('0.3 seconds later')));
+assert.ok(all(renderPanel(-.3),'p').some(node => String(node.props.children).includes('0.3 seconds earlier')));
+for (const [seconds, direction] of [[-30,'earlier'],[30,'later']]) {
+ const atLimit = panelButtons(renderPanel(seconds)).find(node => node.props['aria-label']?.endsWith(direction));
+ assert.equal(atLimit.props.disabled, true);
+}
+assert.equal(all(renderPanel(0),'Button').find(node => node.props.children === 'Reset').props.disabled, true);
+console.log('PASS: live ruler timing, precise nudges, limits, reset, embedded-track gating, fullscreen anchoring and focus return');
+
+focused = false;
+const closedOutside = all(panel,'PopoverContent')[0];
+closedOutside.props.onInteractOutside({ target: {}, preventDefault() {} });
+closedOutside.props.onCloseAutoFocus({ preventDefault() {} });
+assert.equal(focused, false, 'Outside interaction must retain the user\'s new focus target');
+
+// Reproduce the focus handoff Radix causes when the pointer leaves the row.
+panel = renderPanel(.3);
+const content = all(panel, 'PopoverContent')[0];
+prevented = false; focused = false;
+content.props.onInteractOutside({ target: menu, detail: { originalEvent: { type: 'focusin' } }, preventDefault() { prevented = true; } });
+assert.equal(prevented, true, 'Hover-induced menu focus must not dismiss the timing panel');
+content.props.onCloseAutoFocus({ preventDefault() {} });
+assert.equal(focused, true, 'An internal hover handoff must preserve focus return');
+prevented = false;
+content.props.onInteractOutside({ target: menu, detail: { originalEvent: { type: 'pointerdown' } }, preventDefault() { prevented = true; } });
+assert.equal(prevented, false, 'Real outside pointer interactions still dismiss the panel');
+assert.ok(Object.hasOwn(content.props, 'data-player-native-glass'), 'Timing participates in native menu glass');
+console.log('PASS: hover focus handoff stays open without blocking real outside dismissal');
+
+prevented = false;
+content.props.onInteractOutside({ target: {}, detail: { originalEvent: { type: 'focusin' } }, preventDefault() { prevented = true; } });
+assert.equal(prevented, true, 'Moving focus while hovering must never close a click-toggled panel');
+assert.equal(all(panel, 'PopoverClose').length, 0, 'Close via the timing toggle, outside press or Escape without a redundant X');
+
+focused = false;
+anchor.ownerDocument.activeElement = { closest: () => ({}) };
+all(renderPanel(.3), 'PopoverContent')[0].props.onCloseAutoFocus({ preventDefault() {} });
+assert.equal(focused, false, 'Switching to a sibling panel must not restore focus to Timing and collapse the new submenu');
+anchor.ownerDocument.activeElement = null;

@@ -21,7 +21,8 @@
 html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 /* The native bitmap supplies actual video pixels behind just these controls.
    A small clipped filter does not blur or replace the playing video surface. */
-[data-player-glass][data-native-glass] {
+[data-player-glass][data-native-glass],
+[data-player-native-glass][data-native-glass] {
   overflow: hidden;
   isolation: isolate;
   background: none;
@@ -54,6 +55,8 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 }
 /* Live sRGB canvases make web glass consistent across SDR/HDR compositing.
    The shared low-resolution frame is already blurred; these layers only crop it. */
+[data-player-glass][data-browser-glass],
+[data-player-native-glass][data-browser-glass],
 [data-browser-glass] {
   overflow: hidden;
   isolation: isolate;
@@ -86,6 +89,10 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   background-image: var(--browser-glass-sheen);
   transition: background-color 150ms var(--ease-out, ease-out);
 }
+[data-player-native-glass][data-native-glass]::after {
+  background-color: var(--native-glass-color);
+  background-image: var(--native-glass-sheen);
+}
 [data-native-glass]::after { transition: background-color 150ms var(--ease-out, ease-out); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   [data-player-glass],
@@ -107,7 +114,7 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 /* Override the original Android client offsets in both loading and playback. */
 html[data-native-engine="exoplayer"] [data-native-player-shell] [data-slot="media-player"] button[data-player-close][data-player-glass] {
   top: calc(1.25rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)));
-  left: calc(var(--navigator-player-back-left, 1rem) + .25rem);
+  left: var(--player-chrome-left);
 }
 @media (hover: hover) and (pointer: fine) {
   [data-player-glass][data-player-close]:enabled:hover,
@@ -201,4 +208,44 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
 @media (prefers-reduced-motion: reduce) {
   [data-scrub-mode="surface"] [data-slot="media-player-seek-range"],
   [data-slot="media-player-seek-tooltip"][data-seek-mode="surface"] { transition: none; }
+}
+
+/* Loading identity and Back share one stable edge. Keep it independent of
+   playback controls, whose mid-screen camera clearance can change later. */
+[data-player-shell] {
+  --player-chrome-left: max(1rem, var(--window-controls-inset, 0px), env(safe-area-inset-left, 0px));
+  --player-chrome-right: max(1rem, var(--navigator-safe-right, env(safe-area-inset-right, 0px)));
+}
+html[data-native-engine="exoplayer"] [data-player-shell] {
+  --player-chrome-left: calc(var(--navigator-player-back-left, 1rem) + .25rem);
+}
+html[data-native-platform="ios"] [data-player-shell] {
+  --player-chrome-left: calc(1rem + var(--native-safe-left, 0px));
+  --player-chrome-right: calc(1rem + var(--native-safe-right, 0px));
+}
+[data-player-shell] [data-player-close] {
+  left: var(--player-chrome-left);
+}
+/* The extra shell scope also wins over CSS injected by already installed APKs. */
+[data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
+  left: var(--player-chrome-left);
+  right: var(--player-chrome-right);
+}
+
+/* Web and Windows loading details align with playback text. Back keeps its
+   independent chrome gutter; touch-native players retain cutout handling. */
+html:not([data-native-platform]) [data-player-shell],
+html[data-native-platform="windows"] [data-player-shell] {
+  --player-content-left: max(1.5rem, env(safe-area-inset-left, 0px));
+  --player-content-right: max(1.5rem, env(safe-area-inset-right, 0px));
+}
+html:not([data-native-platform]) [data-player-shell] [data-slot="media-player"] [data-player-loading-copy],
+html[data-native-platform="windows"] [data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
+  left: var(--player-content-left);
+  right: var(--player-content-right);
+}
+html:not([data-native-platform]) [data-player-shell] [data-slot="media-player-controls"],
+html[data-native-platform="windows"] [data-player-shell] [data-slot="media-player-controls"] {
+  padding-left: var(--player-content-left);
+  padding-right: var(--player-content-right);
 }

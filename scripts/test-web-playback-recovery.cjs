@@ -93,7 +93,7 @@ function harness({ native = false, automatic = false, streams: customStreams } =
             }) };
             if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
             if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
-            if (name === '@/lib/desktop/bridge') return { desktopBridge: () => native ? {} : null };
+            if (name === '@/lib/desktop/bridge') return { desktopBridge: () => native ? {} : null, recordDesktopStage() {} };
             if (name === '@/lib/media/playback-source') return utility('lib/media/playback-source.ts');
             if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
             if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;

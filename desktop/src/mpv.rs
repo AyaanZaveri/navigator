@@ -59,6 +59,7 @@ struct RawLogMessage {
 
 pub(crate) type Handle = *mut c_void;
 
+
 struct Api {
     create: unsafe extern "C" fn() -> Handle,
     initialize: unsafe extern "C" fn(Handle) -> c_int,

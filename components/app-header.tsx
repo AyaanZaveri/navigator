@@ -26,6 +26,7 @@ function ProfileMenu({ email }: { email: string }) {
     return (
         <UserMenu
             user={{ name: email.split("@")[0] || "User", email }}
+            align={mounted && desktopBridge()?.platform === "windows" ? "start" : "end"}
             theme={preference}
             onThemeChange={setTheme}
             items={[
@@ -54,7 +55,7 @@ export function AppHeader({ email }: { email: string; overlay?: boolean }) {
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(header);
-        const scroller = header.parentElement?.querySelector("main");
+        const scroller = header.parentElement?.querySelector<HTMLElement>("[data-page-scroll]");
         // Fade each layer independently. Opacity on their common parent would
         // create a backdrop root and prevent the layers sampling page content.
         const surfaceLayers = surfaceRef.current?.querySelectorAll<HTMLElement>("[data-progressive-blur-layer], [data-header-tint]");
@@ -104,7 +105,7 @@ export function AppHeader({ email }: { email: string; overlay?: boolean }) {
                         <SearchBar />
                     </Suspense>
                 </div>
-                <div className="ml-auto flex h-11 shrink-0 items-center justify-center"><ProfileMenu email={email} /></div>
+                <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center`}><ProfileMenu email={email} /></div>
             </nav>
         </header>
     );

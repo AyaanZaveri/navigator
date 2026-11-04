@@ -36,6 +36,7 @@ pub fn window_class(smoke: bool) -> &'static str {
     }
 }
 pub const APP_ID: &str = "app.navigator.desktop";
+pub const STARTUP_BACKGROUND: (u8, u8, u8, u8) = (0x04, 0x2f, 0x2e, 255);
 
 pub fn claim_app_id() {
     unsafe {
@@ -83,23 +84,19 @@ unsafe extern "system" fn loading_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    // WebView2 paints the branded splash. The earlier GDI label used the
+    // system's tiny default font and flashed as a separate loading screen.
+    if msg == WM_ERASEBKGND { return 1; }
     if msg == WM_PAINT {
         unsafe {
             let mut paint = std::mem::zeroed();
             let dc = BeginPaint(hwnd, &mut paint);
             let mut rect = std::mem::zeroed();
             GetClientRect(hwnd, &mut rect);
-            FillRect(dc, &rect, GetStockObject(BLACK_BRUSH));
-            SetBkMode(dc, TRANSPARENT as i32);
-            SetTextColor(dc, 0x00e2e2e2);
-            let text = wide("Starting Navigator…");
-            DrawTextW(
-                dc,
-                text.as_ptr(),
-                (text.len() - 1) as i32,
-                &mut rect,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE,
-            );
+            let (r, g, b, _) = STARTUP_BACKGROUND;
+            let brush = CreateSolidBrush(r as u32 | (g as u32) << 8 | (b as u32) << 16);
+            FillRect(dc, &rect, brush);
+            DeleteObject(brush);
             EndPaint(hwnd, &paint);
         }
         return 0;
@@ -118,7 +115,6 @@ impl LoadingView {
                 lpfnWndProc: Some(loading_proc),
                 hInstance: instance,
                 lpszClassName: class.as_ptr(),
-                hbrBackground: GetStockObject(BLACK_BRUSH),
                 ..std::mem::zeroed()
             };
             RegisterClassW(&wc);
@@ -176,6 +172,7 @@ unsafe extern "system" fn video_proc(
 /// The child window mpv draws into, kept beneath the web view.
 pub struct VideoSurface {
     hwnd: HWND,
+    renderer: Arc<super::windows_video::Host>,
 }
 
 impl VideoSurface {
@@ -210,16 +207,22 @@ impl VideoSurface {
             if hwnd.is_null() {
                 return Err("could not create the video window".into());
             }
-            Ok(Self { hwnd })
+            Ok(Self { hwnd, renderer: super::windows_video::Host::new(hwnd as usize,size.width,size.height) })
         }
     }
 
     /// mpv draws into the window itself, so it needs no render context.
     pub fn attach(&self, _mpv: Arc<Mpv>) {}
 
-    pub fn shutdown(&self) {}
+    pub fn renderer(&self) -> Arc<super::windows_video::Host> { self.renderer.clone() }
+    pub fn visible(&self, visible: bool) { self.renderer.visible(visible); }
+
+    pub fn shutdown(&self) { self.renderer.shutdown(); }
+    pub fn begin_shutdown(&self) { self.renderer.begin_shutdown(); }
+    pub fn finished(&self) -> bool { self.renderer.finished() }
 
     pub fn resize(&self, width: u32, height: u32) {
+        self.renderer.resize(width,height);
         unsafe {
             SetWindowPos(
                 self.hwnd,
@@ -233,20 +236,23 @@ impl VideoSurface {
         }
     }
 }
-pub fn mpv_options(video: &VideoSurface) -> Vec<(&'static str, String)> {
+pub fn mpv_options(_video: &VideoSurface) -> Vec<(&'static str, String)> {
     vec![
-        ("wid", (video.hwnd as i64).to_string()),
-        ("vo", "gpu-next,gpu,".into()),
-        ("gpu-context", "d3d11".into()),
+        ("vo", "libmpv".into()),
+        ("video-timing-offset", "0".into()),
         ("hwdec", "auto-safe".into()),
         ("tone-mapping", "bt.2390".into()),
     ]
 }
 
 thread_local! {
+    static CHROME_FULLSCREEN_ACTION: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
     static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
+}
+pub fn on_chrome_fullscreen(listener: impl Fn() + 'static) {
+    CHROME_FULLSCREEN_ACTION.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
 }
 pub fn on_chrome_hover(listener: impl Fn(u32) + 'static) {
     CHROME_LISTENER.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
@@ -317,6 +323,17 @@ unsafe extern "system" fn chrome_proc(
             RemoveWindowSubclass(hwnd, Some(chrome_proc), id);
         }
         if hwnd == root as HWND {
+            // Let Windows track the native button press/release, then redirect
+            // only a mouse action on this caption button to app fullscreen.
+            // System-menu, Snap-layout and titlebar maximize actions stay native.
+            if msg == WM_SYSCOMMAND
+                && matches!(wparam as u32 & 0xfff0, SC_MAXIMIZE | SC_RESTORE)
+                && lparam != 0 && chrome_hit(hwnd, lparam) == Some(HTMAXBUTTON) {
+                CHROME_FULLSCREEN_ACTION.with(|value| {
+                    if let Some(listener) = &*value.borrow() { listener(); }
+                });
+                return 0;
+            }
             if msg == WM_NCMOUSEMOVE {
                 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
                 let mut track = TRACKMOUSEEVENT {

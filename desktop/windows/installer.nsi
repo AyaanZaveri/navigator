@@ -8,7 +8,8 @@ OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Navigator"
 InstallDirRegKey HKCU "Software\Navigator Desktop" "InstallDir"
 RequestExecutionLevel user
-SetCompressor /SOLID lzma
+; Private builds favor quick packaging/extraction over a smaller download.
+SetCompressor /SOLID zlib
 Icon "${APP_ICON}"
 UninstallIcon "${APP_ICON}"
 VIProductVersion "${APP_VERSION}.0"
@@ -80,6 +81,18 @@ Section "Navigator"
   ; dependencies cannot survive manual upgrades. Profile data lives elsewhere.
   RMDir /r "$INSTDIR\resources"
   File /r "${PACKAGE_DIR}\*"
+  DetailPrint "Verifying startup files and preparing Navigator's local services…"
+  ; Installation-only preparation loads the bundled service and video engine.
+  ; The ordinary shortcut never runs this step. No antivirus settings change.
+  ExecWait '"$INSTDIR\navigator-desktop.exe" --prepare-install' $1
+  ${If} $1 != 0
+    SetErrorLevel 1
+    IfSilent preparation_failed
+    MessageBox MB_OK|MB_ICONSTOP "Navigator could not finish preparing its files. See %LOCALAPPDATA%\Navigator Desktop\installation.log, then run this installer again."
+    preparation_failed:
+    Abort
+  ${EndIf}
+  DetailPrint "Navigator is ready."
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateShortCut "$SMPROGRAMS\Navigator.lnk" "$INSTDIR\navigator-desktop.exe" "" "$INSTDIR\Navigator.ico"
   WriteRegStr HKCU "Software\Navigator Desktop" "InstallDir" "$INSTDIR"
