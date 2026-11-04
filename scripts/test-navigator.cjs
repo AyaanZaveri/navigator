@@ -9,6 +9,7 @@ async function main() {
   const { MockLanguageModelV4 } = await import('ai/test');
   const zod = await import('zod');
   let activeModel;
+  const compatibleSettings = [];
   let authenticated = true;
   let subtitleTracks = [];
   let subtitleTracksForId;
@@ -54,7 +55,7 @@ async function main() {
     '@ai-sdk/openai': { openai: provider, createOpenAI: () => provider },
     '@ai-sdk/groq': { groq: provider, createGroq: () => provider },
     '@ai-sdk/cerebras': { cerebras: provider, createCerebras: () => provider },
-    '@ai-sdk/openai-compatible': { createOpenAICompatible: () => provider },
+    '@ai-sdk/openai-compatible': { createOpenAICompatible: settings => { compatibleSettings.push(settings); return provider; } },
     '@openrouter/ai-sdk-provider': { openrouter: provider, createOpenRouter: () => provider },
     'ai-sdk-ollama': { createOllama: () => provider },
     'next/headers': { cookies: async () => ({ get: () => authenticated ? { value: JSON.stringify({ user: { _id: subtitleUserId } }) } : undefined }) },
@@ -636,6 +637,12 @@ async function main() {
   tmdbSearchFixtures = undefined;
 
 
+
+  activeModel = new MockLanguageModelV4({ provider: 'openai-compatible.chat', modelId: 'gpt-6-luna',
+    doStream: async () => stream([{ type: 'text-start', id: 'custom' }, { type: 'text-delta', id: 'custom', delta: 'Hello' }, { type: 'text-end', id: 'custom' }], 'stop'),
+  });
+  await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null, openaiBaseUrl: 'https://custom-compatible.example/v1', messages: [user('custom-structured-config', 'hello')] })));
+  assert.equal(compatibleSettings.at(-1).supportsStructuredOutputs, true, 'Compatible endpoints must receive json_schema for structured tool planning, not unstructured json_object');
 
   // Real track discovery must start providers concurrently and retain provider ordering.
   overrides['./auth'] = { getInstalledAddons: async () => [

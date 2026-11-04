@@ -9,7 +9,7 @@ import {
 import { groq, createGroq } from "@ai-sdk/groq";
 import { cerebras, createCerebras } from "@ai-sdk/cerebras";
 import { createOllama } from "ai-sdk-ollama";
-import { APICallError, RetryError, convertToModelMessages, streamText, isStepCount, validateUIMessages, toUIMessageStream, createUIMessageStreamResponse, createUIMessageStream } from "ai";
+import { APICallError, NoObjectGeneratedError, RetryError, convertToModelMessages, streamText, isStepCount, validateUIMessages, toUIMessageStream, createUIMessageStreamResponse, createUIMessageStream } from "ai";
 import { z } from "zod";
 import { actionToolNames, record, compactNavigatorMessages, pageTargetFromPath, requestsScenePlayback, attemptedScenePlayback, requestsWebSearchResults } from "@/lib/navigator-chat";
 import { scenePlaybackResponse } from "@/app/tools/scene-workflow";
@@ -48,6 +48,7 @@ const contextSchema = z.object({
 function chatError(error: unknown): { status: number; message: string } {
     if (RetryError.isInstance(error) && error.errors.length) return chatError(error.errors.at(-1));
     if (error instanceof z.ZodError || error instanceof SyntaxError) return { status: 400, message: "This request could not be read. Start a new chat and try again." };
+    if (NoObjectGeneratedError.isInstance(error)) return { status: 502, message: "The AI endpoint returned an invalid structured response. Check its JSON Schema support or choose another model." };
     if (APICallError.isInstance(error)) {
         let detail: Record<string, any> = {};
         try { detail = record(record(JSON.parse(error.responseBody || "{}")).error); } catch { /* Some providers return plain text. */ }
@@ -175,6 +176,7 @@ export async function POST(req: Request) {
                     } else {
                         const openaiCompatibleProvider = createOpenAICompatible({
                             name: "openai-compatible",
+                            supportsStructuredOutputs: true,
                             apiKey: openaiApiKey,
                             baseURL: openaiBaseUrl,
                         });
@@ -185,6 +187,7 @@ export async function POST(req: Request) {
             openaiBaseUrl && openaiBaseUrl !== "https://api.openai.com/v1"
                 ? createOpenAICompatible({
                     name: "openai-compatible",
+                    supportsStructuredOutputs: true,
                     apiKey: process.env.OPENAI_API_KEY,
                     baseURL: openaiBaseUrl,
                 })
