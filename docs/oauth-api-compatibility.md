@@ -2,6 +2,47 @@
 
 The user-reported GPT-6 Luna failure was reproduced on the existing dev server with the configured custom OpenAI-compatible API. The greeting worked, while the combined Nathan/Jimmy Kimmel + talk-show request emitted the generic Navigator error.
 
+## Current deployment: ChatMock-style core and Ollama
+
+The subsequent update replaces the production AI SDK chat conversion layer with a shared native Responses core based on [RayBytes/ChatMock](https://github.com/RayBytes/ChatMock) at `a26ef0a`:
+
+```text
+OpenAI Chat Completions ─┐
+Ollama chat/generate ────┴─ request normalization → authenticated Responses → shared SSE parser → client JSON/SSE/NDJSON
+Native Responses/images ───────────────────────── same authenticated transport
+```
+
+The existing Durable Object remains the sole OAuth-session owner, with the allowlisted Vercel upstream relay. This ports ChatMock's protocol architecture to the existing TypeScript Worker; it does not run the Python server or add its WebSocket/stateful replay features. Native Responses remains stateless.
+
+| Setting | Value |
+| --- | --- |
+| OpenAI base URL | `https://openai-oauth-api.vercel.app/v1` |
+| Ollama base URL | `https://openai-oauth-api.vercel.app` |
+| Direct Worker Ollama base | `https://openai-oauth-api.ayaanzaveri08.workers.dev` |
+| Model | `gpt-6-luna` |
+| Authentication | Existing API key, sent as `Authorization: Bearer …` |
+
+Ollama supports `/api/tags`, `/api/show`, `/api/version`, `/api/chat`, and `/api/generate`. Chat/generate stream NDJSON by default; `stream:false` returns JSON. JSON mode, schema output, images, reasoning, function tools and tool-result history share the Responses conversion. Discovery caches the actual model catalog for one hour with concurrent requests coalesced. Local model downloads, embeddings, token-ID context and raw templates are unavailable. Hosted models use their sampling defaults. Model metadata identifies remote models; token counts come from upstream and total duration is measured, with no fabricated inference timings.
+
+Navigator now has an optional Ollama API-key field that is persisted per device and sent to its server route. Leave it empty for an unauthenticated local Ollama instance. Use the root host URL above for this hosted adapter.
+
+Live production SDK checks passed for strict schema output and streamed tool-result continuation with both the OpenAI-compatible and Ollama SDKs. The original Nathan/Jimmy Kimmel scene request also passed through the signed-in Navigator dev server:
+
+| Navigator provider | Prepared result | Request duration |
+| --- | --- | ---: |
+| OpenAI | The Anecdote, S4E4, at 17:39.892 | 29.79s |
+| Ollama | The Anecdote, S4E4, at 17:39.892 | 26.13s |
+
+Each used one `skipToSubtitleContent` tool and returned no errors. These are individual requests with variable model/research/subtitle latency, not a controlled speed comparison; they validate prepared actions, not decoded playback.
+
+Production Worker version: `55a76efd-9b16-4884-93c2-20367146f417`; previous pre-migration version: `5eae0787-fb8c-4757-877e-24c080cf2b01`. Vercel deployment: `openai-oauth-3c9sr1lly-ayaanzaveri08s-projects.vercel.app`.
+
+Validation passed: 24 local proxy conversion/sampling/schema checks, 13 Vercel routing/security checks, six deployed authorization checks, Navigator regressions and both TypeScript checks. Local checks cover fragmented UTF-8 and CRLF streams, strict schemas, JSON mode, image conversion, parallel tool IDs/indexes, thinking, replay order, failure/truncation, cancellation, catalog caching, authentication and relay isolation. Deployment sources and attribution remain in the two external project directories listed below; no credentials are checked into Navigator.
+
+## Earlier diagnosis and measurements
+
+The following sections describe the initial repair before the shared-core replacement.
+
 ## Cause and fix
 
 Two layers lost the schema contract:
