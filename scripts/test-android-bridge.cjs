@@ -252,7 +252,7 @@ assert.equal(app.properties.get('--navigator-corner-bottom-right'), '50px');
 assert.equal(app.properties.get('--navigator-player-back-left'), '10px', 'Top Back position is independent of a mid-screen landscape cutout');
 console.log('PASS: physical display corners and button-specific camera clearance reach CSS');
 
-const activitySource = fs.readFileSync('android/app/src/main/java/app/navigator/android/MainActivity.java','utf8');
-const visibilityCase = activitySource.split('case "visible":')[1].split('case "seek-feedback":')[0];
+const activitySource = fs.readFileSync('android/app/src/main/java/app/navigator/android/MainActivity.kt','utf8');
+const visibilityCase = activitySource.split('"visible" ->')[1].split('"seek-feedback" ->')[0];
 assert.match(visibilityCase,/setFullscreen\(playerVisible\)/,'Landscape starts when the shell opens, before a stream is loaded');
 assert.ok(!visibilityCase.includes('player.active()'),'Fetching streams must not delay orientation');
