@@ -383,8 +383,6 @@ const AIAsk = ({ userId }: { userId: string }) => {
         [messages, requestDurationsMs],
     );
 
-    if (isPlayerVisible && !isAskOpen) return null;
-
     return (
         <NavigatorFocus
             open={isAskOpen}

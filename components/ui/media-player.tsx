@@ -514,6 +514,9 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       rootImplProps.onKeyDown?.(event);
 
       if (event.defaultPrevented) return;
+      // Application shortcuts (including Ctrl/Meta+K) belong to the global
+      // handler, never to the player's bare-letter playback controls.
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.target instanceof Element && event.target.closest('[role="combobox"], [role="listbox"], [role="option"], [role="dialog"], [role="menu"]')) return;
 
       const mediaElement = mediaRef.current;

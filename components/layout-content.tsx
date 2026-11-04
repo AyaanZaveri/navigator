@@ -40,7 +40,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
 
     // Function to handle opening AI Ask with fullscreen exit if needed
     const handleToggleAIAsk = async () => {
-        if (isFullscreen && !isAIAskOpen) {
+        if (isFullscreen && !isAIAskOpen && !(isPlayerVisible && desktopBridge())) {
             // Exit fullscreen first when opening AI Ask
             try {
                 const desktop = desktopBridge();

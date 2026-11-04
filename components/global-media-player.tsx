@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigatorShortcut } from "@/hooks/use-navigator-shortcut";
 import {
   MediaPlayer,
   MediaPlayerControls,
@@ -84,6 +85,7 @@ const PROGRESS_REPORT_INTERVAL_MS = 30_000;
 const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
+  const navigatorShortcut = useNavigatorShortcut();
   const router = useRouter();
   const {
     isPlayerVisible,
@@ -1146,7 +1148,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
             <div className="flex items-center gap-2">
               {onToggleAIAsk && (
-                <MediaPlayerTooltip tooltip="Navigator" shortcut={desktopBridge()?.platform === "windows" ? "Ctrl + K" : "Cmd + K"}>
+                <MediaPlayerTooltip tooltip="Navigator" shortcut={navigatorShortcut}>
                   <Button
                     variant="ghost"
                     size="sm"

@@ -5,13 +5,16 @@ import {
   isAIAskOpenAtom,
   isFullscreenAtom,
   isNavigatorEnabledAtom,
+  isPlayerVisibleAtom,
 } from "@/lib/atoms";
 import { useEffect } from "react";
+import { desktopBridge } from "@/lib/desktop/bridge";
 
 export function KeyboardShortcuts() {
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
   const [isFullscreen] = useAtom(isFullscreenAtom);
   const [isNavigatorEnabled] = useAtom(isNavigatorEnabledAtom);
+  const [isPlayerVisible] = useAtom(isPlayerVisibleAtom);
 
   // Function to handle opening AI Ask with fullscreen exit if needed
   const handleToggleAIAsk = async () => {
@@ -23,7 +26,7 @@ export function KeyboardShortcuts() {
       return;
     }
 
-    if (isFullscreen && !isAIAskOpen) {
+    if (isFullscreen && !isAIAskOpen && !(isPlayerVisible && desktopBridge())) {
       // Exit fullscreen first when opening AI Ask
       try {
         if (document.exitFullscreen) {
@@ -60,13 +63,23 @@ export function KeyboardShortcuts() {
         return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
         void handleToggleAIAsk();
-      } else if (event.key === "Escape" && isAIAskOpen) {
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (!event.defaultPrevented && event.key === "Escape" && isAIAskOpen) {
         setIsAIAskOpen(false);
       }
     };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    // Claim the app shortcut before focused player controls consume K.
+    document.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("keydown", handleEscape);
+    };
   });
 
   return null;

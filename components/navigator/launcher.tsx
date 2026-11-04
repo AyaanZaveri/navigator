@@ -4,6 +4,7 @@ import { Ship } from "lucide-react";
 import { Button } from "./focus-ui/button";
 import { Kbd, KbdGroup } from "./focus-ui/kbd";
 import "./launcher.css";
+import { useNavigatorShortcut } from "@/hooks/use-navigator-shortcut";
 
 /** The launcher can render without the chat SDK, Markdown or motion runtime. */
 export function NavigatorLauncher({ onClick, onIntent, busy = false, expanded = false }: {
@@ -12,6 +13,7 @@ export function NavigatorLauncher({ onClick, onIntent, busy = false, expanded = 
     busy?: boolean;
     expanded?: boolean;
 }) {
+    const shortcut = useNavigatorShortcut();
     return <Button
         data-navigator-launcher=""
         aria-expanded={expanded}
@@ -23,6 +25,6 @@ export function NavigatorLauncher({ onClick, onIntent, busy = false, expanded = 
     >
         <Ship aria-hidden="true" className="size-4 stroke-[1.5] text-muted-foreground" />
         <span>Ask Navigator</span>
-        <KbdGroup className="ml-1 hidden sm:inline-flex"><Kbd>⌘</Kbd><Kbd>K</Kbd></KbdGroup>
+        <KbdGroup className="ml-1 hidden sm:inline-flex">{shortcut.map(key => <Kbd key={key}>{key}</Kbd>)}</KbdGroup>
     </Button>;
 }
