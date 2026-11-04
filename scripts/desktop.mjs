@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const desktop = join(root, "desktop");
 const manifest = join(desktop, "Cargo.toml");
+const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 function run(program, args, env = {}) {
     return new Promise((resolve, reject) => {
         const child = spawn(program, args, { cwd: root, stdio: "inherit", env: { ...process.env, ...env } });
@@ -76,8 +77,8 @@ try {
 <key>CFBundleExecutable</key><string>navigator-desktop</string>
 <key>CFBundleIconFile</key><string>Navigator.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>${version}</string>
+<key>CFBundleVersion</key><string>${version}</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>LSMinimumSystemVersion</key><string>13.5</string>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/><key>NSAllowsArbitraryLoadsInWebContent</key><true/></dict>
@@ -89,7 +90,6 @@ try {
         if (process.platform === "win32") {
             await cp(join(desktop, "windows", "prepare.cjs"), join(resources, "prepare.cjs"));
             await writeInstallManifest(resources);
-            const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
             const artifacts = await packageWindows(output, version);
             console.log(`Windows installer: ${artifacts.installer}\nPortable ZIP: ${artifacts.portable}`);
         }
