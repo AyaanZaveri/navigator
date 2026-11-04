@@ -141,6 +141,12 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut closing = false;
     let mut fullscreen = false;
     event_loop.run(move |event, _, flow| {
+        // AppKit/Dock quit can destroy the loop without a CloseRequested event.
+        // Stop the owned backend here rather than relying on process-exit drops.
+        if matches!(&event, Event::LoopDestroyed) {
+            drop(app._server.take());
+            return;
+        }
         // Own the backend for exactly as long as the native event loop.
         let _server = &app._server;
         let _instance = &app._instance;
