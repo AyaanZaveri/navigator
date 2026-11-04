@@ -1,10 +1,13 @@
 export interface PlaybackPreferences {
+  episodeAutoplay: boolean;
+  episodePrefetch: boolean;
   audioLanguage: string;
   subtitleLanguage: string;
   subtitleMode: "normal" | "forced";
   subtitlesEnabledByDefault: boolean;
 }
 export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
+  episodeAutoplay: true, episodePrefetch: false,
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
 };
 export const PLAYBACK_PREFERENCES_KEY = "navigator-playback-preferences";
@@ -20,6 +23,8 @@ function language(value: unknown): string {
 export function normalizePlaybackPreferences(value: unknown): PlaybackPreferences {
   const candidate = value && typeof value === "object" ? value as Partial<PlaybackPreferences> : {};
   return {
+    episodeAutoplay: candidate.episodeAutoplay !== false,
+    episodePrefetch: candidate.episodePrefetch === true,
     audioLanguage: language(candidate.audioLanguage), subtitleLanguage: language(candidate.subtitleLanguage),
     subtitleMode: candidate.subtitleMode === "forced" ? "forced" : "normal",
     subtitlesEnabledByDefault: candidate.subtitlesEnabledByDefault === true,

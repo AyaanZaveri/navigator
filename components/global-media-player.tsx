@@ -9,6 +9,7 @@ import "@/components/player-entrance.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
 import { PlayerSkipSegments } from "@/components/player-skip-segments";
+import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
 import { PlayerNextEpisode } from "@/components/player-next-episode";
 import { formatRuntime } from "@/lib/format-runtime";
 
@@ -86,6 +87,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const {
     isPlayerVisible,
     setIsPlayerVisible,
+    playMedia,
     currentMedia: playbackRequest,
     skipTimestamp,
     setCurrentMediaWithSource,
@@ -165,6 +167,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const loadGenerationRef = useRef(0);
+  const episodeContinuationRef = useRef<{ onEnded(): void } | null>(null);
   const subtitleSelectionRequest = useRef(0);
   const subtitleDefaultApplied = useRef(false);
   const subtitleManualOverride = useRef(false);
@@ -463,8 +466,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return () => document.removeEventListener("navigatornativeclose", close);
   }, [nativePlayback, isPlayerVisible, handleClose]);
 
-  const handleVideoEnded = useCallback(() => {
-    handleClose({ ended: true });
+  const handleVideoEnded = useCallback((event?: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (event && event.currentTarget !== videoRef.current) return;
+    if (episodeContinuationRef.current) episodeContinuationRef.current.onEnded();
+    else handleClose({ ended: true });
   }, [handleClose]);
 
   // Process subtitle text for HTML rendering
@@ -825,6 +830,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     };
   }, [isPlayerVisible, streamUrl, subtitleOptionsReady, subtitleTracks, playerAttempt, selectSubtitle]);
 
+  const episodeContinuation = useEpisodeContinuation({
+    media: currentMedia ? { ...currentMedia, details: mediaDetails || currentMedia.details } : null,
+    visible: isPlayerVisible, native: nativePlayback, time: currentTime, duration,
+    play: media => { void playMedia(media); },
+    beforeAdvance: ended => sendPlaybackUpdate("stopped", { ended }),
+    finish: () => handleClose({ ended: true }),
+  });
+  episodeContinuationRef.current = episodeContinuation;
+
   if (!isPlayerVisible || !currentMedia) return null;
 
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
@@ -1105,13 +1119,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <MediaPlayerPlay />
               {isEpisodePlayback && season !== undefined && episodeNumber !== undefined && (
-                <PlayerNextEpisode
-                  key={`${currentMedia.seriesId || currentMedia.id}:${season}:${episodeNumber}`}
-                  media={currentMedia}
-                  season={season}
-                  episode={episodeNumber}
-                  onAdvance={() => sendPlaybackUpdate("stopped")}
-                />
+                <PlayerNextEpisode next={episodeContinuation?.next || null} advancing={Boolean(episodeContinuation?.busy)}
+                  onAdvance={() => episodeContinuation?.advance()} />
               )}
               <MediaPlayerSeekBackward>
                 <RotateCcw />

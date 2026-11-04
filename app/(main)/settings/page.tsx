@@ -32,6 +32,7 @@ import {
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 import { Button } from "@/components/ui/button";
 import { getArtworkSettings, saveArtworkToken, removeArtworkToken, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
+import { PlaybackSettings } from "@/components/playback-settings";
 import { PlaybackLanguageSettings } from "@/components/playback-language-settings";
 import { SubtitleSettings } from "@/components/subtitle-settings";
 import styles from "./settings.module.css";
@@ -830,6 +831,7 @@ export default function SettingsPage() {
                         )}
                     </FieldGroup>
                 </section>
+                <PlaybackSettings />
                 <PlaybackLanguageSettings />
                 <SubtitleSettings />
                 <ArtworkSettings />

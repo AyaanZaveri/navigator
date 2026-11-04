@@ -56,29 +56,16 @@ async function run() {
     assert.equal(episode.mediaSourceId, 'tt123:0:1', 'Explicitly selected specials remain playable');
     play({ id: 'movie', type: 'movie', backdropUrl: '/movie.jpg' });
     assert.equal(updates.get(atoms.currentMediaAtom).backdropUrl, '/movie.jpg');
-    let played, stopped = false, slot = 0;
+    let advanced = false;
     const { PlayerNextEpisode } = load('components/player-next-episode.tsx', name => {
-        if (name === 'react') return {
-            useEffect() {},
-            useState: () => [slot++ === 0 ? { id: 'tt123:2:1', title: 'Next season', season: 2, episode: 1 } : false, () => {}],
-        };
         if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
-        if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: media => {
-            assert.ok(stopped, 'Report previous playback before starting the next episode');
-            played = media;
-        } }) };
         return new Proxy({}, { get: (_, key) => key });
     });
-    const nextButton = PlayerNextEpisode({
-        media: { id: 'tt123', type: 'series', showName: 'Show', streamUrl: 'https://old-stream.test', resumePositionTicks: 40 },
-        season: 1, episode: 2, onAdvance: () => { stopped = true; },
-    }).props.children;
-    assert.equal(nextButton.props.children[1], 'Next episode', 'Advancing is discoverable without an icon tooltip on touch');
-    nextButton.props.onClick();
-    assert.equal(played.mediaSourceId, 'tt123:2:1');
-    assert.equal(played.showName, 'Show');
-    assert.equal(played.streamUrl, undefined, 'Fetch a new stream for the next episode');
-    assert.equal(played.resumePositionTicks, undefined, 'Do not carry the previous episode position');
+    const nextButton = PlayerNextEpisode({ next: { id: 'tt123:2:1', title: 'Next season', season: 2, episode: 1 }, advancing: false,
+        onAdvance: () => { advanced = true; } }).props.children;
+    assert.equal(nextButton.props.children[1], 'Next episode');
+    nextButton.props.onClick(); assert.ok(advanced, 'Manual Next shares the continuation controller');
+    assert.equal(PlayerNextEpisode({ next: null, advancing: false, onAdvance() {} }), null);
     console.log('PASS: series Play starts S1E1, skips specials, and episode playback uses the show backdrop.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

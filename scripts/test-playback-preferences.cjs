@@ -10,7 +10,7 @@ const audio = load('lib/media/audio-language.ts');
 const subtitles = load('lib/media/subtitle-preference.ts', { './audio-language': audio });
 const appearance = load('lib/subtitle-appearance.ts');
 const plain = value => JSON.parse(JSON.stringify(value));
-const defaults = { audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
+const defaults = { episodeAutoplay: true, episodePrefetch: false, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
 assert.deepEqual(plain(preferences.readPlaybackPreferences()), defaults);
 function mount() {
   const host = hooks();
@@ -23,7 +23,9 @@ function mount() {
 let settings = mount();
 settings.value.updatePlaybackPreferences({ audioLanguage: 'fra', subtitleLanguage: 'bs', subtitleMode: 'forced', subtitlesEnabledByDefault: true });
 settings.render(); settings = mount();
-assert.deepEqual(plain(settings.value.playbackPreferences), { audioLanguage: 'fr', subtitleLanguage: 'bs', subtitleMode: 'forced', subtitlesEnabledByDefault: true });
+assert.deepEqual(plain(settings.value.playbackPreferences), { ...defaults, audioLanguage: 'fr', subtitleLanguage: 'bs', subtitleMode: 'forced', subtitlesEnabledByDefault: true });
+settings.value.updatePlaybackPreferences({ episodeAutoplay: false, episodePrefetch: true }); settings.render(); settings = mount();
+assert.equal(settings.value.playbackPreferences.episodeAutoplay, false); assert.equal(settings.value.playbackPreferences.episodePrefetch, true);
 settings.value.updatePlaybackPreferences({ subtitleMode: 'normal' }); settings.render();
 assert.equal(settings.value.playbackPreferences.audioLanguage, 'fr', 'Updating one preference preserves the others');
 for (const corrupt of ['{broken', 'null', '5', '{"audioLanguage":"garbage","subtitleMode":"bad","subtitlesEnabledByDefault":"true"}']) {

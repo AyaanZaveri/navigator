@@ -13,12 +13,13 @@ export interface PlaybackStreamRequest {
 }
 
 /** A page and its player share one in-flight read, including progressive results. */
-export function createPlaybackStreamRequest(id: string, type: string): PlaybackStreamRequest {
+export function createPlaybackStreamRequest(id: string, type: string, signal?: AbortSignal): PlaybackStreamRequest {
+    const timeout = (ms: number) => signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
     const listeners = new Set<(_snapshot: PlaybackStreamSnapshot) => void>();
     const request: PlaybackStreamRequest = {
         id, type, snapshot: { streams: [], pending: 0, total: 0, complete: false },
         canonicalId: /^tmdb:/.test(id) && (type === 'movie' || type === 'series')
-            ? fetchPlaybackId(id.replace(/:(\d+):(\d+)$/, ''), type, AbortSignal.timeout(15_000)).then(base => base + id.slice(id.replace(/:(\d+):(\d+)$/, '').length))
+            ? fetchPlaybackId(id.replace(/:(\d+):(\d+)$/, ''), type, timeout(15_000)).then(base => base + id.slice(id.replace(/:(\d+):(\d+)$/, '').length))
             : Promise.resolve(id),
         promise: undefined!,
         subscribe(listener) { listeners.add(listener); listener(request.snapshot); return () => { listeners.delete(listener); }; },
@@ -29,7 +30,7 @@ export function createPlaybackStreamRequest(id: string, type: string): PlaybackS
     };
     request.promise = (async () => {
         const canonicalId = await request.canonicalId;
-        const targetsResponse = await fetch('/api/streams/addons?' + new URLSearchParams({ type }), { signal: AbortSignal.timeout(15_000) });
+        const targetsResponse = await fetch('/api/streams/addons?' + new URLSearchParams({ type }), { signal: timeout(15_000) });
         if (!targetsResponse.ok) throw new Error('Could not fetch streams. Check your connection and try again.');
         const { addons = [] } = await targetsResponse.json() as { addons?: { id: string; name?: string }[] };
         let pending = addons.length;
@@ -39,7 +40,7 @@ export function createPlaybackStreamRequest(id: string, type: string): PlaybackS
         await Promise.allSettled(addons.map(async (addon, index) => {
             try {
                 const params = new URLSearchParams({ mediaItemId: canonicalId, type, addonId: addon.id });
-                const response = await fetch('/api/streams/addon?' + params, { signal: AbortSignal.timeout(30_000) });
+                const response = await fetch('/api/streams/addon?' + params, { signal: timeout(30_000) });
                 if (!response.ok) return;
                 const data = await response.json() as { streams?: StremioStream[] };
                 groups[index] = Array.isArray(data.streams) ? data.streams.map(stream => ({
