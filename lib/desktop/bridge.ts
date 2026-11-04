@@ -57,6 +57,7 @@ export type NativeRequest =
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
   | { type: "fullscreen"; value: boolean }
   | { type: "window-drag" }
+  | { type: "window-controls-visible"; visible: boolean }
   | { type: "window-control"; action: "minimize" | "toggle-maximize" | "close" }
   | { type: "settings" }
   | { type: "seek-feedback"; session: string };
@@ -65,7 +66,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
+  readonly capabilities?: { windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;
@@ -86,4 +87,12 @@ export function recordDesktopStage(stage: ClientStage) {
   const bridge = desktopBridge();
   if (bridge?.platform !== "windows" || !bridge.capabilities?.timings) return;
   try { bridge.send({ type: "client-stage", stage }); } catch { /* Diagnostics never block playback. */ }
+}
+
+/** Old macOS runtimes and other platforms retain their existing window chrome. */
+export function setMacOSWindowControlsVisible(visible: boolean) {
+  const bridge = desktopBridge();
+  if (bridge?.platform === "macos" && bridge.capabilities?.windowControlsVisibility) {
+    bridge.send({ type: "window-controls-visible", visible });
+  }
 }

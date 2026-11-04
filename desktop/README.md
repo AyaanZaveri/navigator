@@ -435,6 +435,11 @@ Browsers do not gain PGS decoding from this native change. PGS-only browser
 streams continue using matching external SRT/VTT captions when available;
 there is no OCR, new browser PGS demuxer, or server transcoder in this release.
 
+On macOS, windowed playback ties standard window-button visibility to player
+controls. Leaving playback restores the buttons; fullscreen restores AppKit's
+ownership of top-edge titlebar reveal. Older native builds ignore this UI feature
+through a bridge capability check.
+
 The Ask Navigator launcher hides as soon as playback starts loading. Starting a
 title from Ask closes its panel, and home/Ask gradient backgrounds unmount for
 the entire visible-player lifetime. They return after playback is closed.

@@ -59,6 +59,9 @@ pub enum Command {
         value: bool,
     },
     WindowDrag {},
+    WindowControlsVisible {
+        visible: bool,
+    },
     WindowControl {
         action: WindowAction,
     },
@@ -231,6 +234,10 @@ mod tests {
         assert!(parse(r#"{"type":"thumbnail","session":"one","request":4,"position":0,"url":"file:///private/file"}"#).is_err());
         assert!(parse(r#"{"type":"volume","session":"one","volume":2}"#).is_err());
         assert!(parse(r#"{"type":"command","args":["run","sh"]}"#).is_err());
+        assert!(parse(r#"{"type":"window-controls-visible","visible":false}"#).is_ok());
+        assert!(parse(r#"{"type":"window-controls-visible","visible":true}"#).is_ok());
+        assert!(parse(r#"{"type":"window-controls-visible","visible":"false"}"#).is_err());
+        assert!(parse(r#"{"type":"window-controls-visible","visible":true,"script":"x"}"#).is_err());
         assert!(parse(r#"{"type":"window-drag"}"#).is_ok());
         assert!(parse(r#"{"type":"window-control","action":"toggle-maximize"}"#).is_ok());
         assert!(parse(r#"{"type":"window-control","action":"exec"}"#).is_err());
