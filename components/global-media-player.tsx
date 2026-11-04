@@ -67,7 +67,7 @@ import {
 } from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
 import { SubtitleText } from "@/components/subtitle-text";
-import { SubtitleTimingDialog } from "@/components/subtitle-timing-dialog";
+import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
 import { useSubtitleTiming, subtitleTime } from "@/lib/media/subtitle-timing";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
@@ -761,7 +761,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
-        subtitleTiming={{ seconds: subtitleTiming.seconds, onOpen: () => setTimingOpenKey(subtitleTiming.key) }}
+        subtitleTiming={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key), onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }}
         chapters={[]}
         onCustomSubtitleChange={(subtitleTrack) => {
           if (!subtitleTrack) {
@@ -805,7 +805,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           }
         }}
       >
-        <SubtitleTimingDialog open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
+        <SubtitleTimingPopover open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
           onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
           seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
           available={subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles}

@@ -14,7 +14,7 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
         if (!ready || bridge?.platform !== "android" || !bridge.capabilities?.glass || !session) return;
         let requested = false, image: string | null = null;
         let visible: HTMLElement[] = [];
-        const nodes = () => [...document.querySelectorAll<HTMLElement>("[data-player-glass]")];
+        const nodes = () => [...document.querySelectorAll<HTMLElement>("[data-player-glass], [data-player-native-glass]")];
         const paint = (node: HTMLElement) => {
             if (!image) return;
             // Scope frequently changing pixels to this small surface, rather
@@ -29,6 +29,11 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
             if (wanted !== requested) { requested = wanted; bridge.send({ type: "glass", session, active: wanted }); }
             if (!wanted) { visible = []; return; }
             for (const node of visible) {
+                if (node.hasAttribute("data-player-native-glass") && !node.hasAttribute("data-native-glass")) {
+                    const style = getComputedStyle(node);
+                    node.style.setProperty("--native-glass-color", style.backgroundColor);
+                    node.style.setProperty("--native-glass-sheen", style.backgroundImage);
+                }
                 // Moving seek previews align in CSS on every gesture frame.
                 // Only stationary controls need a measured origin here.
                 if (node.getAttribute("data-slot") !== "media-player-seek-tooltip") {
@@ -65,7 +70,7 @@ export function NativePlayerGlass({ mediaRef, sourceKey, ready }: {
             if (requested) bridge.send({ type: "glass", session, active: false });
             for (const node of nodes()) {
                 node.removeAttribute("data-native-glass");
-                for (const name of ["--native-glass-image", "--native-glass-x", "--native-glass-y", "--native-glass-size", "--native-glass-half-width", "--native-glass-height"]) node.style.removeProperty(name);
+                for (const name of ["--native-glass-image", "--native-glass-x", "--native-glass-y", "--native-glass-size", "--native-glass-half-width", "--native-glass-height", "--native-glass-color", "--native-glass-sheen"]) node.style.removeProperty(name);
             }
         };
     }, [mediaRef, sourceKey, ready]);

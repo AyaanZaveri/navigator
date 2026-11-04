@@ -21,7 +21,8 @@
 html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 /* The native bitmap supplies actual video pixels behind just these controls.
    A small clipped filter does not blur or replace the playing video surface. */
-[data-player-glass][data-native-glass] {
+[data-player-glass][data-native-glass],
+[data-player-native-glass][data-native-glass] {
   overflow: hidden;
   isolation: isolate;
   background: none;
@@ -54,6 +55,7 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
 }
 /* Live sRGB canvases make web glass consistent across SDR/HDR compositing.
    The shared low-resolution frame is already blurred; these layers only crop it. */
+[data-player-native-glass][data-browser-glass],
 [data-browser-glass] {
   overflow: hidden;
   isolation: isolate;
@@ -85,6 +87,10 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   background-color: var(--player-glass-interaction-color, var(--browser-glass-color));
   background-image: var(--browser-glass-sheen);
   transition: background-color 150ms var(--ease-out, ease-out);
+}
+[data-player-native-glass][data-native-glass]::after {
+  background-color: var(--native-glass-color);
+  background-image: var(--native-glass-sheen);
 }
 [data-native-glass]::after { transition: background-color 150ms var(--ease-out, ease-out); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
