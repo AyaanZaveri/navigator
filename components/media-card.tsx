@@ -136,7 +136,7 @@ export function MediaCard({
         onPointerCancel={() => setPressed(false)}
       >
         {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
-        <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
+        <Link href={linkHref} prefetch={true} scroll={false} draggable={false} className="absolute inset-0">
           {imageUrl && failedImage !== imageUrl ? (
             <ArtworkImage
               src={imageUrl}
@@ -205,7 +205,7 @@ export function MediaCard({
           </div>
         ) : null}
       </div>
-      <Link href={linkHref} prefetch={true} draggable={false}>
+      <Link href={linkHref} prefetch={true} scroll={false} draggable={false}>
         <div className="px-1">
           <div className="mt-2.5 text-sm font-medium text-foreground truncate">
             {item.name}

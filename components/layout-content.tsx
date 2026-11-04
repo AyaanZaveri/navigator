@@ -11,7 +11,7 @@ import {
     isNavigatorEnabledAtom,
 } from "@/lib/atoms";
 import { useSettings } from "@/contexts/settings-context";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { AuroraProvider, PersistentAuroraBackground } from "@/components/aurora-provider";
 import { ScrollAreaRoot, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area";
@@ -25,6 +25,13 @@ interface LayoutContentProps {
 
 export function LayoutContent({ children, email, userId }: LayoutContentProps) {
     const pathname = usePathname();
+    const viewportRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        // Next's document scrolling does not reset this persistent scrollport.
+        // Reset before paint so a new title opens on its hero, not the previous
+        // title's recommendations. This also cancels any in-flight smooth scroll.
+        viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }, [pathname]);
     const overlayHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
     const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
     const [isFullscreen] = useAtom(isFullscreenAtom);
@@ -75,7 +82,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
                 <ScrollAreaRoot type="scroll" scrollHideDelay={900} asChild>
                     <div data-desktop-app-content data-playback-hidden={isPlayerVisible ? "" : undefined} inert={isPlayerVisible} className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
                         <AppHeader email={email} overlay={overlayHeader} />
-                        <ScrollAreaViewport role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
+                        <ScrollAreaViewport ref={viewportRef} role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
                             <PersistentAuroraBackground />
                             {children}
                         </ScrollAreaViewport>

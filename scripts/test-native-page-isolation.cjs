@@ -96,7 +96,7 @@ for (const pathname of ['/', '/movie/tt0816692', '/series/tt1442437/6/4']) {
   let playerVisible = false;
   const retainedContent = React.createElement('div', { 'data-fixture-page': '' }, 'Retained catalog');
   const { LayoutContent } = load('components/layout-content.tsx', {
-    react: { ...React, useEffect() {} },
+    react: { ...React, useEffect() {}, useLayoutEffect() {}, useRef: () => ({ current: null }) },
     jotai: { useAtom: atom => [atom === 'player-visible' ? playerVisible : false, () => {}] },
     'next/navigation': { usePathname: () => pathname },
     '@/lib/atoms': { isPlayerVisibleAtom: 'player-visible' },

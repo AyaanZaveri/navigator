@@ -6,7 +6,10 @@ const { load, hooks } = require('./test-support/react-hooks.cjs');
 const dependencies = {
   react: React,
   'react/jsx-runtime': require('react/jsx-runtime'),
-  'next/link': ({ prefetch, ...props }) => React.createElement('a', props),
+  'next/link': ({ prefetch, scroll, ...props }) => {
+    assert.equal(scroll, false, 'Card navigation must let the shell reset to the hero instead of Next scrolling the poster into view');
+    return React.createElement('a', props);
+  },
   '@/lib/preload-tools': { preloadPlayer() {} },
   '@/components/home-palette-provider': { useHomePaletteScene: () => null },
   '@/lib/media/playback-details': require('./test-support/playback-context.cjs').details,

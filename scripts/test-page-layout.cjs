@@ -17,7 +17,7 @@ function find(node, predicate) {
 function Header() {}
 for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '/settings', '/addons', '/search', '/library/all', '/person/1']) {
   const { LayoutContent } = load('components/layout-content.tsx', name => {
-    if (name === 'react') return { ...React, useEffect() {} };
+    if (name === 'react') return { ...React, useEffect() {}, useLayoutEffect() {}, useRef: () => ({ current: null }) };
     if (name === 'react/jsx-runtime') return require(name);
     if (name === 'jotai') return { useAtom: () => [false, () => {}] };
     if (name === 'next/navigation') return { usePathname: () => path };
@@ -79,3 +79,44 @@ assert.equal(properties.get('--app-header-height'), '164px', 'Native inset and f
 cleanup();
 assert.equal(disconnected, true);
 console.log('PASS: persistent navbar across all routes, media overlay mode, measured safe-area geometry and observer cleanup');
+
+// Exercise route transitions against the actual persistent scrollport ref.
+const { hooks } = require('./test-support/react-hooks.cjs');
+const navigationHooks = hooks();
+let pathname = '/movie/first';
+const { LayoutContent: NavigatingLayout } = load('components/layout-content.tsx', name => {
+  if (name === 'react') return { ...React, ...navigationHooks.react, useLayoutEffect: navigationHooks.react.useEffect };
+  if (name === 'react/jsx-runtime') return require(name);
+  if (name === 'jotai') return { useAtom: () => [false, () => {}] };
+  if (name === 'next/navigation') return { usePathname: () => pathname };
+  if (name === '@/contexts/settings-context') return { useSettings: () => ({ navigatorEnabled: false }) };
+  return new Proxy({}, { get: (_, key) => key });
+});
+let top = 1200, resets = 0;
+const viewport = { scrollTo(options) {
+  assert.equal(options.behavior, 'instant', 'New-title navigation must cancel smooth scrolling');
+  assert.equal(options.left, 0);
+  top = options.top;
+  resets++;
+} };
+function renderNavigation() {
+  const tree = navigationHooks.render(NavigatingLayout, { email: 'fixture@example.invalid', children: 'Page' });
+  const main = find(tree, node => node.props?.['data-page-scroll'] !== undefined)[0];
+  assert.ok(main.props.ref, 'The effect must target the actual Radix viewport, not the document');
+  main.props.ref.current = viewport;
+  navigationHooks.flush();
+}
+for (const route of ['/movie/first', '/series/second', '/movie/third', '/']) {
+  pathname = route;
+  top = 1200;
+  const previous = resets;
+  renderNavigation();
+  assert.equal(top, 0, `${route}: reset retained recommendations scroll to the hero`);
+  assert.equal(resets, previous + 1);
+  top = 450;
+  renderNavigation();
+  assert.equal(top, 450, 'Metadata/palette/player updates on the same route must preserve scrolling');
+  assert.equal(resets, previous + 1);
+}
+navigationHooks.unmount();
+console.log('PASS: navigation resets the persistent viewport to the hero; same-route updates preserve scroll');
