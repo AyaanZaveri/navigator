@@ -888,7 +888,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
               data-player-loading-copy=""
-              className="absolute bottom-7 left-8 right-8"
+              className="absolute bottom-7 left-4 right-4"
             >
               <motion.div
                 initial={false}
