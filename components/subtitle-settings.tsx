@@ -14,12 +14,12 @@ import styles from "@/app/(main)/settings/settings.module.css";
 
 export function SubtitleSettings() {
   const { subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline, subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, subtitlePosition, setSubtitlePosition, resetSubtitleAppearance } = useSettings();
-  return <section aria-label="Subtitle appearance" className={styles.section}>
-    <FieldGroup className="min-w-0 gap-6">
+  return <section aria-label="Subtitle appearance" className={`${styles.section} ${styles.subtitleSettings}`}>
+    <FieldGroup className="min-w-0">
       <figure className={styles.subtitlePreviewFigure} aria-labelledby="subtitle-preview-title">
         <div className={styles.subtitlePreview}>
           <Image src="/images/subtitle-preview.jpg" alt="" fill unoptimized
-            sizes="(max-width: 640px) 90vw, 640px" className={styles.subtitlePreviewImage} />
+            sizes="(max-width: 680px) 100vw, 680px" className={styles.subtitlePreviewImage} />
           <SubtitleText size={subtitleSize} outline={subtitleOutline} weight={subtitleWeight} color={subtitleColor} style={{ bottom: `${subtitlePosition}%` }} className={styles.subtitlePreviewText}>
             Every story starts somewhere.
           </SubtitleText>

@@ -248,6 +248,14 @@
   .apiKeyInput[data-slot="input-group"], .providerInput { transition: none; }
 }
 
+.subtitleSettings {
+  max-inline-size: 42.5rem;
+}
+
+.subtitleSettings > [data-slot="field-group"] {
+  gap: 1rem;
+}
+
 .subtitlePreviewFigure {
   display: grid;
   gap: 8px;
