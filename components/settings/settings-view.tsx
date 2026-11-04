@@ -38,12 +38,10 @@ import { SubtitleSettings } from "@/components/subtitle-settings";
 import { TinyFishIcon } from "@/components/icons/tinyfish";
 import { getWebSearchSettings, saveWebSearchKey, removeWebSearchKey, setWebSearchEnabled } from "@/app/actions/web-search-settings";
 import { useConnectionCredential } from "@/components/settings/use-connection-credential";
+import { useOpenAIModels } from "@/components/settings/use-openai-models";
 import { CONNECTION_CREDENTIALS_EVENT } from "@/lib/browser-connection-credentials";
 import type { SettingsCategory } from "@/lib/settings-navigation";
 import styles from "@/app/(main)/settings/settings.module.css";
-
-const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
-const MODELS_DEV_PROVIDER_CACHE_PREFIX = "navigator-modelsdev-provider:";
 
 // Configuration fields are not sign-in credentials. Keep browser history and
 // password managers out of these controls, including model search inputs.
@@ -68,25 +66,6 @@ type ModelsDevProviderResponse = {
     } | null;
     error?: string;
 };
-
-function normalizeBaseUrl(value: string): string {
-    const trimmed = value.trim();
-    if (!trimmed) return "";
-
-    try {
-        const normalized = new URL(trimmed);
-        const pathname = normalized.pathname.replace(/\/+$/, "");
-        return `${normalized.origin}${pathname}`.toLowerCase();
-    } catch {
-        return trimmed.replace(/\/+$/, "").toLowerCase();
-    }
-}
-
-function getModelsDevProviderCacheKey(baseUrl: string): string | null {
-    const normalized = normalizeBaseUrl(baseUrl);
-    if (!normalized) return null;
-    return `${MODELS_DEV_PROVIDER_CACHE_PREFIX}${normalized}`;
-}
 
 const PROVIDERS: Array<{ value: AIProvider; name: string; icon: ComponentType<{ className?: string }> }> = [
     { value: "openai", name: "OpenAI", icon: OpenAI },
@@ -452,13 +431,11 @@ function NavigatorSettings() {
     const [cerebrasModelsError, setCerebrasModelsError] = useState<string | null>(
         null
     );
-    const [modelsDevProvider, setModelsDevProvider] =
-    useState<ModelsDevProviderResponse["provider"]>(null);
-    const [isLoadingModelsDevProvider, setIsLoadingModelsDevProvider] =
-    useState(false);
-    const [modelsDevProviderError, setModelsDevProviderError] = useState<
-    string | null
-  >(null);
+    const { models: openaiModels, loading: isLoadingOpenAIModels, error: openaiModelsError } = useOpenAIModels({
+        enabled: aiProvider === "openai",
+        baseUrl: openaiBaseUrl,
+        apiKey: openaiApiKey,
+    });
     const [geminiModelsProvider, setGeminiModelsProvider] =
     useState<ModelsDevProviderResponse["provider"]>(null);
     const [isLoadingGeminiModels, setIsLoadingGeminiModels] = useState(false);
@@ -471,79 +448,6 @@ function NavigatorSettings() {
     const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
         null
     );
-
-    const fetchModelsDevProvider = useCallback(async () => {
-        let trimmedBaseUrl = openaiBaseUrl.trim();
-        if (
-            typeof window !== "undefined" &&
-      (!trimmedBaseUrl || trimmedBaseUrl === OPENAI_DEFAULT_BASE_URL)
-        ) {
-            const storedBaseUrl =
-        window.localStorage.getItem(OPENAI_BASE_URL_STORAGE_KEY)?.trim() ?? "";
-            if (storedBaseUrl) {
-                trimmedBaseUrl = storedBaseUrl;
-            }
-        }
-
-        if (!trimmedBaseUrl) {
-            setModelsDevProvider(null);
-            setModelsDevProviderError(null);
-            return;
-        }
-
-        if (typeof window !== "undefined") {
-            const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
-            if (cacheKey) {
-                const cachedProvider = window.localStorage.getItem(cacheKey);
-                if (cachedProvider) {
-                    try {
-                        const parsed = JSON.parse(
-                            cachedProvider
-                        ) as ModelsDevProviderResponse["provider"];
-                        setModelsDevProvider(parsed);
-                    } catch {
-                        window.localStorage.removeItem(cacheKey);
-                    }
-                }
-            }
-        }
-
-        setIsLoadingModelsDevProvider(true);
-        setModelsDevProviderError(null);
-
-        try {
-            const params = new URLSearchParams({ baseUrl: trimmedBaseUrl });
-            const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
-            const data = (await response.json()) as ModelsDevProviderResponse;
-
-            if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to load provider info from models.dev."
-                );
-            }
-
-            setModelsDevProvider(data.provider ?? null);
-            if (typeof window !== "undefined") {
-                const cacheKey = getModelsDevProviderCacheKey(trimmedBaseUrl);
-                if (cacheKey) {
-                    if (data.provider) {
-                        window.localStorage.setItem(cacheKey, JSON.stringify(data.provider));
-                    } else {
-                        window.localStorage.removeItem(cacheKey);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Failed to load models.dev provider info:", error);
-            setModelsDevProviderError(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load provider info from models.dev."
-            );
-        } finally {
-            setIsLoadingModelsDevProvider(false);
-        }
-    }, [openaiBaseUrl]);
 
     const fetchGeminiModels = useCallback(async () => {
         setIsLoadingGeminiModels(true);
@@ -610,12 +514,6 @@ function NavigatorSettings() {
             setIsLoadingCerebrasModels(false);
         }
     }, [cerebrasApiKey]);
-
-    useEffect(() => {
-        if (aiProvider !== "openai") return;
-        const timeout = window.setTimeout(() => void fetchModelsDevProvider(), 300);
-        return () => window.clearTimeout(timeout);
-    }, [aiProvider, fetchModelsDevProvider]);
 
     useEffect(() => {
         if (aiProvider !== "gemini") return;
@@ -695,7 +593,7 @@ function NavigatorSettings() {
     }, [cerebrasModel, cerebrasModels]);
 
     const openaiModelOptions = useMemo(() => {
-        const providerModels = modelsDevProvider?.models ?? [];
+        const providerModels = openaiModels;
         if (!openaiModel) return providerModels;
         if (providerModels.some((model) => model.id === openaiModel)) {
             return providerModels;
@@ -708,7 +606,7 @@ function NavigatorSettings() {
             },
             ...providerModels,
         ];
-    }, [modelsDevProvider, openaiModel]);
+    }, [openaiModels, openaiModel]);
 
     const geminiModelOptions = useMemo(() => {
         const providerModels = geminiModelsProvider?.models ?? [];
@@ -738,7 +636,7 @@ function NavigatorSettings() {
     const modelSettings: Record<AIProvider, Omit<SettingsSelectProps, "id" | "label" | "options"> & { options?: ModelOption[]; placeholder?: string }> = {
         openai: {
             value: openaiModel, onValueChange: setOpenaiModel, options: openaiModelOptions,
-            loading: isLoadingModelsDevProvider, error: modelsDevProviderError,
+            loading: isLoadingOpenAIModels, error: openaiModelsError,
         },
         gemini: {
             value: geminiModel, onValueChange: setGeminiModel, options: geminiModelOptions,
