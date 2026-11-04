@@ -606,7 +606,7 @@ const GradientASCII = ({
         let reduce = motion?.matches ?? false;
         const view = { width: 1, height: 1, ratio: 1 };
         const wash = new Float32Array(6);
-        const washInput = new Float32Array(4);
+        const washInput = new Float32Array(2);
         let washLight;
         const clickData = new Float32Array(MAX_CLICKS * 4);
         const clicks = [];
@@ -745,12 +745,10 @@ const GradientASCII = ({
             gl.uniform1f(cu.uFrame, frameSeed);
             gl.uniform1f(cu.uHomeSurface, s.homeSurface ? view.ratio : 0);
             if (s.homeSurface) {
-                const end = (s.colors.length - 1) * 3;
-                if (washLight !== s.lightMode || washInput[0] !== ramp[1] || washInput[1] !== ramp[2]
-                    || washInput[2] !== ramp[end + 1] || washInput[3] !== ramp[end + 2]) {
-                    homeWash(ramp, s.colors.length, s.lightMode, wash);
+                if (washLight !== s.lightMode || washInput[0] !== ramp[1] || washInput[1] !== ramp[2]) {
+                    homeWash(ramp, s.lightMode, wash);
                     washLight = s.lightMode;
-                    washInput[0] = ramp[1]; washInput[1] = ramp[2]; washInput[2] = ramp[end + 1]; washInput[3] = ramp[end + 2];
+                    washInput[0] = ramp[1]; washInput[1] = ramp[2];
                 }
                 gl.uniform3fv(cu.uHomeWash, wash);
             }
@@ -945,7 +943,7 @@ const GradientASCII = ({
             if (disposed || document.hidden || presentedRef.current) return;
             const s = settingsRef.current;
             const ramp = samplePalette(now, motion?.matches ?? false);
-            paintHomeWash(context, homeWash(ramp, s.colors.length, s.lightMode, wash), s.lightMode, canvas.clientHeight);
+            paintHomeWash(context, homeWash(ramp, s.lightMode, wash), s.lightMode, canvas.clientHeight);
             captureLogoCanvas(canvas, now);
             if (paletteRef.current.track?.active) raf = requestAnimationFrame(draw);
         }

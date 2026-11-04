@@ -125,7 +125,7 @@ function transitions() {
     assert.ok(monochrome.every(color => color.slice(1, 3) === color.slice(3, 5) && color.slice(3, 5) === color.slice(5, 7)), 'Neutral artwork stays neutral');
     const ramp = new Float32Array(Array.from({ length: 4 }, () => rgbToLab([.8, .1, .2])).flat());
     for (const light of [true, false]) {
-        const out = new Float32Array(6); assert.equal(homeWash(ramp, 4, light, out), out);
+        const out = new Float32Array(6); assert.equal(homeWash(ramp, light, out), out);
         assert.ok(out.every(value => value >= 0 && value <= 1));
     }
 }
