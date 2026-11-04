@@ -34,6 +34,11 @@ function pagePolicy(attributes) {
 const hero = postcss.parse(fs.readFileSync('components/hero-wordmark.module.css', 'utf8'));
 const readyWordmark = hero.nodes.find(node => node.selector === '.root[data-ready] .artwork');
 const wordmarkVisibility = readyWordmark.nodes.find(node => node.prop === 'visibility')?.value;
+const mediaCard = postcss.parse(fs.readFileSync('components/media-card.module.css', 'utf8'));
+const readyCard = mediaCard.nodes.find(node => node.selector?.includes(':has(') && node.selector.includes('.wordmark'));
+assert.equal(readyCard.nodes.find(node => node.prop === 'visibility')?.value, 'visible',
+  'Reproduce Continue Watching wordmarks becoming visible after each card image loads');
+
 
 // Obtain the overscroll surface from the real hook after its bitmap is ready.
 let setup, frame, surface;
@@ -82,3 +87,45 @@ function visit(node, insidePage = false) {
 visit(layout);
 assert.equal(tools, 1);
 console.log('PASS: ready wordmark/overscroll cannot escape the retained page on any native platform; page geometry, close restoration and sibling player remain intact');
+
+// Exercise the actual page boundary at Play intent, before native loading or
+// its data-native-playing effect mounts. Ready wordmarks cannot punch through
+// the group's opacity, and Back must restore the retained content unchanged.
+const React = require('react');
+for (const pathname of ['/', '/movie/tt0816692', '/series/tt1442437/6/4']) {
+  let playerVisible = false;
+  const retainedContent = React.createElement('div', { 'data-fixture-page': '' }, 'Retained catalog');
+  const { LayoutContent } = load('components/layout-content.tsx', {
+    react: { ...React, useEffect() {} },
+    jotai: { useAtom: atom => [atom === 'player-visible' ? playerVisible : false, () => {}] },
+    'next/navigation': { usePathname: () => pathname },
+    '@/lib/atoms': { isPlayerVisibleAtom: 'player-visible' },
+    '@/components/app-header': { AppHeader: 'header' },
+    '@/components/deferred-tools': { DeferredTools: 'player-overlays' },
+    '@/contexts/settings-context': { useSettings: () => ({ navigatorEnabled: false }) },
+    '@/lib/desktop/bridge': { desktopBridge: () => null },
+    '@/components/aurora-provider': { AuroraProvider: 'provider', PersistentAuroraBackground: 'aurora' },
+    '@/components/ui/scroll-area': { ScrollAreaRoot: 'scroll-root', ScrollAreaViewport: 'scroll-viewport', ScrollBar: 'scrollbar' },
+    './layout-content.module.css': {},
+  });
+  function find(node, predicate) {
+    if (!node || typeof node !== 'object') return undefined;
+    if (predicate(node)) return node;
+    for (const child of [node.props?.children].flat()) {
+      const found = find(child, predicate); if (found) return found;
+    }
+  }
+  for (const playing of [false, true, false, true, false]) {
+    playerVisible = playing;
+    const tree = LayoutContent({ children: retainedContent, email: 'fixture@example.invalid' });
+    const page = find(tree, node => node.props?.['data-desktop-app-content'] !== undefined);
+    assert.equal(page.props.inert, playing, `${pathname}: hidden browsing content cannot receive keyboard or touch input`);
+    assert.equal(page.props['data-playback-hidden'] !== undefined, playing, `${pathname}: hide the page in the same render that opens the player`);
+    assert.equal(find(page, node => node === retainedContent), retainedContent, 'Keep the same page/content identity and scroll geometry');
+    assert.ok(find(tree, node => node.type === 'player-overlays'));
+    assert.equal(find(page, node => node.type === 'player-overlays'), undefined, 'Player remains outside the suppressed page');
+  }
+}
+const immediateRule = nativeRules.find(rule => rule.selector.split(',').some(selector => selector.trim() === '[data-desktop-app-content][data-playback-hidden]'));
+assert.equal(immediateRule?.nodes.find(node => node.prop === 'opacity')?.value, '0', 'The immediate React boundary suppresses the complete paint group');
+console.log('PASS: Play/Back/Play retains and isolates home/movie/episode content before native readiness and restores input on close');

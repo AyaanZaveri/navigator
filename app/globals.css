@@ -21,10 +21,11 @@ html[data-desktop="mpv"] body::before {
   pointer-events: none;
 }
 html[data-native-playing] body::before { display: none; }
-/* visibility is inherited and a loaded wordmark/overscroll surface can set
-   itself visible again. Suppress the retained page as a complete paint group
-   on every native platform; keep its layout and scroll position intact. */
-html[data-native-playing] [data-desktop-app-content] {
+/* Hide the retained browsing page at Play intent, before native video or the
+   deferred player chunk is ready. Descendants can override visibility, but
+   cannot escape this complete paint group's opacity. Keep its layout intact. */
+html[data-native-playing] [data-desktop-app-content],
+[data-desktop-app-content][data-playback-hidden] {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
