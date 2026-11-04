@@ -32,6 +32,7 @@ export function PlayMediaCard({
   className,
   index = 0,
 }: PlayMediaCardProps) {
+  if (!result.success) return null;
   const episode = result.mediaType === "Episode";
   const target = parseSeriesRouteId(result.mediaSourceId || result.mediaId || result.seriesId || "");
   const season = result.seasonNumber ?? target.season;

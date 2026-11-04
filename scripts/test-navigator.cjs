@@ -340,6 +340,29 @@ async function main() {
   // Scene playback must resolve subtitles without an active player or stream lookup.
   structured = { candidate: 1, confidence: 'high' };
   const idleTools = createAllTools(null, 0, analysisModel, new AbortController().signal);
+  const tinyfishToolsModule = load('lib/tinyfish.ts');
+  const oldSearch = tinyfishToolsModule.searchTinyfish, oldRead = tinyfishToolsModule.fetchMediaWebSources;
+  let selectedReads = 0;
+  tinyfishToolsModule.searchTinyfish = async () => Array.from({ length: 10 }, (_, index) => ({ title: `Source ${index}`, url: `https://example.com/${index}`, snippet: 'Discovery result' }));
+  tinyfishToolsModule.fetchMediaWebSources = async urls => { selectedReads++; return urls.map(url => ({ id: 'web:1', title: 'Read source', url, text: 'Verified page content' })); };
+  const fastSearch = await idleTools.searchMediaWeb.execute({ query: 'test', question: 'Search only' }, toolOptions);
+  assert.equal(fastSearch.results.length, 10);
+  assert.equal(fastSearch.evidenceLevel, 'search-results');
+  assert.equal(selectedReads, 0, 'The actual search tool must not call Fetch');
+  const selectedPages = await idleTools.readMediaWebSources.execute({ urls: ['https://example.com/0'], question: 'Verify this source' }, toolOptions);
+  assert.equal(selectedReads, 1, 'Page reading is a separate explicit tool');
+  assert.equal(selectedPages.evidenceLevel, 'page-content');
+  let searchSteps = 0;
+  const priorFastModel = activeModel;
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
+    doStream: async () => { searchSteps++; return stream([{ type: 'tool-call', toolCallId: 'fast-search-once', toolName: 'searchMediaWeb', input: JSON.stringify({ query: 'Example', question: 'Search results and links only' }) }], 'tool-calls'); },
+  });
+  await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    messages: [user('links-only', 'Search the web for Example, links only; do not fetch pages')] })));
+  assert.equal(searchSteps, 1, 'A links-only request finishes after Search, without another model step or top-up search');
+  activeModel = priorFastModel;
+  tinyfishToolsModule.searchTinyfish = oldSearch;
+  tinyfishToolsModule.fetchMediaWebSources = oldRead;
   const sceneInput = { userDescription: 'Earlier evidence', mediaId: 'tmdb:123', mediaName: 'Example', mediaType: 'Movie' };
   const idleScene = await idleTools.skipToSubtitleContent.execute(sceneInput, toolOptions);
   assert.equal(idleScene.success, true, 'Idle scene requests must not require playback');
@@ -361,6 +384,12 @@ async function main() {
   assert.equal(unresolvedEpisodeScene.success, false, 'Unsupported episode evidence must not fall back to a guessed episode');
   assert.equal(unresolvedEpisodeScene.action, undefined);
   assert.equal(subtitleTrackLookups, lookupsBeforeUnresolvedEpisode, 'Resolve the episode before requesting its subtitles');
+  const implicitEpisodeScene = await idleTools.skipToSubtitleContent.execute({ mediaQuery: 'The Curse', userDescription: 'Land of Enchantment' }, toolOptions);
+  assert.equal(implicitEpisodeScene.success, true, 'The scene itself identifies an episode when coordinates are absent');
+  const knownShowScene = await idleTools.skipToSubtitleContent.execute({ mediaId: 'tmdb:114294', mediaName: 'The Curse', mediaType: 'Episode', userDescription: 'Land of Enchantment' }, toolOptions);
+  assert.equal(knownShowScene.success, true, 'A known show ID also resolves the episode from the scene clue');
+  const movieWithEpisodeClue = await idleTools.skipToSubtitleContent.execute({ ...sceneInput, episodeQuery: 'confession' }, toolOptions);
+  assert.equal(movieWithEpisodeClue.success, true, 'A stray episode clue must not reject a known movie scene');
   tmdbSearchFixtures = undefined;
   const episodeScene = await idleTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence', mediaId: 'tmdb:114294', mediaName: 'The Curse', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1 }, toolOptions);
   assert.equal(episodeScene.success, true);
@@ -466,7 +495,7 @@ async function main() {
   const museAttempts = [];
   const adaptiveMuse = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async options => {
     museAttempts.push(options.providerOptions.openai.reasoningEffort);
-    return { content: [{ type: 'text', text: JSON.stringify(museAttempts.length === 1 ? { candidate: null, confidence: 'none' } : { candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
+    return { content: [{ type: 'text', text: JSON.stringify(museAttempts.length === 1 ? { candidate: 1, confidence: 'low' } : { candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } };
   } });
   const adaptiveTools = createAllTools({ id: 'tt-adaptive', name: 'Adaptive', type: 'movie' }, 0, adaptiveMuse, new AbortController().signal);
   const adaptiveMatch = await adaptiveTools.skipToSubtitleContent.execute({ userDescription: 'blackhole scene' }, toolOptions);
@@ -480,14 +509,23 @@ async function main() {
   const stillMissing = await missingTools.skipToSubtitleContent.execute({ userDescription: 'A nonexistent scene' }, toolOptions);
   assert.equal(stillMissing.success, false);
   assert.equal(stillMissing.action, undefined, 'Two uncertain passes must never prepare playback');
-  assert.equal(missingMuse.doGenerateCalls.length, 2, 'Reasoning escalation is bounded to one retry');
+  assert.equal(missingMuse.doGenerateCalls.length, 1, 'Definite no-match must not repeat the same full subtitle analysis');
   assert.equal(stillMissing.timings.matchReasoningTokens, 0);
 
 
   assert.equal(chat.requestsScenePlayback([user('scene-intent', 'go to the blackhole scene in interstellar')]), true);
+  assert.equal(chat.requestsScenePlayback([user('confession', 'Go to the confession in Knives Out 3')]), true);
+  assert.equal(chat.requestsScenePlayback([user('episode-only', 'go to the episode of Nathan for You where he goes on Jimmy Kimmel')]), false);
+  assert.equal(chat.requestsScenePlayback([user('fight', 'go to where he fights Conquest in Invincible')]), true);
   assert.equal(chat.requestsScenePlayback([user('scene-question', 'What happens in the black hole scene?')]), false);
   assert.equal(chat.requestsScenePlayback([user('discovery', 'Play movies like Interstellar')]), false);
-  const { parseScenePlaybackCommand } = load('lib/navigator-scene-intent.ts');
+  assert.equal(chat.requestsScenePlayback([user('title-battle', 'Play Battle in Seattle')]), false);
+  assert.equal(chat.requestsScenePlayback([user('title-fight', 'Play Fight Club')]), false);
+  assert.equal(chat.requestsScenePlayback([user('title-when', 'Play When Harry Met Sally')]), false);
+  const { explicitSceneCoordinates, parseScenePlaybackCommand } = load('lib/navigator-scene-intent.ts');
+  assert.deepEqual(clone(explicitSceneCoordinates('Can you play that one episode of Nathan for You where he goes on Jimmy Kimmel')), {});
+  assert.deepEqual(clone(explicitSceneCoordinates('go to the scene in S4E5')), { seasonNumber: 4, episodeNumber: 5 });
+  assert.deepEqual(clone(explicitSceneCoordinates('play season four episode eight and skip to the scene')), { seasonNumber: 4, episodeNumber: 8 });
   assert.equal(parseScenePlaybackCommand('go to the blackhole scene in interstellar').mediaQuery, 'interstellar');
   assert.equal(parseScenePlaybackCommand('play the docking scene from Interstellar (2014)').userDescription, 'the docking scene');
   assert.equal(parseScenePlaybackCommand('play the scene in the barn from Interstellar'), null, 'Ambiguous scene/title boundaries use structured extraction');
@@ -527,19 +565,23 @@ async function main() {
       }
       return { content: [{ type: 'text', text: JSON.stringify(
       JSON.stringify(options.prompt).includes('Extract a scene-playback request')
-        ? { mediaQuery: 'The Curse', episodeQuery: 'Land of Enchantment', userDescription: 'Earlier evidence', seasonNumber: null, episodeNumber: null }
+        ? { mediaQuery: 'The Curse', episodeQuery: 'Land of Enchantment', userDescription: 'Earlier evidence', seasonNumber: 0, episodeNumber: null }
         : { candidate: 1, confidence: 'high' }
     ) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }; },
   });
+  for (const sceneModel of ['muse-spark-1.3-contributor', 'gpt-6-luna']) {
+  activeModel.modelId = sceneModel;
   const compoundEpisodeResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
-    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    aiProvider: 'opencode', opencodeModel: sceneModel, opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
     messages: [user('episode-and-scene', 'Play the episode of The Curse called Land of Enchantment and then skip to the scene with earlier evidence')] })));
   const compoundEpisodePart = compoundEpisodeResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
+  assert.equal(compoundEpisodePart.input.seasonNumber, undefined, 'The planner cannot add a season the user did not specify');
   assert.equal(compoundEpisodePart.input.episodeQuery, 'Land of Enchantment', 'Intent extraction preserves the episode clue separately from the scene');
   assert.equal(compoundEpisodePart.output.success, true);
   assert.equal(compoundEpisodePart.output.resumePositionTicks, 5, 'One prepared action starts at the matched scene');
   assert.equal(compoundEpisodePart.output.mediaId, 'tt13623608:1:1');
   assert.ok(compoundEpisodeResponse.parts.some(part => part.type === 'data-episodeProgress' && part.data.catalog?.seriesName === 'The Curse'), 'Combined requests stream episode lookup cards');
+  }
   subtitleContent = previousCompoundSubtitles;
   tmdbSearchFixtures = undefined;
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
@@ -548,9 +590,28 @@ async function main() {
   });
   const lunaSceneProgress = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
     aiProvider: 'opencode', opencodeModel: 'gpt-6-luna', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
-    messages: [user('luna-scene-progress-user', 'play a fresh semantic scene in Example')] })));
+    messages: [user('luna-scene-progress-user', 'I would like a fresh semantic scene in Example')] })));
   assert.deepEqual(Array.from(lunaSceneProgress.parts.filter(part => part.type === 'data-sceneProgress'), part => part.data.stage), ['title', 'subtitles', 'scene'], 'Normal agent tools stream the same stages as the fast Muse workflow');
   assert.equal(lunaSceneProgress.parts.find(part => part.type === 'tool-skipToSubtitleContent').output.execution, 'prepared');
+  let failedEpisodeSteps = 0;
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
+    doStream: async () => { failedEpisodeSteps++; return stream([{ type: 'tool-call', toolCallId: 'failed-episode-once', toolName: 'navigateToEpisode', input: JSON.stringify({ seriesId: 'tmdb:114294', seasonNumber: 99, episodeQuery: 'Land of Enchantment' }) }], 'tool-calls'); },
+  });
+  const failedEpisodeTurn = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'gpt-6-luna', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('failed-episode-no-retry', 'Open Land of Enchantment in season 99 of The Curse')] })));
+  assert.equal(failedEpisodeTurn.parts.find(part => part.type === 'tool-navigateToEpisode').output.status, 'not_found');
+  assert.equal(failedEpisodeSteps, 1, 'An exhausted episode lookup must not fall back to another title search or repeat itself');
+  let failedSceneSteps = 0;
+  activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'gpt-6-luna',
+    doStream: async () => { failedSceneSteps++; return stream([{ type: 'tool-call', toolCallId: 'failed-scene-once', toolName: 'skipToSubtitleContent', input: JSON.stringify({ mediaQuery: 'Example', userDescription: 'a nonexistent scene' }) }], 'tool-calls'); },
+    doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ candidate: null, confidence: 'none' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }),
+  });
+  const failedSceneTurn = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
+    aiProvider: 'opencode', opencodeModel: 'gpt-6-luna', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('failed-scene-no-fallback', 'I would like a nonexistent scene in Example')] })));
+  assert.equal(failedSceneTurn.parts.find(part => part.type === 'tool-skipToSubtitleContent').output.success, false);
+  assert.equal(failedSceneSteps, 1, 'A failed scene seek must end the turn instead of giving the agent a chance to substitute navigation/playback');
   let freeformCalls = 0;
   activeModel = new MockLanguageModelV4({ provider: 'opencode-responses.responses', modelId: 'muse-spark-1.3-contributor', doGenerate: async () => {
     freeformCalls++;

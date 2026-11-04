@@ -11,7 +11,7 @@ import { cerebras, createCerebras } from "@ai-sdk/cerebras";
 import { createOllama } from "ai-sdk-ollama";
 import { APICallError, RetryError, convertToModelMessages, streamText, isStepCount, validateUIMessages, toUIMessageStream, createUIMessageStreamResponse, createUIMessageStream } from "ai";
 import { z } from "zod";
-import { actionToolNames, record, compactNavigatorMessages, pageTargetFromPath, requestsScenePlayback, attemptedScenePlayback } from "@/lib/navigator-chat";
+import { actionToolNames, record, compactNavigatorMessages, pageTargetFromPath, requestsScenePlayback, attemptedScenePlayback, requestsWebSearchResults } from "@/lib/navigator-chat";
 import { scenePlaybackResponse } from "@/app/tools/scene-workflow";
 import { navigatorRoutingSettings } from "@/lib/navigator-model-settings";
 import type { SceneProgress } from "@/lib/navigator-scene-progress";
@@ -314,7 +314,7 @@ export async function POST(req: Request) {
             }
         }
         const systemPrompt = createSystemPrompt(currentMedia, currentTimestamp, pageContext);
-        if (navigatorRoutingSettings(model).providerOptions && requestsScenePlayback(validatedMessages) && !attemptedScenePlayback(validatedMessages)) {
+        if (requestsScenePlayback(validatedMessages) && !attemptedScenePlayback(validatedMessages)) {
             return scenePlaybackResponse({ model, messages: modelMessages, originalMessages: validatedMessages, tools, context: { currentMedia, viewedTitle: pageContext }, signal: req.signal, onError: error => chatError(error).message });
         }
         const startedAt = Date.now();
@@ -360,7 +360,7 @@ export async function POST(req: Request) {
                         return output;
                     },
                 } };
-                for (const name of ["findEpisode", "findEpisodeByTitle", "navigateToEpisode", "playMedia", "searchMediaWeb", "skipToSubtitleContent"]) {
+                for (const name of ["findEpisode", "findEpisodeByTitle", "navigateToEpisode", "playMedia", "searchMediaWeb", "readMediaWebSources", "skipToSubtitleContent"]) {
                     const definition = progressTools[name];
                     if (!definition?.execute) continue;
                     progressTools[name] = { ...definition, execute: async (input, options) => {
@@ -378,7 +378,7 @@ export async function POST(req: Request) {
             model,
             messages: modelMessages,
             stopWhen: [isStepCount(8), ({ steps }) => steps.at(-1)?.toolResults.some(result =>
-                actionToolNames.has(result.toolName) && record(result.output).execution === "prepared") ?? false],
+                (actionToolNames.has(result.toolName) && record(result.output).execution === "prepared") || (result.toolName === "searchMediaWeb" && requestsWebSearchResults(validatedMessages)) || ((result.toolName === "skipToSubtitleContent" || ["not_found", "ambiguous", "unavailable"].includes(String(record(result.output).status))) && record(result.output).success === false)) ?? false],
             abortSignal: req.signal,
             timeout: { totalMs: 120_000, stepMs: 60_000 },
             ...streamSettings,

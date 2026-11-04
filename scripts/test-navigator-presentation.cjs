@@ -439,6 +439,7 @@ const { PlayMediaCard } = load('components/navigator/play-media-card.tsx', {
     '@/lib/series-route': load('lib/series-route.ts', {}),
     '@/lib/navigator-title-path': load('lib/navigator-title-path.ts', { '@/lib/series-route': load('lib/series-route.ts', {}) }),
 });
+assert.equal(PlayMediaCard({ result: { success: false } }), null, 'Failed actions never render Media/Media even outside the segment renderer');
 const playbackCard = PlayMediaCard({ result: { success: true, mediaId: 'tt13623608:1:1', mediaName: 'The Curse', showName: 'The Curse', episodeTitle: 'Land of Enchantment', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1 } });
 const playbackImage = new URL(playbackCard.props.image, 'http://localhost');
 assert.equal(playbackImage.pathname, '/api/artwork');
@@ -493,3 +494,21 @@ assert.equal(configured.every(config => config.baseURL === 'https://opencode.ai/
 assert.equal(configured.every(config => config.headers['x-opencode-session'] === 'stable-session'), true);
 assert.equal(configured.every(config => config.headers['user-agent'] === 'navigator/1.0'), true);
 console.log('PASS: restored theme widget and controls, single confirmation, hidden readiness/handoff rows, navigation cards, action errors, and native Muse/Luna API routing.');
+
+const failedEpisodePlayback = toNavigatorSegments([
+  { type: 'tool-playMedia', toolCallId: 'empty-season', state: 'output-available', input: { episodeQuery: 'Jimmy Kimmel' }, output: { success: false, error: 'No episodes were found for that show and season.' } },
+  { type: 'data-episodeProgress', id: 'empty-season-episodes', data: { toolCallId: 'empty-season', stage: 'episodes', state: 'error', detail: 'No episodes were found for that show and season.' } },
+]);
+assert.equal(failedEpisodePlayback.filter(segment => segment.kind === 'results').length, 0, 'A failed episode lookup must not render a placeholder playback card');
+assert.equal(failedEpisodePlayback.filter(segment => segment.kind === 'trace').length, 1, 'A failed episode lookup shows exactly one actionable error');
+
+const fastWebResults = Array.from({ length: 10 }, (_, index) => ({ title: `Web result ${index}`, url: `https://example.com/${index}`, snippet: 'Discovery snippet' }));
+const fastWebSegments = toNavigatorSegments([
+    { type: 'tool-searchMediaWeb', toolCallId: 'fast-web', state: 'output-available', input: { query: 'Example' }, output: { success: true, results: fastWebResults, evidenceLevel: 'search-results' } },
+    { type: 'data-episodeProgress', id: 'fast-web-search', data: { toolCallId: 'fast-web', stage: 'search', state: 'completed', sources: fastWebResults } },
+]);
+const fastWebCards = fastWebSegments.filter(segment => segment.kind === 'results');
+assert.equal(fastWebCards.length, 1, 'Search progress and final output must not duplicate the result list');
+assert.equal(fastWebCards[0].results.cards.length, 10, 'Render all ten search hits before any page reads');
+assert.equal(fastWebSegments.filter(segment => segment.kind === 'trace').length, 1, 'Search progress is not repeated');
+assert.equal(fastWebSegments.find(segment => segment.kind === 'trace').trace.label, 'Found web results');

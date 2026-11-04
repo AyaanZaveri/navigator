@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 
 const searchSchema = z.object({ results: z.array(z.object({
-    title: z.string(), snippet: z.string().optional(), url: z.string().url(),
+    title: z.string(), snippet: z.string().optional(), url: z.string().url(), position: z.number().optional(), site_name: z.string().optional(),
 })) });
 const fetchSchema = z.object({
     results: z.array(z.object({ url: z.string(), final_url: z.string().optional(), title: z.string().nullish(), text: z.string() })),
@@ -62,23 +62,38 @@ export function webPassages(text: string, query: string): string {
         .sort((a, b) => a.start - b.start).map(chunk => chunk.passage)].join("\n\n[…]\n\n");
 }
 
-export async function researchMediaWeb(query: string, purpose: string, apiKey: string, signal?: AbortSignal): Promise<WebEvidence[]> {
-    const results = await searchTinyfish(query, purpose, apiKey, signal);
-    const ranked = results.map((item, index) => {
-        const host = new URL(item.url).hostname;
-        const preferred = /(^|\.)(wikipedia\.org|bbc\.(com|co\.uk)|cc\.com|paramountplus\.com|nbc\.com|abc\.com|avclub\.com|vulture\.com)$/.test(host);
-        const social = /(^|\.)(youtube\.com|facebook\.com|instagram\.com|reddit\.com|tiktok\.com)$/.test(host);
-        return { ...item, score: (preferred ? 15 : 0) - (social ? 15 : 0) - index };
-    }).sort((a, b) => b.score - a.score);
-    const urls = [...new Set(ranked.map(item => item.url))].slice(0, 2);
-    if (!urls.length) return [];
+/** Rank the actual clue, rather than promoting generic encyclopedias over dialogue/scene sources. */
+export function rankMediaSources<T extends { title: string; snippet?: string; url: string }>(results: T[], query: string): T[] {
+    const tokens = (value: string) => new Set(value.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []);
+    const terms = [...tokens(query)].filter(term => !/^(the|where|when|she|they|says|said|episode|show|scene|from|with|that|this|goes|into|what|which)$/.test(term));
+    const titlePhrase = /["“]([^"”]+)["”]/.exec(query)?.[1].toLowerCase();
+    const documents = results.map(item => tokens(`${item.title} ${item.snippet || ""}`));
+    const weights = terms.map(term => ({ term, weight: Math.log(1 + results.length / (1 + documents.filter(doc => doc.has(term)).length)) }));
+    return results.map((item, index) => {
+        const title = tokens(item.title);
+        const identity = titlePhrase ? item.title.toLowerCase().includes(titlePhrase) ? 4 : item.snippet?.toLowerCase().includes(titlePhrase) ? 2 : 0 : 0;
+        const relevance = weights.reduce((sum, { term, weight }) => sum + (title.has(term) ? 2 : documents[index].has(term) ? 1 : 0) * weight, 0);
+        return { item, score: identity + relevance / Math.sqrt(1 + (item.snippet?.length || 0) / 1000) - index * 0.05 };
+    }).sort((a, b) => b.score - a.score).map(({ item }) => item);
+}
+
+export async function fetchMediaWebSources(urls: string[], purpose: string, apiKey: string, signal?: AbortSignal, query = purpose): Promise<WebEvidence[]> {
+    if (!urls.length || urls.length > 10 || urls.some(url => !publicUrl(url))) throw new Error("Provide up to ten public HTTPS source URLs.");
     const data = fetchSchema.parse(await request("https://api.fetch.tinyfish.ai/", apiKey, signal, {
-        urls, purpose, format: "markdown", per_url_timeout_ms: 15_000,
+        urls, purpose, format: "markdown", per_url_timeout_ms: 10_000,
     }));
     const sources = data.results.filter(item => urls.includes(item.url) && publicUrl(item.final_url || item.url)
-        && item.text.trim() && !/\b(sign in|log in|captcha|access denied)\b/i.test(item.title || ""))
+        && item.text.trim() && !/\b(sign in|log in|captcha|access denied|site maintenance)\b/i.test(item.title || ""))
         .map((item, index) => ({ id: `web:${index + 1}`, url: item.final_url || item.url,
             title: item.title || new URL(item.url).hostname, text: webPassages(item.text, query) }));
     if (!sources.length && data.errors.length) throw new Error("TinyFish could not read the matching sources. Try another description.");
     return sources;
+}
+
+export async function researchMediaWeb(query: string, purpose: string, apiKey: string, signal?: AbortSignal,
+    onSearchResults?: (_results: Awaited<ReturnType<typeof searchTinyfish>>) => void): Promise<WebEvidence[]> {
+    const results = await searchTinyfish(query, purpose, apiKey, signal);
+    onSearchResults?.(results);
+    const urls = [...new Set(rankMediaSources(results, query).map(item => item.url))].slice(0, 4);
+    return urls.length ? fetchMediaWebSources(urls, purpose, apiKey, signal, query) : [];
 }

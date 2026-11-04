@@ -37,6 +37,9 @@ export function compactNavigatorMessages(messages: UIMessage[]): UIMessage[] {
 /** Keep UI artwork and source URLs out of the model's context. */
 export function modelToolOutput(name: string, value: unknown): unknown {
     const output = record(value);
+    if (name === "searchMediaWeb" && Array.isArray(output.results)) return {
+        ...output, results: output.results.map((item: unknown) => { const result = record(item); return { ...result, snippet: typeof result.snippet === "string" ? result.snippet.slice(0, 1500) : undefined }; }),
+    };
     if (name === "completeAction") return {
         preparedToolCallId: output.preparedToolCallId, success: output.success,
         status: output.status, message: output.message,
@@ -47,7 +50,7 @@ export function modelToolOutput(name: string, value: unknown): unknown {
             const { thumbnail: _image, ...episode } = record(item); return episode;
         }) } : {}) };
     }
-    if (output.success === false) return { success: false, error: output.error, message: output.message };
+    if (output.success === false) return { success: false, error: output.error, message: output.message, ...(output.seriesName ? { seriesId: output.seriesId, seriesName: output.seriesName } : {}), ...(output.clueEvidence ? { clueEvidence: output.clueEvidence } : {}) };
     const fields: Record<string, string[]> = {
         searchMedia: ["id", "tmdbId", "name", "type", "year", "overview", "communityRating", "source"],
         searchPeople: ["id", "name", "department", "knownFor", "source"],
@@ -154,10 +157,21 @@ export function requestsScenePlayback(messages: UIMessage[]): boolean {
     const lastUser = messages.findLast(message => message.role === "user");
     const text = lastUser?.parts.filter(part => part.type === "text").map(part => record(part).text).join(" ").trim() || "";
     return /^(?:(?:please|can you|could you|would you)\s+)*(?:go\s+to|jump\s+to|skip(?:\s+to)?|take\s+me\s+to|play|start)\b/i.test(text)
-        && /\b(?:scene|moment)\b/i.test(text);
+        && (/\b(?:scene|moment)\b/i.test(text)
+            || (!/\bepisode\b/i.test(text)
+                && !/^(?:(?:please|can you|could you|would you)\s+)*(?:play|start)\b/i.test(text)
+                && /\b(?:where|when|confession|fight|fights|battle|kiss|kisses)\b/i.test(text)));
 }
 
 export function attemptedScenePlayback(messages: UIMessage[]): boolean {
     const turn = messages.slice(messages.findLastIndex(message => message.role === "user") + 1);
     return turn.some(message => message.role === "assistant" && message.parts.some(part => part.type === "tool-skipToSubtitleContent"));
+}
+
+/** Explicit link/result requests end at Search; factual research can choose selected pages afterward. */
+export function requestsWebSearchResults(messages: UIMessage[]): boolean {
+    const lastUser = messages.findLast(message => message.role === "user");
+    const text = lastUser?.parts.filter(part => part.type === "text").map(part => record(part).text).join(" ") || "";
+    return /\b(?:search|find|look up)\b/i.test(text)
+        && /\b(?:search results|results and links|links only|results only|do not (?:read|fetch)|don['’]t (?:read|fetch))\b/i.test(text);
 }

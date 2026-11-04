@@ -23,14 +23,21 @@ async function main() {
     ];
     let extraOverview = '';
     const source = { id: 'web:1', title: 'Episode guide', url: 'https://example.com/guide', text: 'S4E5: The Anecdote. Nathan prepares an anecdote for Jimmy Kimmel Live.' };
+    let catalogName = 'Nathan for You';
+    const titleSearches = [];
+    let showCandidates = [{ id: 'tmdb:58957', name: 'Nathan for You' }];
     const overrides = {
         'server-only': {},
         ai: { ...ai, generateText: async options => {
             prompts.push(options.prompt);
+            if (options.prompt.startsWith('Resolve a possibly misspelled')) return { output: { title: 'Late Bloomer', sourceId: 'web:1', quote: mode === 'title-repair-invalid' ? 'invented title evidence' : 'Late Bloomer' } };
+            if (options.prompt.startsWith('Write one complementary')) return { output: { query: '"Late Bloomer" translated dialogue scene' } };
             const isWeb = options.prompt.includes('web:1');
             const eligible = options.prompt.split('Evidence sources:')[0].includes('tmdb:58957:4:4');
+            if (mode === 'clue-only' && isWeb) return { output: { status: 'not_found', evidence: [], clueEvidence: [{ sourceId: 'web:1', quote: source.text }] } };
             if (mode === 'fake') return { output: { status: 'matched', evidence: [{ episodeId: 'tmdb:58957:4:4', sourceId: 'web:1', quote: 'a fabricated quote' }] } };
             if (mode === 'wrong-id') return { output: { status: 'matched', evidence: [{ episodeId: 'tmdb:58957:4:5', sourceId: 'web:1', quote: source.text }] } };
+            if (mode === 'metadata-ambiguous' && !isWeb && eligible) return { output: { status: 'ambiguous', evidence: episodes.slice(-2).map(ep => ({ episodeId: ep.id, sourceId: ep.id, quote: ep.title })) } };
             if (mode === 'ambiguous' && isWeb) return { output: { status: 'ambiguous', evidence: [
                 { episodeId: 'tmdb:58957:4:4', sourceId: 'web:1', quote: source.text },
                 { episodeId: 'tmdb:58957:4:7', sourceId: 'web:1', quote: source.text },
@@ -43,8 +50,8 @@ async function main() {
         'next/headers': { cookies: async () => ({ get: key => jar.get(key), set: (key, value, options) => jar.set(key, { value, options }), delete: key => jar.delete(key) }) },
         '@/app/actions/auth': { getUser: async () => signedIn ? { _id: 'test' } : null },
         '@/lib/tmdb-discovery': {
-            getTMDBTitle: async () => ({ id: 'tmdb:58957', name: 'Nathan for You', poster: 'https://image.tmdb.org/t/p/w500/show.jpg', year: 2013, genres: ['Comedy'], communityRating: 8.1 }),
-            searchTMDBMedia: async () => ({ results: [{ id: 'tmdb:58957', name: 'Nathan for You' }] }),
+            getTMDBTitle: async () => ({ id: 'tmdb:58957', name: catalogName, poster: 'https://image.tmdb.org/t/p/w500/show.jpg', year: 2013, genres: ['Comedy'], communityRating: 8.1 }),
+            searchTMDBMedia: async query => { titleSearches.push(query); return { results: query === 'Late Bloomers' ? [] : showCandidates }; },
             getTMDBSeasons: async () => [{ number: 1 }, { number: 4 }],
             getTMDBEpisodes: async (_, season) => episodes.filter(e => e.season === season).map(e => ({ ...e, overview: e.overview + (e.episode === 4 && e.season === 4 ? extraOverview : '') })),
             mapTMDBSeasons: async (seasons, load, signal) => { signal?.throwIfAborted(); return Promise.all(seasons.map(load)); },
@@ -55,7 +62,7 @@ async function main() {
         if (modules.has(absolute)) return modules.get(absolute).exports;
         const module = { exports: {} }; modules.set(absolute, module);
         const context = { module, exports: module.exports, process: { env }, console, URL, URLSearchParams, AbortSignal, AbortController,
-            fetch: async (url, init) => { requests.push({ url, init }); return new Response(JSON.stringify(typeof fetchBody === 'function' ? fetchBody(url) : fetchBody || { results: [{ title: 'Guide', url: 'https://example.com/guide' }] }), { status }); },
+            fetch: async (url, init) => { requests.push({ url, init }); return new Response(JSON.stringify(typeof fetchBody === 'function' ? await fetchBody(url) : fetchBody || { results: [{ title: 'Guide', url: 'https://example.com/guide' }] }), { status }); },
             require: name => overrides[name] || (name.startsWith('@/') ? load(name.slice(2) + '.ts') : require(name)),
         };
         vm.runInNewContext(ts.transpileModule(fs.readFileSync(absolute, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context, { filename: absolute });
@@ -94,9 +101,46 @@ async function main() {
     mode = 'ambiguous';
     result = await resolveEpisode(input, { model: { modelId: 'mock', provider: 'mock' }, research });
     assert.equal(result.status, 'ambiguous'); assert.equal(result.success, false);
+    mode = 'metadata-ambiguous';
+    result = await resolveEpisode(input, { model: { modelId: 'mock', provider: 'mock' }, research });
+    assert.equal(result.status, 'matched', 'Use web evidence to resolve weak metadata ambiguity');
+    assert.equal(result.episodes[0].id, 'tmdb:58957:4:4');
     const calls = webCalls;
     result = await resolveEpisode({ ...input, episodeQuery: 'The Anecdote', seasonNumber: 4 }, { research });
     assert.equal(result.status, 'matched'); assert.equal(webCalls, calls, 'Exact titles need no model or web search');
+    showCandidates = [{ id: 'tmdb:58957', name: 'Nathan for You', voteCount: 5000 }, { id: 'tmdb:999', name: 'Nathan for You', voteCount: 3 }];
+    result = await resolveEpisode({ ...input, episodeQuery: 'The Anecdote' });
+    assert.equal(result.success, true, 'Obscure namesakes must not block a dominant TV title');
+    showCandidates[1].voteCount = 3000;
+    result = await resolveEpisode({ ...input, episodeQuery: 'The Anecdote' });
+    assert.equal(result.status, 'ambiguous', 'Two substantial same-named shows still need clarification');
+    showCandidates = [{ id: 'tmdb:58957', name: 'Nathan for You' }];
+    result = await resolveEpisode({ ...input, episodeQuery: 'The Anecdote', seasonNumber: 99 });
+    assert.equal(result.status, 'not_found');
+    assert.match(result.error, /Season 99.*Nathan for You/, 'Identify the invalid restriction instead of claiming the show has no episodes');
+    mode = 'clue-only';
+    result = await resolveEpisode({ ...input, episodeQuery: 'where she says "a remembered line"' }, { model: { modelId: 'mock', provider: 'mock' }, research });
+    assert.equal(result.success, false, 'Finding the clue is not proof of an episode');
+    assert.ok(result.clueEvidence.length > 0, 'Keep useful verified scene sources even without an episode');
+    assert.match(result.message, /found a source matching/);
+    mode = 'title-repair';
+    catalogName = 'Late Bloomer';
+    showCandidates = [{ id: 'tmdb:58957', name: 'Late Bloomer' }];
+    const savedText = source.text;
+    source.title = 'Late Bloomer (TV series)';
+    source.text = 'The Anecdote contains the quoted dialogue.';
+    const beforeRepair = webCalls;
+    const beforePrompts = prompts.length;
+    result = await resolveEpisode({ seriesQuery: 'Late Bloomers', episodeQuery: 'where she says "a remembered quote"' }, { model: { modelId: 'mock', provider: 'mock' }, research });
+    assert.equal(result.success, true, 'Recover a title typo through web evidence before asking the user');
+    assert.equal(result.seriesName, 'Late Bloomer');
+    assert.deepEqual(titleSearches.slice(-2), ['Late Bloomers', 'Late Bloomer']);
+    assert.equal(webCalls, beforeRepair + 2, 'Use separate title-repair and dialogue queries without refetching either during verification');
+    assert.ok(prompts.slice(beforePrompts).filter(p => p.startsWith('Identify the episode')).every(p => p.includes('web:1')), 'Quoted dialogue goes straight to web evidence instead of a wasted metadata-model pass');
+    mode = 'title-repair-invalid';
+    result = await resolveEpisode({ seriesQuery: 'Late Bloomers', episodeQuery: 'where she says "a remembered quote"' }, { model: { modelId: 'mock', provider: 'mock' }, research });
+    assert.equal(result.success, false, 'A correction needs a real verbatim source, not model memory');
+    source.text = savedText;
     const controller = new AbortController(); controller.abort();
     await assert.rejects(resolveEpisode(input, { signal: controller.signal }), /abort/i);
 
@@ -140,6 +184,34 @@ async function main() {
     fetchBody = url => url.includes('api.search.') ? { results: [{ title: 'Bad', url: 'https://example.com/bad' }] }
         : { results: [], errors: [{ url: 'https://example.com/bad', error: 'blocked' }] };
     await assert.rejects(tinyfish.researchMediaWeb('Jimmy Kimmel', 'Find the episode', 'key'), /could not read/);
+    let finishRead;
+    let readStarted;
+    const reading = new Promise(resolve => { readStarted = resolve; });
+    const tenResults = Array.from({ length: 10 }, (_, i) => ({ title: `Result ${i + 1}`, position: i + 1, snippet: 'TV series', url: `https://example.com/${i}` }));
+    fetchBody = async url => {
+        if (url.includes('api.search.')) return { results: tenResults };
+        readStarted();
+        return new Promise(resolve => { finishRead = resolve; });
+    };
+    let visibleResults;
+    const pendingResearch = tinyfish.researchMediaWeb('TV series', 'Find evidence', 'key', undefined, results => { visibleResults = results; });
+    await reading;
+    assert.equal(visibleResults.length, 10, 'Publish all ten search hits before waiting for page reads');
+    finishRead({ results: [{ url: 'https://example.com/0', title: 'Page', text: 'Evidence' }] });
+    await pendingResearch;
+    const beforeDirectSearch = requests.length;
+    const directResults = await tinyfish.searchTinyfish('TV series', 'Find results only', 'key');
+    assert.equal(directResults.length, 10);
+    assert.equal(requests.length, beforeDirectSearch + 1, 'Fast search makes exactly one request and never fetches pages');
+    assert.equal(requests.at(-1).init.method, 'GET');
+    const searchUrl = new URL(requests.at(-1).url);
+    assert.equal(searchUrl.origin, 'https://api.search.tinyfish.ai');
+    assert.equal(searchUrl.searchParams.get('purpose'), 'Find results only');
+    const ranked = tinyfish.rankMediaSources([
+        { title: 'Late Bloomer episode guide', url: 'https://en.wikipedia.org/guide', snippet: 'All seasons and episode titles.' },
+        { title: 'Scene clip: Main bahar ja rahi hoon bitch', url: 'https://www.instagram.com/reel/clip', snippet: 'Late Bloomer dialogue.' },
+    ], '"Late Bloomer" main bahar ja rahi hoon bitch episode');
+    assert.match(ranked[0].url, /instagram/, 'Dialogue relevance outranks a generic reference page; social clips are not penalized');
     const longText = 'Unrelated introduction.\n'.repeat(1000) + 'The Anecdote: Jimmy Kimmel Live is the key clue.';
     assert.ok(tinyfish.webPassages(longText, 'Jimmy Kimmel').includes('The Anecdote: Jimmy Kimmel'));
     assert.ok(tinyfish.webPassages(longText, 'Jimmy Kimmel').length < longText.length);

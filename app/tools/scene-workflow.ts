@@ -1,7 +1,7 @@
 import { createUIMessageStream, createUIMessageStreamResponse, generateText, Output, type LanguageModel, type ModelMessage, type ToolSet, type UIMessage } from "ai";
 import { z } from "zod";
 import { navigatorRoutingSettings } from "@/lib/navigator-model-settings";
-import { parseScenePlaybackCommand } from "@/lib/navigator-scene-intent";
+import { parseScenePlaybackCommand, explicitSceneCoordinates } from "@/lib/navigator-scene-intent";
 import { record } from "@/lib/navigator-chat";
 import type { SceneProgress } from "@/lib/navigator-scene-progress";
 import type { EpisodeProgress } from "@/lib/episode-discovery";
@@ -26,7 +26,7 @@ export function scenePlaybackResponse({ model, messages, originalMessages, tools
             const plan = parsed ? { output: parsed } : await generateText({
                 model, ...navigatorRoutingSettings(model), abortSignal: signal,
                 timeout: { totalMs: 30_000 }, maxOutputTokens: 1400,
-                instructions: `Extract a scene-playback request into the schema. mediaQuery is the movie/show title, including any requested year; use null for the current video. userDescription is the scene only; normalize joined words (blackhole → black hole). For a request to find/play a remembered episode and skip to a scene, episodeQuery preserves the user's description identifying that episode (title, plot, guest or event). Example: "play the episode of Nathan for You where he goes on Jimmy Kimmel and skip to when he goes on the talk show" → mediaQuery "Nathan for You", episodeQuery "where he goes on Jimmy Kimmel", userDescription "when he goes on the talk show". The tool verifies the episode internally; do not ask for coordinates when the user gives an episode description. Copy explicit episode coordinates, otherwise null; episodeQuery is null for current-video requests, movies, or explicit episode coordinates. Do not invent titles, IDs, episode coordinates, or timestamps. Reference context only: ${JSON.stringify({ context, earlierTitles })}`,
+                instructions: `Extract a scene-playback request into the schema. mediaQuery is the movie/show title, including any requested year; use null for the current video. userDescription is the scene only; normalize joined words (blackhole → black hole). For a request to find/play a remembered episode and skip to a scene, episodeQuery preserves the user's description identifying that episode (title, plot, guest or event). Example: "play the episode of Nathan for You where he goes on Jimmy Kimmel and skip to when he goes on the talk show" → mediaQuery "Nathan for You", episodeQuery "where he goes on Jimmy Kimmel", userDescription "when he goes on the talk show". The tool verifies the episode internally; do not ask for coordinates when the user gives an episode description. Copy explicit episode coordinates, otherwise null; episodeQuery is null for current-video requests, movies (including franchise sequel numbers such as Knives Out 3), or explicit episode coordinates. A scene in a named TV show can also identify its episode: preserve that scene in episodeQuery when no coordinates are given (Invincible + fights Conquest). Never put a movie scene into episodeQuery. Do not invent titles, IDs, episode coordinates, or timestamps. Reference context only: ${JSON.stringify({ context, earlierTitles })}`,
                 messages: [{ role: "user", content: text }],
                 output: Output.object({ schema: z.object({
                     mediaQuery: z.string().min(1).max(300).nullable(),
@@ -38,7 +38,13 @@ export function scenePlaybackResponse({ model, messages, originalMessages, tools
             });
             signal.throwIfAborted();
             const intentMs = Date.now() - intentStartedAt;
-            const input = Object.fromEntries(Object.entries(plan.output).filter(([, value]) => value !== null));
+            // Restrict coordinates to what the user actually said. Providers may fill
+            // optional numeric slots with zero or an episode guessed from memory.
+            const { seasonNumber: _plannedSeason, episodeNumber: _plannedEpisode, ...description } = plan.output;
+            const coordinates = explicitSceneCoordinates(text);
+            const input = Object.fromEntries(Object.entries({ ...description, ...coordinates,
+                ...(coordinates.episodeNumber !== undefined ? { episodeQuery: null } : {}),
+            }).filter(([, value]) => value !== null));
             const toolCallId = `scene-${crypto.randomUUID()}`;
             let latestProgress: SceneProgress | undefined;
             let latestEpisodeProgress: EpisodeProgress | undefined;

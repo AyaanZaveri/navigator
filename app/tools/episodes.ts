@@ -2,7 +2,7 @@ import { tool, type LanguageModel } from "ai";
 import { z } from "zod";
 import { resolveEpisode, type EpisodeQuery, type EpisodeProgress } from "@/lib/episode-discovery";
 import { getTinyfishConfig } from "@/lib/tinyfish-credentials";
-import { researchMediaWeb } from "@/lib/tinyfish";
+import { researchMediaWeb, searchTinyfish, fetchMediaWebSources } from "@/lib/tinyfish";
 import { navigateToEpisode, navigateToMedia, playMedia, playMediaInputSchema } from "./media";
 import { getTMDBEpisode } from "@/lib/tmdb-discovery";
 import { record } from "@/lib/navigator-chat";
@@ -19,7 +19,7 @@ export function createEpisodeTools(model?: LanguageModel) {
         const config = await getTinyfishConfig();
         const onProgress = record(options.context).onEpisodeProgress as ((_progress: EpisodeProgress) => void) | undefined;
         return resolveEpisode(input, { model, signal: options.abortSignal, onProgress,
-            research: config.enabled && config.apiKey ? (query, purpose, signal) => researchMediaWeb(query, purpose, config.apiKey!, signal) : undefined });
+            research: config.enabled && config.apiKey ? (query, purpose, signal) => researchMediaWeb(query, purpose, config.apiKey!, signal, results => onProgress?.({ stage: "search", state: "completed", detail: query, sources: results.map(({ url, title }) => ({ url, title })) })) : undefined });
     };
     const findEpisode = tool({
         description: "Find a TV episode by its title, remembered plot, event or guest. Checks the relevant TMDB catalog and uses web evidence when enabled and needed. Returns a verified episode or asks for clarification. Never guess coordinates from memory.",
@@ -76,21 +76,42 @@ export function createEpisodeTools(model?: LanguageModel) {
             },
         }),
         searchMediaWeb: tool({
-            description: "Research movie/show/episode facts that TMDB cannot substantiate, using optional TinyFish search and fetched pages. Use getMediaDetails for ordinary metadata. Episode actions should use navigateToEpisode/playMedia with episodeQuery instead. Cite supplied sources and report insufficient evidence when needed.",
+            description: "Fast TinyFish Search API: returns up to ten ranked results with titles, snippets and URLs immediately. Does not fetch or render pages. Use readMediaWebSources only for selected URLs when page evidence is needed. For search-result requests, return these results without fetching pages. Use getMediaDetails for ordinary metadata; episode actions use navigateToEpisode/playMedia with episodeQuery.",
             inputSchema: z.object({ query: z.string().min(1).max(1500), question: z.string().min(1).max(1500).describe("The media-information question the sources must answer") }),
             execute: async ({ query, question }, { abortSignal, context }) => {
                 const config = await getTinyfishConfig();
                 if (!config.enabled || !config.apiKey) return { success: false, error: "Enable TinyFish web search and configure its API key in Settings to research this question." };
                 const progress = record(context).onEpisodeProgress as ((_progress: EpisodeProgress) => void) | undefined;
-                progress?.({ stage: "web", state: "running" });
+                progress?.({ stage: "search", state: "running" });
                 try {
-                    const sources = await researchMediaWeb(query, question, config.apiKey, abortSignal);
-                    progress?.({ stage: "web", state: sources.length ? "completed" : "error", sources: sources.map(({ url, title }) => ({ url, title })) });
-                    return { success: !!sources.length, sources, ...(sources.length ? {} : { error: "No readable sources supported this search." }) };
+                    const started = Date.now();
+                    const results = await searchTinyfish(query, question, config.apiKey, abortSignal);
+                    progress?.({ stage: "search", state: results.length ? "completed" : "error", sources: results.map(({ url, title }) => ({ url, title })) });
+                    return { success: !!results.length, results, count: results.length, searchMs: Date.now() - started, evidenceLevel: "search-results", ...(results.length ? {} : { error: "No search results found." }) };
                 } catch (error) {
                     abortSignal?.throwIfAborted();
-                    progress?.({ stage: "web", state: "error" });
+                    progress?.({ stage: "search", state: "error" });
                     return { success: false, error: error instanceof Error ? error.message : "Web search failed." };
+                }
+            },
+        }),
+        readMediaWebSources: tool({
+            description: "Read selected public source URLs returned by searchMediaWeb when a claim needs page evidence. Fetch only the relevant pages, up to four per call. This is slower than search; do not call it just to list search results.",
+            inputSchema: z.object({ urls: z.array(z.string().url()).min(1).max(4), question: z.string().min(1).max(1500) }),
+            execute: async ({ urls, question }, { abortSignal, context }) => {
+                const config = await getTinyfishConfig();
+                if (!config.enabled || !config.apiKey) return { success: false, error: "Enable TinyFish web search and configure its API key in Settings." };
+                const progress = record(context).onEpisodeProgress as ((_progress: EpisodeProgress) => void) | undefined;
+                progress?.({ stage: "web", state: "running" });
+                try {
+                    const sources = await fetchMediaWebSources(urls, question, config.apiKey, abortSignal);
+                    progress?.({ stage: "web", state: sources.length ? "completed" : "error", sources: sources.map(({ url, title }) => ({ url, title })) });
+                    return { success: !!sources.length, sources, evidenceLevel: "page-content" };
+                } catch (error) {
+                    abortSignal?.throwIfAborted();
+                    const message = error instanceof Error ? error.message : "Could not read these sources.";
+                    progress?.({ stage: "web", state: "error", detail: message });
+                    return { success: false, error: message };
                 }
             },
         }),
