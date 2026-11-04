@@ -54,3 +54,12 @@ assert.equal(value(webCopy, 'left'), value(webControls, 'padding-left'));
 assert.equal(value(webCopy, 'right'), value(webControls, 'padding-right'));
 assert.ok(rules.indexOf(rule(webCopy)) > rules.indexOf(rule(copy)), 'Web-specific gutters override the shared native fallback');
 console.log('PASS: web loading/playback gutters match without replacing native camera-safe alignment');
+
+const macShell = 'html[data-native-platform="macos"] [data-player-shell]';
+const macCopy = `${macShell} [data-slot="media-player"] [data-player-loading-copy]`;
+const macControls = `${macShell} [data-slot="media-player-controls"]`;
+assert.equal(value(macShell, '--player-content-left'), value(webShell, '--player-content-left'));
+assert.equal(value(macCopy, 'left'), 'var(--player-content-left)', 'Traffic-light clearance must not inset macOS loading copy');
+assert.equal(value(macCopy, 'left'), value(macControls, 'padding-left'));
+assert.equal(value(macCopy, 'right'), value(macControls, 'padding-right'));
+console.log('PASS: macOS loading copy uses the shared 24px content gutter independently of traffic lights');

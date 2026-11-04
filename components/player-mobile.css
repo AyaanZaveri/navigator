@@ -232,19 +232,22 @@ html[data-native-platform="ios"] [data-player-shell] {
   right: var(--player-chrome-right);
 }
 
-/* Web and Windows loading details align with playback text. Back keeps its
+/* Desktop loading details align with playback text. Back keeps its
    independent chrome gutter; touch-native players retain cutout handling. */
 html:not([data-native-platform]) [data-player-shell],
+html[data-native-platform="macos"] [data-player-shell],
 html[data-native-platform="windows"] [data-player-shell] {
   --player-content-left: max(1.5rem, env(safe-area-inset-left, 0px));
   --player-content-right: max(1.5rem, env(safe-area-inset-right, 0px));
 }
 html:not([data-native-platform]) [data-player-shell] [data-slot="media-player"] [data-player-loading-copy],
+html[data-native-platform="macos"] [data-player-shell] [data-slot="media-player"] [data-player-loading-copy],
 html[data-native-platform="windows"] [data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
   left: var(--player-content-left);
   right: var(--player-content-right);
 }
 html:not([data-native-platform]) [data-player-shell] [data-slot="media-player-controls"],
+html[data-native-platform="macos"] [data-player-shell] [data-slot="media-player-controls"],
 html[data-native-platform="windows"] [data-player-shell] [data-slot="media-player-controls"] {
   padding-left: var(--player-content-left);
   padding-right: var(--player-content-right);
