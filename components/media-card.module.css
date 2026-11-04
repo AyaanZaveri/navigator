@@ -137,6 +137,22 @@
   background: rgb(0 0 0 / 35%);
 }
 
+/* WKWebView can briefly composite the zooming image above the separate shade
+   at hover boundaries. Keep the same 65% brightness in the image's own alpha
+   instead, against an opaque black backing inside the artwork link. Keep the
+   backing off the frame's translucent border; the wordmark stays undimmed. */
+:global(html[data-native-platform="macos"]) .card[data-continue-watching] .frame > a {
+  background-color: #000;
+}
+
+:global(html[data-native-platform="macos"]) .card[data-continue-watching] .frame::before {
+  content: none;
+}
+
+:global(html[data-native-platform="macos"]) .card[data-continue-watching] .artwork {
+  opacity: 0.65;
+}
+
 /* Keep the small filtered logo composited before hover starts. Its layer must
    not be rebuilt when WebKit promotes the zooming artwork underneath it. */
 :global(html[data-native-platform="macos"]) .wordmark {

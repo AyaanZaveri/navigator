@@ -43,9 +43,9 @@ export function DeferredTools({ userId, navigatorEnabled, onToggleAIAsk }: {
     const [playerRequested, setPlayerRequested] = useState(false);
     const [navigatorRequested, setNavigatorRequested] = useState(false);
     useEffect(() => {
-        if (!["android", "windows"].includes(desktopBridge()?.platform ?? "")) return;
-        // Warm the existing chunk while idle. Windows also benefits on its
-        // first launch, before either pointer intent or playback requests it.
+        if (!["android", "windows", "macos"].includes(desktopBridge()?.platform ?? "")) return;
+        // Warm the existing chunk while idle, before pointer intent or playback
+        // requests it. macOS must not parse the cold player during a card hover.
         if (typeof window.requestIdleCallback === "function") {
             const idle = window.requestIdleCallback(preloadPlayer, { timeout: 1500 });
             return () => window.cancelIdleCallback(idle);
