@@ -31,8 +31,8 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
-  InputGroupInput,
 } from "./focus-ui/input-group";
+import { NavigatorComposerInput } from "./composer-input";
 import { NavigatorActivityStatus } from "./activity-status";
 import {
   NavigatorTraceRow,
@@ -578,28 +578,21 @@ export function NavigatorFocus({
                           </button>
                         </div>
                       ) : null}
-                      <InputGroup className="h-10! rounded-lg! border-transparent bg-transparent shadow-none! ring-0 focus-within:border-transparent focus-within:ring-0 has-disabled:bg-transparent has-disabled:opacity-100 has-[[data-slot=input-group-control]:focus-visible]:border-transparent! has-[[data-slot=input-group-control]:focus-visible]:ring-0! dark:bg-transparent dark:has-disabled:bg-transparent">
-                        <InputGroupAddon className="cursor-default px-2.5">
+                      <InputGroup className="h-auto! min-h-10 items-end rounded-lg! border-transparent bg-transparent py-[3px] shadow-none! ring-0 focus-within:border-transparent focus-within:ring-0 has-disabled:bg-transparent has-disabled:opacity-100 has-[[data-slot=input-group-control]:focus-visible]:border-transparent! has-[[data-slot=input-group-control]:focus-visible]:ring-0! dark:bg-transparent dark:has-disabled:bg-transparent">
+                        <InputGroupAddon className="shrink-0 cursor-default self-end px-2.5">
                           <Ship
                             aria-hidden="true"
                             className="size-5 stroke-[1.5]"
                           />
                         </InputGroupAddon>
-                        <InputGroupInput
-                          aria-label="Message Navigator"
-                          autoComplete="off"
-                          autoFocus
-                          className="text-base!"
+                        <NavigatorComposerInput
                           disabled={isBusy}
-                          onChange={(event) =>
-                            onInputChange(event.target.value)
-                          }
-                          placeholder="Ask about a movie, show, or scene…"
+                          onValueChange={onInputChange}
                           value={input}
                         />
                         <InputGroupButton
                           aria-label={isBusy ? "Stop response" : "Send message"}
-                          className="mr-1 text-muted-foreground"
+                          className="mr-1 shrink-0 self-end text-muted-foreground"
                           disabled={!isBusy && !input.trim()}
                           size="icon-sm"
                           type={isBusy ? "button" : "submit"}

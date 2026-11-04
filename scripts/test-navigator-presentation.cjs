@@ -81,6 +81,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     'next-themes': { useTheme: () => ({ resolvedTheme: 'dark' }) },
     './focus-ui/button': { Button: 'button' }, './launcher': { NavigatorLauncher: 'button' },
     './focus-ui/input-group': { InputGroup: 'div', InputGroupAddon: 'div', InputGroupButton: 'button', InputGroupInput: 'input' },
+    './composer-input': { NavigatorComposerInput: 'textarea' },
     './activity-status': { NavigatorActivityStatus: 'span' }, './focus-results': { toNavigatorSegments: () => [], isPlaybackRequest: () => false }, './focus.css': {},
     '@/components/arc/floating-surface.module.css': { surface: 'sampled-surface' },
     '@/lib/navigator-activity-label': { getNavigatorActivityLabel: () => '', NAVIGATOR_ACTIVITY_VARIANT_COUNT: 1 },
