@@ -4,6 +4,7 @@ export type NativeTrack = {
   title?: string;
   lang?: string;
   selected?: boolean;
+  forced?: boolean;
 };
 
 export type NativeState = {

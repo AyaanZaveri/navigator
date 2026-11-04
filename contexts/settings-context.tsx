@@ -5,6 +5,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { SUBTITLE_SIZES, SUBTITLE_OUTLINES, SUBTITLE_WEIGHTS, SUBTITLE_COLORS, type SubtitleSize, type SubtitleOutline, type SubtitleWeight, type SubtitleColor } from "@/lib/subtitle-appearance";
 import { SUBTITLE_POSITION, normalizeSubtitlePosition } from "@/lib/subtitle-appearance";
 
+import { DEFAULT_PLAYBACK_PREFERENCES, readPlaybackPreferences, savePlaybackPreferences, normalizePlaybackPreferences, type PlaybackPreferences } from "@/lib/media/playback-preferences";
+
 export interface BitrateOption {
   value: string;
   label: string;
@@ -39,6 +41,8 @@ export type OpenRouterReasoningEffort =
 export type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
 interface SettingsContextType {
+  playbackPreferences: PlaybackPreferences;
+  updatePlaybackPreferences: (preferences: Partial<PlaybackPreferences>) => void;
   subtitlePosition: number;
   setSubtitlePosition: (position: number) => void;
   subtitleSize: SubtitleSize;
@@ -101,6 +105,15 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 );
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const [playbackPreferences, setPlaybackPreferences] = useState<PlaybackPreferences>(DEFAULT_PLAYBACK_PREFERENCES);
+  const updatePlaybackPreferences = (patch: Partial<PlaybackPreferences>) => {
+    setPlaybackPreferences(previous => {
+      const next = normalizePlaybackPreferences({ ...previous, ...patch });
+      savePlaybackPreferences(next);
+      return next;
+    });
+  };
+  useEffect(() => { setPlaybackPreferences(readPlaybackPreferences()); }, []);
   const [subtitlePosition, setSubtitlePositionState] = useState<number>(SUBTITLE_POSITION.default);
   const setSubtitlePosition = (value: number) => {
     const position = normalizeSubtitlePosition(value);
@@ -419,6 +432,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <SettingsContext.Provider
       value={{
+        playbackPreferences, updatePlaybackPreferences,
         subtitlePosition, setSubtitlePosition, subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline,
         subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, resetSubtitleAppearance,
         analysisModel: analysisModels[aiProvider] || "",

@@ -1,4 +1,5 @@
-import { preferredEnglishTrack } from "@/lib/media/audio-language";
+import { readPlaybackPreferences } from "@/lib/media/playback-preferences";
+import { preferredAudioTrack } from "@/lib/media/audio-language";
 import type { DesktopBridge, NativeMessage, NativeState, NativeTrack } from "./bridge";
 
 function ranges(end: number): TimeRanges {
@@ -269,7 +270,7 @@ export class MpvController extends EventTarget {
       case "tracks": {
         this.tracks = message.tracks;
         if (!this.audioChosen) {
-          const english = preferredEnglishTrack(this.tracks.filter(track => track.type === "audio"));
+          const english = preferredAudioTrack(this.tracks.filter(track => track.type === "audio"), readPlaybackPreferences().audioLanguage);
           if (english) {
             this.audioChosen = true;
             if (!english.selected) this.bridge.send({ type: "track", session: this.session, kind: "audio", id: String(english.id) });

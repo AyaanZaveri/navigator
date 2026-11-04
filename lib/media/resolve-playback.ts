@@ -1,4 +1,4 @@
-import { isEnglish, streamEnglishPreference } from "@/lib/media/audio-language";
+import { languageMatchScore, streamLanguagePreference } from "@/lib/media/audio-language";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { StreamMetadata, StreamTrackMetadata } from "@/lib/media/stream-metadata";
 import type { StremioStream } from "@/types/stremio";
@@ -6,6 +6,7 @@ import type { StremioStream } from "@/types/stremio";
 export type PlaybackPhase = "finding-episode" | "fetching-streams" | "loading-stream";
 
 interface PlaybackDependencies {
+    preferredAudioLanguage?: string;
     resolveId?: (_id: string, _type: "movie" | "series") => Promise<string>;
     environment?: "web" | "native";
     inspectStream?: (_stream: StremioStream) => Promise<StreamMetadata | undefined>;
@@ -26,13 +27,13 @@ export const playbackPhaseLabels: Record<PlaybackPhase, string> = {
 };
 
 /** Rank compatibility before quality: a high-resolution file with unsupported sound is not a good web source. */
-export function scoreWebStream(stream: StremioStream, canPlayType?: (_mime: string) => boolean): number {
+export function scoreWebStream(stream: StremioStream, canPlayType?: (_mime: string) => boolean, preferredAudioLanguage = "en"): number {
     const url = stream.url || stream.externalUrl || "";
     let filename = url.split(/[?#]/)[0];
     try { filename = decodeURIComponent(filename); } catch { /* Add-ons may supply unescaped filenames. */ }
     const text = [stream.name, stream.title, stream.description, stream.behaviorHints?.filename, filename].join(" ")
         .toLowerCase().replace(/[\u200b-\u200f\u2060\ufeff]/g, "").replace(/_/g, " ");
-    const language = streamEnglishPreference(stream);
+    const language = streamLanguagePreference(stream, preferredAudioLanguage);
     let score = languageScore(language);
     const supports = (mime: string) => canPlayType?.(mime) ?? false;
     if (/\b(avc|h[ .-]?264|x264)\b/.test(text)) score += 3000;
@@ -101,13 +102,14 @@ function audioCodecString(track: StreamTrackMetadata): string | null {
     return null;
 }
 
-/** Prefer English; retain add-on order within native language tiers and rank web compatibility. */
+/** Prefer the requested audio language; retain add-on order within native language tiers and rank web compatibility. */
 export async function resolvePlayback(
     request: MediaToPlay,
     dependencies: PlaybackDependencies,
     onPhase: (_phase: PlaybackPhase) => void,
     onTargetReady?: (_media: MediaToPlay) => void,
 ): Promise<MediaToPlay> {
+    const preferredAudioLanguage = dependencies.preferredAudioLanguage || "en";
     let media = { ...request };
     const knownStreams = request.streamRequest?.id === (request.mediaSourceId || request.id)
         && request.streamRequest.type === request.type ? request.streamRequest : undefined;
@@ -145,8 +147,10 @@ export async function resolvePlayback(
         seen.add(url);
         return true;
     });
+    const languagePreferences = new Map(candidates.map(candidate => [candidate, streamLanguagePreference(candidate, preferredAudioLanguage)]));
     if (dependencies.environment === "web") {
-        candidates.sort((a, b) => scoreWebStream(b, dependencies.canPlayType) - scoreWebStream(a, dependencies.canPlayType));
+        const scores = new Map(candidates.map(candidate => [candidate, scoreWebStream(candidate, dependencies.canPlayType, preferredAudioLanguage)]));
+        candidates.sort((a, b) => scores.get(b)! - scores.get(a)!);
         if (dependencies.inspectStream && dependencies.canPlayType) {
             const support = new Map<StremioStream, ReturnType<typeof webMetadataSupport>>();
             const primaryLanguage = new Map<StremioStream, string>();
@@ -162,16 +166,16 @@ export async function resolvePlayback(
             const inspectedScore = (candidate: StremioStream) => {
                 const language = primaryLanguage.get(candidate);
                 // Replace release-label guesses with the actual default audio language.
-                const adjustment = language ? languageScore(isEnglish(language) ? 2 : -1)
-                    - languageScore(streamEnglishPreference(candidate)) : 0;
-                return scoreWebStream(candidate, dependencies.canPlayType) + adjustment
+                const adjustment = language ? languageScore(languageMatchScore(language, preferredAudioLanguage) ? 2 : -1)
+                    - languageScore(languagePreferences.get(candidate)!) : 0;
+                return scores.get(candidate)! + adjustment
                     + (support.get(candidate) === "supported" ? 2000 : 0);
             };
             candidates.sort((a, b) => inspectedScore(b) - inspectedScore(a));
         }
     }
     if (dependencies.environment !== "web") {
-        candidates.sort((a, b) => streamEnglishPreference(b) - streamEnglishPreference(a));
+        candidates.sort((a, b) => languagePreferences.get(b)! - languagePreferences.get(a)!);
     }
     dependencies.onCandidates?.(candidates);
     const stream = candidates[0];

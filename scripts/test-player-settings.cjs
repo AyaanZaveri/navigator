@@ -226,19 +226,23 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
 // the first English file regardless of which menu option was chosen.
 (async () => {
   const global = ts.createSourceFile('global.tsx', fs.readFileSync('components/global-media-player.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  let handler;
+  let handler, selection;
   function walk(node) {
     if (ts.isJsxAttribute(node) && node.name.getText(global) === 'onCustomSubtitleChange') handler = node.initializer.expression.getText(global);
+    if (ts.isVariableDeclaration(node) && node.name.getText(global) === 'selectSubtitle') selection = node.initializer.arguments[0].getText(global);
     ts.forEachChild(node, walk);
   }
   walk(global);
   let nextTracks, fetched;
-  const env = { exports: {}, subtitleTracks: tracks, nativePlayback: false,
+  const env = { exports: {}, subtitleTracks: tracks, nativePlayback: false, videoRef: { current: null },
+    subtitleManualOverride: { current: false }, subtitleDefaultApplied: { current: false },
+    subtitleSelectionRequest: { current: 0 }, loadGenerationRef: { current: 1 },
     setFetchingSubtitles() {}, setSubtitleData() {}, setCurrentSubtitle() {},
     fetchSubtitleFileContent: async src => { fetched = src; return { success: true, content: 'subtitle' }; },
     parseSubtitleTextContent: () => [], setSubtitleTracks: update => { nextTracks = update(tracks); },
   };
-  vm.runInNewContext(ts.transpileModule(`exports.handler = ${handler};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, env);
+  vm.runInNewContext(ts.transpileModule(`exports.selection = ${selection}; exports.handler = ${handler};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, env);
+  env.selectSubtitle = env.exports.selection;
   env.exports.handler(tracks[2]);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(fetched, '/english-second.srt');
