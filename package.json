@@ -33,7 +33,10 @@
     "test:gradient": "node scripts/test-gradient-lifecycle.cjs",
     "test:home-palette": "node scripts/test-home-palette.cjs && node scripts/test-home-palette-worker.cjs && node scripts/test-home-logo-canvas.cjs",
     "test:navigator": "node scripts/test-navigator.cjs && node scripts/test-tmdb-discovery.cjs && node scripts/test-navigator-presentation.cjs",
-    "test:episode-continuation": "node scripts/test-episode-continuation.cjs && node scripts/test-series-playback.cjs"
+    "test:episode-continuation": "node scripts/test-episode-continuation.cjs && node scripts/test-series-playback.cjs",
+    "cloudflare:build": "opennextjs-cloudflare build",
+    "cloudflare:deploy": "npm run cloudflare:build && opennextjs-cloudflare deploy",
+    "cloudflare:types": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^3.0.82",
@@ -92,7 +95,7 @@
     "media-chrome": "^4.12.0",
     "mediabunny": "^1.65.0",
     "motion": "^12.23.12",
-    "next": "16.1.6",
+    "next": "16.4.4",
     "next-themes": "^0.4.6",
     "node-vibrant": "^4.0.3",
     "ogl": "^1.0.11",
@@ -107,7 +110,8 @@
     "streamdown": "^2.6.0",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.6.7",
-    "zustand": "^4.4.1"
+    "zustand": "^4.4.1",
+    "@opennextjs/cloudflare": "1.20.15"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -116,11 +120,12 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.4.4",
     "eslint-plugin-jest": "^29.14.0",
     "tailwindcss": "^4.1.18",
     "tw-animate-css": "^1.3.5",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "4.156.2"
   },
   "engines": {
     "node": ">=22"

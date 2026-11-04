@@ -1,0 +1,36 @@
+name: Android playback demo
+on:
+  pull_request:
+    paths: ['android-demo/**', '.github/workflows/android-demo.yml']
+  push:
+    branches: ['android-exoplayer-demo']
+    paths: ['android-demo/**', '.github/workflows/android-demo.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: android-demo/web/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci --prefix android-demo/web
+      - run: node android-demo/scripts/build-web.mjs
+      - run: node android-demo/scripts/check-assets.mjs
+      - run: ./gradlew assembleDebug assembleDebugAndroidTest lintDebug --no-daemon
+        working-directory: android-demo
+      - run: python3 android-demo/scripts/check-apk.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Navigator-Android-Playback-Demo
+          path: android-demo/app/build/outputs/apk/debug/*.apk

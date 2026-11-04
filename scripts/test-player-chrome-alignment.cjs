@@ -4,7 +4,7 @@ const postcss = require('postcss');
 const css = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
 const rules = [];
 css.walkRules(rule => rules.push(rule));
-const rule = selector => rules.find(rule => rule.selector === selector);
+const rule = selector => rules.find(rule => rule.selector.split(',').map(value => value.trim()).includes(selector));
 const value = (selector, property) => rule(selector)?.nodes.find(node => node.prop === property)?.value;
 const copy = '[data-player-shell] [data-slot="media-player"] [data-player-loading-copy]';
 const back = '[data-player-shell] [data-player-close]';
@@ -42,3 +42,15 @@ const controls = group(windows+' [data-slot="media-player-controls"]');
 assert.equal(loading.nodes.find(node=>node.prop==='left').value, 'var(--player-content-left)');
 assert.equal(controls.nodes.find(node=>node.prop==='padding-left').value, 'var(--player-content-left)', 'Windows loading copy aligns to playback text rather than the narrower Back gutter');
 console.log('PASS: shared Back/loading gutter across desktop, Android landscape cutouts, changing control insets and installed APK compatibility');
+
+// Both sides of the integration conflict must survive: web uses the loaded
+// player's 24px gutter while native retains Back/camera alignment above.
+const webShell = 'html:not([data-native-platform]) [data-player-shell]';
+const webCopy = `${webShell} [data-slot="media-player"] [data-player-loading-copy]`;
+const webControls = `${webShell} [data-slot="media-player-controls"]`;
+assert.equal(value(webShell, '--player-content-left'), 'max(1.5rem, env(safe-area-inset-left, 0px))');
+assert.equal(value(webShell, '--player-content-right'), 'max(1.5rem, env(safe-area-inset-right, 0px))');
+assert.equal(value(webCopy, 'left'), value(webControls, 'padding-left'));
+assert.equal(value(webCopy, 'right'), value(webControls, 'padding-right'));
+assert.ok(rules.indexOf(rule(webCopy)) > rules.indexOf(rule(copy)), 'Web-specific gutters override the shared native fallback');
+console.log('PASS: web loading/playback gutters match without replacing native camera-safe alignment');

@@ -47,7 +47,7 @@ import {
   useMediaFullscreenRef,
   useMediaRef,
   useMediaSelector,
-} from "media-chrome/dist/react/media-store";
+} from "media-chrome/react/media-store";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
@@ -3097,6 +3097,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
         <DropdownMenuLabel className="sr-only">Playback settings</DropdownMenuLabel>
         <DropdownMenuGroup>
           <PlayerSettingsMenu speed={mediaPlaybackRate} speeds={speeds} onSpeedChange={onPlaybackRateChange}
+            subtitleTiming={context.subtitleTiming}
             disabled={isDisabled} portalContainer={context.rootRef.current ?? context.portalContainer}
             quality={context.isVideo && mediaRenditionList.length > 0 ? {
               value: selectedRenditionId || "auto",
