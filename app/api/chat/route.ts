@@ -91,6 +91,7 @@ export async function POST(req: Request) {
             geminiModel = "gemini-flash-lite-latest",
             ollamaBaseUrl = "http://localhost:11434",
             ollamaModel = "phi3",
+            ollamaApiKey,
             groqModel = "llama3-8b-8192",
             openrouterModel = "qwen/qwen3-coder:free",
             openrouterReasoningEffort = "default",
@@ -217,6 +218,7 @@ export async function POST(req: Request) {
             case "ollama": {
                 const ollamaProvider = createOllama({
                     baseURL: ollamaBaseUrl,
+                    headers: ollamaApiKey?.trim() ? { Authorization: `Bearer ${ollamaApiKey.trim()}` } : undefined,
                 });
                 model = ollamaProvider((modelOverride || ollamaModel));
                 break;

@@ -86,6 +86,8 @@ interface SettingsContextType {
   opencodeModel: string;
   setOpencodeModel: (model: string) => void;
   // API keys
+  ollamaApiKey: string;
+  setOllamaApiKey: (key: string) => void;
   openaiApiKey: string;
   setOpenaiApiKey: (key: string) => void;
   googleApiKey: string;
@@ -174,6 +176,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [opencodeModel, setOpencodeModelState] = useState<string>("gpt-5.6-luna");
 
   // API Key states
+  const [ollamaApiKey, setOllamaApiKeyState] = useState<string>("");
   const [openaiApiKey, setOpenaiApiKeyState] = useState<string>("");
   const [googleApiKey, setGoogleApiKeyState] = useState<string>("");
   const [groqApiKey, setGroqApiKeyState] = useState<string>("");
@@ -303,6 +306,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Load API key settings
+    setOllamaApiKeyState(localStorage.getItem("navigator-ollama-api-key") || "");
     const savedOpenaiApiKey = localStorage.getItem("navigator-openai-api-key");
     if (savedOpenaiApiKey) {
       setOpenaiApiKeyState(savedOpenaiApiKey);
@@ -401,6 +405,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   };
 
   // API Key setters
+  const setOllamaApiKey = (key: string) => {
+    setOllamaApiKeyState(key);
+    localStorage.setItem("navigator-ollama-api-key", key);
+  };
   const setOpenaiApiKey = (key: string) => {
     setOpenaiApiKeyState(key);
     localStorage.setItem("navigator-openai-api-key", key);
@@ -449,6 +457,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setOpenaiModel,
         geminiModel,
         setGeminiModel,
+        ollamaApiKey,
+        setOllamaApiKey,
         ollamaBaseUrl,
         setOllamaBaseUrl,
         ollamaModel,

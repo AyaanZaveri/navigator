@@ -10,6 +10,7 @@ async function main() {
   const zod = await import('zod');
   let activeModel;
   const compatibleSettings = [];
+  const ollamaSettings = [];
   let authenticated = true;
   let subtitleTracks = [];
   let subtitleTracksForId;
@@ -57,7 +58,7 @@ async function main() {
     '@ai-sdk/cerebras': { cerebras: provider, createCerebras: () => provider },
     '@ai-sdk/openai-compatible': { createOpenAICompatible: settings => { compatibleSettings.push(settings); return provider; } },
     '@openrouter/ai-sdk-provider': { openrouter: provider, createOpenRouter: () => provider },
-    'ai-sdk-ollama': { createOllama: () => provider },
+    'ai-sdk-ollama': { createOllama: settings => { ollamaSettings.push(settings); return provider; } },
     'next/headers': { cookies: async () => ({ get: () => authenticated ? { value: JSON.stringify({ user: { _id: subtitleUserId } }) } : undefined }) },
     '@/app/actions/search': { searchItems: async () => { throw new Error('Add-on search is forbidden'); } },
     '@/app/actions/media': {
@@ -643,6 +644,12 @@ async function main() {
   });
   await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null, openaiBaseUrl: 'https://custom-compatible.example/v1', messages: [user('custom-structured-config', 'hello')] })));
   assert.equal(compatibleSettings.at(-1).supportsStructuredOutputs, true, 'Compatible endpoints must receive json_schema for structured tool planning, not unstructured json_object');
+
+  for (const apiKey of [' hosted-key ', '']) {
+    await readResponse(await POST(request({ ...payload, aiProvider: 'ollama', ollamaBaseUrl: 'https://hosted.example', ollamaApiKey: apiKey, pathname: '/', currentMedia: null, messages: [user('ollama-auth-' + !!apiKey, 'hello')] })));
+    assert.equal(ollamaSettings.at(-1).baseURL, 'https://hosted.example');
+    assert.equal(ollamaSettings.at(-1).headers?.Authorization, apiKey ? 'Bearer hosted-key' : undefined, 'Hosted Ollama sends the optional key; local Ollama needs no Authorization header');
+  }
 
   // Real track discovery must start providers concurrently and retain provider ordering.
   overrides['./auth'] = { getInstalledAddons: async () => [

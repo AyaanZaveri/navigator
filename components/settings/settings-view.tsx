@@ -396,6 +396,8 @@ function NavigatorSettings() {
         setOpenaiModel,
         geminiModel,
         setGeminiModel,
+        ollamaApiKey,
+        setOllamaApiKey,
         ollamaBaseUrl,
         setOllamaBaseUrl,
         ollamaModel,
@@ -707,14 +709,17 @@ function NavigatorSettings() {
                 )}
 
                 {aiProvider === "ollama" ? (
-                    <SettingsInput
-                        id="ollama-base-url"
-                        label="Base URL"
-                        type="url"
-                        value={ollamaBaseUrl}
-                        onValueChange={setOllamaBaseUrl}
-                        placeholder="http://localhost:11434"
-                    />
+                    <>
+                        <SettingsInput
+                            id="ollama-base-url"
+                            label="Base URL"
+                            type="url"
+                            value={ollamaBaseUrl}
+                            onValueChange={setOllamaBaseUrl}
+                            placeholder="http://localhost:11434"
+                        />
+                        <ApiKeyInput id="ollama-api-key" label="API key (optional)" description="For hosted Ollama endpoints that require authentication." value={ollamaApiKey} onValueChange={setOllamaApiKey} />
+                    </>
                 ) : (
                     <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
                 )}
