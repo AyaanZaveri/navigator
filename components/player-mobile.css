@@ -224,3 +224,18 @@ html[data-native-platform="ios"] [data-player-shell] {
   left: var(--player-chrome-left);
   right: var(--player-chrome-right);
 }
+
+/* Web loading details and playback chrome share a content gutter. Native
+   players keep their Back-button alignment and platform cutout handling. */
+html:not([data-native-platform]) [data-player-shell] {
+  --player-content-left: max(1.5rem, env(safe-area-inset-left, 0px));
+  --player-content-right: max(1.5rem, env(safe-area-inset-right, 0px));
+}
+html:not([data-native-platform]) [data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
+  left: var(--player-content-left);
+  right: var(--player-content-right);
+}
+html:not([data-native-platform]) [data-player-shell] [data-slot="media-player-controls"] {
+  padding-left: var(--player-content-left);
+  padding-right: var(--player-content-right);
+}
