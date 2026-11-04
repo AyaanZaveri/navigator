@@ -26,7 +26,7 @@ export function SubtitleSkipCard({
   const time = formatSceneTime(result.timestamp, result.timestampFormatted);
   return (
     <ResultCard
-      className={className}
+      className={[styles.card, className].filter(Boolean).join(" ")}
       index={index}
       title={result.success
         ? time ? <span className={styles.time}>At {time}</span> : null

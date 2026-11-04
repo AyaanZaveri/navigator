@@ -141,7 +141,7 @@
 }
 .body {
   display: block;
-  margin-block-start: 0.5rem;
+  margin-block-start: var(--result-body-gap, 0.5rem);
 }
 .interactive:focus-visible .arrow {
   opacity: 1;
@@ -180,5 +180,5 @@
   height: 2rem;
 }
 .textOnly {
-  padding-inline-start: 3.25rem;
+  padding-inline-start: var(--result-text-inset, 3.25rem);
 }
