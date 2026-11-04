@@ -85,13 +85,13 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   pointer-events: none;
   inset: 0;
   z-index: -1;
-  background-color: var(--player-glass-interaction-color, var(--browser-glass-color));
-  background-image: var(--browser-glass-sheen);
+  background-color: var(--player-glass-interaction-color, var(--player-glass-color, var(--browser-glass-color)));
+  background-image: var(--player-glass-sheen, var(--browser-glass-sheen));
   transition: background-color 150ms var(--ease-out, ease-out);
 }
 [data-player-native-glass][data-native-glass]::after {
-  background-color: var(--native-glass-color);
-  background-image: var(--native-glass-sheen);
+  background-color: var(--player-glass-color, var(--native-glass-color));
+  background-image: var(--player-glass-sheen, var(--native-glass-sheen));
 }
 [data-native-glass]::after { transition: background-color 150ms var(--ease-out, ease-out); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

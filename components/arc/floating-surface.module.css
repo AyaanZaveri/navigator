@@ -1,8 +1,13 @@
-/* Shared player menu material. Native glass captures this tint and replaces
-   the browser backdrop with the platform's sampled video surface. */
-.surface { --dropdown-opacity: 90%; --floating-blur: blur(12px); }
+/* Keep the material live when sampled video replaces the browser backdrop,
+   so an open surface follows theme and transparency changes. */
+.surface {
+  --dropdown-opacity: 90%;
+  --floating-blur: blur(12px);
+  --player-glass-color: color-mix(in oklab, var(--popover) var(--dropdown-opacity), transparent);
+  --player-glass-sheen: none;
+}
 .surface:not([data-native-glass]):not([data-browser-glass]) {
-  background: color-mix(in oklab, var(--popover) var(--dropdown-opacity), transparent);
+  background: var(--player-glass-color);
   -webkit-backdrop-filter: var(--floating-blur);
   backdrop-filter: var(--floating-blur);
 }

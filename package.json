@@ -24,7 +24,7 @@
     "test:resume": "node scripts/test-resume-items.cjs",
     "test:image-layout": "node scripts/test-image-layout.cjs",
     "test:webkit-previews": "node scripts/test-webkit-previews.cjs",
-    "test:web-player": "node scripts/test-player-initial-focus.cjs && node scripts/test-player-control-activity.cjs && node scripts/test-range-previews.cjs && node scripts/test-stream-metadata.cjs && node scripts/test-seek-preview-source.cjs && node scripts/test-browser-player-glass.cjs && node scripts/test-previews.cjs && node scripts/test-browser-preview-recovery.cjs && node scripts/test-player-glass.cjs && node scripts/test-web-playback-recovery.cjs",
+    "test:web-player": "node scripts/test-player-initial-focus.cjs && node scripts/test-player-control-activity.cjs && node scripts/test-range-previews.cjs && node scripts/test-stream-metadata.cjs && node scripts/test-seek-preview-source.cjs && node scripts/test-player-glass-theme.cjs && node scripts/test-browser-player-glass.cjs && node scripts/test-previews.cjs && node scripts/test-browser-preview-recovery.cjs && node scripts/test-player-glass.cjs && node scripts/test-web-playback-recovery.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

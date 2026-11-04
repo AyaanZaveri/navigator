@@ -69,7 +69,7 @@ const postcss = require('postcss');
 const css = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
 const glassTint = css.nodes.find(rule => rule.selector === '[data-browser-glass]::after');
 assert.equal(glassTint.nodes.find(node => node.prop === 'background-color').value,
-  'var(--player-glass-interaction-color, var(--browser-glass-color))',
+  'var(--player-glass-interaction-color, var(--player-glass-color, var(--browser-glass-color)))',
   'Live hover tint must reach the displayed canvas overlay instead of being trapped behind its captured initial color');
 const nativeTint = css.nodes.find(rule => rule.selector === '[data-native-glass]::after');
 assert.equal(nativeTint.nodes.find(node => node.prop === 'background-color').value,
