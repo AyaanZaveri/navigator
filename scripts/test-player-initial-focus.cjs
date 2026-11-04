@@ -27,7 +27,7 @@ function mount(props) {
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),
     useDirection: () => 'ltr', useMediaDispatch: () => action => dispatched.push(action),
     useStoreContext: () => store, useStoreSelector: selector => selector(state),
-    useMediaSelector: selector => selector({ mediaPaused: true }), desktopBridge: () => null,
+    useMediaSelector: selector => selector({ mediaPaused: true }), desktopBridge: () => null, setMacOSWindowControlsVisible() {},
     MediaPlayerContext: { Provider: 'Provider' }, MediaPlayerVolumeIndicator: 'VolumeIndicator',
     ROOT_NAME: 'MediaPlayer', FLOATING_MENU_SIDE_OFFSET: 10, cn: () => '',
     SEEK_STEP_SHORT: 5, MediaActionTypes: { MEDIA_SEEK_REQUEST: 'seek' },
