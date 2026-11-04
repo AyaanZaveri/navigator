@@ -45,6 +45,19 @@ import styles from "@/app/(main)/settings/settings.module.css";
 const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
 const MODELS_DEV_PROVIDER_CACHE_PREFIX = "navigator-modelsdev-provider:";
 
+// Configuration fields are not sign-in credentials. Keep browser history and
+// password managers out of these controls, including model search inputs.
+const SETTINGS_INPUT_ATTRIBUTES = {
+    autoComplete: "off",
+    autoCorrect: "off",
+    autoCapitalize: "none",
+    spellCheck: false,
+    "data-1p-ignore": true,
+    "data-lpignore": "true",
+    "data-bwignore": true,
+    "data-form-type": "other",
+} as const;
+
 type ModelsDevProviderResponse = {
     provider: {
         id: string;
@@ -103,15 +116,13 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
             <InputGroup className={styles.apiKeyInput}>
                 <InputGroupInput
+                    {...SETTINGS_INPUT_ATTRIBUTES}
                     id={id}
                     type={type}
                     value={value}
                     onChange={(event) => onValueChange(event.target.value)}
                     placeholder={placeholder}
                     aria-describedby={description ? `${id}-description` : undefined}
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    spellCheck={false}
                 />
                 <InputGroupAddon align="inline-start">
                     {type === "url" ? <Link2 aria-hidden="true" /> : <Cpu aria-hidden="true" />}
@@ -154,6 +165,7 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", desc
             </div>
             <InputGroup className={styles.apiKeyInput}>
                 <InputGroupInput
+                    {...SETTINGS_INPUT_ATTRIBUTES}
                     id={id}
                     type={visible ? "text" : "password"}
                     value={value}
@@ -162,9 +174,7 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", desc
                     aria-describedby={[description && `${id}-description`, error && `${id}-error`].filter(Boolean).join(" ") || undefined}
                     aria-invalid={!!error || undefined}
                     disabled={disabled}
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    spellCheck={false}
+                    autoComplete="new-password"
                 />
                 <InputGroupAddon align="inline-start">
                     {icon || <KeyRound aria-hidden="true" />}
@@ -234,7 +244,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
             {variant === "preference" && !loading && !state.configured && <p className={styles.description}>
                 <Link href="/settings/connections" className={styles.keyLink}>Connect TinyFish</Link> to enable web search.
             </p>}
-            {variant === "connection" && <form className="min-w-0" aria-busy={loading || pending} onSubmit={event => { event.preventDefault(); if (!pending && key.trim()) void update("save"); }}>
+            {variant === "connection" && <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || pending} onSubmit={event => { event.preventDefault(); if (!pending && key.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
                     <ApiKeyInput id="tinyfish-api-key" label="TinyFish API key" value={key} icon={<TinyFishIcon />}
                         onValueChange={value => { setKey(value); setError(null); setStatus(""); }} keyUrl="https://tinyfish.ai" keyLinkLabel="Get a TinyFish key"
@@ -290,7 +300,7 @@ function ArtworkSettings() {
             <div className={styles.connectionHeader}>
                 <h2 id="artwork-settings-title">TMDB</h2>
             </div>
-            <form className="min-w-0" aria-busy={loading || !!pending} onSubmit={(event) => { event.preventDefault(); if (!pending && token.trim()) void update("save"); }}>
+            <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || !!pending} onSubmit={(event) => { event.preventDefault(); if (!pending && token.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
                     <ApiKeyInput
                         id="tmdb-read-access-token"
@@ -367,6 +377,7 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
     return (
         <Field data-disabled={unavailable || undefined}>
             <Combobox
+                {...SETTINGS_INPUT_ATTRIBUTES}
                 className={styles.providerInput}
                 id={id}
                 label="Model"
