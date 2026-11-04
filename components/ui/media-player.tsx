@@ -168,6 +168,7 @@ function useStoreSelector<U>(selector: (state: StoreState) => U): U {
 }
 
 interface MediaPlayerContextValue {
+  subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   mediaId: string;
   labelId: string;
   descriptionId: string;
@@ -218,6 +219,7 @@ interface ChapterCue {
 interface MediaPlayerRootProps
   extends Omit<React.ComponentProps<"div">, "onTimeUpdate" | "onVolumeChange"> {
   onPlay?: () => void;
+  subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   onPause?: () => void;
   onEnded?: () => void;
   onTimeUpdate?: (time: number) => void;
@@ -287,6 +289,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     withoutTooltip = false,
     customSubtitleTracks,
     customSubtitlesEnabled = false,
+    subtitleTiming,
     onCustomSubtitleChange,
     chapters,
     children,
@@ -839,6 +842,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       customSubtitlesEnabled,
       onCustomSubtitleChange,
       chapters,
+      subtitleTiming,
     }),
     [
       mediaId,
@@ -855,6 +859,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       customSubtitlesEnabled,
       onCustomSubtitleChange,
       chapters,
+      subtitleTiming,
     ]
   );
 
@@ -2699,7 +2704,7 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
         </Button>
       </DropdownMenuTrigger>
     </MediaPlayerTooltip>
-    <DropdownMenuContent container={context.rootRef.current ?? context.portalContainer} side="top" sideOffset={sideOffset}>
+    <DropdownMenuContent data-player-native-glass="" container={context.rootRef.current ?? context.portalContainer} side="top" sideOffset={sideOffset}>
       <DropdownMenuOptions value={String(mediaPlaybackRate)} onValueChange={value => onPlaybackRateChange(Number(value))}
         options={speeds.map(speed => ({ value: String(speed), label: `${speed}×` }))} />
     </DropdownMenuContent>
@@ -3029,12 +3034,6 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const mediaPlaybackRate = useMediaSelector(
     (state) => state.mediaPlaybackRate ?? 1
   );
-  const mediaSubtitlesList = useMediaSelector(
-    (state) => state.mediaSubtitlesList ?? []
-  );
-  const mediaSubtitlesShowing = useMediaSelector(
-    (state) => state.mediaSubtitlesShowing ?? []
-  );
   const mediaRenditionList = useMediaSelector(
     (state) => state.mediaRenditionList ?? []
   );
@@ -3064,39 +3063,13 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
     [dispatch]
   );
 
-  const onSubtitlesToggle = React.useCallback(() => {
-    dispatch({
-      type: MediaActionTypes.MEDIA_TOGGLE_SUBTITLES_REQUEST,
-      detail: false,
-    });
-  }, [dispatch]);
-
-  const onShowSubtitleTrack = React.useCallback(
-    (subtitleTrack: (typeof mediaSubtitlesList)[number]) => {
-      dispatch({
-        type: MediaActionTypes.MEDIA_TOGGLE_SUBTITLES_REQUEST,
-        detail: false,
-      });
-      dispatch({
-        type: MediaActionTypes.MEDIA_SHOW_SUBTITLES_REQUEST,
-        detail: subtitleTrack,
-      });
-    },
-    [dispatch]
-  );
-
-  const subtitleTracks = context.customSubtitlesEnabled ? context.customSubtitleTracks ?? [] : mediaSubtitlesList;
-  const selectedSubtitleIndex = context.customSubtitlesEnabled
-    ? context.customSubtitleTracks?.findIndex(track => track.active) ?? -1
-    : mediaSubtitlesList.findIndex(track => mediaSubtitlesShowing.some(showing =>
-      showing.kind === track.kind && showing.language === track.language && showing.label === track.label));
-
   const onOpenChange = React.useCallback(
     (open: boolean) => {
       store.setState("menuOpen", open);
+      if (!open) context.subtitleTiming?.onClose();
       onOpenChangeProp?.(open);
     },
-    [store.setState, onOpenChangeProp]
+    [store.setState, onOpenChangeProp, context.subtitleTiming]
   );
 
   return (
@@ -3111,9 +3084,15 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
           </Button>
         </DropdownMenuTrigger>
       </MediaPlayerTooltip>
-      <DropdownMenuContent align="end" side="top" sideOffset={sideOffset}
+      <DropdownMenuContent data-player-native-glass="" align="end" side="top" sideOffset={sideOffset}
         container={context.rootRef.current ?? context.portalContainer}
         aria-label="Playback settings"
+        onInteractOutside={event => {
+          // The timing picker is a sibling portalled dialog. Keep this menu
+          // open while focus or the pointer moves into its controls.
+          const target = event.target as HTMLElement;
+          if (target.closest?.("[data-subtitle-timing]")) event.preventDefault();
+        }}
         className={playerSettingsStyles.settingsMenu}>
         <DropdownMenuLabel className="sr-only">Playback settings</DropdownMenuLabel>
         <DropdownMenuGroup>
@@ -3127,23 +3106,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
                 .flatMap(rendition => rendition.id ? [{ value: rendition.id, label: rendition.height
                   ? `${rendition.height}p` : rendition.width ? `${rendition.width}p` : rendition.id }] : [])],
             } : undefined}
-            subtitles={{
-              value: selectedSubtitleIndex >= 0 ? String(selectedSubtitleIndex) : "off",
-              options: [{ value: "off", label: "Off", icon: <CaptionsOffIcon size={14} strokeWidth={1.75} /> }, ...trackOptions(subtitleTracks)],
-              onChange: value => {
-                if (value === "off") {
-                  if (context.customSubtitlesEnabled) context.onCustomSubtitleChange?.(null);
-                  else onSubtitlesToggle();
-                  return;
-                }
-                const index = Number(value);
-                if (!Number.isInteger(index) || index < 0) return;
-                if (context.customSubtitlesEnabled) {
-                  const track = context.customSubtitleTracks?.[index];
-                  if (track) context.onCustomSubtitleChange?.(track);
-                } else if (mediaSubtitlesList[index]) onShowSubtitleTrack(mediaSubtitlesList[index]);
-              },
-            }} />
+          />
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

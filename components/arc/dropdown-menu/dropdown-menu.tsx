@@ -5,6 +5,7 @@ import * as Primitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, CircleHelp, Globe2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import glass from "../floating-surface.module.css";
 import styles from "./dropdown-menu.module.css";
 
 // UIArc's dropdown pattern, extended with composable submenus/radio choices.
@@ -16,13 +17,21 @@ export const DropdownMenuLabel = Primitive.Label;
 export const DropdownMenuRadioGroup = Primitive.RadioGroup;
 export const DropdownMenuSub = Primitive.Sub;
 
+export function DropdownMenuSeparator() {
+  return <Primitive.Separator className={styles.separator} />;
+}
+
+export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof Primitive.Item>) {
+  return <Primitive.Item {...props} className={cn(styles.item, className)} />;
+}
+
 type Container = ComponentProps<typeof Primitive.Portal>["container"];
 
 export function DropdownMenuContent({ container, className, sideOffset = 6, ...props }:
   ComponentProps<typeof Primitive.Content> & { container?: Container }) {
   return <Primitive.Portal container={container}>
     <Primitive.Content loop collisionPadding={12} sideOffset={sideOffset}
-      {...props} className={cn(styles.menu, className)} />
+      {...props} className={cn(styles.menu, glass.surface, className)} />
   </Primitive.Portal>;
 }
 
@@ -38,7 +47,7 @@ export function DropdownMenuSubContent({ container, className, sideOffset = 14, 
   ComponentProps<typeof Primitive.SubContent> & { container?: Container }) {
   return <Primitive.Portal container={container}>
     <Primitive.SubContent loop collisionPadding={12} sideOffset={sideOffset}
-      {...props} className={cn(styles.menu, className)} />
+      {...props} className={cn(styles.menu, glass.surface, className)} />
   </Primitive.Portal>;
 }
 

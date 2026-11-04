@@ -35,7 +35,8 @@
   color: var(--settings-description-color);
 }
 
-.apiKeyInput[data-slot="input-group"] {
+.apiKeyInput[data-slot="input-group"],
+.providerInput {
   height: var(--control-height-md);
   gap: var(--space-2);
   border-color: var(--border);
@@ -48,13 +49,15 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .apiKeyInput[data-slot="input-group"]:hover {
+  .apiKeyInput[data-slot="input-group"]:hover,
+  .providerInput:hover:not(:has(input:disabled)) {
     border-color: var(--border-strong);
     background: var(--surface-muted);
   }
 }
 
-.apiKeyInput[data-slot="input-group"]:focus-within {
+.apiKeyInput[data-slot="input-group"]:focus-within,
+.providerInput:focus-within {
   border-color: var(--ring);
   background: var(--surface-muted);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
@@ -83,5 +86,36 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .apiKeyInput[data-slot="input-group"] { transition: none; }
+  .apiKeyInput[data-slot="input-group"], .providerInput { transition: none; }
+}
+
+.subtitlePreviewFigure {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.subtitlePreview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface-muted);
+}
+
+.subtitlePreviewImage { object-fit: cover; }
+
+.subtitlePreviewText {
+  position: absolute;
+  inset-inline: 16px;
+  bottom: 12%;
+}
+
+.subtitleSwatch {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
 }

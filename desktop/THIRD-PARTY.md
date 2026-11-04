@@ -11,9 +11,15 @@ The original license is included in `licenses/AIOStreams-AGPL-3.0.txt`.
 | `src/render.rs` | `core/src/render.rs` | Module paths and attribution. |
 | `src/platform/macos.rs` | `app/src/platform/macos.rs` | Retain the OpenGL compatibility renderer; remove other outputs and unrelated platform services; add GL resource cleanup and Navigator menu. |
 | `src/platform/macos/hdr.rs`, `src/hdr.rs` | `app/src/platform/macos/video.rs` | Adapt OpenGL HDR/EDR handling, PQ/HLG detection, display headroom, and SDR restoration; retain no output selector or AVFoundation/Metal output; guard 8-bit surfaces and invalid display values. |
-| `src/platform/windows.rs` | `app/src/platform/windows.rs` | Retain the embedded HWND video surface; remove unrelated services. |
+| `src/platform/windows.rs` | `app/src/platform/windows.rs` | Retain the embedded HWND; Navigator now owns its D3D11 swap chain through libmpv 2.6's render API. |
 | `src/platform/linux.rs` | `app/src/platform/linux.rs` | Retain the GTK/OpenGL surface and native display integration; remove unrelated services. |
 | `libs.json` | `libs.pin`, `libs-macos.pin` | Preserve pinned release and library archive SHA-256 values. |
+
+The Windows fullscreen transition in `src/windows_shell.rs` also adapts the
+maximize/restore workaround from AIOStreams commit
+[`259e769414ba51fd8034971fb4fda37d7c9d316f`](https://github.com/Viren070/AIOStreams/blob/259e769414ba51fd8034971fb4fda37d7c9d316f/packages/desktop/app/src/shell/tao_shell.rs).
+It restores a maximized frameless window before entering fullscreen and restores
+its maximized placement on exit.
 
 The rest of the native shell and the Navigator integration are newly written.
 Distributing a desktop derivative requires preserving the AGPL license, notices,
@@ -35,6 +41,10 @@ their licenses. The standalone web server contains the existing project's npm
 dependencies. Review and include the complete dependency notices and sources
 required for a public release, together with this file and the bundled notices.
 
+The Windows startup document embeds the app's **Sunghyun Sans** regular and
+semibold fonts. Their SIL Open Font License is included in
+`licenses/SunghyunSans-OFL.txt`.
+
 ## Seek previews
 
 Native keyframe previews depend on `aiostreams-container` and `aiostreams-thumbs`
@@ -44,3 +54,8 @@ They read indexed keyframes with HTTP range requests and decode/scale/tone-map
 using the bundled FFmpeg libraries. The crates are AGPL-3.0-only; the license is
 included as `licenses/AIOStreams-media-AGPL-3.0.txt`. Navigator's session-bound
 request adapter and thumbnail UI are newly written.
+
+The new Windows renderer (`src/platform/windows_video.rs`) is Navigator code. It
+uses the public libmpv D3D11 API added in upstream PR 17764; the upstream render
+example and flutter-webview-windows texture bridge were studied as references.
+No code from those example repositories is included in the new renderer.

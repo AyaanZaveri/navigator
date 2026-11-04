@@ -24,6 +24,7 @@ import { StreamListCard } from "./stream-list-card";
 import { NavigationCard } from "./navigation-card";
 import { PlayMediaCard } from "./play-media-card";
 import { ThemeToggleCard } from "./theme-toggle-card";
+import { SubtitleTrackCard } from "./subtitle-track-card";
 import { SubtitleSkipCard } from "./subtitle-skip-card";
 import { SceneExplainCard } from "./scene-explain-card";
 import { MediaAnalysisCard } from "./media-analysis-card";
@@ -226,6 +227,15 @@ export function toNavigatorSegments(
         label: progress.state === "error" ? progress.detail || sceneProgressLabel(progress) : sceneProgressLabel(progress), detail: progress.detail,
         phase: progress.state, icon: progress.stage === "title" ? Search : Subtitles,
       } });
+      if (progress.state === "completed") {
+        const cards = progress.stage === "title" && progress.media
+          ? <MediaLinkCard item={progress.media} />
+          : progress.stage === "subtitles" && progress.subtitles
+            ? <SubtitleTrackCard track={progress.subtitles} />
+            : progress.stage === "scene" && progress.scene
+              ? <SubtitleSkipCard result={{ success: true, ...progress.scene }} /> : null;
+        if (cards) segments.push({ kind: "results", key: `progress-results-${text(part.id) || index}`, results: { cards } });
+      }
       return;
     }
     if (part.type === "text") {
@@ -268,7 +278,12 @@ export function toNavigatorSegments(
       if (part.state !== "output-available") return;
       const applied = result.execution === "completed" || !result.preparedToolCallId;
       // Show the existing theme controls only after the browser has applied the change.
-      const cards = name !== "themeToggle" || applied ? toolCards(name, result, input) : null;
+      const sceneAlreadyShown = name === "skipToSubtitleContent" && parts.some(candidate => {
+        const data = record(record(candidate).data);
+        return record(candidate).type === "data-sceneProgress" && data.toolCallId === part.toolCallId
+          && data.stage === "scene" && data.state === "completed" && !!data.scene;
+      });
+      const cards = !sceneAlreadyShown && (name !== "themeToggle" || applied) ? toolCards(name, result, input) : null;
       if (cards) segments.push({ kind: "results", key: `results-${index}`, results: { cards } });
       const hasAnswer = parts.some(rawPart => record(rawPart).type === "text" && text(record(rawPart).text).trim());
       if (applied && name !== "themeToggle" && result.message && !hasAnswer) {

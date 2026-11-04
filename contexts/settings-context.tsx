@@ -2,6 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+import { SUBTITLE_SIZES, SUBTITLE_OUTLINES, SUBTITLE_WEIGHTS, SUBTITLE_COLORS, type SubtitleSize, type SubtitleOutline, type SubtitleWeight, type SubtitleColor } from "@/lib/subtitle-appearance";
+import { SUBTITLE_POSITION, normalizeSubtitlePosition } from "@/lib/subtitle-appearance";
+
+import { DEFAULT_PLAYBACK_PREFERENCES, readPlaybackPreferences, savePlaybackPreferences, normalizePlaybackPreferences, type PlaybackPreferences } from "@/lib/media/playback-preferences";
+
 export interface BitrateOption {
   value: string;
   label: string;
@@ -36,6 +41,19 @@ export type OpenRouterReasoningEffort =
 export type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
 interface SettingsContextType {
+  playbackPreferences: PlaybackPreferences;
+  updatePlaybackPreferences: (preferences: Partial<PlaybackPreferences>) => void;
+  subtitlePosition: number;
+  setSubtitlePosition: (position: number) => void;
+  subtitleSize: SubtitleSize;
+  setSubtitleSize: (size: SubtitleSize) => void;
+  subtitleOutline: SubtitleOutline;
+  setSubtitleOutline: (outline: SubtitleOutline) => void;
+  subtitleWeight: SubtitleWeight;
+  setSubtitleWeight: (weight: SubtitleWeight) => void;
+  subtitleColor: SubtitleColor;
+  setSubtitleColor: (color: SubtitleColor) => void;
+  resetSubtitleAppearance: () => void;
   videoBitrate: string;
   setVideoBitrate: (bitrate: string) => void;
   navigatorEnabled: boolean;
@@ -87,6 +105,48 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 );
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const [playbackPreferences, setPlaybackPreferences] = useState<PlaybackPreferences>(DEFAULT_PLAYBACK_PREFERENCES);
+  const updatePlaybackPreferences = (patch: Partial<PlaybackPreferences>) => {
+    setPlaybackPreferences(previous => {
+      const next = normalizePlaybackPreferences({ ...previous, ...patch });
+      savePlaybackPreferences(next);
+      return next;
+    });
+  };
+  useEffect(() => { setPlaybackPreferences(readPlaybackPreferences()); }, []);
+  const [subtitlePosition, setSubtitlePositionState] = useState<number>(SUBTITLE_POSITION.default);
+  const setSubtitlePosition = (value: number) => {
+    const position = normalizeSubtitlePosition(value);
+    setSubtitlePositionState(position);
+    try { localStorage.setItem("navigator-subtitle-position", String(position)); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const [subtitleSize, setSubtitleSizeState] = useState<SubtitleSize>("standard");
+  const [subtitleOutline, setSubtitleOutlineState] = useState<SubtitleOutline>("thin");
+  const setSubtitleSize = (value: SubtitleSize) => {
+    setSubtitleSizeState(value);
+    try { localStorage.setItem("navigator-subtitle-size", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const setSubtitleOutline = (value: SubtitleOutline) => {
+    setSubtitleOutlineState(value);
+    try { localStorage.setItem("navigator-subtitle-outline", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const [subtitleWeight, setSubtitleWeightState] = useState<SubtitleWeight>("medium");
+  const [subtitleColor, setSubtitleColorState] = useState<SubtitleColor>("white");
+  const setSubtitleWeight = (value: SubtitleWeight) => {
+    setSubtitleWeightState(value);
+    try { localStorage.setItem("navigator-subtitle-weight", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const setSubtitleColor = (value: SubtitleColor) => {
+    setSubtitleColorState(value);
+    try { localStorage.setItem("navigator-subtitle-color", value); } catch { /* Keep the current preference when storage is unavailable. */ }
+  };
+  const resetSubtitleAppearance = () => {
+    setSubtitlePosition(SUBTITLE_POSITION.default);
+    setSubtitleSize("standard");
+    setSubtitleOutline("thin");
+    setSubtitleWeight("medium");
+    setSubtitleColor("white");
+  };
   const [videoBitrate, setVideoBitrateState] = useState<string>("auto");
   const [navigatorEnabled, setNavigatorEnabledState] = useState<boolean>(true);
   const [analysisModels, setAnalysisModels] = useState<Partial<Record<AIProvider, string>>>({});
@@ -131,6 +191,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   // Load settings from localStorage on mount
   useEffect(() => {
+    try {
+      const position = localStorage.getItem("navigator-subtitle-position");
+      if (position?.trim()) setSubtitlePositionState(normalizeSubtitlePosition(Number(position)));
+      const weight = localStorage.getItem("navigator-subtitle-weight");
+      const color = localStorage.getItem("navigator-subtitle-color");
+      if (SUBTITLE_WEIGHTS.some(option => option.value === weight)) setSubtitleWeightState(weight as SubtitleWeight);
+      if (SUBTITLE_COLORS.some(option => option.value === color)) setSubtitleColorState(color as SubtitleColor);
+      const size = localStorage.getItem("navigator-subtitle-size");
+      const outline = localStorage.getItem("navigator-subtitle-outline");
+      if (SUBTITLE_SIZES.some(option => option.value === size)) setSubtitleSizeState(size as SubtitleSize);
+      if (SUBTITLE_OUTLINES.some(option => option.value === outline)) setSubtitleOutlineState(outline as SubtitleOutline);
+    } catch { /* Use defaults if local preferences cannot be read. */ }
     try {
       const saved = JSON.parse(localStorage.getItem("navigator-analysis-models") || "{}");
       if (saved && typeof saved === "object" && !Array.isArray(saved)) {
@@ -360,6 +432,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   return (
     <SettingsContext.Provider
       value={{
+        playbackPreferences, updatePlaybackPreferences,
+        subtitlePosition, setSubtitlePosition, subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline,
+        subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, resetSubtitleAppearance,
         analysisModel: analysisModels[aiProvider] || "",
         setAnalysisModel,
         videoBitrate,

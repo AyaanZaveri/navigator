@@ -1,0 +1,65 @@
+"use client";
+
+import { Globe2 } from "lucide-react";
+import { useSettings } from "@/contexts/settings-context";
+import { PLAYBACK_LANGUAGES, PLAYBACK_LANGUAGE_LABELS } from "@/lib/media/playback-preferences";
+import { trackFlagPath } from "@/lib/media/track-flags";
+import { trackLanguage } from "@/lib/media/track-label";
+import { Select } from "@/components/arc/select/select";
+import { Switch } from "@/components/arc/switch/switch";
+import { Field, FieldGroup, FieldLabel, FieldDescription, FieldContent } from "@/components/ui/field";
+import styles from "@/app/(main)/settings/settings.module.css";
+
+function languageOption(value: string) {
+  const track = trackLanguage(value);
+  return {
+    value, label: PLAYBACK_LANGUAGE_LABELS[value] || (track.badge ? track.label : value.toUpperCase()),
+    badge: track.badge || value.toUpperCase(), flag: track.flag || trackFlagPath(value), isLanguage: true,
+  };
+}
+const languages = PLAYBACK_LANGUAGES.map(languageOption)
+  .sort((a, b) => Number(b.value === "en") - Number(a.value === "en") || a.label.localeCompare(b.label));
+
+function LanguageSelect({ id, label, value, onChange }: { id: string; label: string; value: string; onChange(value: string): void }) {
+  const language = languageOption(value);
+  // Retain a stored regional language (e.g. pt-BR) alongside the base languages.
+  const options = languages.some(option => option.value === value) ? languages : [language, ...languages];
+  return <Field>
+    <Select id={id} label={label} value={value} onValueChange={onChange}
+      options={options.map(option => ({
+        ...option,
+        icon: option.flag ? <img src={option.flag} width={14} height={14} alt="" draggable={false} className="rounded-full" /> : <Globe2 aria-hidden="true" />,
+      }))} />
+  </Field>;
+}
+
+export function PlaybackLanguageSettings() {
+  const { playbackPreferences: preferences, updatePlaybackPreferences: update } = useSettings();
+  return <section aria-labelledby="playback-language-title" className={styles.section}>
+    <div className="flex flex-col gap-2">
+      <h2 id="playback-language-title" className="text-lg font-medium">Playback languages</h2>
+      <p className={styles.description}>Choose your preferred tracks when a video starts. Saved on this device.</p>
+    </div>
+    <FieldGroup className="min-w-0 gap-6">
+      <FieldGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <LanguageSelect id="preferred-audio-language" label="Preferred audio language" value={preferences.audioLanguage}
+          onChange={audioLanguage => update({ audioLanguage })} />
+        <LanguageSelect id="preferred-subtitle-language" label="Preferred subtitle language" value={preferences.subtitleLanguage}
+          onChange={subtitleLanguage => update({ subtitleLanguage })} />
+      </FieldGroup>
+      <Field><Select id="preferred-subtitle-type" label="Subtitle type" value={preferences.subtitleMode}
+        options={[{ value: "normal", label: "Normal subtitles" }, { value: "forced", label: "Forced subtitles only" }]}
+        onValueChange={value => update({ subtitleMode: value === "forced" ? "forced" : "normal" })} />
+        <FieldDescription>Forced subtitles usually translate foreign dialogue or on-screen text.</FieldDescription>
+      </Field>
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel htmlFor="subtitles-on-by-default">Always enable subtitles</FieldLabel>
+          <FieldDescription>Automatically select a matching track. Turn off to enable subtitles yourself.</FieldDescription>
+        </FieldContent>
+        <Switch id="subtitles-on-by-default" checked={preferences.subtitlesEnabledByDefault}
+          onCheckedChange={subtitlesEnabledByDefault => update({ subtitlesEnabledByDefault })} />
+      </Field>
+    </FieldGroup>
+  </section>;
+}

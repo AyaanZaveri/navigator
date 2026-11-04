@@ -13,7 +13,7 @@ assert.equal(stable('deep', 320), 'light');
 assert.equal(stable('deep', 448), 'light', 'A second switch cannot interrupt the crossfade');
 assert.equal(stable('deep', 544), 'deep');
 const backdrop = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast }, { URL });
-const surfaces = load('lib/logo-surfaces.ts');
+const surfaces = load('lib/logo-surfaces.ts', { './logo-canvas': load('lib/logo-canvas.ts') });
 const h = hooks();
 const raf = new Map(), listeners = new Map();
 let frame = 0, now = 0;

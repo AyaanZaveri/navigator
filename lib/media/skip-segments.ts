@@ -5,6 +5,7 @@ export interface SkipSegment {
     end: number;
     provider: "theintrodb" | "introdb" | "skipdb";
     confidence?: number;
+    verification?: "unverified" | "corroborated";
 }
 
 export interface SkipLookup {
@@ -16,6 +17,8 @@ export interface SkipLookup {
 }
 
 type JsonRecord = Record<string, unknown>;
+const MAX_UNVERIFIED_INTRO_SECONDS = 120;
+const INTRO_AGREEMENT_TOLERANCE_SECONDS = 3;
 const record = (value: unknown): JsonRecord => value && typeof value === "object" && !Array.isArray(value)
     ? value as JsonRecord : {};
 
@@ -34,29 +37,41 @@ function providerTimings(value: unknown): unknown {
     ]));
 }
 
-/** Use the API's millisecond fields; null boundaries mean start/end of media. */
-export function normalizeSkipSegments(data: unknown, provider: SkipSegment["provider"], duration: number): SkipSegment[] {
+/** Opt in to labelled uncertain intro candidates; credits and recaps keep strict runtime checks. */
+export function normalizeSkipSegments(data: unknown, provider: SkipSegment["provider"], duration: number, includeUnverifiedIntros = false): SkipSegment[] {
     if (!Number.isFinite(duration) || duration <= 0) return [];
     const result: SkipSegment[] = [];
     const body = provider === "skipdb" ? record(record(data).segments) : record(data);
     // TheIntroDB can fall back to a popular release even when no runtime matches.
-    if (provider === "theintrodb" && typeof body.group_duration_ms === "number" && body.group_duration_ms > 0
-        && Math.abs(body.group_duration_ms - duration * 1000) > 15000) return [];
+    const runtimeMismatch = provider === "theintrodb" && typeof body.group_duration_ms === "number" && body.group_duration_ms > 0
+        && Math.abs(body.group_duration_ms - duration * 1000) > 15000;
     for (const kind of ["intro", "recap", "credits"] as const) {
         const value = body[kind === "credits" && provider !== "theintrodb" ? "outro" : kind];
         const candidates = Array.isArray(value) ? value : value ? [value] : [];
         for (const candidate of candidates) {
             const segment = record(candidate);
+            let unverified = runtimeMismatch;
             const confidence = segment.confidence;
             if (confidence !== undefined && (typeof confidence !== "number" || !Number.isFinite(confidence)
                 || confidence <= 0 || confidence > 1)) continue;
             if (provider === "skipdb") {
-                // SkipDB marks other releases explicitly; a plausible timestamp alone is insufficient.
+                // A runtime mismatch lowers trust in an intro, but must never
+                // turn uncertain credits/recaps into skippable story ranges.
                 const { match, confidence, offset_ms: offset } = segment;
-                if ((match !== "exact" && match !== "shifted") || typeof confidence !== "number"
-                    || !Number.isFinite(confidence) || confidence < 0.8 || confidence > 1
-                    || typeof offset !== "number" || !Number.isFinite(offset)
-                    || Math.abs(offset) > (match === "exact" ? 2000 : 15000)) continue;
+                if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0.5 || confidence > 1
+                    || typeof offset !== "number" || !Number.isFinite(offset)) continue;
+                if (match === "exact" || match === "shifted") {
+                    // With adjust=none SkipDB labels an unshifted nearby
+                    // release "exact" even when its offset exceeds two seconds.
+                    if (segment.adjusted === true || Math.abs(offset) > 15000
+                        || (match === "exact" && Math.abs(offset) > 2000 && segment.adjusted !== false)) continue;
+                    unverified = confidence < 0.8;
+                } else if (match === "out-of-range" || match === "agnostic") {
+                    // Only use the original boundaries; do not invent a shift
+                    // from a total runtime difference (which may be at the end).
+                    if (segment.adjusted === true || (match === "agnostic" && offset !== 0)) continue;
+                    unverified = true;
+                } else continue;
             }
             const { start_ms: startMs, end_ms: endMs } = segment;
             // Missing fields and a declared absence (null/null) are not segments.
@@ -67,16 +82,21 @@ export function normalizeSkipSegments(data: unknown, provider: SkipSegment["prov
             const end = endMs === null ? duration : (endMs as number) / 1000;
             // Never silently clamp a timestamp from a different/longer release.
             if (start < 0 || end > duration || end <= start) continue;
+            // Last-resort manual skips are limited to concrete, short opening
+            // ranges. Null/open boundaries and season estimates are not usable.
+            if (unverified && (!includeUnverifiedIntros || kind !== "intro" || startMs === null || endMs === null
+                || end - start > MAX_UNVERIFIED_INTRO_SECONDS || end > duration / 2)) continue;
             // A provider can return 0/null for credits, marking the entire story
             // as skippable, or put credits halfway through an episode.
-            if (kind === "credits" && (start === 0 || end - start > duration / 2)) continue;
-            result.push({ kind, start, end, provider, ...(typeof confidence === "number" ? { confidence } : {}) });
+            if (kind === "credits" && (start < duration / 2 || end - start > duration / 2)) continue;
+            result.push({ kind, start, end, provider, ...(typeof confidence === "number" ? { confidence } : {}),
+                ...(unverified ? { verification: "unverified" as const } : {}) });
         }
     }
     return result.sort((a, b) => a.start - b.start);
 }
 
-/** Load concurrently; prefer sound primary data, then IntroDB, runtime-matched SkipDB, and weak primary data. */
+/** Prefer matched/corroborated timings; uncertain intros are a labelled last resort, per kind. */
 export async function fetchSkipSegments(
     lookup: SkipLookup,
     signal: AbortSignal,
@@ -112,13 +132,23 @@ export async function fetchSkipSegments(
     const data = new Map<SkipSegment["provider"], unknown>();
     const merge = () => {
         const merged: SkipSegment[] = [];
-        const primary = normalizeSkipSegments(data.get("theintrodb"), "theintrodb", duration);
+        const candidates = (["skipdb", "theintrodb", "introdb"] as const)
+            .flatMap(provider => normalizeSkipSegments(data.get(provider), provider, duration, true));
+        const checked = candidates.map(segment => segment.verification === "unverified" && candidates.some(other =>
+            other.provider !== segment.provider && other.kind === "intro"
+            && Math.abs(other.start - segment.start) <= INTRO_AGREEMENT_TOLERANCE_SECONDS
+            && Math.abs(other.end - segment.end) <= INTRO_AGREEMENT_TOLERANCE_SECONDS)
+            ? { ...segment, verification: "corroborated" as const } : segment);
+        const skipdb = checked.filter(segment => segment.provider === "skipdb");
+        const primary = checked.filter(segment => segment.provider === "theintrodb" && segment.verification !== "unverified");
         const weakPrimary = primary.filter(segment => segment.confidence !== undefined && segment.confidence < 0.5);
         const groups = [
+            skipdb.filter(segment => segment.verification !== "unverified"),
             primary.filter(segment => !weakPrimary.includes(segment)),
-            normalizeSkipSegments(data.get("introdb"), "introdb", duration),
-            normalizeSkipSegments(data.get("skipdb"), "skipdb", duration),
+            checked.filter(segment => segment.provider === "introdb"),
             weakPrimary,
+            skipdb.filter(segment => segment.verification === "unverified"),
+            checked.filter(segment => segment.provider === "theintrodb" && segment.verification === "unverified"),
         ];
         for (const group of groups) {
             merged.push(...group.filter(segment => !merged.some(item => item.kind === segment.kind)));
@@ -133,7 +163,7 @@ export async function fetchSkipSegments(
             console.log("[Navigator skips] Provider result", {
                 id, season, episode, provider, duration: formatSkipTime(duration),
                 received: providerTimings(data.get(provider)),
-                accepted: normalizeSkipSegments(data.get(provider), provider, duration).map(segment => ({
+                accepted: normalizeSkipSegments(data.get(provider), provider, duration, true).map(segment => ({
                     ...segment, start: formatSkipTime(segment.start), end: formatSkipTime(segment.end),
                 })),
                 selected: selected.map(segment => ({
@@ -161,7 +191,9 @@ export async function fetchSkipSegments(
     const skipdb = settle("skipdb", (async () => {
         const id = await fallbackId;
         if (!id) return null;
-        const params = new URLSearchParams({ imdb_id: id, ...numbers, duration: String(duration), adjust: "conservative" });
+        // A longer/shorter file may differ only in its closing credits. Ask for
+        // original boundaries and match metadata, never a runtime-based shift.
+        const params = new URLSearchParams({ imdb_id: id, ...numbers, duration: String(duration), adjust: "none" });
         const result = await read(`https://api.skipdb.tv/api/segments?${params}`);
         const body = record(result);
         if (body.imdb_id !== id || (type === "series" && (body.season !== season || body.episode !== episode))) return null;

@@ -6,7 +6,8 @@ import { ArtworkImage } from "@/components/artwork-image";
 
 import { preloadPlayer } from "@/lib/preload-tools";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useHomePaletteScene } from "@/components/home-palette-provider";
 import { mediaArtwork, backdropVariantUrl } from "@/lib/artwork";
 import Link from "next/link";
 import type { MediaItem } from "@/types/stremio";
@@ -28,6 +29,12 @@ export function MediaCard({
   subtitleContent?: React.ReactNode;
 }) {
   const { playMedia, setIsPlayerVisible } = usePlaybackActions();
+  const homeScene = useHomePaletteScene();
+  const paletteOwner = useRef(Symbol("home-card"));
+  useEffect(() => {
+    const owner = paletteOwner.current;
+    return () => homeScene?.release(owner);
+  }, [homeScene, item.id, item.type, item.seriesId, continueWatching]);
 
   let linkHref = "";
   if (
@@ -95,6 +102,23 @@ export function MediaCard({
   return (
     <div
       data-continue-watching={continueWatching || undefined}
+      onPointerEnter={event => {
+        if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+        homeScene?.hover(paletteOwner.current, {
+          primary: continueWatching ? artwork.background : artwork.poster,
+          fallback: continueWatching ? artwork.poster : artwork.background,
+        });
+      }}
+      onPointerLeave={() => homeScene?.leave(paletteOwner.current)}
+      onFocusCapture={event => {
+        // Pointer clicks focus links too; only keyboard focus selects instantly.
+        if (!(event.target instanceof Element) || !event.target.matches(":focus-visible")) return;
+        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+        homeScene?.focus(paletteOwner.current, {
+          primary: continueWatching ? artwork.background : artwork.poster,
+          fallback: continueWatching ? artwork.poster : artwork.background,
+        });
+      }}
       className={`${styles.card} cursor-pointer select-none ${
         continueWatching ? "w-80" : fullWidth ? "w-full" : "w-36"
       }`}

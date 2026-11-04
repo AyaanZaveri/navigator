@@ -1,0 +1,15 @@
+.panel[data-subtitle-timing] {
+  --surface: var(--muted);
+  --text-secondary: var(--muted-foreground);
+  --text-muted: var(--muted-foreground);
+  width: 22rem;
+  max-width: calc(100vw - 24px);
+  max-height: min(calc(100dvh - 24px), var(--radix-popover-content-available-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 14px;
+}
+.header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .5rem; }
+.header h2 { margin: 0; font-size: .875rem; font-weight: 500; }
+.headerActions { display: flex; align-items: center; gap: .25rem; }
+.ruler { --accent: var(--primary); }

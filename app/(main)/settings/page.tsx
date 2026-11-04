@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
-import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
 import { OpenCodeIcon } from "@/components/opencode-icon";
 import { ModelIcon } from "@/components/model-icon";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
@@ -32,6 +32,9 @@ import {
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 import { Button } from "@/components/ui/button";
 import { getArtworkSettings, saveArtworkToken, removeArtworkToken, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
+import { PlaybackSettings } from "@/components/playback-settings";
+import { PlaybackLanguageSettings } from "@/components/playback-language-settings";
+import { SubtitleSettings } from "@/components/subtitle-settings";
 import styles from "./settings.module.css";
 
 const OPENAI_BASE_URL_STORAGE_KEY = "navigator-openai-base-url";
@@ -93,7 +96,7 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
     return (
         <Field>
             <FieldLabel htmlFor={id}>{label}</FieldLabel>
-            <InputGroup>
+            <InputGroup className={styles.apiKeyInput}>
                 <InputGroupInput
                     id={id}
                     type={type}
@@ -105,6 +108,9 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
                     autoCapitalize="none"
                     spellCheck={false}
                 />
+                <InputGroupAddon align="inline-start">
+                    {type === "url" ? <Link2 aria-hidden="true" /> : <Cpu aria-hidden="true" />}
+                </InputGroupAddon>
             </InputGroup>
             <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
         </Field>
@@ -298,6 +304,7 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
     return (
         <Field data-disabled={unavailable || undefined}>
             <Combobox
+                className={styles.providerInput}
                 id={id}
                 label="Model"
                 value={value}
@@ -364,8 +371,6 @@ export default function SettingsPage() {
         setCerebrasApiKey,
         opencodeApiKey,
         setOpencodeApiKey,
-        analysisModel,
-        setAnalysisModel,
     } = useSettings();
 
     const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
@@ -781,15 +786,6 @@ export default function SettingsPage() {
                                     />
                                 )}
 
-                                <SettingsInput
-                                    id="navigator-analysis-model"
-                                    label="Scene analysis model"
-                                    value={analysisModel}
-                                    onValueChange={setAnalysisModel}
-                                    placeholder="Same as response model"
-                                    description="Optional model ID from this provider for scene explanations and subtitle search. Leave blank to use your response model."
-                                />
-
                                 {aiProvider === "openrouter" && (
                                     <SettingsSelect
                                         id="openrouter-reasoning-effort"
@@ -828,6 +824,9 @@ export default function SettingsPage() {
                         )}
                     </FieldGroup>
                 </section>
+                <PlaybackSettings />
+                <PlaybackLanguageSettings />
+                <SubtitleSettings />
                 <ArtworkSettings />
                 <p className="text-sm text-muted-foreground">
                     Skip timings from{" "}

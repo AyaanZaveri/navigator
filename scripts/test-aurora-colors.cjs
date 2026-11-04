@@ -58,7 +58,7 @@ const Vibrant = { from(image) { return {
 }; } };
 const loader = load('lib/aurora-palette-loader.ts', {
   'node-vibrant/browser': { Vibrant }, '@/lib/artwork': artworkHelpers, '@/lib/aurora-palette': paletteHelpers,
-}, { Image: TestImage, setTimeout: callback => setTimeout(callback, 20), clearTimeout });
+}, { Image: TestImage, URLSearchParams, setTimeout: callback => setTimeout(callback, 20), clearTimeout });
 const first = '/api/artwork?id=first&kind=backdrop';
 const second = '/api/artwork?id=second&kind=backdrop';
 

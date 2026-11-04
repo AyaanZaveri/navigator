@@ -3,21 +3,29 @@
 mod gtk_shell;
 #[cfg(any(target_os = "macos", test))]
 mod hdr;
+#[cfg(any(windows, test))]
+mod glass;
 mod mpv;
 mod platform;
 mod player;
 mod protocol;
 mod render;
 mod server;
+#[cfg(any(windows, test))]
+mod startup_log;
 #[cfg(target_os = "macos")]
 mod tao_shell;
 mod thumbnails;
 #[cfg(any(windows, test))]
 mod window_state;
 #[cfg(windows)]
+mod windows_install;
+#[cfg(windows)]
 mod windows_process;
 #[cfg(windows)]
 mod windows_shell;
+#[cfg(windows)]
+mod windows_glass;
 
 use mpv::Mpv;
 use serde_json::{Value, json};
@@ -294,6 +302,16 @@ fn receive(message: &Value) -> String {
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    #[cfg(windows)]
+    if std::env::args().nth(1).as_deref() == Some("--prepare-install") {
+        if let Err(message) = windows_install::prepare() {
+            // The installer reports the failure. Never open a dialog during a
+            // silent installation, create a WebView profile or take the app lock.
+            eprintln!("Navigator installation: {message}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let result = App::load().and_then(|app| {
         #[cfg(target_os = "macos")]
         {

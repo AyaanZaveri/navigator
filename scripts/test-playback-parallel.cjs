@@ -45,19 +45,21 @@ if (onPage) {
 const noOp = () => {};
 const hooks = {
     ...React,
-    useState: initial => [initial, value => changes.push(value)],
+    useState: initial => [typeof initial === 'function' ? initial() : initial, value => changes.push(value)],
     useRef: initial => ({ current: initial }),
     useEffect: noOp,
     useLayoutEffect: noOp,
     useCallback: callback => { callbacks.push(callback); return callback; },
 };
-const context = { exports: {}, AbortController, console, require(name) {
+const context = { exports: {}, AbortController, console, document: { createElement: () => ({ canPlayType: () => "" }) }, require(name) {
     if (name === 'next/navigation') return { useRouter: () => ({ push: noOp }) };
     if (name === 'react') return hooks;
     if (name === 'sonner') return { toast: Object.assign(noOp, { dismiss: noOp, error: noOp }) };
     if (name.endsWith('.css')) return {};
     if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ currentMedia: request, isPlayerVisible: false, setCurrentMediaWithSource: noOp }) };
     if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
+    if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
+    if (name === '@/lib/media/playback-preferences') return utility('lib/media/playback-preferences.ts');
     if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
     if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
     if (name === '@/lib/media/fetch-playback-streams') return { fetchPlaybackStreams() { requests.push('streams'); return streams; } };

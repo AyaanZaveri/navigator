@@ -2,6 +2,8 @@
 
 // GradientASCII from React Bits: https://reactbits.dev/backgrounds/gradient-ascii
 import { useEffect, useRef, useState } from 'react';
+import { createGradientTransition, rgbToLab as toLab, hexRgb, homeWash, paintHomeWash } from '@/lib/gradient-palette';
+import { registerLogoCanvas, captureLogoCanvas } from '@/lib/logo-canvas';
 import './gradient-ascii.css';
 
 const MAX_COLORS = 8;
@@ -289,6 +291,8 @@ uniform float uGlow;
 uniform float uGradient;
 uniform float uGrain;
 uniform float uFrame;
+uniform float uHomeSurface;
+uniform vec3 uHomeWash[2];
 in vec2 vUv;
 out vec4 outColor;
 ${GLYPHS}
@@ -308,26 +312,24 @@ void main() {
   color.rgb += grain * (0.25 + body) * 0.5;
   color.a = clamp(color.a, 0.0, 1.0);
   color.rgb = clamp(color.rgb, 0.0, color.a);
+  if (uHomeSurface > 0.5) {
+    vec2 p = vec2(vUv.x, 1.0 - vUv.y);
+    bool light = uLight > 0.5;
+    float cssHeight = uResolution.y / uHomeSurface;
+    vec2 leftRadius = light ? vec2(0.9, 448.0 / cssHeight) : vec2(1.0, 0.65);
+    vec2 rightRadius = light ? vec2(0.8, 384.0 / cssHeight) : vec2(0.9, 0.55);
+    float leftAlpha = clamp(1.0 - length(p / leftRadius), 0.0, 1.0);
+    float rightAlpha = clamp(1.0 - length((p - vec2(1.0, light ? 0.0 : 0.1)) / rightRadius), 0.0, 1.0);
+    vec3 surface = mix(vec3(light ? 1.0 : 0.0392156863), uHomeWash[1], rightAlpha);
+    surface = mix(surface, uHomeWash[0], leftAlpha);
+    float fade = light ? clamp(1.0 - p.y * cssHeight / min(448.0, cssHeight * 0.65), 0.0, 1.0) : 0.3;
+    color *= fade;
+    color = vec4(color.rgb + surface * (1.0 - color.a), 1.0);
+  }
   outColor = color;
 }`;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-const toLinear = value => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
-
-const toLab = ([r, g, b]) => {
-    const lr = toLinear(r);
-    const lg = toLinear(g);
-    const lb = toLinear(b);
-    const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
-    const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
-    const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
-    return [
-        0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-        1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-        0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
-    ];
-};
 
 const compile = (gl, type, source) => {
     const shader = gl.createShader(type);
@@ -447,7 +449,9 @@ const buildAtlas = (gl, characters, fontFamily) => {
  *   intro?: boolean,
  *   lightMode?: boolean,
  *   fontFamily?: string,
- *   dpr?: number
+ *   dpr?: number,
+ *   colorTransitionMs?: number,
+ *   homeSurface?: boolean
  * }} props
  */
 const GradientASCII = ({
@@ -474,6 +478,8 @@ const GradientASCII = ({
     lightMode = false,
     fontFamily = DEFAULT_FONT,
     dpr,
+    colorTransitionMs = 0,
+    homeSurface = false,
     className = '',
     style,
     ...rest
@@ -482,8 +488,10 @@ const GradientASCII = ({
     const canvasRef = useRef(null);
     const wakeRef = useRef(null);
     const palette = (Array.isArray(colors) && colors.length ? colors : DEFAULT_COLORS).slice(0, MAX_COLORS);
+    const rampColors = palette.length > 1 ? palette : [palette[0], palette[0]];
     const settings = {
-        colors: palette.length > 1 ? palette : [palette[0], palette[0]],
+        colors: rampColors,
+        paletteKey: `${rampColors.join(',')}|${colorTransitionMs}`,
         shape: SHAPES[shape] ?? 0,
         characters: characters || DEFAULT_CHARACTERS,
         cellSize: clamp(cellSize, 6, 64),
@@ -505,11 +513,34 @@ const GradientASCII = ({
         intro,
         lightMode,
         fontFamily: fontFamily || DEFAULT_FONT,
-        dpr
+        dpr,
+        colorTransitionMs,
+        homeSurface
     };
     const settingsRef = useRef(settings);
     const [contextVersion, setContextVersion] = useState(0);
     const [ready, setReady] = useState(false);
+    const fallbackRef = useRef(null);
+    const fallbackWakeRef = useRef(null);
+    const presentedRef = useRef(false);
+    const paletteRef = useRef({ key: '', track: null });
+
+    // Both renderers share this track, including through context loss. Parsing
+    // and allocation happen only when a target changes, never on each frame.
+    const samplePalette = (now, reduce, parse = hexRgb) => {
+        const s = settingsRef.current;
+        const state = paletteRef.current;
+        const key = s.paletteKey;
+        if (key !== state.key) {
+            const next = new Float32Array(MAX_COLORS * 3);
+            for (let i = 0; i < MAX_COLORS; i++) next.set(toLab(parse(s.colors[Math.min(i, s.colors.length - 1)])), i * 3);
+            if (!state.track) state.track = createGradientTransition(next);
+            else state.track.target(next, now, reduce ? 0 : s.colorTransitionMs);
+            state.key = key;
+        }
+        if (reduce) state.track.finish();
+        return state.track.sample(now);
+    };
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -517,7 +548,9 @@ const GradientASCII = ({
         const onLost = event => {
             // Opt in to browser restoration; the CSS background stays visible.
             event.preventDefault();
+            presentedRef.current = false;
             setReady(false);
+            fallbackWakeRef.current?.();
         };
         const onRestored = () => setContextVersion(version => version + 1);
         canvas.addEventListener('webglcontextlost', onLost);
@@ -569,9 +602,12 @@ const GradientASCII = ({
             return rgb;
         };
 
-        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+        const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+        let reduce = motion?.matches ?? false;
         const view = { width: 1, height: 1, ratio: 1 };
-        const ramp = new Float32Array(MAX_COLORS * 3);
+        const wash = new Float32Array(6);
+        const washInput = new Float32Array(4);
+        let washLight;
         const clickData = new Float32Array(MAX_CLICKS * 4);
         const clicks = [];
         const trailData = new Float32Array(MAX_TRAIL * 4);
@@ -579,7 +615,6 @@ const GradientASCII = ({
         const pointer = { x: 0, y: 0, inside: false };
         let atlas = null;
         let atlasKey = '';
-        let paletteKey = '';
         let time = 0;
         let glyphTime = 0;
         let introClock = settingsRef.current.intro && !reduce ? 0 : 1;
@@ -607,14 +642,6 @@ const GradientASCII = ({
                 },
                 () => {}
             );
-        };
-
-        const syncPalette = () => {
-            const s = settingsRef.current;
-            const key = s.colors.join(',');
-            if (key === paletteKey) return;
-            paletteKey = key;
-            s.colors.forEach((color, i) => ramp.set(toLab(parse(color)), i * 3));
         };
 
         const bindGlyphs = (program, width, height) => {
@@ -650,12 +677,12 @@ const GradientASCII = ({
             gl.uniform1f(u.uLight, s.lightMode ? 1 : 0);
         };
 
-        const draw = () => {
+        const draw = (now = performance.now()) => {
             if (disposed || gl.isContextLost()) return;
             const s = settingsRef.current;
             const aspect = view.width / view.height;
             syncAtlas();
-            syncPalette();
+            const ramp = samplePalette(now, reduce, parse);
             gl.bindVertexArray(vao);
             gl.disable(gl.BLEND);
 
@@ -716,9 +743,22 @@ const GradientASCII = ({
             gl.uniform1f(cu.uGradient, s.gradientOpacity);
             gl.uniform1f(cu.uGrain, s.grain);
             gl.uniform1f(cu.uFrame, frameSeed);
+            gl.uniform1f(cu.uHomeSurface, s.homeSurface ? view.ratio : 0);
+            if (s.homeSurface) {
+                const end = (s.colors.length - 1) * 3;
+                if (washLight !== s.lightMode || washInput[0] !== ramp[1] || washInput[1] !== ramp[2]
+                    || washInput[2] !== ramp[end + 1] || washInput[3] !== ramp[end + 2]) {
+                    homeWash(ramp, s.colors.length, s.lightMode, wash);
+                    washLight = s.lightMode;
+                    washInput[0] = ramp[1]; washInput[1] = ramp[2]; washInput[2] = ramp[end + 1]; washInput[3] = ramp[end + 2];
+                }
+                gl.uniform3fv(cu.uHomeWash, wash);
+            }
             gl.drawArrays(gl.TRIANGLES, 0, 3);
+            if (s.homeSurface) captureLogoCanvas(canvas, now);
             if (!presented && !gl.isContextLost()) {
                 presented = true;
+                presentedRef.current = true;
                 setReady(true);
             }
         };
@@ -791,8 +831,8 @@ const GradientASCII = ({
                 frameSeed = (frameSeed + 1) % 97;
             }
             updateInput(dt);
-            draw();
-            const busy = !reduce || introClock < 1 || clicks.length > 0 || trail.length > 0;
+            draw(now);
+            const busy = !reduce || introClock < 1 || clicks.length > 0 || trail.length > 0 || paletteRef.current.track?.active;
             if (busy) raf = requestAnimationFrame(frame);
             else last = 0;
         };
@@ -843,6 +883,11 @@ const GradientASCII = ({
             last = 0;
             wake();
         };
+        const onMotion = () => {
+            reduce = motion.matches;
+            if (reduce) { paletteRef.current.track?.finish(); introClock = 1; }
+            wake();
+        };
 
         const resizeObserver = new ResizeObserver(resize);
         resizeObserver.observe(container);
@@ -857,11 +902,15 @@ const GradientASCII = ({
         window.addEventListener('pointermove', onPointerMove, { passive: true });
         window.addEventListener('pointerdown', onPointerDown, { passive: true });
         document.addEventListener('visibilitychange', onVisibility);
+        motion?.addEventListener?.('change', onMotion);
+        const unregister = settingsRef.current.homeSurface ? registerLogoCanvas(canvas, wake) : () => {};
         resize();
         wakeRef.current = wake;
 
         return () => {
             disposed = true;
+            presentedRef.current = false;
+            unregister();
             cancelAnimationFrame(raf);
             wakeRef.current = null;
             resizeObserver.disconnect();
@@ -869,6 +918,7 @@ const GradientASCII = ({
             window.removeEventListener('pointermove', onPointerMove);
             window.removeEventListener('pointerdown', onPointerDown);
             document.removeEventListener('visibilitychange', onVisibility);
+            motion?.removeEventListener?.('change', onMotion);
             [fieldTarget, haloA, haloB].forEach(target => {
                 target.textures.forEach(texture => gl.deleteTexture(texture));
                 gl.deleteFramebuffer(target.framebuffer);
@@ -882,8 +932,45 @@ const GradientASCII = ({
     }, [contextVersion]);
 
     useEffect(() => {
+        const canvas = fallbackRef.current;
+        if (!homeSurface || !canvas) return undefined;
+        const context = canvas.getContext('2d');
+        if (!context) return undefined;
+        const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+        const wash = new Float32Array(6);
+        let raf = 0, disposed = false;
+        canvas.width = canvas.height = 128;
+        function draw(now) {
+            raf = 0;
+            if (disposed || document.hidden || presentedRef.current) return;
+            const s = settingsRef.current;
+            const ramp = samplePalette(now, motion?.matches ?? false);
+            paintHomeWash(context, homeWash(ramp, s.colors.length, s.lightMode, wash), s.lightMode, canvas.clientHeight);
+            captureLogoCanvas(canvas, now);
+            if (paletteRef.current.track?.active) raf = requestAnimationFrame(draw);
+        }
+        function wake() {
+            if (!disposed && !raf && !document.hidden && !presentedRef.current) raf = requestAnimationFrame(draw);
+        }
+        const unregister = registerLogoCanvas(canvas, wake);
+        const resize = new ResizeObserver(wake);
+        resize.observe(canvas);
+        document.addEventListener('visibilitychange', wake);
+        motion?.addEventListener?.('change', wake);
+        fallbackWakeRef.current = wake;
+        wake();
+        return () => {
+            disposed = true; cancelAnimationFrame(raf); unregister(); resize.disconnect();
+            fallbackWakeRef.current = null;
+            document.removeEventListener('visibilitychange', wake);
+            motion?.removeEventListener?.('change', wake);
+        };
+    }, [homeSurface, contextVersion]);
+
+    useEffect(() => {
         settingsRef.current = settings;
         wakeRef.current?.();
+        fallbackWakeRef.current?.();
     });
 
     return (
@@ -893,8 +980,11 @@ const GradientASCII = ({
             style={style}
             {...rest}
         >
+            {homeSurface && <canvas ref={fallbackRef} data-logo-surface="" className="gradient-ascii-canvas"
+                aria-hidden="true" style={{ visibility: ready ? 'hidden' : 'visible' }} />}
             <canvas
                 ref={canvasRef}
+                data-logo-surface={homeSurface ? '' : undefined}
                 className="gradient-ascii-canvas"
                 aria-hidden="true"
                 style={{ visibility: ready ? 'visible' : 'hidden' }}

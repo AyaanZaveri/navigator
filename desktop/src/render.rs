@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Adapted from Viren070/AIOStreams, commit c358754b0ae4758d034badf8618de6fdb7fa9333.
 // See desktop/THIRD-PARTY.md for provenance and modifications.
-//! libmpv's render API for OpenGL, where mpv draws into a surface the app owns.
+//! libmpv's OpenGL and D3D11 render APIs, drawing into app-owned surfaces.
 
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
@@ -74,6 +74,8 @@ struct Api {
     get_info: unsafe extern "C" fn(Context, Param) -> c_int,
     clock: Clock,
     free: unsafe extern "C" fn(Context),
+    #[cfg(windows)]
+    report_swap: unsafe extern "C" fn(Context),
 }
 
 /// A frame's target time is in nanoseconds since mpv 0.37, which added `mpv_get_time_ns`; render.h still says microseconds.
@@ -101,6 +103,41 @@ unsafe extern "C" fn trampoline(data: *mut c_void) {
 }
 
 impl RenderContext {
+    #[cfg(windows)]
+    pub fn new_d3d11(mpv: Arc<Mpv>, device: *mut c_void) -> Result<Self, String> {
+        let api = unsafe { Api {
+            create: mpv.symbol("mpv_render_context_create")?,
+            render: mpv.symbol("mpv_render_context_render")?,
+            set_update_callback: mpv.symbol("mpv_render_context_set_update_callback")?,
+            update: mpv.symbol("mpv_render_context_update")?,
+            get_info: mpv.symbol("mpv_render_context_get_info")?,
+            clock: Clock::Ns(mpv.symbol("mpv_get_time_ns")?),
+            free: mpv.symbol("mpv_render_context_free")?,
+            #[cfg(windows)]
+            report_swap: mpv.symbol("mpv_render_context_report_swap")?,
+        }};
+        let mut device=device;
+        let mut advanced=1i32;
+        let mut params=[
+            Param{kind:PARAM_API_TYPE,data:c"d3d11".as_ptr() as *mut c_void},
+            Param{kind:21,data:(&raw mut device).cast()},
+            Param{kind:PARAM_ADVANCED_CONTROL,data:(&raw mut advanced).cast()},
+            Param{kind:0,data:ptr::null_mut()},
+        ];
+        let mut ctx=ptr::null_mut();
+        let code=unsafe{(api.create)(&mut ctx,mpv.handle(),params.as_mut_ptr())};
+        if code<0{return Err(format!("Direct3D render context: {}",mpv.error(code)));}
+        Ok(Self{api,ctx,mpv,on_update:None,depth:8})
+    }
+
+    #[cfg(windows)]
+    pub fn draw_d3d11(&self, texture: *mut c_void) -> Result<(),String> {
+        let mut texture=texture;
+        let mut block=1i32;
+        let mut params=[Param{kind:22,data:(&raw mut texture).cast()},Param{kind:PARAM_BLOCK_FOR_TARGET_TIME,data:(&raw mut block).cast()},Param{kind:0,data:ptr::null_mut()}];
+        let code=unsafe{(self.api.render)(self.ctx,params.as_mut_ptr())};
+        if code<0{Err(format!("Direct3D frame: {}",self.mpv.error(code)))}else{Ok(())}
+    }
     /// With `advanced`, mpv waits on this thread, so no blocking mpv call may run on it.
     /// `depth` is the framebuffer's bits a channel, which mpv dithers down to.
     pub fn new(
@@ -124,6 +161,8 @@ impl RenderContext {
                     Err(_) => Clock::Us(mpv.symbol("mpv_get_time_us")?),
                 },
                 free: mpv.symbol("mpv_render_context_free")?,
+            #[cfg(windows)]
+            report_swap: mpv.symbol("mpv_render_context_report_swap")?,
             }
         };
         let mut init = OpenGlInitParams {
@@ -183,6 +222,9 @@ impl RenderContext {
         unsafe { (self.api.set_update_callback)(self.ctx, Some(trampoline), data) };
         self.on_update = Some(boxed);
     }
+
+    #[cfg(windows)]
+    pub fn report_swap(&self) {unsafe{(self.api.report_swap)(self.ctx)}}
 
     /// Runs mpv's pending requests; true when a new frame waits to be drawn.
     pub fn update(&self) -> bool {

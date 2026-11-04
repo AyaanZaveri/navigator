@@ -20,6 +20,7 @@ const cardModules = {
     './navigation-card': { NavigationCard: widget('navigation') },
     './play-media-card': { PlayMediaCard: widget('playback') },
     './theme-toggle-card': { ThemeToggleCard: widget('theme') },
+    './subtitle-track-card': { SubtitleTrackCard: widget('subtitle-track') },
     './subtitle-skip-card': { SubtitleSkipCard: widget('seek') },
     './scene-explain-card': { SceneExplainCard: widget('scene') },
     './media-analysis-card': { MediaAnalysisCard: widget('analysis') },
@@ -73,6 +74,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     './focus-ui/button': { Button: 'button' }, './launcher': { NavigatorLauncher: 'button' },
     './focus-ui/input-group': { InputGroup: 'div', InputGroupAddon: 'div', InputGroupButton: 'button', InputGroupInput: 'input' },
     './activity-status': { NavigatorActivityStatus: 'span' }, './focus-results': {}, './focus.css': {},
+    '@/components/arc/floating-surface.module.css': { surface: 'sampled-surface' },
     '@/lib/navigator-activity-label': { getNavigatorActivityLabel: () => '', NAVIGATOR_ACTIVITY_VARIANT_COUNT: 1 },
     '@/lib/navigator-beam': { navigatorBeamColors: {} }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
 });
@@ -88,6 +90,21 @@ function findTranscript(node) {
 const transcript = findTranscript(focusTree);
 assert.ok(transcript, 'Inspect the rendered transcript, not an unrelated wrapper');
 assert.equal(transcript.props.style.overflowY, 'auto', 'A child accordion must be able to create scroll overflow without new messages');
+function findAskSurface(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.props?.['aria-label'] === 'Ask Navigator') return node;
+    for (const child of focusReact.Children.toArray(node.props?.children)) {
+        const found = findAskSurface(child); if (found) return found;
+    }
+}
+assert.equal(findAskSurface(focusTree).props['data-player-native-glass'], undefined, 'Browsing must not request native video samples');
+focusHookIndex = 0;
+const playerFocus = NavigatorFocus({ open: true, showLauncher: false, messages: [], input: '', isBusy: false, responseDurations: {} });
+const playerSurface = findAskSurface(playerFocus);
+assert.equal(playerSurface.props['data-player-native-glass'], '', 'Ask Navigator over native playback must request sampled video');
+assert.ok(playerSurface.props.className.split(' ').includes('sampled-surface'), 'Reuse the player menu material');
+assert.ok(playerSurface.props.className.split(' ').includes('relative'), 'Keep sampled canvas clipped after backdrop-filter takeover');
+
 
 const { toNavigatorSegments } = load('components/navigator/focus-results.tsx', { ...cardModules, '@/lib/navigator-chat': chat });
 
@@ -105,6 +122,75 @@ assert.equal(failedProgress.length, 1, 'A failed stage must show one error inste
 const completedProgress = toNavigatorSegments([{ ...sceneAction, state: 'output-available', output: { success: true, execution: 'prepared', preparedToolCallId: sceneAction.toolCallId } }, sceneProgress('title', 'completed', 'Glass Onion'), sceneProgress('subtitles', 'completed', 'eng'), sceneProgress('scene', 'completed', '01:46:32')]);
 assert.equal(completedProgress[0].kind, 'trace');
 assert.equal(completedProgress.at(-1).kind, 'results', 'Progress stays before the eventual scene card');
+
+// Stage cards appear while the scene tool is still running, not just after playback.
+const richProgress = [
+  { ...sceneProgress('title', 'completed', 'Knives Out'), data: { ...sceneProgress('title', 'completed').data,
+    media: { id: 'tt8946378', name: 'Knives Out', type: 'movie', year: 2019 } } },
+  { ...sceneProgress('subtitles', 'completed', 'eng'), data: { ...sceneProgress('subtitles', 'completed').data,
+    subtitles: { language: 'eng', provider: 'OpenSubtitles', index: 0, lineCount: 2111 } } },
+  { ...sceneProgress('scene', 'completed', '01:46:32'), data: { ...sceneProgress('scene', 'completed').data,
+    scene: { timestamp: 6392, timestampFormatted: '01:46:32', text: 'I lied about what happened.' } } },
+];
+const richSegments = toNavigatorSegments([sceneAction, ...richProgress]);
+const stageCards = richSegments.filter(segment => segment.kind === 'results').map(segment => segment.results.cards);
+assert.equal(stageCards.length, 3, 'Each completed stage exposes its real result before final playback acknowledgement');
+assert.equal(stageCards[0].type, widgets.media);
+assert.equal(stageCards[0].props.item.name, 'Knives Out');
+assert.equal(stageCards[1].type, widgets['subtitle-track']);
+assert.equal(stageCards[1].props.track.provider, 'OpenSubtitles');
+assert.equal(stageCards[2].type, widgets.seek);
+assert.equal(stageCards[2].props.result.text, 'I lied about what happened.');
+const richFinal = { ...sceneAction, state: 'output-available', output: { success: true, execution: 'completed', text: 'I lied about what happened.' } };
+assert.equal(toNavigatorSegments([richFinal, ...richProgress]).filter(segment => segment.kind === 'results').length, 3, 'Final action must not duplicate the scene evidence card');
+const playbackFailure = toNavigatorSegments([{ ...richFinal, output: { success: false, error: 'Playback was closed before it started.' } }, ...richProgress]);
+assert.equal(playbackFailure.filter(segment => segment.kind === 'results').length, 3, 'Playback failure must preserve the movie, loaded track and found quote');
+assert.equal(playbackFailure.at(-1).trace.phase, 'error');
+const incomplete = toNavigatorSegments([sceneAction, { ...richProgress[1], data: { ...richProgress[1].data, state: 'running' } }]);
+assert.equal(incomplete.filter(segment => segment.kind === 'results').length, 0, 'Running stages never claim a completed result');
+// Render the real track component to verify it shares dropdown language names
+// and local Circle Flags while retaining the standard Navigator card layout.
+const trackLabels = load('lib/media/track-label.ts', { './track-flags': load('lib/media/track-flags.ts', {}) });
+const { SubtitleTrackCard } = load('components/navigator/subtitle-track-card.tsx', {
+  '@/lib/media/track-label': trackLabels,
+  './result-card': { ResultCard: widget('result-row'), ResultBadge: widget('result-badge'), ResultMeta: widget('result-meta') },
+});
+const subtitleRow = SubtitleTrackCard({ track: { language: 'eng', provider: 'OpenSubtitles', filename: 'Knives.Out.2019.srt', index: 2, lineCount: 2111 } });
+assert.equal(subtitleRow.type, widgets['result-row']);
+assert.equal(subtitleRow.props.title, 'English');
+assert.equal(subtitleRow.props.iconContent.type, 'img');
+assert.equal(subtitleRow.props.iconContent.props.src, '/flags/circle/language/en.svg');
+assert.equal(subtitleRow.props.iconContent.props.width, 20);
+assert.equal(subtitleRow.props.icon, undefined, "A language flag does not need a second boxed icon");
+assert.equal(subtitleRow.props.metadata.type, widgets["result-meta"], "Subtitle metadata is a line count without a language badge");
+assert.equal(subtitleRow.props.description, 'Knives.Out.2019.srt · OpenSubtitles');
+const unknownSubtitleRow = SubtitleTrackCard({ track: { language: 'und', index: 0, lineCount: 1 } });
+assert.equal(unknownSubtitleRow.props.title, 'Unknown language');
+assert.notEqual(unknownSubtitleRow.props.iconContent.type, 'img', 'Unknown languages use a Lucide fallback instead of a broken flag');
+const { formatSceneTime } = load('lib/format-scene-time.ts', {});
+for (const [seconds, expected] of [[0, '0s'], [27.168, '27s'], [65, '1m 5s'], [6147.168, '1h 42m 27s'], [3600, '1h 0m 0s']]) {
+  assert.equal(formatSceneTime(seconds), expected);
+}
+assert.equal(formatSceneTime(undefined, '01:42:27,168'), '1h 42m 27s', 'Old SRT timestamps become readable without milliseconds');
+assert.equal(formatSceneTime(undefined, '02:05.987'), '2m 5s');
+assert.equal(formatSceneTime(undefined, 'not a timestamp'), undefined);
+assert.equal(formatSceneTime(-1), undefined);
+assert.equal(formatSceneTime(Infinity), undefined);
+const { SubtitleSkipCard } = load('components/navigator/subtitle-skip-card.tsx', {
+  '@/lib/format-scene-time': { formatSceneTime }, './result-card': { ResultCard: widgets['result-row'] },
+  './subtitle-skip-card.module.css': { time: 'scene-time', quote: 'scene-quote' },
+});
+const sceneRow = SubtitleSkipCard({ result: { success: true, timestamp: 6147.168, text: 'You have always been good to me.' } });
+assert.equal(sceneRow.props.icon, undefined, 'Scene evidence has no decorative subtitle tile');
+assert.equal(sceneRow.props.metadata, undefined, 'Timestamp is plain text, not a badge');
+assert.deepEqual(Array.from(sceneRow.props.title.props.children), ['At ', '1h 42m 27s']);
+assert.equal(sceneRow.props.children.type, 'blockquote');
+assert.equal(sceneRow.props.children.props.className, 'scene-quote');
+assert.equal(SubtitleSkipCard({ result: { success: true, text: 'A quote without a timestamp.' } }).props.title, null);
+assert.equal(SubtitleSkipCard({ result: { success: false, error: 'No match' } }).props.error, 'No match');
+
+
+
 
 // Long discovery lists retain every candidate while showing only a compact preview.
 let resultsExpanded = false;

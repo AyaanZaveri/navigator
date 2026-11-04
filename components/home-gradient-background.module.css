@@ -5,10 +5,7 @@
     #fff;
 }
 
-.animation {
-  -webkit-mask-image: linear-gradient(to bottom, #000, transparent min(28rem, 65vh));
-  mask-image: linear-gradient(to bottom, #000, transparent min(28rem, 65vh));
-}
+.animation { isolation: isolate; }
 
 :global(.dark) .background {
   background:
@@ -17,8 +14,5 @@
     oklch(0.145 0 0);
 }
 
-:global(.dark) .animation {
-  opacity: .3;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
+/* The shader composites the wash, theme intensity and light-mode fade together
+   so its logo crop is the exact displayed surface, without CSS mask guessing. */

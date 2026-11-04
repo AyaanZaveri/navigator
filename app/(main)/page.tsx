@@ -6,6 +6,8 @@ import { MediaSection } from "@/components/media-section";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
+import { HomeInitialPalette, HomePaletteProvider } from "@/components/home-palette-provider";
+import { mediaArtwork } from "@/lib/artwork";
 import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { MediaItem, StremioAddonCatalog } from "@/types/stremio";
@@ -106,20 +108,25 @@ async function ContinueWatchingSection({
   continueWatchingPromise: Promise<MediaItem[]>;
 }) {
   const continueWatchingItems = (await continueWatchingPromise).slice(0, 20);
+  const first = continueWatchingItems[0];
+  const artwork = first ? mediaArtwork(first.seriesId || first.id, first.type) : null;
 
   return (
-    <MediaSection
-      sectionName="Continue Watching"
-      mediaItems={continueWatchingItems}
-      continueWatching
-      cardSubtitles={continueWatchingItems.map((item) =>
-        item.type === "movie" && !item.year && !item.releaseInfo ? (
-          <Suspense key={item.id} fallback={null}>
-            <ResumeMovieYear id={item.id} />
-          </Suspense>
-        ) : undefined
-      )}
-    />
+    <>
+      {artwork && <HomeInitialPalette primary={artwork.background} fallback={artwork.poster} />}
+      <MediaSection
+        sectionName="Continue Watching"
+        mediaItems={continueWatchingItems}
+        continueWatching
+        cardSubtitles={continueWatchingItems.map((item) =>
+          item.type === "movie" && !item.year && !item.releaseInfo ? (
+            <Suspense key={item.id} fallback={null}>
+              <ResumeMovieYear id={item.id} />
+            </Suspense>
+          ) : undefined
+        )}
+      />
+    </>
   );
 }
 
@@ -202,17 +209,19 @@ export default function Home() {
 
   return (
     <AuthErrorHandler>
-      <div className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
-        <HomeGradientBackground />
+      <HomePaletteProvider>
+        <div className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
+          <HomeGradientBackground />
 
-        <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
-          <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />
-        </Suspense>
+          <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
+            <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />
+          </Suspense>
 
-        <Suspense fallback={<HomeCatalogsFallback />}>
-          <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
-        </Suspense>
-      </div>
+          <Suspense fallback={<HomeCatalogsFallback />}>
+            <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
+          </Suspense>
+        </div>
+      </HomePaletteProvider>
     </AuthErrorHandler>
   );
 }

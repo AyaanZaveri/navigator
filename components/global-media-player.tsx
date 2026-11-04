@@ -1,12 +1,15 @@
 "use client";
 
-import { installEnglishAudioPreference } from "@/lib/media/audio-language";
+import { readPlaybackPreferences } from "@/lib/media/playback-preferences";
+import { preferredSubtitleTrack } from "@/lib/media/subtitle-preference";
+import { installAudioLanguagePreference } from "@/lib/media/audio-language";
 
 import "@/components/player-mobile.css";
 import "@/components/player-entrance.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
 import { PlayerSkipSegments } from "@/components/player-skip-segments";
+import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
 import { PlayerNextEpisode } from "@/components/player-next-episode";
 import { formatRuntime } from "@/lib/format-runtime";
 
@@ -45,7 +48,7 @@ import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
 import { fetchPlaybackDetails } from "@/lib/media/fetch-playback-details";
 import { initialPlaybackDetails, mergePlaybackDetails } from "@/lib/media/playback-details";
-import { desktopBridge } from "@/lib/desktop/bridge";
+import { desktopBridge, recordDesktopStage } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
 import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
@@ -66,6 +69,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
+import { SubtitleText } from "@/components/subtitle-text";
+import { PlayerSubtitles } from "@/components/player-subtitles";
+import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
+import { useSubtitleTiming, subtitleTime } from "@/lib/media/subtitle-timing";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 
@@ -81,6 +88,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const {
     isPlayerVisible,
     setIsPlayerVisible,
+    playMedia,
     currentMedia: playbackRequest,
     skipTimestamp,
     setCurrentMediaWithSource,
@@ -95,13 +103,17 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     routedRequest.current = playbackRequest;
     router.push(playbackRequest.detailsPath, { scroll: false });
   }, [isPlayerVisible, playbackRequest, router]);
-  const { videoBitrate } = useSettings();
+  const { videoBitrate, subtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
+  const subtitleTiming = useSubtitleTiming(currentMedia);
+  const [timingOpenKey, setTimingOpenKey] = useState<string | null>(null);
+  useEffect(() => { setTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible]);
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
   const [nativePlayback] = useState(() => Boolean(desktopBridge()));
+  useEffect(() => { recordDesktopStage("player-mounted"); }, []);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
   const reportNavigatorPlayback = useCallback((state: "playing" | "error" | "closed", message?: string) => {
@@ -132,12 +144,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       language: string;
       src: string;
       default?: boolean;
+      forced?: boolean;
       active: boolean;
     }>
   >([]);
   const [loading, setLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [fetchingSubtitles, setFetchingSubtitles] = useState(false);
+  const [subtitleOptionsReady, setSubtitleOptionsReady] = useState(false);
   const [nativeSubtitle, setNativeSubtitle] = useState("");
 
   const [currentSubtitle, setCurrentSubtitle] = useState<{
@@ -155,6 +169,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const loadGenerationRef = useRef(0);
+  const episodeContinuationRef = useRef<{ onEnded(): void } | null>(null);
+  const subtitleSelectionRequest = useRef(0);
+  const subtitleDefaultApplied = useRef(false);
+  const subtitleManualOverride = useRef(false);
+  const [initialPlaybackPreferences] = useState(readPlaybackPreferences);
+  const playbackPreferencesRef = useRef(initialPlaybackPreferences);
   const metadataAbortRef = useRef<AbortController | null>(null);
   const webStreamsRef = useRef<StremioStream[]>([]);
   const audioCheckRef = useRef<{ start: number; startedAt: number; complete: boolean } | null>(null);
@@ -303,9 +323,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const handleVideoCanPlay = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
     if (event.currentTarget !== videoRef.current || event.currentTarget.error) return;
+    if (nativePlayback && event.currentTarget.readyState < 3) return;
     setVideoReady(true);
     setPlaybackError(null);
-  }, []);
+  }, [nativePlayback]);
 
   const handleVideoPlaying = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
     if (event.currentTarget !== videoRef.current) return;
@@ -426,8 +447,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     sendPlaybackUpdate("stopped", { ended: options?.ended });
     toast.dismiss(WEB_RECOVERY_TOAST_ID);
     setIsPlayerVisible(false);
+    setTimingOpenKey(null);
     setStreamUrl(null);
     setMediaDetails(null);
+    subtitleSelectionRequest.current++;
+    setSubtitleOptionsReady(false);
     setSubtitleTracks([]);
     setCurrentTime(0);
     setDuration(0);
@@ -445,8 +469,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return () => document.removeEventListener("navigatornativeclose", close);
   }, [nativePlayback, isPlayerVisible, handleClose]);
 
-  const handleVideoEnded = useCallback(() => {
-    handleClose({ ended: true });
+  const handleVideoEnded = useCallback((event?: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (event && event.currentTarget !== videoRef.current) return;
+    if (episodeContinuationRef.current) episodeContinuationRef.current.onEnded();
+    else handleClose({ ended: true });
   }, [handleClose]);
 
   // Process subtitle text for HTML rendering
@@ -552,7 +578,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   );
 
   const loadMedia = useCallback(async (request: MediaToPlay, fallback = false) => {
+    recordDesktopStage("stream-resolving");
     const generation = ++loadGenerationRef.current;
+    subtitleSelectionRequest.current++;
+    if (!fallback) subtitleManualOverride.current = false;
+    subtitleDefaultApplied.current = subtitleManualOverride.current;
+    playbackPreferencesRef.current = readPlaybackPreferences();
+    setSubtitleOptionsReady(false);
+    setFetchingSubtitles(false);
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
     metadataAbortRef.current = metadataAbort;
@@ -637,6 +670,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     try {
       const probe = !nativePlayback && typeof document.createElement === "function" ? document.createElement("video") : null;
       const media = await resolvePlayback(request, {
+        preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage,
         resolveId: (id, type) => fetchPlaybackId(id, type, metadataAbort.signal),
         fetchStreams: fallback && webStreamsRef.current.length
           ? async () => webStreamsRef.current : fetchPlaybackStreams,
@@ -656,6 +690,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
       if (!isCurrent()) return;
       // Keep an episode title that arrived while the source request was pending.
+      recordDesktopStage("stream-resolved");
       const earlyTitle = activeMedia.episodeTitle;
       activeMedia = { ...media, episodeTitle: earlyTitle || media.episodeTitle };
       sourceReady = true;
@@ -669,9 +704,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       void getSubtitleTracks(streamSourceId, media.type, {
         filename: media.subtitleFilename, videoSize: media.subtitleVideoSize,
       }).then(tracks => {
-        if (isCurrent()) setSubtitleTracks(tracks.map(track => ({ ...track, active: false })));
+        if (isCurrent()) {
+          setSubtitleTracks(tracks.map(track => ({ ...track, active: false })));
+          setSubtitleOptionsReady(true);
+        }
       }).catch(() => {
-        if (isCurrent()) setSubtitleTracks([]);
+        if (isCurrent()) { setSubtitleTracks([]); setSubtitleOptionsReady(true); }
       });
     } catch (error) {
       if (!isCurrent()) return;
@@ -705,14 +743,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   useEffect(() => {
     if (nativePlayback || !streamUrl || !videoRef.current) return;
-    return installEnglishAudioPreference(videoRef.current);
+    return installAudioLanguagePreference(videoRef.current, playbackPreferencesRef.current.audioLanguage);
   }, [nativePlayback, streamUrl, playerAttempt]);
 
   // Update current subtitle
   useEffect(() => {
-    const subtitle = findCurrentSubtitle(currentTime);
+    const subtitle = findCurrentSubtitle(subtitleTime(currentTime, subtitleTiming.seconds));
     setCurrentSubtitle(subtitle);
-  }, [currentTime, findCurrentSubtitle]);
+  }, [currentTime, findCurrentSubtitle, subtitleTiming.seconds]);
 
   // Handle skip timestamp
   useEffect(() => {
@@ -732,6 +770,79 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       lastLoadedPlaybackKeyRef.current = null;
     };
   }, []);
+
+  const selectSubtitle = useCallback(async (track: { src: string } | null) => {
+    const request = ++subtitleSelectionRequest.current;
+    const generation = loadGenerationRef.current;
+    const isCurrent = () => request === subtitleSelectionRequest.current && generation === loadGenerationRef.current;
+    if (nativePlayback) (videoRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("subtitle", "no");
+    for (const textTrack of Array.from(videoRef.current?.textTracks || [])) {
+      if (["subtitles", "captions"].includes(textTrack.kind)) textTrack.mode = "disabled";
+    }
+    setSubtitleData([]);
+    setCurrentSubtitle(null);
+    setSubtitleTracks(previous => previous.map(value => ({ ...value, active: false })));
+    setFetchingSubtitles(Boolean(track));
+    if (!track) return;
+    try {
+      const result = await fetchSubtitleFileContent(track.src);
+      if (!isCurrent()) return;
+      if (result.success) {
+        setSubtitleData(parseSubtitleTextContent(result.content));
+        setSubtitleTracks(previous => previous.map(value => ({ ...value, active: value.src === track.src })));
+      }
+    } catch {
+      // A failed subtitle request leaves playback running with captions off.
+    } finally {
+      if (isCurrent()) setFetchingSubtitles(false);
+    }
+  }, [nativePlayback, parseSubtitleTextContent]);
+
+  useEffect(() => {
+    const preferences = playbackPreferencesRef.current;
+    if (!isPlayerVisible || !streamUrl || !subtitleOptionsReady || !preferences.subtitlesEnabledByDefault) return;
+    const element = videoRef.current as unknown as MpvElementHandle | null;
+    const choose = () => {
+      if (subtitleDefaultApplied.current) return;
+      const downloaded = preferredSubtitleTrack(subtitleTracks, preferences.subtitleLanguage, preferences.subtitleMode);
+      if (downloaded) {
+        subtitleDefaultApplied.current = true;
+        void selectSubtitle(downloaded);
+        return;
+      }
+      const embedded = preferredSubtitleTrack(element?.controller?.tracks.filter(track => track.type === "sub") || [], preferences.subtitleLanguage, preferences.subtitleMode);
+      if (embedded && element?.controller) {
+        subtitleDefaultApplied.current = true;
+        element.controller.selectTrack("subtitle", String(embedded.id));
+        return;
+      }
+      // Safari and HLS elements can expose in-stream captions as TextTracks.
+      const textTracks = videoRef.current?.textTracks;
+      const browserTracks = textTracks ? Array.from(textTracks).filter(track => ["subtitles", "captions"].includes(track.kind)) : [];
+      const browserTrack = preferredSubtitleTrack(browserTracks, preferences.subtitleLanguage, preferences.subtitleMode);
+      if (browserTrack) {
+        subtitleDefaultApplied.current = true;
+        for (const track of browserTracks) track.mode = track === browserTrack ? "showing" : "disabled";
+      }
+    };
+    choose();
+    element?.addEventListener("trackschange", choose);
+    const textTracks = videoRef.current?.textTracks;
+    textTracks?.addEventListener("addtrack", choose);
+    return () => {
+      element?.removeEventListener("trackschange", choose);
+      textTracks?.removeEventListener("addtrack", choose);
+    };
+  }, [isPlayerVisible, streamUrl, subtitleOptionsReady, subtitleTracks, playerAttempt, selectSubtitle]);
+
+  const episodeContinuation = useEpisodeContinuation({
+    media: currentMedia ? { ...currentMedia, details: mediaDetails || currentMedia.details } : null,
+    visible: isPlayerVisible, native: nativePlayback, time: currentTime, duration,
+    play: media => { void playMedia(media); },
+    beforeAdvance: ended => sendPlaybackUpdate("stopped", { ended }),
+    finish: () => handleClose({ ended: true }),
+  });
+  episodeContinuationRef.current = episodeContinuation;
 
   if (!isPlayerVisible || !currentMedia) return null;
 
@@ -754,49 +865,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
+        subtitleTiming={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key), onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }}
         chapters={[]}
-        onCustomSubtitleChange={(subtitleTrack) => {
-          if (!subtitleTrack) {
-            if (nativePlayback) {
-              (videoRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("subtitle", "no");
-            }
-            setSubtitleData([]);
-            setCurrentSubtitle(null);
-            setSubtitleTracks((prev) =>
-              prev.map((track) => ({ ...track, active: false }))
-            );
-            return;
-          }
-
-          if (nativePlayback) {
-            (videoRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("subtitle", "no");
-          }
-          const trackIndex = subtitleTracks.findIndex(
-            (track) => track.src === subtitleTrack.src
-          );
-          if (trackIndex !== -1) {
-            setFetchingSubtitles(true);
-            fetchSubtitleFileContent(subtitleTrack.src).then((result) => {
-              setFetchingSubtitles(false);
-              if (!result.success) {
-                setSubtitleData([]);
-                setCurrentSubtitle(null);
-                return;
-              }
-
-              const parsedSubtitles = parseSubtitleTextContent(result.content);
-              setSubtitleData(parsedSubtitles);
-              setCurrentSubtitle(null);
-              setSubtitleTracks((prev) =>
-                prev.map((track, idx) => ({
-                  ...track,
-                  active: idx === trackIndex,
-                }))
-              );
-            });
-          }
+        onCustomSubtitleChange={track => {
+          subtitleManualOverride.current = true;
+          subtitleDefaultApplied.current = true;
+          void selectSubtitle(track);
         }}
       >
+        <SubtitleTimingPopover open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
+          onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
+          seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
+          available={subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles}
+          container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
         {/* Video element */}
@@ -875,7 +956,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
               data-player-loading-copy=""
-              className="absolute bottom-7 left-8 right-8"
+              className="absolute bottom-7 left-4 right-4"
             >
               <motion.div
                 initial={false}
@@ -949,15 +1030,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
         {/* Current subtitle */}
         {(currentSubtitle || nativeSubtitle) && !loading && videoReady && (
-          <div
-            className={`pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 text-white text-center bg-black/20 px-4 py-2 rounded text-3xl font-medium shadow-xl backdrop-blur-md whitespace-pre-line ${
-              currentSubtitle?.positionTop ? "top-[15%]" : "bottom-[10%]"
-            }`}
+          <SubtitleText
+            data-player-subtitle=""
+            size={subtitleSize}
+            outline={subtitleOutline}
+            weight={subtitleWeight}
+            color={subtitleColor}
+            style={currentSubtitle?.positionTop ? { top: "15%" } : { bottom: `${subtitlePosition}%` }}
+            className="pointer-events-none fixed left-1/2 transform -translate-x-1/2 z-10 w-max max-w-[90vw]"
           >
             {currentSubtitle ? (
               <span dangerouslySetInnerHTML={{ __html: currentSubtitle.text }} />
             ) : nativeSubtitle}
-          </div>
+          </SubtitleText>
         )}
 
         {!loading && streamUrl && videoReady && !playbackError && (
@@ -1039,13 +1124,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <MediaPlayerPlay />
               {isEpisodePlayback && season !== undefined && episodeNumber !== undefined && (
-                <PlayerNextEpisode
-                  key={`${currentMedia.seriesId || currentMedia.id}:${season}:${episodeNumber}`}
-                  media={currentMedia}
-                  season={season}
-                  episode={episodeNumber}
-                  onAdvance={() => sendPlaybackUpdate("stopped")}
-                />
+                <PlayerNextEpisode next={episodeContinuation?.next || null} advancing={Boolean(episodeContinuation?.busy)}
+                  onAdvance={() => episodeContinuation?.advance()} />
               )}
               <MediaPlayerSeekBackward>
                 <RotateCcw />
@@ -1110,11 +1190,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 </Popover>
               )}
 
-              {nativePlayback && <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} onNativeSubtitle={() => {
-                setSubtitleData([]);
-                setCurrentSubtitle(null);
-                setSubtitleTracks((tracks) => tracks.map((track) => ({ ...track, active: false })));
-              }} />}
+              {nativePlayback && <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />}
+              <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
+                tracks={subtitleTracks} onTrackChange={track => {
+                  subtitleManualOverride.current = true;
+                  subtitleDefaultApplied.current = true;
+                  void selectSubtitle(track);
+                }}
+                timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
+                  onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
               <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
               <MediaPlayerSettings />
               {!nativePlayback && <MediaPlayerPiP />}

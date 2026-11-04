@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type RefObject } from "react";
-import { AudioLines, Captions, CaptionsOff } from "lucide-react";
+import { AudioLines } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuOptions } from "@/components/arc/dropdown-menu/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { trackOptions } from "@/lib/media/track-label";
@@ -9,42 +9,31 @@ import styles from "@/components/player-settings-menu.module.css";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import type { NativeTrack } from "@/lib/desktop/bridge";
 
-export function DesktopTracks({ mediaRef, sourceKey, onNativeSubtitle }: {
+/** Subtitle choices live in PlayerSubtitles; this button only selects audio. */
+export function DesktopTracks({ mediaRef, sourceKey }: {
   mediaRef: RefObject<HTMLVideoElement | null>;
   sourceKey: string;
-  onNativeSubtitle(): void;
 }) {
   const [snapshot, setSnapshot] = useState<{ tracks: NativeTrack[]; container: Element | null }>({ tracks: [], container: null });
   useEffect(() => {
     const node = mediaRef.current as unknown as MpvElementHandle | null;
-    const update = () => setSnapshot({ tracks: node?.controller?.tracks ?? [], container: node?.closest('[data-slot="media-player"]') ?? null });
+    const update = () => setSnapshot({ tracks: node?.controller?.tracks.filter(track => track.type === "audio") ?? [], container: node?.closest('[data-slot="media-player"]') ?? null });
     update();
     node?.addEventListener("trackschange", update);
-    return () => node?.removeEventListener("trackschange", update);
+    node?.addEventListener("emptied", update);
+    return () => { node?.removeEventListener("trackschange", update); node?.removeEventListener("emptied", update); };
   }, [mediaRef, sourceKey]);
   const { tracks, container } = snapshot;
-  return <>{(["audio", "sub"] as const).map((kind) => {
-    const choices = tracks.filter((track) => track.type === kind);
-    if (!choices.length) return null;
-    const Icon = kind === "audio" ? AudioLines : Captions;
-    const label = kind === "audio" ? "Audio track" : "Embedded subtitles";
-    const options = trackOptions(choices.map(track => ({
-      language: track.lang, label: track.title,
-      provider: kind === "audio" ? "Embedded audio" : "Embedded subtitles",
-    }))).map(option => ({ ...option, value: String(choices[Number(option.value)].id) }));
-    return <DropdownMenu key={kind} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={label} className="text-white hover:text-white hover:bg-white/20"><Icon aria-hidden="true" /></Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent container={container} side="top" sideOffset={10} align="end" aria-label={label} className={styles.trackMenu}>
-        <DropdownMenuOptions value={String(choices.find(track => track.selected)?.id ?? "no")}
-          separateFirst={kind === "sub"}
-          options={kind === "sub" ? [{ value: "no", label: "Off", icon: <CaptionsOff size={14} strokeWidth={1.75} /> }, ...options] : options}
-          onValueChange={id => {
-            if (kind === "sub") onNativeSubtitle();
-            (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack(kind === "audio" ? "audio" : "subtitle", id);
-          }} />
-      </DropdownMenuContent>
-    </DropdownMenu>;
-  })}</>;
+  if (!tracks.length) return null;
+  const options = trackOptions(tracks.map(track => ({ language: track.lang, label: track.title, provider: "Embedded audio" })))
+    .map(option => ({ ...option, value: String(tracks[Number(option.value)].id) }));
+  return <DropdownMenu modal={false}>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="icon" aria-label="Audio track" className="text-white hover:text-white hover:bg-white/20"><AudioLines aria-hidden="true" /></Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent data-player-native-glass="" container={container} side="top" sideOffset={10} align="end" aria-label="Audio track" className={styles.trackMenu}>
+      <DropdownMenuOptions value={String(tracks.find(track => track.selected)?.id ?? "no")} options={options}
+        onValueChange={id => (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("audio", id)} />
+    </DropdownMenuContent>
+  </DropdownMenu>;
 }

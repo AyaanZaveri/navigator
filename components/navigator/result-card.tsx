@@ -34,6 +34,7 @@ export function ResultCard({
   title,
   subtitle,
   icon: Icon,
+  iconContent,
   image,
   imageAspect = "portrait",
   metadata,
@@ -47,7 +48,8 @@ export function ResultCard({
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  iconContent?: ReactNode;
   image?: string | null;
   imageAspect?: "portrait" | "landscape";
   metadata?: ReactNode;
@@ -66,7 +68,8 @@ export function ResultCard({
   const interactive = !!(href || onClick);
   const Copy = onClick && !href ? "span" : "div";
   const Body = onClick && !href ? "span" : "div";
-  const rowClass = cn(styles.row, imageAspect === "landscape" && styles.landscape, interactive && styles.interactive, className);
+  const hasLeading = (image && image !== failedImage) || Icon || iconContent;
+  const rowClass = cn(styles.row, !hasLeading && styles.textOnly, imageAspect === "landscape" && styles.landscape, interactive && styles.interactive, className);
   const content = (
     <>
       {image && image !== failedImage ? (
@@ -79,18 +82,18 @@ export function ResultCard({
           data-aspect={imageAspect}
           onError={() => setFailedImage(image)}
         />
-      ) : (
-        <span className={styles.icon} aria-hidden="true">
-          <Icon className="size-4" />
-        </span>
-      )}
+      ) : iconContent ? (
+        <span className={styles.leading} aria-hidden="true">{iconContent}</span>
+      ) : Icon ? (
+        <span className={styles.icon} aria-hidden="true"><Icon className="size-4" /></span>
+      ) : null}
       <Copy className={styles.copy}>
-        <span className={styles.title}>
+        {title != null && <span className={styles.title}>
           <span className={styles.titleText}>{title}</span>
           {interactive && (
             <ArrowRight aria-hidden="true" className={styles.arrow} />
           )}
-        </span>
+        </span>}
         {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
         {metadata && <span className={styles.metadata}>{metadata}</span>}
         {description && (

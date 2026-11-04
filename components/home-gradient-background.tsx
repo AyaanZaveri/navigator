@@ -5,20 +5,23 @@ import { useAtomValue } from "jotai";
 import { useTheme } from "next-themes";
 import { isPlayerVisibleAtom } from "@/lib/atoms";
 import GradientASCII from "@/components/gradient-ascii/gradient-ascii";
+import { useHomePaletteScene } from "@/components/home-palette-provider";
+import { homePalette, type HomePaletteSnapshot } from "@/lib/home-palette";
 import styles from "./home-gradient-background.module.css";
 
 // sRGB avoids depending on Canvas2D support for newer CSS color syntax.
 const subscribe = () => () => {};
 
-const HOME_COLORS = ["#047857", "#ecfdf5", "#a7f3d0", "#34d399"];
-
-const LIGHT_HOME_COLORS = ["#6ee7b7", "#ecfdf5", "#d1fae5", "#a7f3d0"];
+const EMPTY: HomePaletteSnapshot = { colors: null, duration: 0 };
+const getEmpty = () => EMPTY;
 
 export function HomeGradientBackground({ dotOpacity = 0.85 }: { dotOpacity?: number }) {
     const { resolvedTheme } = useTheme();
     const light = resolvedTheme !== "dark";
     const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
     const isPlayerVisible = useAtomValue(isPlayerVisibleAtom);
+    const scene = useHomePaletteScene();
+    const snapshot = useSyncExternalStore(scene?.subscribe ?? subscribe, scene?.getSnapshot ?? getEmpty, getEmpty);
 
     if (isPlayerVisible) return null;
 
@@ -28,7 +31,9 @@ export function HomeGradientBackground({ dotOpacity = 0.85 }: { dotOpacity?: num
             {hydrated && (
                 <div className={`${styles.animation} absolute inset-0`}>
                     <GradientASCII
-                        colors={light ? LIGHT_HOME_COLORS : HOME_COLORS}
+                        colors={homePalette(snapshot.colors, light)}
+                        colorTransitionMs={snapshot.duration}
+                        homeSurface
                         shape="horizon"
                         characters="·•●"
                         cellSize={18}

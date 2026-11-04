@@ -3,7 +3,7 @@ import { getLogoSampleCrop } from "@/lib/logo-contrast";
 export type LogoRect = { left: number; top: number; width: number; height: number };
 type Rect = LogoRect;
 export type LogoOverlay = { rect: Rect; background: string; opacity: number; header?: boolean; clip?: Rect };
-export type LogoArtwork = { image: HTMLImageElement; rect: Rect; opacity: number; objectPosition: string; objectFit?: string; clip?: Rect };
+export type LogoArtwork = { image: HTMLImageElement | HTMLCanvasElement; rect: Rect; opacity: number; objectPosition: string; objectFit?: string; clip?: Rect };
 export type LogoBlurLayer = { rect: Rect; filter: string; mask: string; opacity: number };
 
 function intersection(a: Rect, b: Rect): Rect | null {
@@ -140,10 +140,12 @@ export function paintLogoBackdrop(
         context.fillRect(bounds.left, bounds.top, bounds.width, bounds.height);
         for (const layer of artwork ? Array.isArray(artwork) ? artwork : [artwork] : []) {
             if (!("image" in layer)) { paintOverlays(context, bounds, [layer]); continue; }
+            const imageWidth = "naturalWidth" in layer.image ? layer.image.naturalWidth : layer.image.width;
+            const imageHeight = "naturalHeight" in layer.image ? layer.image.naturalHeight : layer.image.height;
             let rect = layer.rect;
             if (layer.objectFit === "contain") {
-                const scale = Math.min(rect.width / layer.image.naturalWidth, rect.height / layer.image.naturalHeight);
-                const width = layer.image.naturalWidth * scale, height = layer.image.naturalHeight * scale;
+                const scale = Math.min(rect.width / imageWidth, rect.height / imageHeight);
+                const width = imageWidth * scale, height = imageHeight * scale;
                 const [x = "50%", y = "50%"] = layer.objectPosition.split(/\s+/);
                 const offset = (position: string, space: number) => position.endsWith("%") ? Number.parseFloat(position) / 100 * space : Number.parseFloat(position) || 0;
                 rect = { left: rect.left + offset(x, rect.width - width), top: rect.top + offset(y, rect.height - height), width, height };
@@ -151,11 +153,11 @@ export function paintLogoBackdrop(
             const region = intersection(bounds, rect);
             const patch = region && (layer.clip ? intersection(region, layer.clip) : region);
             const crop = patch && (layer.objectFit === "fill" ? {
-                x: (patch.left - rect.left) / rect.width * layer.image.naturalWidth,
-                y: (patch.top - rect.top) / rect.height * layer.image.naturalHeight,
-                width: patch.width / rect.width * layer.image.naturalWidth,
-                height: patch.height / rect.height * layer.image.naturalHeight,
-            } : getLogoSampleCrop(layer.image.naturalWidth, layer.image.naturalHeight, rect, patch, layer.objectPosition));
+                x: (patch.left - rect.left) / rect.width * imageWidth,
+                y: (patch.top - rect.top) / rect.height * imageHeight,
+                width: patch.width / rect.width * imageWidth,
+                height: patch.height / rect.height * imageHeight,
+            } : getLogoSampleCrop(imageWidth, imageHeight, rect, patch, layer.objectPosition));
             if (crop && patch) {
                 context.globalAlpha = layer.opacity;
                 context.drawImage(layer.image, crop.x, crop.y, crop.width, crop.height, patch.left, patch.top, patch.width, patch.height);

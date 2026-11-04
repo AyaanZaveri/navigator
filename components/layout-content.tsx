@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/app-header";
 import { DeferredTools } from "@/components/deferred-tools";
 import {
     isAIAskOpenAtom,
+    isPlayerVisibleAtom,
     isFullscreenAtom,
     isNavigatorEnabledAtom,
 } from "@/lib/atoms";
@@ -13,6 +14,8 @@ import { useSettings } from "@/contexts/settings-context";
 import { useEffect, type ReactNode } from "react";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { AuroraProvider, PersistentAuroraBackground } from "@/components/aurora-provider";
+import { ScrollAreaRoot, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area";
+import styles from "./layout-content.module.css";
 
 interface LayoutContentProps {
   children: ReactNode;
@@ -25,6 +28,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
     const overlayHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
     const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
     const [isFullscreen] = useAtom(isFullscreenAtom);
+    const [isPlayerVisible] = useAtom(isPlayerVisibleAtom);
     const [, setIsNavigatorEnabled] = useAtom(isNavigatorEnabledAtom);
   
     const { navigatorEnabled } = useSettings();
@@ -68,13 +72,16 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
     return (
         <AuroraProvider>
             <div data-app-layout className="relative flex h-dvh flex-col overflow-hidden">
-                <div data-desktop-app-content className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
-                    <AppHeader email={email} overlay={overlayHeader} />
-                    <main className={`relative z-[1] col-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain no-scrollbar pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
-                        <PersistentAuroraBackground />
-                        {children}
-                    </main>
-                </div>
+                <ScrollAreaRoot type="scroll" scrollHideDelay={900} asChild>
+                    <div data-desktop-app-content data-playback-hidden={isPlayerVisible ? "" : undefined} inert={isPlayerVisible} className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
+                        <AppHeader email={email} overlay={overlayHeader} />
+                        <ScrollAreaViewport role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
+                            <PersistentAuroraBackground />
+                            {children}
+                        </ScrollAreaViewport>
+                        <ScrollBar className={styles.scrollbar} style={{ top: "var(--app-header-height, 5.25rem)", bottom: "env(safe-area-inset-bottom, 0px)" }} />
+                    </div>
+                </ScrollAreaRoot>
                 <DeferredTools userId={userId || email} navigatorEnabled={navigatorEnabled} onToggleAIAsk={handleToggleAIAsk} />
             </div>
         </AuroraProvider>

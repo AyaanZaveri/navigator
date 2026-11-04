@@ -1,0 +1,19 @@
+/* Shared player menu material. Native glass captures this tint and replaces
+   the browser backdrop with the platform's sampled video surface. */
+.surface { --dropdown-opacity: 90%; --floating-blur: blur(12px); }
+.surface:not([data-native-glass]):not([data-browser-glass]) {
+  background: color-mix(in oklab, var(--popover) var(--dropdown-opacity), transparent);
+  -webkit-backdrop-filter: var(--floating-blur);
+  backdrop-filter: var(--floating-blur);
+}
+:global(html:not(.dark)) .surface { --dropdown-opacity: 98%; }
+:global(html[data-native-platform="windows"][data-native-playing]) .surface[data-player-native-glass] {
+  --dropdown-opacity: 68%;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .surface, :global(html:not(.dark)) .surface,
+  :global(html[data-native-platform="windows"][data-native-playing]) .surface[data-player-native-glass] {
+    --dropdown-opacity: 100%;
+    --floating-blur: none;
+  }
+}

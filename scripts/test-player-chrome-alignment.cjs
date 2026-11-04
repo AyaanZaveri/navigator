@@ -1,0 +1,44 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const postcss = require('postcss');
+const css = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
+const rules = [];
+css.walkRules(rule => rules.push(rule));
+const rule = selector => rules.find(rule => rule.selector === selector);
+const value = (selector, property) => rule(selector)?.nodes.find(node => node.prop === property)?.value;
+const copy = '[data-player-shell] [data-slot="media-player"] [data-player-loading-copy]';
+const back = '[data-player-shell] [data-player-close]';
+assert.equal(value(copy, 'left'), 'var(--player-chrome-left)', 'Loading title, series, metadata and spinner use the same leading edge as Back');
+assert.equal(value(back, 'left'), value(copy, 'left'));
+assert.equal(rule(copy).parent.type, 'root', 'Alignment also applies on wide landscape touchscreens, not only a narrow mobile media query');
+assert.equal(value(copy, 'right'), 'var(--player-chrome-right)', 'Trailing gutter remains safe independently of the leading camera clearance');
+const android = 'html[data-native-engine="exoplayer"] [data-player-shell]';
+const leading = value(android, '--player-chrome-left');
+assert.ok(leading, 'Android uses the actual Back-button camera clearance');
+function evaluate(expression, variables) {
+  const math = expression.replace(/var\((--[\w-]+)(?:,\s*([^()]+))?\)/g, (_, key, fallback) => String(variables[key] ?? fallback))
+    .replace(/([\d.]+)rem/g, (_, n) => String(Number(n) * 16)).replace(/px/g, '').replace(/calc/g, '');
+  assert.match(math, /^[\d\s.+\-*/()]+$/);
+  return Function(`return (${math})`)();
+}
+for (const [backLeft, expected] of [[16, 20], [8, 12], [40, 44]]) {
+  for (const safeLeft of [0, 32, 68]) for (const controlsLeft of [24, 92]) {
+    const variables = { '--navigator-player-back-left': backLeft,
+      '--navigator-safe-left': safeLeft, '--navigator-player-controls-left': controlsLeft };
+    assert.equal(evaluate(leading, variables), expected, 'Landscape safe areas and late playback-control measurements cannot shift loading copy away from Back');
+  }
+}
+// Older APKs append this lower-specificity loading rule at document-start.
+const oldAndroid = postcss.parse(fs.readFileSync('android/app/src/main/assets/edge-to-edge.css', 'utf8'));
+let oldCopy;
+oldAndroid.walkRules(rule => { if (rule.selector === '[data-slot="media-player"] [data-player-loading-copy]') oldCopy = rule; });
+assert.ok(oldCopy);
+assert.ok((copy.match(/\[/g) || []).length > (oldCopy.selector.match(/\[/g) || []).length,
+  'The web fix must win over the already installed APK CSS without requiring a rebuild');
+const group = selector => rules.find(rule => rule.selector.split(',').map(value=>value.trim()).includes(selector));
+const windows = 'html[data-native-platform="windows"] [data-player-shell]';
+const loading = group(windows+' [data-slot="media-player"] [data-player-loading-copy]');
+const controls = group(windows+' [data-slot="media-player-controls"]');
+assert.equal(loading.nodes.find(node=>node.prop==='left').value, 'var(--player-content-left)');
+assert.equal(controls.nodes.find(node=>node.prop==='padding-left').value, 'var(--player-content-left)', 'Windows loading copy aligns to playback text rather than the narrower Back gutter');
+console.log('PASS: shared Back/loading gutter across desktop, Android landscape cutouts, changing control insets and installed APK compatibility');

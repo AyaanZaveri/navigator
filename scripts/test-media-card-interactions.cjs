@@ -7,18 +7,27 @@ const state = [];
 let stateIndex = 0;
 const playback = [];
 const routes = [];
+const palettes = [];
+let finePointer = true;
+class TestNode {}
+class TestElement extends TestNode { matches(selector) { return selector === ':focus-visible'; } }
 const routeContext = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/series-route.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, routeContext);
-const context = { exports: {}, require(name) {
+const context = { exports: {}, Element: TestElement, Node: TestNode, window: { matchMedia: () => ({ matches: finePointer }) }, require(name) {
     if (name === '@/components/artwork-image') return { ArtworkImage: 'img' };
     if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
+    if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
+    if (name === '@/components/home-palette-provider') return { useHomePaletteScene: () => ({
+        hover: (...args) => palettes.push(['hover', ...args]), focus: (...args) => palettes.push(['focus', ...args]),
+        leave: (...args) => palettes.push(['leave', ...args]), release() {},
+    }) };
     if (name === 'react') return { ...React, useState(initial) {
         const index = stateIndex++;
         if (!(index in state)) state[index] = initial;
         return [state[index], value => { state[index] = value; }];
-    } };
+    }, useRef: initial => ({ current: initial }), useEffect() {} };
     if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/backdrop.jpg' }), backdropVariantUrl: (url, width) => `${url}?width=${width}` };
     if (name === '@/components/watched-indicator') return { WatchedIndicator: () => null };
     if (name === '@/lib/series-route') return routeContext.exports;
@@ -44,6 +53,19 @@ assert.equal(thumbnail.props.width, 320);
 assert.equal(thumbnail.props.height, 180);
 assert.ok(thumbnail.props.srcSet.includes('width=1280 1280w'));
 assert.equal(render().props['data-continue-watching'], undefined, 'Regular posters retain normal hover styling');
+for (const pointerType of ['touch', 'pen']) render().props.onPointerEnter({ pointerType });
+assert.equal(palettes.length, 0, 'Touch and pen cannot create hover palette changes');
+finePointer = false; render().props.onPointerEnter({ pointerType: 'mouse' }); assert.equal(palettes.length, 0);
+finePointer = true;
+render(true).props.onPointerEnter({ pointerType: 'mouse' });
+assert.equal(palettes.at(-1)[2].primary, '/backdrop.jpg', 'Resume colors come from the displayed backdrop');
+render().props.onPointerEnter({ pointerType: 'mouse' });
+assert.equal(palettes.at(-1)[2].primary, '/poster.jpg', 'Catalog colors come from the displayed poster');
+render().props.onFocusCapture({ target: new TestElement(), relatedTarget: null });
+assert.equal(palettes.at(-1)[0], 'focus');
+const beforePointerFocus = palettes.length;
+render().props.onFocusCapture({ target: { matches: () => false } });
+assert.equal(palettes.length, beforePointerFocus, 'Mouse focus cannot bypass hover intent');
 function hasSeparateResumeShade(node) {
     if (!node || typeof node !== 'object') return false;
     if (node.props?.className?.includes('bg-black/35')) return true;

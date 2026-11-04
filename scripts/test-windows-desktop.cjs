@@ -4,7 +4,7 @@ const vm = require("node:vm");
 const ts = require("typescript");
 const crypto = require("node:crypto");
 function load(file, extra = {}) {
-  const context = { exports: {}, require: name => name === "@/lib/media/audio-language" ? load("lib/media/audio-language.ts") : require(name), Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...extra };
+  const context = { exports: {}, require: name => ["@/lib/media/audio-language", "@/lib/media/playback-preferences"].includes(name) ? load(name.slice(2)+".ts") : require(name), Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...extra };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, "utf8"), {
     fileName: file, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, context);
@@ -12,6 +12,17 @@ function load(file, extra = {}) {
 }
 
 (async () => {
+  for (const platform of ["windows", "macos", "android"]) {
+    for (const timings of [false, true]) {
+      const sent = [];
+      const { recordDesktopStage } = load("lib/desktop/bridge.ts", {
+        window: { navigatorDesktop: { protocol: 1, platform, capabilities: { timings }, send: message => sent.push(message) } },
+      });
+      recordDesktopStage("play-requested");
+      assert.equal(sent.length, platform === "windows" && timings ? 1 : 0, "Diagnostics must be opt-in and must not send new commands to older native builds");
+      if (sent.length) assert.equal(sent[0].type, "client-stage");
+    }
+  }
   let clock = 1000;
   let listener;
   const sent = [];
@@ -65,7 +76,7 @@ function load(file, extra = {}) {
       require(name) {
         if (name === "react") return { useEffect(fn) { effect = fn; } };
         if (name === "next-themes") return { useTheme: () => ({ resolvedTheme: "dark" }) };
-        if (name === "@/lib/desktop/bridge") return { desktopBridge: () => ({ platform, send: m => messages.push(m) }) };
+        if (name === "@/lib/desktop/bridge") return { desktopBridge: () => ({ platform, send: m => messages.push(m) }), recordDesktopStage() {} };
         throw new Error(name);
       },
     });

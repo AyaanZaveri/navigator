@@ -4,32 +4,51 @@ import { selectAuroraColors, DEFAULT_AURORA_COLORS } from "@/lib/aurora-palette"
 const palettes = new Map<string, string[]>();
 const pending = new Map<string, Promise<string[] | null>>();
 const CACHE_LIMIT = 48;
+let homeRequestKey = "";
 
 /** Successful palettes are shared across route remounts and Strict Mode replay.
  * Failed requests are retryable; concurrent consumers share the same extraction. */
 export function loadAuroraPalette(backdrop?: string, poster?: string): Promise<string[] | null> {
+    return loadPalette(backdrop, poster, false);
+}
+
+export function loadHomePalette(primary?: string, fallback?: string): Promise<string[] | null> {
+    if (!primary && !fallback) return Promise.resolve(null);
+    return loadPalette(primary, fallback, true);
+}
+
+function loadPalette(backdrop: string | undefined, poster: string | undefined, home: boolean): Promise<string[] | null> {
     const sources = [
         ...(backdrop ? [{ url: backdrop, size: "w300" }] : []),
         ...(poster && poster !== backdrop ? [{ url: poster, size: "w342" }] : []),
     ];
     if (!sources.length) return Promise.resolve(DEFAULT_AURORA_COLORS);
-    const key = JSON.stringify(sources);
+    const key = JSON.stringify(sources.flatMap(sampleSources));
     const cached = palettes.get(key);
     if (cached) {
         palettes.delete(key);
         palettes.set(key, cached);
         return Promise.resolve(cached);
     }
-    const request = pending.get(key);
+    const pendingKey = `${home ? "home" : "aurora"}:${key}`;
+    if (home && homeRequestKey !== pendingKey) {
+        // A → B → A must be allowed to resubmit A after B superseded its job.
+        pending.delete(homeRequestKey);
+        homeRequestKey = pendingKey;
+    }
+    const request = pending.get(pendingKey);
     if (request) return request;
-    const task = extract(sources).catch(() => null).then(colors => {
+    const extraction = home
+        ? import("./palette-worker-client").then(module => module.extractHomePalette(sources.flatMap(sampleSources)))
+        : extract(sources);
+    const task = extraction.catch(() => null).then(colors => {
         if (colors) {
             palettes.set(key, colors);
             if (palettes.size > CACHE_LIMIT) palettes.delete(palettes.keys().next().value!);
         }
         return colors;
-    }).finally(() => pending.delete(key));
-    pending.set(key, task);
+    }).finally(() => { if (pending.get(pendingKey) === task) pending.delete(pendingKey); });
+    pending.set(pendingKey, task);
     return task;
 }
 
@@ -61,7 +80,12 @@ async function extract(sources: { url: string; size: string }[]): Promise<string
 
 function sampleSources({ url: source, size }: { url: string; size: string }): string[] {
     const sample = artworkSampleUrl(source);
-    if (sample.startsWith("/api/artwork?")) return [`${sample}&palette=1`];
+    if (sample.startsWith("/api/artwork?")) {
+        const params = new URLSearchParams(sample.slice(sample.indexOf("?") + 1));
+        params.delete("width");
+        params.set("palette", "1");
+        return [`/api/artwork?${params}`];
+    }
     // Palette extraction never needs an original-resolution TMDB download.
     if (/^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(source)) {
         return [source.replace(/\/t\/p\/[^/]+\//, `/t/p/${size}/`)];
