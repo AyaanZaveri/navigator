@@ -37,7 +37,7 @@
 @keyframes select-fade { from { opacity: 0; } }
 @keyframes select-fade-out { to { opacity: 0; } }
 
-.optionIcon { display: inline-flex; flex: 0 0 auto; width: 16px; height: 16px; align-items: center; justify-content: center; }
+.optionIcon { display: inline-flex; flex: 0 0 auto; width: 18px; height: 16px; align-items: center; justify-content: center; }
 .optionIcon > svg { width: 16px; height: 16px; }
 
 :global(html:not(.dark)) .trigger,

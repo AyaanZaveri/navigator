@@ -28,7 +28,7 @@ function LanguageSelect({ id, label, value, onChange }: { id: string; label: str
     <Select id={id} label={label} value={value} onValueChange={onChange}
       options={options.map(option => ({
         ...option,
-        icon: option.flag ? <img src={option.flag} width={14} height={14} alt="" draggable={false} className="rounded-full" /> : <Globe2 aria-hidden="true" />,
+        icon: option.flag ? <img src={option.flag} width={18} height={12} alt="" draggable={false} className="h-3 w-[18px] shrink-0 rounded-[2px] object-contain" /> : <Globe2 aria-hidden="true" />,
       }))} />
   </Field>;
 }

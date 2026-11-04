@@ -221,7 +221,7 @@ assert.equal(playbackFailure.at(-1).trace.phase, 'error');
 const incomplete = toNavigatorSegments([sceneAction, { ...richProgress[1], data: { ...richProgress[1].data, state: 'running' } }]);
 assert.equal(incomplete.filter(segment => segment.kind === 'results').length, 0, 'Running stages never claim a completed result');
 // Render the real track component to verify it shares dropdown language names
-// and local Circle Flags while retaining the standard Navigator card layout.
+// and local rectangular flags while retaining the standard Navigator card layout.
 const trackLabels = load('lib/media/track-label.ts', { './track-flags': load('lib/media/track-flags.ts', {}) });
 const { SubtitleTrackCard } = load('components/navigator/subtitle-track-card.tsx', {
   '@/lib/media/track-label': trackLabels,
@@ -231,8 +231,9 @@ const subtitleRow = SubtitleTrackCard({ track: { language: 'eng', provider: 'Ope
 assert.equal(subtitleRow.type, widgets['result-row']);
 assert.equal(subtitleRow.props.title, 'English');
 assert.equal(subtitleRow.props.iconContent.type, 'img');
-assert.equal(subtitleRow.props.iconContent.props.src, '/flags/circle/language/en.svg');
+assert.equal(subtitleRow.props.iconContent.props.src, '/flags/3x2/language/en.svg');
 assert.equal(subtitleRow.props.iconContent.props.width, 24);
+assert.equal(subtitleRow.props.iconContent.props.height, 16, 'Preserve the rectangular flag aspect ratio');
 assert.equal(subtitleRow.props.icon, undefined, "A language flag does not need a second boxed icon");
 assert.equal(subtitleRow.props.metadata.props.children[0].props.children, 'OpenSubtitles');
 assert.equal(subtitleRow.props.metadata.props.children[1].props.children.join(''), '2,111 lines');

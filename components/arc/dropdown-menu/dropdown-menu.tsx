@@ -55,7 +55,7 @@ export function DropdownMenuRadioItem({ children, badge, description, flag, icon
   ComponentProps<typeof Primitive.RadioItem> & { badge?: string; description?: string; flag?: string; icon?: ReactNode; isLanguage?: boolean }) {
   const descriptionId = useId();
   const leading = flag
-    ? <img src={flag} width={14} height={14} alt="" draggable={false} decoding="async" className={styles.flag} />
+    ? <img src={flag} width={18} height={12} alt="" draggable={false} decoding="async" className={styles.flag} />
     : icon || (isLanguage ? badge ? <Globe2 size={14} strokeWidth={1.75} /> : <CircleHelp size={14} strokeWidth={1.75} /> : null);
   return <Primitive.RadioItem {...props} aria-describedby={description ? descriptionId : undefined}
     className={cn(styles.item, styles.radio, className)}>
