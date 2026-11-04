@@ -419,11 +419,26 @@ is a separate element hidden during native playback.
 by the existing Media Chrome controls. Native fullscreen is supplied through a
 custom MediaStore mediator, keeping the video and controls in one native window.
 Picture-in-picture is hidden for native playback. Embedded text subtitle cues
-come from mpv's `sub-text` property and use the same blurred React overlay as
-addon subtitles; mpv's own subtitle display is disabled.
-Native cues stay plain text and clear on track changes, replacement, loading,
-errors, and playback end. Bitmap subtitles do not expose text through `sub-text`
-and are outside this custom text-overlay path.
+come from mpv's `sub-text` property and use the same React overlay as addon
+subtitles. Native drawing is disabled for text tracks to avoid duplicates.
+Native text clears on track changes, replacement, loading, errors and playback
+end. Selected PGS, VobSub/DVD, DVB and XSUB bitmap tracks instead use mpv's native
+image compositor. Their authored typography and placement are preserved; custom
+text appearance and the downloaded-cue timing control do not apply to bitmaps.
+No OCR or lossy image-to-text conversion is performed. Switching Off or to an
+external/text track disables native bitmap drawing. The UI chooses a matching
+embedded track before falling back to external downloads, once metadata is ready.
+This decoder routing is shared by macOS and Windows. Browser playback prefers
+in-stream text tracks exposed through `TextTrackList`; late text-track discovery
+can replace an automatic external fallback, but never a manual selection or Off.
+Browsers do not gain PGS decoding from this native change. PGS-only browser
+streams continue using matching external SRT/VTT captions when available;
+there is no OCR, new browser PGS demuxer, or server transcoder in this release.
+
+On macOS, windowed playback ties standard window-button visibility to player
+controls. Leaving playback restores the buttons; fullscreen restores AppKit's
+ownership of top-edge titlebar reveal. Older native builds ignore this UI feature
+through a bridge capability check.
 
 The Ask Navigator launcher hides as soon as playback starts loading. Starting a
 title from Ask closes its panel, and home/Ask gradient backgrounds unmount for

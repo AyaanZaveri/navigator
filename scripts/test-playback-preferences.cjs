@@ -96,20 +96,47 @@ const selectSubtitle = compile(selection, {
   const failure = selectSubtitle(tracks[2]); pending[4].reject(Error('offline')); await failure;
   assert.equal(fetching, false, 'Network failures release the subtitle loader');
 
-  function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser } = {}) {
+  function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser, ready = 2 } = {}) {
+    const manualOverride = { current: manual };
     const applied = { current: manual }, chosen = [], listeners = new Map();
-    const element = { controller: { tracks: native, selectTrack: (...args) => chosen.push(args) },
+    const element = { readyState: ready, controller: { tracks: native, selectTrack: (...args) => chosen.push(args) },
       addEventListener: (name, callback) => listeners.set(name, callback), removeEventListener: name => listeners.delete(name) };
     if (browser) element.textTracks = Object.assign(new EventTarget(), { ...browser, length: browser.length });
     const effect = compile(defaultsEffect, {
       playbackPreferencesRef: { current: { ...defaults, subtitlesEnabledByDefault: enabled, subtitleMode: mode } },
       isPlayerVisible: true, streamUrl: 'movie', subtitleOptionsReady: true, videoRef: { current: element },
-      subtitleDefaultApplied: applied, subtitleTracks: downloaded, preferredSubtitleTrack: subtitles.preferredSubtitleTrack,
-      selectSubtitle: track => { chosen.push(track.src); },
+      subtitleDefaultApplied: applied, subtitleManualOverride: manualOverride, subtitleDefaultSource: { current: null }, subtitleTracks: downloaded, preferredSubtitleTrack: subtitles.preferredSubtitleTrack,
+      selectSubtitle: track => { chosen.push(track?.src ?? null); },
     });
-    return { cleanup: effect(), chosen, listeners, element, applied };
+    return { cleanup: effect(), chosen, listeners, element, applied, manualOverride };
   }
   assert.deepEqual(automatic().chosen, ['en-normal']);
+  assert.deepEqual(automatic({ native: [{ id: 7, type: 'sub', lang: 'eng' }] }).chosen, [['subtitle', '7']], 'Matching embedded captions take priority over external downloads');
+  const lateEmbedded = automatic({ ready: 0 });
+  assert.deepEqual(lateEmbedded.chosen, [], 'Do not latch an external default while embedded metadata is still loading');
+  lateEmbedded.element.controller.tracks = [{ id: 8, type: 'sub', lang: 'eng' }];
+  lateEmbedded.listeners.get('trackschange')();
+  assert.deepEqual(lateEmbedded.chosen, [['subtitle', '8']]);
+  const noEmbedded = automatic({ ready: 0 });
+  noEmbedded.element.readyState = 2;
+  noEmbedded.listeners.get('loadedmetadata')();
+  assert.deepEqual(noEmbedded.chosen, ['en-normal'], 'Use external fallback once metadata confirms no matching embedded track');
+  const lateBrowserTracks = [];
+  const lateBrowser = automatic({ browser: lateBrowserTracks });
+  assert.deepEqual(lateBrowser.chosen, ['en-normal']);
+  lateBrowser.element.textTracks[0] = { kind: 'captions', language: 'eng', label: 'English', mode: 'disabled' };
+  lateBrowser.element.textTracks.length = 1;
+  lateBrowser.element.textTracks.dispatchEvent(new Event('addtrack'));
+  assert.equal(lateBrowser.element.textTracks[0].mode, 'showing', 'A late in-stream browser track replaces only an automatic external fallback');
+  assert.deepEqual(lateBrowser.chosen, ['en-normal', null], 'Upgrading cancels the pending external subtitle request');
+  const manuallyChanged = automatic();
+  manuallyChanged.manualOverride.current = true;
+  manuallyChanged.element.controller.tracks = [{ id: 9, type: 'sub', lang: 'eng' }];
+  manuallyChanged.listeners.get('trackschange')();
+  assert.deepEqual(manuallyChanged.chosen, ['en-normal'], 'Late embedded discovery must preserve a user-selected external track or Off');
+
+
+
   assert.deepEqual(automatic({ mode: 'forced' }).chosen, ['en-forced']);
   assert.deepEqual(automatic({ enabled: false }).chosen, []);
   assert.deepEqual(automatic({ manual: true }).chosen, [], 'Automatic defaults must not override a manual selection');
@@ -155,7 +182,7 @@ const selectSubtitle = compile(selection, {
   assert.equal(browserAudioTracks[0].enabled, true, 'Browser manual audio survives later metadata events');
   stopAudio();
 
-  console.log('PASS: persisted language/default preferences, corrupt storage recovery, normal/forced matching, web/native audio ranking, delayed native tracks, manual Off and subtitle request races');
+  console.log('PASS: persisted language/default preferences, corrupt storage recovery, normal/forced matching, web/native audio ranking, delayed native/browser tracks, embedded priority, manual Off and subtitle request races');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 
 // Preference menus stay useful when the browser cannot name a language.

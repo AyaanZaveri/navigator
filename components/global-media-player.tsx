@@ -174,6 +174,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const episodeContinuationRef = useRef<{ onEnded(): void } | null>(null);
   const subtitleSelectionRequest = useRef(0);
   const subtitleDefaultApplied = useRef(false);
+  const subtitleDefaultSource = useRef<"embedded" | "external" | null>(null);
   const subtitleManualOverride = useRef(false);
   const [initialPlaybackPreferences] = useState(readPlaybackPreferences);
   const playbackPreferencesRef = useRef(initialPlaybackPreferences);
@@ -587,6 +588,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     subtitleSelectionRequest.current++;
     if (!fallback) subtitleManualOverride.current = false;
     subtitleDefaultApplied.current = subtitleManualOverride.current;
+    subtitleDefaultSource.current = null;
     playbackPreferencesRef.current = readPlaybackPreferences();
     setSubtitleOptionsReady(false);
     setFetchingSubtitles(false);
@@ -813,19 +815,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   useEffect(() => {
     const preferences = playbackPreferencesRef.current;
-    if (!isPlayerVisible || !streamUrl || !subtitleOptionsReady || !preferences.subtitlesEnabledByDefault) return;
+    if (!isPlayerVisible || !streamUrl || !preferences.subtitlesEnabledByDefault) return;
     const element = videoRef.current as unknown as MpvElementHandle | null;
     const choose = () => {
-      if (subtitleDefaultApplied.current) return;
-      const downloaded = preferredSubtitleTrack(subtitleTracks, preferences.subtitleLanguage, preferences.subtitleMode);
-      if (downloaded) {
-        subtitleDefaultApplied.current = true;
-        void selectSubtitle(downloaded);
-        return;
-      }
+      if (subtitleManualOverride.current || (subtitleDefaultApplied.current && subtitleDefaultSource.current !== "external")) return;
       const embedded = preferredSubtitleTrack(element?.controller?.tracks.filter(track => track.type === "sub") || [], preferences.subtitleLanguage, preferences.subtitleMode);
       if (embedded && element?.controller) {
+        if (subtitleDefaultSource.current === "external") void selectSubtitle(null);
         subtitleDefaultApplied.current = true;
+        subtitleDefaultSource.current = "embedded";
         element.controller.selectTrack("subtitle", String(embedded.id));
         return;
       }
@@ -834,15 +832,29 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const browserTracks = textTracks ? Array.from(textTracks).filter(track => ["subtitles", "captions"].includes(track.kind)) : [];
       const browserTrack = preferredSubtitleTrack(browserTracks, preferences.subtitleLanguage, preferences.subtitleMode);
       if (browserTrack) {
+        if (subtitleDefaultSource.current === "external") void selectSubtitle(null);
         subtitleDefaultApplied.current = true;
+        subtitleDefaultSource.current = "embedded";
         for (const track of browserTracks) track.mode = track === browserTrack ? "showing" : "disabled";
+        return;
+      }
+      // Native track discovery and browser metadata race the addon response.
+      // Wait for metadata before committing to an external fallback.
+      if (subtitleDefaultApplied.current || !subtitleOptionsReady || (videoRef.current?.readyState ?? 0) < 1) return;
+      const downloaded = preferredSubtitleTrack(subtitleTracks, preferences.subtitleLanguage, preferences.subtitleMode);
+      if (downloaded) {
+        subtitleDefaultApplied.current = true;
+        subtitleDefaultSource.current = "external";
+        void selectSubtitle(downloaded);
       }
     };
     choose();
+    element?.addEventListener("loadedmetadata", choose);
     element?.addEventListener("trackschange", choose);
     const textTracks = videoRef.current?.textTracks;
     textTracks?.addEventListener("addtrack", choose);
     return () => {
+      element?.removeEventListener("loadedmetadata", choose);
       element?.removeEventListener("trackschange", choose);
       textTracks?.removeEventListener("addtrack", choose);
     };
