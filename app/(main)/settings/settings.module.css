@@ -79,6 +79,11 @@
   min-width: 0;
 }
 
+.panel[data-category="navigator"],
+.panel[data-category="connections"] {
+  max-inline-size: 42.5rem;
+}
+
 .pageHeader {
   display: flex;
   flex-direction: column;
@@ -196,6 +201,7 @@
 
 .apiKeyInput[data-slot="input-group"],
 .providerInput {
+  --radius-control: 12px;
   height: var(--control-height-md);
   gap: var(--space-2);
   border-color: var(--border);
@@ -246,6 +252,22 @@
 
 @media (prefers-reduced-motion: reduce) {
   .apiKeyInput[data-slot="input-group"], .providerInput { transition: none; }
+}
+
+.navigatorSettings {
+  gap: 1.5rem;
+}
+
+.content .navigatorPreferences {
+  gap: .25rem;
+}
+
+.content .navigatorFields {
+  gap: 1rem;
+}
+
+.panel[data-category="connections"] [data-slot="field-group"] {
+  gap: 1rem;
 }
 
 .subtitleSettings {

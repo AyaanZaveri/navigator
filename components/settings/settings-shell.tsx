@@ -42,7 +42,7 @@ export function SettingsShell({ children }: { children: ReactNode }) {
                     onValueChange={category => router.push(`/settings/${category}`)}
                     options={SETTINGS_CATEGORIES.map(category => ({ value: category.id, label: category.label }))} />
             </div>
-            <div className={styles.panel}>
+            <div className={styles.panel} data-category={active}>
                 <header className={styles.pageHeader}>
                     <h1 ref={titleRef} tabIndex={-1} className={styles.pageTitle}>{category.label}</h1>
                 </header>

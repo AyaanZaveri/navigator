@@ -224,9 +224,9 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
         {variant === "connection" && <div className={styles.connectionHeader}>
             <h2>TinyFish</h2>
         </div>}
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className={`flex min-w-0 flex-col ${variant === "preference" ? "gap-2" : "gap-4"}`}>
             {variant === "preference" && <Field orientation="horizontal">
-                <FieldContent><FieldLabel htmlFor="tinyfish-web-search">Use TinyFish web search</FieldLabel></FieldContent>
+                <FieldContent><FieldLabel htmlFor="tinyfish-web-search"><TinyFishIcon size={16} className="shrink-0" />Use TinyFish web search</FieldLabel></FieldContent>
                 <Switch id="tinyfish-web-search" checked={state.enabled && state.configured} disabled={loading || pending || !state.configured}
                     onCheckedChange={enabled => void update("toggle", enabled)} />
             </Field>}
@@ -757,110 +757,107 @@ function NavigatorSettings() {
     };
     const currentModel = modelSettings[aiProvider];
 
-    return <>
-        <section aria-label="Assistant" className={styles.section}>
-            <FieldGroup className="min-w-0 gap-6">
-                <Field orientation="horizontal" className="mb-2">
-                    <FieldContent>
-                        <FieldLabel htmlFor="navigator-enabled">Enable Navigator</FieldLabel>
-                    </FieldContent>
-                    <Switch
-                        id="navigator-enabled"
-                        checked={navigatorEnabled}
-                        onCheckedChange={setNavigatorEnabled}
+    return <section aria-label="Assistant" className={`${styles.section} ${styles.navigatorSettings}`}>
+        <FieldGroup className={styles.navigatorPreferences}>
+            <Field orientation="horizontal">
+                <FieldContent>
+                    <FieldLabel htmlFor="navigator-enabled">Enable Navigator</FieldLabel>
+                </FieldContent>
+                <Switch
+                    id="navigator-enabled"
+                    checked={navigatorEnabled}
+                    onCheckedChange={setNavigatorEnabled}
+                />
+            </Field>
+            {navigatorEnabled && <WebSearchSettings variant="preference" />}
+        </FieldGroup>
+        {navigatorEnabled && (
+            <FieldGroup className={styles.navigatorFields} aria-label="AI configuration">
+                <Field>
+                    <Select
+                        id="ai-provider"
+                        label="AI provider"
+                        value={aiProvider}
+                        onValueChange={(value) => setAiProvider(value as AIProvider)}
+                        options={PROVIDERS.map((provider) => {
+                            const Icon = provider.icon;
+                            return { value: provider.value, label: provider.name, icon: <Icon /> };
+                        })}
                     />
                 </Field>
 
-                {navigatorEnabled && (
-                    <>
-                        <Field>
-                            <Select
-                                id="ai-provider"
-                                label="AI provider"
-                                value={aiProvider}
-                                onValueChange={(value) => setAiProvider(value as AIProvider)}
-                                options={PROVIDERS.map((provider) => {
-                                    const Icon = provider.icon;
-                                    return { value: provider.value, label: provider.name, icon: <Icon /> };
-                                })}
-                            />
-                        </Field>
+                {aiProvider === "openai" && (
+                    <SettingsInput
+                        id="openai-base-url"
+                        label="Base URL"
+                        type="url"
+                        value={openaiBaseUrl}
+                        onValueChange={setOpenaiBaseUrl}
+                        placeholder={OPENAI_DEFAULT_BASE_URL}
+                    />
+                )}
 
-                        {aiProvider === "openai" && (
-                            <SettingsInput
-                                id="openai-base-url"
-                                label="Base URL"
-                                type="url"
-                                value={openaiBaseUrl}
-                                onValueChange={setOpenaiBaseUrl}
-                                placeholder={OPENAI_DEFAULT_BASE_URL}
-                            />
-                        )}
+                {aiProvider === "ollama" ? (
+                    <SettingsInput
+                        id="ollama-base-url"
+                        label="Base URL"
+                        type="url"
+                        value={ollamaBaseUrl}
+                        onValueChange={setOllamaBaseUrl}
+                        placeholder="http://localhost:11434"
+                    />
+                ) : (
+                    <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
+                )}
 
-                        {aiProvider === "ollama" ? (
-                            <SettingsInput
-                                id="ollama-base-url"
-                                label="Base URL"
-                                type="url"
-                                value={ollamaBaseUrl}
-                                onValueChange={setOllamaBaseUrl}
-                                placeholder="http://localhost:11434"
-                            />
-                        ) : (
-                            <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
-                        )}
+                {currentModel.options ? (
+                    <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} description={currentModel.disabled ? "Add an API key to load models." : undefined} options={currentModel.options} providerIcon={selectedProvider.icon} />
+                ) : (
+                    <SettingsInput
+                        id={`${aiProvider}-model`}
+                        label="Model"
+                        value={currentModel.value}
+                        onValueChange={currentModel.onValueChange}
+                        placeholder={currentModel.placeholder}
+                        description={currentModel.description}
+                    />
+                )}
 
-                        {currentModel.options ? (
-                            <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} description={currentModel.disabled ? "Add an API key to load models." : undefined} options={currentModel.options} providerIcon={selectedProvider.icon} />
-                        ) : (
-                            <SettingsInput
-                                id={`${aiProvider}-model`}
-                                label="Model"
-                                value={currentModel.value}
-                                onValueChange={currentModel.onValueChange}
-                                placeholder={currentModel.placeholder}
-                                description={currentModel.description}
-                            />
-                        )}
+                {aiProvider === "openrouter" && (
+                    <SettingsSelect
+                        id="openrouter-reasoning-effort"
+                        label="Reasoning effort"
+                        value={openrouterReasoningEffort}
+                        onValueChange={(value) => setOpenrouterReasoningEffort(value as OpenRouterReasoningEffort)}
+                        options={[
+                            { id: "default", name: "Model default" },
+                            { id: "none", name: "None" },
+                            { id: "minimal", name: "Minimal" },
+                            { id: "low", name: "Low" },
+                            { id: "medium", name: "Medium" },
+                            { id: "high", name: "High" },
+                            { id: "xhigh", name: "Extra high" },
+                        ]}
+                    />
+                )}
 
-                        {aiProvider === "openrouter" && (
-                            <SettingsSelect
-                                id="openrouter-reasoning-effort"
-                                label="Reasoning effort"
-                                value={openrouterReasoningEffort}
-                                onValueChange={(value) => setOpenrouterReasoningEffort(value as OpenRouterReasoningEffort)}
-                                options={[
-                                    { id: "default", name: "Model default" },
-                                    { id: "none", name: "None" },
-                                    { id: "minimal", name: "Minimal" },
-                                    { id: "low", name: "Low" },
-                                    { id: "medium", name: "Medium" },
-                                    { id: "high", name: "High" },
-                                    { id: "xhigh", name: "Extra high" },
-                                ]}
-                            />
-                        )}
-
-                        {aiProvider === "cerebras" && (
-                            <SettingsSelect
-                                id="cerebras-reasoning-effort"
-                                label="Reasoning effort"
-                                value={cerebrasReasoningEffort}
-                                onValueChange={(value) => setCerebrasReasoningEffort(value as CerebrasReasoningEffort)}
-                                options={[
-                                    { id: "default", name: "Model default" },
-                                    { id: "low", name: "Low" },
-                                    { id: "medium", name: "Medium" },
-                                    { id: "high", name: "High" },
-                                ]}
-                            />
-                        )}
-                    </>
+                {aiProvider === "cerebras" && (
+                    <SettingsSelect
+                        id="cerebras-reasoning-effort"
+                        label="Reasoning effort"
+                        value={cerebrasReasoningEffort}
+                        onValueChange={(value) => setCerebrasReasoningEffort(value as CerebrasReasoningEffort)}
+                        options={[
+                            { id: "default", name: "Model default" },
+                            { id: "low", name: "Low" },
+                            { id: "medium", name: "Medium" },
+                            { id: "high", name: "High" },
+                        ]}
+                    />
                 )}
             </FieldGroup>
-        </section>
-        <WebSearchSettings variant="preference" />
-    </>;
+        )}
+    </section>;
 }
 
 export function SettingsView({ category }: { category: SettingsCategory }) {
