@@ -5,8 +5,14 @@ import { InputGroupTextarea } from "./focus-ui/input-group";
 
 function resizeComposer(field: HTMLTextAreaElement | null) {
   if (!field) return;
+  // Collapsing an overflow:auto field can temporarily introduce a scrollbar.
+  // Its narrower text width can wrap a two-line draft onto a phantom third
+  // line. Measure without that scrollbar, then restore capped scrolling.
+  const overflowY = field.style.overflowY;
+  field.style.overflowY = "hidden";
   field.style.height = "0px";
   field.style.height = `${field.scrollHeight}px`;
+  field.style.overflowY = overflowY;
 }
 
 export function NavigatorComposerInput({ value, onValueChange, disabled }: {
