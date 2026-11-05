@@ -28,9 +28,7 @@
 
 ## Demo
 
-[![Watch the Navigator demo](docs/media/navigator-demo.jpg)](docs/media/navigator-demo.mp4)
-
-[Watch the full demo ↗](docs/media/navigator-demo.mp4)
+https://github.com/user-attachments/assets/6c3e46f1-cbbb-4e4d-9424-28c7bbdb0435
 
 ## What it does
 
