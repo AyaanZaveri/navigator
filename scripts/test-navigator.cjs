@@ -361,6 +361,12 @@ async function main() {
   assert.equal(chat.pendingNavigatorAction(failedModelMessages), undefined, 'Failed browser actions must finish instead of being replayed in a loop');
   const projection = chat.modelToolOutput('getMediaStreams', { success: true, selectionId: 'sel-1', streams: [{ choice: 1, streamId: 'source-1', streamUrl: 'private-source', resolution: '1080p' }] });
   assert.doesNotMatch(JSON.stringify(projection), /private-source/);
+  const catalogProjection = chat.modelToolOutput('getEpisodeCatalog', { success: true, seriesId: 'tmdb:58957', seriesName: 'Nathan for You',
+    episodes: [{ id: 'tmdb:58957:2:5', seriesId: 'tmdb:58957', seriesName: 'Nathan for You', name: 'Dumb Starbucks', title: 'Dumb Starbucks',
+      seasonNumber: 2, episodeNumber: 5, overview: 'Parody coffee shop.', thumbnail: 'https://image.tmdb.org/artwork.jpg', source: 'TMDB', type: 'Episode' }] });
+  assert.doesNotMatch(JSON.stringify(catalogProjection), /artwork.jpg|"name"|"type"/, 'Catalog reasoning must not pay for repeated UI metadata or artwork');
+  assert.equal(catalogProjection.episodes[0].overview, 'Parody coffee shop.', 'Compaction preserves plot clues and real episode identity');
+  assert.equal(catalogProjection.episodes[0].id, 'tmdb:58957:2:5');
   assert.match(JSON.stringify(projection), /source-1/);
   const aborted = new AbortController(); aborted.abort();
   await assert.rejects(tools.searchMedia.execute({ query: 'Example' }, { toolCallId: 'cancelled', messages: [], abortSignal: aborted.signal }), /abort/i);

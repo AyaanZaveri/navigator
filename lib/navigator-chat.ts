@@ -57,6 +57,7 @@ export function modelToolOutput(name: string, value: unknown): unknown {
         getFilmography: ["id", "tmdbId", "name", "type", "year", "roles", "characters", "source"],
         getMediaStreams: ["choice", "streamId", "resolution", "playable", "tags"],
         getEpisodes: ["id", "seriesId", "name", "seasonNumber", "episodeNumber", "overview"],
+        getEpisodeCatalog: ["id", "title", "seasonNumber", "episodeNumber", "overview"],
         findEpisodeByTitle: ["id", "seriesId", "title", "seasonNumber", "episodeNumber", "overview"],
     };
     const listKey = ["searchMedia", "searchPeople", "getFilmography"].includes(name) ? "results" : name === "getMediaStreams" ? "streams" : "episodes";

@@ -79,6 +79,28 @@ async function main() {
   await assert.rejects(isolated.search('one too many', 'Find an episode'), /budget/i);
   const cancelled = new AbortController(); cancelled.abort();
   await assert.rejects(isolated.catalog('tmdb:58957', cancelled.signal), /abort/i);
+  let navigations = 0;
+  overrides['./media'] = {
+    navigateToMedia: { execute: async input => { navigations++; return { success: true, mediaId: input.mediaId }; } },
+    navigateToEpisode: {}, playMedia: {}, playMediaInputSchema: zod.z.object({}),
+  };
+  const tools = load('app/tools/episodes.ts').createEpisodeTools(model, request);
+  const toolOptions = { toolCallId: 'proof-test', messages: [] };
+  const fetched = await tools.readMediaWebSources.execute({ urls: ['https://example.com/scene'], question: 'paper scene' }, toolOptions);
+  const proof = await tools.verifyEpisode.execute({ seriesId: 'tmdb:58957', episodeId: episodes[0].id, episodeQuery: 'paper scene', sourceIds: [fetched.sources[0].id] }, toolOptions);
+  assert.equal(proof.success, true);
+  const opened = await tools.navigateToEpisode.execute({ verifiedEpisodeId: episodes[0].id, seriesId: 'tmdb:58957' }, toolOptions);
+  assert.equal(opened.success, true, 'Redundant matching series metadata must not cost an extra model correction turn');
+  assert.equal(navigations, 1);
+  const withCoordinates = await tools.navigateToEpisode.execute({ verifiedEpisodeId: episodes[0].id,
+    seriesQuery: 'Nathan for You', episodeQuery: 'Dumb Starbucks', seasonNumber: 2, episodeNumber: 5 }, toolOptions);
+  assert.equal(withCoordinates.success, true, 'Matching extra fields cannot change the evidence-backed target');
+  assert.equal(withCoordinates.mediaId, episodes[0].id);
+  for (const conflict of [{ seriesId: 'tmdb:999' }, { seasonNumber: 4 }, { episodeNumber: 4 }, { seriesQuery: 'Another show' }, { episodeQuery: 'Another episode' }]) {
+    const denied = await tools.navigateToEpisode.execute({ verifiedEpisodeId: episodes[0].id, ...conflict }, toolOptions);
+    assert.equal(denied.success, false, 'Conflicting metadata cannot change a verified selection');
+  }
+  assert.equal(navigations, 2, 'Rejected conflicts never prepare actions');
   console.log('PASS: agent-controlled catalog/search/fetch, stable evidence IDs, request-scoped verified selections, budgets and cancellation.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

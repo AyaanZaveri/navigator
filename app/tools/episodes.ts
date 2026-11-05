@@ -77,10 +77,17 @@ export function createEpisodeTools(model?: LanguageModel, originalRequest = "") 
                 if (input.verifiedEpisodeId) {
                     const proof = research.verified(input.verifiedEpisodeId);
                     if (!proof?.success) return { success: false, error: "Verify this episode with fetched evidence during this request before opening it." };
-                    if (input.episodeQuery || input.episodeNumber !== undefined || input.seasonNumber !== undefined || input.seriesId || input.seriesQuery) {
-                        return { success: false, error: "Pass only verifiedEpisodeId for a verified selection." };
-                    }
                     const episode = proof.episodes[0];
+                    // Matching redundant fields do not alter the target; rejecting
+                    // them costs a correction turn on otherwise valid model calls.
+                    const sameTitle = (a: string, b: string) => a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+                    if ((input.seriesId !== undefined && input.seriesId !== episode.seriesId)
+                        || (input.seasonNumber !== undefined && input.seasonNumber !== episode.seasonNumber)
+                        || (input.episodeNumber !== undefined && input.episodeNumber !== episode.episodeNumber)
+                        || (input.seriesQuery !== undefined && !sameTitle(input.seriesQuery, episode.seriesName))
+                        || (input.episodeQuery !== undefined && !sameTitle(input.episodeQuery, episode.title))) {
+                        return { success: false, error: "The extra fields conflict with the verified selection. Pass only verifiedEpisodeId." };
+                    }
                     const action = await navigateToMedia.execute!({ mediaId: episode.id, mediaType: "Episode" }, options);
                     return { ...action, mediaName: episode.title, mediaType: "Episode", seriesId: episode.seriesId,
                         seasonNumber: episode.seasonNumber, episodeNumber: episode.episodeNumber,
