@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
+const { execFileSync } = require('node:child_process');
 
 async function main() {
     if (!process.argv.includes('--live')) { console.log('SKIP: pass --live to use configured TMDB, TinyFish and OpenCode APIs.'); return; }
@@ -11,6 +12,24 @@ async function main() {
     assert.ok(process.env.OPENCODE_GO_API_KEY && process.env.TMDB_API_READ_ACCESS_TOKEN && process.env.TINYFISH_API_KEY, 'Configure live service credentials in .env');
     const dependencies = {};
     for (const name of ['ai', 'zod', '@ai-sdk/openai', '@ai-sdk/google', '@ai-sdk/groq', '@ai-sdk/cerebras', '@ai-sdk/openai-compatible', '@openrouter/ai-sdk-provider', 'ai-sdk-ollama']) dependencies[name] = await import(name);
+    const profile = [];
+    let profileStart = Date.now();
+    if (process.argv.includes('--timings')) {
+        const ai = dependencies.ai;
+        dependencies.ai = { ...ai,
+            streamText: options => ai.streamText({ ...options, onStepEnd: async step => {
+                profile.push({ kind: 'step', atMs: Date.now() - profileStart, tools: step.toolCalls?.map(call => call.toolName), usage: step.usage });
+                await options.onStepEnd?.(step);
+            } }),
+            generateText: async options => {
+                const start = Date.now();
+                let result;
+                try { result = await ai.generateText(options); return result; }
+                finally { profile.push({ kind: 'generation', atMs: Date.now() - profileStart, ms: Date.now() - start,
+                    model: options.model.modelId, stepUsages: result?.steps?.map(step => step.usage) ?? (result?.usage ? [result.usage] : []) }); }
+            },
+        };
+    }
     if (process.argv.includes('--diagnostics')) {
         const ai = dependencies.ai;
         dependencies.ai = { ...ai, generateText: async options => {
@@ -41,6 +60,8 @@ async function main() {
     };
     const modules = new Map();
     const services = [];
+    const sourceRefFlag = process.argv.indexOf('--source-ref');
+    const sourceRef = sourceRefFlag >= 0 ? process.argv[sourceRefFlag + 1] : undefined;
     function load(file) {
         const absolute = path.resolve(file);
         if (modules.has(absolute)) return modules.get(absolute).exports;
@@ -57,7 +78,12 @@ async function main() {
             }
             return require(name);
         };
-        vm.runInNewContext(ts.transpileModule(fs.readFileSync(absolute, 'utf8'), { compilerOptions: {
+        // Compare committed source without switching the user's checkout or server.
+        const relative = path.relative(process.cwd(), absolute);
+        const source = sourceRef && /^(app|lib)\//.test(relative)
+            ? execFileSync('git', ['show', `${sourceRef}:${relative}`], { encoding: 'utf8' })
+            : fs.readFileSync(absolute, 'utf8');
+        vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
             target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true,
         } }).outputText, {
             module, exports: module.exports, require: localRequire, process,
@@ -107,6 +133,18 @@ async function main() {
                 execute: async input => ({ success: true, intent: input }) } };
         } };
     }
+    if (process.argv.includes('--timings')) {
+        const toolModule = load('app/tools/index.ts');
+        dependencies['@/app/tools'] = { ...toolModule, createAllTools: (...args) => Object.fromEntries(
+            Object.entries(toolModule.createAllTools(...args)).map(([name, definition]) => [name, !definition.execute ? definition : {
+                ...definition, execute: async (...args) => {
+                    const start = Date.now();
+                    profile.push({ kind: 'tool-start', name, atMs: start - profileStart });
+                    try { return await definition.execute(...args); }
+                    finally { profile.push({ kind: 'tool-end', name, atMs: Date.now() - profileStart, ms: Date.now() - start }); }
+                },
+            }])) };
+    }
     const { POST } = load('app/api/chat/route.ts');
     const modelFlag = process.argv.indexOf('--model');
     const models = modelFlag >= 0 ? [process.argv[modelFlag + 1]] : ['muse-spark-1.3-contributor'];
@@ -115,6 +153,7 @@ async function main() {
     for (const model of models) {
         services.length = 0;
         const start = Date.now();
+        profileStart = start; profile.length = 0;
         const response = await POST(new Request('http://localhost/api/chat', { method: 'POST', signal: AbortSignal.timeout(120_000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
             messages: [{ id: 'live-episode-probe', role: 'user', parts: [{ type: 'text', text: prompt }] }],
             aiProvider: 'opencode', opencodeModel: model, opencodeApiKey: process.env.OPENCODE_GO_API_KEY,
@@ -129,11 +168,13 @@ async function main() {
         const errors = events.filter(event => event.type === 'error');
         const inputs = events.filter(event => event.type === 'tool-input-available').map(({ toolName, input }) => ({ toolName, input }));
         const outputs = events.filter(event => event.type === 'tool-output-available').map(event => event.output);
-        console.log(JSON.stringify({ model, prompt, durationMs: Date.now() - start, tools: inputs,
+        console.log(JSON.stringify({ model, prompt, ...(sourceRef ? { sourceRef } : {}), durationMs: Date.now() - start, tools: inputs,
             results: outputs.map(output => ({ success: output.success, status: output.status, url: output.url,
                 episodeTitle: output.episodeTitle, episodes: output.episodes?.map(episode => episode.id),
                 evidence: output.evidence?.map(({ sourceId, url }) => ({ sourceId, url })), error: output.error,
-                timestamp: output.timestamp, text: output.text, timings: output.timings })), errors, services }));
+                timestamp: output.timestamp, text: output.text, timings: output.timings })), errors, services,
+            answerText: events.filter(event => event.type === 'text-delta').map(event => event.delta).join(''),
+            ...(process.argv.includes('--timings') ? { profile } : {}) }));
         assert.equal(errors.length, 0, 'No provider continuation failure');
         if (process.argv.includes('--intent-only')) {
             assert.equal(inputs.length, 1);
@@ -149,6 +190,8 @@ async function main() {
         const actions = outputs.filter(output => output.execution === 'prepared');
         assert.equal(actions.length, 1, 'Prepare exactly one supported action');
         assert.equal(actions[0].success, true);
+        if (process.argv.includes('--require-evidence')) assert.ok(actions[0].evidence?.some(item => item.url && item.quote && item.sourceId?.startsWith('web:')),
+            'A remembered episode must have fetched, reconstructed evidence, not just guessed correct coordinates');
         const expectedFlag = process.argv.indexOf('--expected-path');
         const expectedPath = expectedFlag >= 0 ? process.argv[expectedFlag + 1] : '/series/tt2297757/4/4';
         const [, , series, season, episode] = expectedPath.split('/');
