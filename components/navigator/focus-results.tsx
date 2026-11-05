@@ -250,11 +250,29 @@ export function toNavigatorSegments(
   };
   const selectedList = records.some(part => toolName(part) === "presentMediaResults" && successful(part));
   const verifiedEntries = records.filter(part => part.type === "data-episodeProgress" && record(part.data).stage === "verify" && record(part.data).state === "completed");
+  const sameEpisodeTarget = (target: RecordValue, episode: RecordValue, input: RecordValue = {}) => {
+    const type = text(target.mediaType || target.type).toLowerCase();
+    if (type && type !== "episode") return false;
+    // Different coordinates are never aliases, even when a caller retained
+    // a stale ID. Names alone are not sufficient evidence of equivalence.
+    if (["seasonNumber", "episodeNumber"].some(key => typeof target[key] === "number" &&
+      typeof episode[key] === "number" && target[key] !== episode[key])) return false;
+    if (episode.id && (target.mediaId || target.id) === episode.id) return true;
+    if (episode.seriesId && target.seriesId === episode.seriesId &&
+      target.seasonNumber === episode.seasonNumber && target.episodeNumber === episode.episodeNumber) return true;
+    // playMedia translates canonical TMDB inputs into IMDb playback IDs. The
+    // scene tool's own input links those identities; no lookup/name guessing.
+    const canonicalInput = (!!episode.id && input.mediaId === episode.id) || (!!episode.seriesId && input.mediaId === episode.seriesId &&
+      input.seasonNumber === episode.seasonNumber && input.episodeNumber === episode.episodeNumber);
+    return !!canonicalInput && text(input.mediaType).toLowerCase() === "episode" &&
+      typeof episode.seasonNumber === "number" && typeof episode.episodeNumber === "number" &&
+      target.seasonNumber === episode.seasonNumber && target.episodeNumber === episode.episodeNumber;
+  };
   const matchesEpisode = (action: RecordValue, episode: RecordValue, verification?: RecordValue) => {
     const output = record(action.output);
     if (output.mediaType && text(output.mediaType).toLowerCase() !== "episode") return false;
-    return (!!verification && typeof action.toolCallId === "string" && action.toolCallId === record(verification.data).toolCallId) || (!!episode.id && output.mediaId === episode.id) ||
-      (output.seriesId === episode.seriesId && output.seriesId && output.seasonNumber === episode.seasonNumber && output.episodeNumber === episode.episodeNumber);
+    return (!!verification && typeof action.toolCallId === "string" && action.toolCallId === record(verification.data).toolCallId) ||
+      sameEpisodeTarget(output, episode, record(action.input));
   };
   const episodeAction = (episode: RecordValue, verification?: RecordValue) => records.findLast(part =>
     ["navigateToEpisode", "playMedia"].includes(toolName(part)) && successful(part) &&
@@ -338,6 +356,7 @@ export function toNavigatorSegments(
       if (!["title", "subtitles", "scene"].includes(progress.stage) || !["running", "completed", "error"].includes(progress.state)) return;
       if (progress.stage === "title" && progress.state !== "error") {
         const media = record(progress.media);
+        const sceneTool = records.find(candidate => toolName(candidate) === "skipToSubtitleContent" && candidate.toolCallId === record(part.data).toolCallId);
         // The agent can verify the episode in one call and load its subtitles
         // in another. Reconcile by identity across the user turn, not call ID
         // or display titles (which can include a series-name prefix).
@@ -345,10 +364,7 @@ export function toNavigatorSegments(
           if (record(entry.data).toolCallId === record(part.data).toolCallId) return true;
           const episode = record(verifiedEpisode(record(entry.data).toolCallId));
           if (text(media.type).toLowerCase() !== "episode") return false;
-          return (!!episode.id && episode.id === media.id) ||
-            (!!episode.seriesId && episode.seriesId === media.seriesId &&
-              typeof episode.seasonNumber === "number" && typeof episode.episodeNumber === "number" &&
-              episode.seasonNumber === media.seasonNumber && episode.episodeNumber === media.episodeNumber);
+          return sameEpisodeTarget(media, episode, record(sceneTool?.input));
         });
         if (alreadyVerified) return;
       }

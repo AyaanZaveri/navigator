@@ -272,6 +272,15 @@ const differentScene = separateSceneParts.map(p => p.id === 'separate-title' ? {
 assert.ok(toNavigatorSegments(differentScene, { turnParts: [...verificationParts, ...differentScene] }).some(s => s.trace?.label === 'Found the title'), 'A different episode must not be hidden');
 const aliasScene = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, media: { ...p.data.media, id: 'tt2297757:4:4' } } } : p);
 assert.equal(toNavigatorSegments(aliasScene, { turnParts: [...verificationParts, ...aliasScene] }).some(s => s.trace?.label === 'Found the title'), false, 'Stable show and episode coordinates reconcile playback ID aliases');
+const playbackIdentityScene = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, media: {
+    ...p.data.media, id: 'tt2297757:4:4', seriesId: 'tt2297757', seriesName: 'The Anecdote',
+} } } : p);
+assert.equal(toNavigatorSegments(playbackIdentityScene, { turnParts: [...verificationParts, ...playbackIdentityScene] }).some(s => s.trace?.label === 'Found the title'), false,
+    'A scene tool resolves its canonical input to IMDb playback IDs without creating another episode discovery');
+const wrongPlaybackEpisode = playbackIdentityScene.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, media: { ...p.data.media, episodeNumber: 5 } } } : p);
+assert.ok(toNavigatorSegments(wrongPlaybackEpisode, { turnParts: [...verificationParts, ...wrongPlaybackEpisode] }).some(s => s.trace?.label === 'Found the title'), 'Canonical input cannot conceal a different resolved episode');
+const guessByName = playbackIdentityScene.map(p => p.type === 'tool-skipToSubtitleContent' ? { ...p, input: { mediaName: 'The Anecdote', mediaType: 'Episode' } } : p);
+assert.ok(toNavigatorSegments(guessByName, { turnParts: [...verificationParts, ...guessByName] }).some(s => s.trace?.label === 'Found the title'), 'Matching names are not an identity mapping across providers');
 const movieScene = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, media: { ...p.data.media, type: 'movie' } } } : p);
 assert.ok(toNavigatorSegments(movieScene, { turnParts: [...verificationParts, ...movieScene] }).some(s => s.trace?.label === 'Found the title'), 'A movie cannot collide with an episode identity');
 const titleError = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, state: 'error', detail: 'Could not load the episode metadata', media: undefined } } : p);
@@ -596,3 +605,23 @@ assert.equal(fastWebCards.length, 1, 'Search progress and final output must not 
 assert.equal(fastWebCards[0].results.cards.length, 10, 'Render all ten search hits before any page reads');
 assert.equal(fastWebSegments.filter(segment => segment.kind === 'trace').length, 1, 'Search progress is not repeated');
 assert.equal(fastWebSegments.find(segment => segment.kind === 'trace').trace.label, 'Found web results');
+
+// Optional replay of a captured live SSE event array, with no browser/provider
+// calls. Updates retain their initial insertion position as in the SDK client.
+const replayIndex = process.argv.indexOf('--replay-events');
+if (replayIndex >= 0) {
+    const events = JSON.parse(fs.readFileSync(process.argv[replayIndex + 1], 'utf8'));
+    const parts = new Map();
+    for (const event of events) {
+        if (event.type === 'tool-input-available') parts.set(event.toolCallId, { type: `tool-${event.toolName}`,
+            toolCallId: event.toolCallId, state: 'input-available', input: event.input });
+        if (event.type === 'tool-output-available') Object.assign(parts.get(event.toolCallId), { state: 'output-available', output: event.output });
+        if (['data-episodeProgress', 'data-sceneProgress'].includes(event.type)) parts.set(event.id, event);
+    }
+    const replayed = toNavigatorSegments([...parts.values()]);
+    const episodes = replayed.filter(s => s.results?.cards?.type === widgets.media && String(s.results.cards.props.item.type).toLowerCase() === 'episode');
+    assert.equal(episodes.length, 1, 'Live verification/subtitle tools render exactly one episode card');
+    assert.equal(replayed.some(s => s.trace?.label === 'Found the title'), false, 'Live playback aliases do not repeat episode discovery');
+    assert.ok(replayed.some(s => s.trace?.label === 'Loaded subtitles'));
+    console.log('PASS: live SSE replay keeps one canonical episode card across provider-ID conversion.');
+}
