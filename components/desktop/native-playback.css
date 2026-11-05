@@ -35,3 +35,11 @@ navigator-mpv {
   width: 100vw;
   height: 100dvh;
 }
+
+/* Hide only the WebView cursor over an actively playing Windows video surface
+   while the player chrome is hidden. Native menus/popovers/dialogs remain
+   interactive surfaces and must retain a visible pointer. */
+html[data-native-platform="windows"][data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) {
+  cursor: none;
+}
+html[data-native-platform="windows"][data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator]) { cursor: auto; }

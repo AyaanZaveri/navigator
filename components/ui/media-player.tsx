@@ -396,10 +396,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       store.setState("volumeIndicatorVisible", false);
     }, 2000);
 
-    if (autoHide) {
-      onControlsShow();
-    }
-  }, [store.setState, menuOpen, autoHide, onControlsShow]);
+    // Keyboard volume feedback is independent of the transport controls.
+  }, [store.setState, menuOpen]);
 
   const onMouseLeave = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -533,18 +531,22 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       // Application shortcuts (including Ctrl/Meta+K) belong to the global
       // handler, never to the player's bare-letter playback controls.
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.target instanceof Element && event.target.closest('[role="combobox"], [role="listbox"], [role="option"], [role="dialog"], [role="menu"]')) return;
+      if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="option"], [role="dialog"], [role="menu"], [role="slider"], button, a[href]')) return;
 
       const mediaElement = mediaRef.current;
       if (!mediaElement) return;
 
       const isMediaFocused = document.activeElement === mediaElement;
       const isPlayerFocused =
-        document.activeElement?.closest('[data-slot="media-player"]') !== null;
+        !!document.activeElement?.closest('[data-slot="media-player"]');
 
-      if (!isMediaFocused && !isPlayerFocused) return;
+      if (!isMediaFocused && !isPlayerFocused && !(autoFocus && desktopBridge())) return;
 
-      if (autoHide) onControlsShow();
+      const key = event.key.toLowerCase();
+      const volumeKey = ["arrowup", "arrowdown", "m", "audiovolumeup", "audiovolumedown", "audiovolumemute"].includes(key);
+      const playbackKey = [" ", "k", "f", "arrowright", "arrowleft", "<", ">", "c", "d", "p", "r", "j", "l", "home", "end"].includes(key) || /^[0-9]$/.test(key);
+      if (autoHide && playbackKey && !volumeKey) onControlsShow();
 
       switch (event.key.toLowerCase()) {
         case " ":
@@ -568,6 +570,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
         case "m": {
           event.preventDefault();
+          onVolumeIndicatorTrigger();
           dispatch({
             type: mediaElement.muted
               ? MediaActionTypes.MEDIA_UNMUTE_REQUEST
@@ -779,8 +782,25 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       isVideo,
       onControlsShow,
       autoHide,
+      autoFocus,
     ]
   );
+
+  // The desktop playback overlay owns shortcuts while the app is focused,
+  // even after focus leaves the video (e.g. closing Ask Navigator). Embedded
+  // players retain element-scoped shortcuts. Bubble after UI handlers so
+  // text fields, dialogs and controls keep their own keyboard behavior.
+  React.useEffect(() => {
+    if (!autoFocus || !desktopBridge() || disabled) return;
+    const handle = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || document.hasFocus?.() === false) return;
+      if (event.target instanceof Node && rootRef.current?.contains(event.target)) return;
+      if (document.querySelector('[role="dialog"], [role="menu"], section[aria-label="Ask Navigator"]')) return;
+      onKeyDown(event as unknown as React.KeyboardEvent<HTMLDivElement>);
+    };
+    document.addEventListener("keydown", handle);
+    return () => document.removeEventListener("keydown", handle);
+  }, [autoFocus, disabled, onKeyDown]);
 
   // Timer lifetime follows the player, not changing media event callbacks.
   React.useEffect(() => {

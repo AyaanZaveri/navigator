@@ -5,7 +5,7 @@
   "scripts": {
     "desktop:dev": "node scripts/desktop.mjs dev",
     "desktop:check": "node scripts/desktop.mjs check",
-    "test:windows-desktop": "node scripts/test-windows-desktop.cjs",
+    "test:windows-desktop": "node scripts/test-windows-desktop.cjs && node scripts/test-windows-player-cursor.cjs && node scripts/test-player-desktop-shortcuts.cjs",
     "desktop:fetch-libs": "node scripts/fetch-desktop-libs.mjs",
     "desktop:package": "node scripts/desktop.mjs package",
     "test:desktop": "node scripts/test-desktop.cjs && node scripts/test-previews.cjs && node scripts/test-browser-preview-recovery.cjs && node scripts/test-desktop-auth.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-artwork.cjs && node scripts/test-cast.cjs && node scripts/test-card-hover.cjs && node scripts/test-player-glass.cjs && node scripts/test-native-player-glass.cjs && node scripts/test-native-glass-alignment.cjs && node scripts/test-player-framing.cjs && node scripts/test-player-chrome-alignment.cjs",
