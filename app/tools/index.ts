@@ -81,6 +81,12 @@ export function createAllTools(
     sceneContext?: SceneRequestContext,
     historyParts: unknown[] = []
 ): ToolSet {
+    // Never accept episode evidence from the client-supplied history/context.
+    // This request-local sink is populated only after verifyEpisode executes successfully.
+    const requestSceneContext: SceneRequestContext | undefined = sceneContext ? {
+        ...sceneContext,
+        verifiedEpisodeEvidence: [],
+    } : undefined;
     const mediaResults = new Map<string, MediaResult>();
     seedMediaResults(mediaResults, historyParts);
     const baseTools = {
@@ -110,7 +116,7 @@ export function createAllTools(
         ...baseTools,
         ...createEpisodeTools(analysisModel, sceneContext?.originalRequest),
         // Keep schemas stable when replaying a conversation after playback closes.
-        skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal, sceneContext),
+        skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal, requestSceneContext),
         explainScene: createExplainScene(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),
         analyzeMedia: createAnalyzeMedia(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),
     };
@@ -122,6 +128,23 @@ export function createAllTools(
                 const output = await definition.execute!(input, options);
                 options.abortSignal?.throwIfAborted();
                 if (mediaResultTools.has(name)) rememberMediaResults(mediaResults, successfulMediaResults(output));
+                if (name === "verifyEpisode" && requestSceneContext && record(output).success === true
+                    && record(output).status === "matched") {
+                    const result = record(output);
+                    const episodes = Array.isArray(result.episodes) ? result.episodes : [];
+                    const evidence = Array.isArray(result.evidence) ? result.evidence : [];
+                    for (const item of evidence.slice(0, 4)) {
+                        const proof = record(item);
+                        const episodeId = typeof proof.episodeId === "string" ? proof.episodeId : "";
+                        const quote = typeof proof.quote === "string" ? proof.quote.slice(0, 1200) : "";
+                        const episode = episodes.map(record).find(value => value.id === episodeId);
+                        const title = typeof episode?.title === "string" ? episode.title.slice(0, 200) : "";
+                        if (!episodeId || !quote || !title || !episode) continue;
+                        const existing = requestSceneContext.verifiedEpisodeEvidence!;
+                        if (!existing.some(value => value.episodeId === episodeId && value.quote === quote)) existing.push({ episodeId, quote, title });
+                    }
+                    requestSceneContext.verifiedEpisodeEvidence = requestSceneContext.verifiedEpisodeEvidence!.slice(-12);
+                }
                 if (actionToolNames.has(name) && record(output).success === true) {
                     const { message: _message, ...action } = record(output);
                     return { ...action, preparedToolCallId: options.toolCallId, execution: "prepared" };

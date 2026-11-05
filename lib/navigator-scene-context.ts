@@ -5,6 +5,16 @@ export interface SceneRequestContext {
     originalRequest: string;
     conversation: Array<{ role: string; text: string }>;
     titleReferences: unknown[];
+    verifiedEpisodeEvidence?: Array<{ episodeId: string; quote: string; title: string }>;
+}
+
+/** Use the canonical tool input, before playback converts TMDB into IMDb IDs. */
+export function verifiedSceneEvidence(context: SceneRequestContext | undefined, mediaId: string | undefined,
+    seasonNumber?: number, episodeNumber?: number) {
+    if (!mediaId) return [];
+    const ids = new Set([mediaId]);
+    if (Number.isInteger(seasonNumber) && Number.isInteger(episodeNumber)) ids.add(`${mediaId}:${seasonNumber}:${episodeNumber}`);
+    return context?.verifiedEpisodeEvidence?.filter(item => ids.has(item.episodeId)) ?? [];
 }
 
 /** Server-owned context, independent of the model's extracted tool arguments. */

@@ -110,17 +110,31 @@ async function main() {
         const signal = AbortSignal.timeout(120_000);
         const tools = load('app/tools/index.ts').createAllTools(null, 0, model, signal);
         const progress = [];
+        const mediaFlag = process.argv.indexOf('--scene-media-id');
+        const mediaId = mediaFlag >= 0 ? process.argv[mediaFlag + 1] : 'tmdb:58957:4:4';
+        const descriptionFlag = process.argv.indexOf('--scene-description');
+        const userDescription = descriptionFlag >= 0 ? process.argv[descriptionFlag + 1] : 'where he goes on to the talk show';
         const result = await tools.skipToSubtitleContent.execute({
-            mediaId: 'tmdb:58957:4:4', mediaName: 'Nathan for You', mediaType: 'Episode',
-            userDescription: process.argv.includes('--scene-description') ? process.argv[process.argv.indexOf('--scene-description') + 1] : 'where he goes on to the talk show',
+            mediaId, mediaName: 'Nathan for You', mediaType: 'Episode',
+            userDescription,
         }, { toolCallId: 'live-episode-scene', messages: [], abortSignal: signal, context: { onSceneProgress: value => progress.push(value) } });
         const subtitleProgress = progress.find(value => value.stage === 'subtitles' && value.state === 'completed');
         console.log(JSON.stringify({ success: result.success, error: result.error, mediaSourceId: result.mediaSourceId,
             timestamp: result.timestamp, timestampFormatted: result.timestampFormatted, text: result.text,
             subtitles: subtitleProgress?.subtitles, timings: result.timings, services }));
+        const expectedFlag = process.argv.indexOf('--expect-match');
+        if (expectedFlag >= 0 && process.argv[expectedFlag + 1] === 'no') {
+            assert.equal(result.success, false, 'Unsupported scene requests must abstain');
+            assert.equal(progress.find(value => value.stage === 'scene' && value.state === 'error')?.detail, 'No confident match in the subtitle dialogue');
+            console.log('PASS: live scene matcher abstains without subtitle evidence.');
+            return;
+        }
         assert.equal(result.success, true);
-        assert.equal(result.mediaSourceId, 'tt2297757:4:4', 'Keep the canonical video target');
-        assert.match(subtitleProgress.subtitles.filename, /the.anecdote/i, 'Select the episode by release title, not shifted provider numbering');
+        if (mediaFlag < 0) {
+            assert.equal(result.mediaSourceId, 'tt2297757:4:4', 'Keep the canonical video target');
+            assert.match(subtitleProgress.subtitles.filename, /the.anecdote/i, 'Select the episode by release title, not shifted provider numbering');
+        }
+        if (expectedFlag >= 0) assert.ok(result.timestamp >= Number(process.argv[expectedFlag + 1]), `Expected a match at or after ${process.argv[expectedFlag + 1]} seconds`);
         assert.ok(result.timestamp > 0);
         console.log('PASS: selected live model matches a scene using the correctly titled public subtitle track. Video playback was not executed.');
         return;
