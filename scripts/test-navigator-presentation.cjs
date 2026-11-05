@@ -253,6 +253,29 @@ assert.equal(combinedSegments.filter(segment => segment.kind === 'results' && se
 const legacyCombinedParts = combinedEpisodeParts.map(part => part.id === 'episode-verify' ? { ...part, data: { ...part.data, episode: undefined } } : part);
 const legacyCombinedSegments = toNavigatorSegments(legacyCombinedParts);
 assert.equal(legacyCombinedSegments.find(segment => segment.kind === 'results' && segment.results.cards?.type === widgets.media).results.cards.props.item.name, 'The Anecdote', 'Saved conversations reuse the stored scene title card at the verified stage');
+// Actual agent orchestration: verifyEpisode and subtitle matching use different
+// tool calls, sometimes in separate assistant continuation messages.
+const separateSceneParts = [
+    { type: 'tool-skipToSubtitleContent', toolCallId: 'separate-scene', state: 'input-available', input: { mediaId: matchedEpisode.id, mediaType: 'episode' } },
+    { type: 'data-sceneProgress', id: 'separate-title', data: { toolCallId: 'separate-scene', stage: 'title', state: 'completed', media: { ...matchedEpisode, type: 'episode', seriesName: 'Nathan for You: The Anecdote' } } },
+    { type: 'data-sceneProgress', id: 'separate-subtitles', data: { toolCallId: 'separate-scene', stage: 'subtitles', state: 'completed', subtitles: { index: 0, lineCount: 502 } } },
+];
+const sceneTurnParts = [...verificationParts, ...separateSceneParts];
+const separateSegments = [
+    ...toNavigatorSegments(verificationParts, { turnParts: sceneTurnParts }),
+    ...toNavigatorSegments(separateSceneParts, { turnParts: sceneTurnParts }),
+];
+assert.equal(separateSegments.filter(s => s.results?.cards?.type === widgets.media).length, 1, 'Verification and subtitle lookup share one episode card across calls and assistant messages');
+assert.equal(separateSegments.some(s => s.trace?.label === 'Found the title'), false, 'Do not repeat the verified episode as a second title discovery');
+assert.ok(separateSegments.some(s => s.trace?.label === 'Loaded subtitles'), 'Keep distinct subtitle progress');
+const differentScene = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, media: { ...matchedEpisode, id: 'tmdb:58957:4:5', episodeNumber: 5 } } } : p);
+assert.ok(toNavigatorSegments(differentScene, { turnParts: [...verificationParts, ...differentScene] }).some(s => s.trace?.label === 'Found the title'), 'A different episode must not be hidden');
+const aliasScene = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, media: { ...p.data.media, id: 'tt2297757:4:4' } } } : p);
+assert.equal(toNavigatorSegments(aliasScene, { turnParts: [...verificationParts, ...aliasScene] }).some(s => s.trace?.label === 'Found the title'), false, 'Stable show and episode coordinates reconcile playback ID aliases');
+const movieScene = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, media: { ...p.data.media, type: 'movie' } } } : p);
+assert.ok(toNavigatorSegments(movieScene, { turnParts: [...verificationParts, ...movieScene] }).some(s => s.trace?.label === 'Found the title'), 'A movie cannot collide with an episode identity');
+const titleError = separateSceneParts.map(p => p.id === 'separate-title' ? { ...p, data: { ...p.data, state: 'error', detail: 'Could not load the episode metadata', media: undefined } } : p);
+assert.ok(toNavigatorSegments(titleError, { turnParts: [...verificationParts, ...titleError] }).some(s => s.trace?.phase === 'error'), 'Prior verification must not hide a later title-loading failure');
 const { EpisodeMetadataCard } = load('components/navigator/episode-metadata-card.tsx', {
     '@/lib/artwork': load('lib/artwork.ts', {}),
     '@/lib/navigator-title-path': { navigatorTitlePath: () => '/api/navigator/title?id=tmdb:58957&type=series' },

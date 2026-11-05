@@ -336,8 +336,22 @@ export function toNavigatorSegments(
     if (part.type === "data-sceneProgress") {
       const progress = record(part.data) as unknown as SceneProgress;
       if (!["title", "subtitles", "scene"].includes(progress.stage) || !["running", "completed", "error"].includes(progress.state)) return;
-      if (progress.stage === "title" && records.some(candidate => candidate.type === "data-episodeProgress" &&
-        record(candidate.data).toolCallId === record(part.data).toolCallId)) return;
+      if (progress.stage === "title" && progress.state !== "error") {
+        const media = record(progress.media);
+        // The agent can verify the episode in one call and load its subtitles
+        // in another. Reconcile by identity across the user turn, not call ID
+        // or display titles (which can include a series-name prefix).
+        const alreadyVerified = verifiedEntries.some(entry => {
+          if (record(entry.data).toolCallId === record(part.data).toolCallId) return true;
+          const episode = record(verifiedEpisode(record(entry.data).toolCallId));
+          if (text(media.type).toLowerCase() !== "episode") return false;
+          return (!!episode.id && episode.id === media.id) ||
+            (!!episode.seriesId && episode.seriesId === media.seriesId &&
+              typeof episode.seasonNumber === "number" && typeof episode.episodeNumber === "number" &&
+              episode.seasonNumber === media.seasonNumber && episode.episodeNumber === media.episodeNumber);
+        });
+        if (alreadyVerified) return;
+      }
       segments.push({ kind: "trace", key: `progress-${text(part.id) || index}`, trace: {
         label: options.cancelled && progress.state === "running" ? "Stopped before this step completed" : progress.state === "error" ? displayNavigatorText(progress.detail || sceneProgressLabel(progress)) : sceneProgressLabel(progress), detail: progress.detail,
         phase: options.cancelled && progress.state === "running" ? "stopped" : progress.state, icon: progress.stage === "title" ? Search : Subtitles,
