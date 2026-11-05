@@ -287,7 +287,7 @@ export async function POST(req: Request) {
             return new Response("Invalid message role", { status: 400 });
         }
         // Bind validated, uncompacted user context outside the model-controlled tool schema.
-        tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, sceneRequestContext(validatedMessages));
+        tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, sceneRequestContext(validatedMessages), validatedMessages.filter(message => message.role === "assistant").flatMap(message => message.parts));
         // Retain the old handoff schema for saved chats, without advertising it to models.
         const { completeAction: _legacyAction, findEpisodeByTitle: _legacyEpisodes, ...generationTools } = tools;
         const compactedMessages = compactNavigatorMessages(validatedMessages);

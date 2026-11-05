@@ -31,7 +31,7 @@ import { MediaAnalysisCard } from "./media-analysis-card";
 import { PersonCard } from "./person-card";
 import { WebSourceCard } from "./web-source-card";
 import { EpisodeMetadataCard } from "./episode-metadata-card";
-import { actionToolNames } from "@/lib/navigator-chat";
+import { actionToolNames, displayNavigatorText } from "@/lib/navigator-chat";
 import { sceneProgressLabel, type SceneProgress } from "@/lib/navigator-scene-progress";
 import { Accordion } from "@/components/arc/accordion/accordion";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ const list = (value: unknown): RecordValue[] =>
 type Trace = {
   label: string;
   detail?: string;
-  phase: "running" | "completed" | "error";
+  phase: "running" | "completed" | "error" | "stopped";
   icon: ComponentType<{
     className?: string;
     "aria-hidden"?: boolean | "true" | "false";
@@ -99,6 +99,7 @@ const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   explainScene: ["Reading scene context", "Read scene context", BookOpen],
   analyzeMedia: ["Analyzing media", "Analyzed media", ScanText],
   themeToggle: ["Changing theme", "Theme changed", Palette],
+  presentMediaResults: ["Preparing selected titles", "Selected titles", List],
 };
 
 function baseToolCards(
@@ -229,10 +230,35 @@ function toolCards(name: string, output: RecordValue, input: RecordValue): React
 
 export function toNavigatorSegments(
   parts: ReadonlyArray<unknown>,
-  options: { playbackRequest?: boolean } = {},
+  options: { playbackRequest?: boolean; turnParts?: ReadonlyArray<unknown>; cancelled?: boolean } = {},
 ): NavigatorSegment[] {
   const segments: NavigatorSegment[] = [];
-  const records = parts.map(record);
+  const records = (options.turnParts ?? parts).map(record);
+  const toolName = (part: RecordValue) => part.type === "dynamic-tool" ? text(part.toolName) : text(part.type).replace(/^tool-/, "");
+  const successful = (part: RecordValue) => part.state === "output-available" && record(part.output).success === true;
+  const episodeTools = new Set(["findEpisode", "findEpisodeByTitle", "verifyEpisode", "navigateToEpisode"]);
+  const recovered = (part: RecordValue) => {
+    const name = toolName(part), index = records.indexOf(part);
+    const input = record(part.input);
+    return records.slice(index + 1).some(next => {
+      const target = { ...record(next.input), ...record(next.output) };
+      if (input.seriesId && target.seriesId && input.seriesId !== target.seriesId) return false;
+      const leftName = text(input.seriesQuery), rightName = text(target.seriesQuery || target.seriesName);
+      if (leftName && rightName && leftName.toLocaleLowerCase() !== rightName.toLocaleLowerCase()) return false;
+      return successful(next) && (toolName(next) === name || (episodeTools.has(name) && episodeTools.has(toolName(next))));
+    });
+  };
+  const selectedList = records.some(part => toolName(part) === "presentMediaResults" && successful(part));
+  const verifiedEntries = records.filter(part => part.type === "data-episodeProgress" && record(part.data).stage === "verify" && record(part.data).state === "completed");
+  const matchesEpisode = (action: RecordValue, episode: RecordValue, verification?: RecordValue) => {
+    const output = record(action.output);
+    if (output.mediaType && text(output.mediaType).toLowerCase() !== "episode") return false;
+    return (!!verification && typeof action.toolCallId === "string" && action.toolCallId === record(verification.data).toolCallId) || (!!episode.id && output.mediaId === episode.id) ||
+      (output.seriesId === episode.seriesId && output.seriesId && output.seasonNumber === episode.seasonNumber && output.episodeNumber === episode.episodeNumber);
+  };
+  const episodeAction = (episode: RecordValue, verification?: RecordValue) => records.findLast(part =>
+    ["navigateToEpisode", "playMedia"].includes(toolName(part)) && successful(part) &&
+    (!options.cancelled || record(part.output).execution === "completed") && matchesEpisode(part, episode, verification));
   const verifiedEpisode = (toolCallId: unknown) => {
     const verification = records.find(part => part.type === "data-episodeProgress" &&
       record(part.data).toolCallId === toolCallId && record(part.data).stage === "verify" && record(part.data).state === "completed");
@@ -273,16 +299,19 @@ export function toNavigatorSegments(
       const labels: Record<string, string[]> = { episodes: ["Reading episode metadata", "Read episode metadata"], search: ["Searching the web", "Found web results"], web: ["Checking web sources", "Checked web sources"], verify: ["Verifying the episode", "Found the episode"] };
       const labelsForStage = labels[text(progress.stage)];
       if (!labelsForStage || !["running", "completed", "error"].includes(text(progress.state))) return;
-      segments.push({ kind: "trace", key: `episode-progress-${text(part.id) || index}`, trace: {
-        label: progress.state === "error" ? text(progress.detail) || "Could not verify the episode" : labelsForStage[progress.state === "completed" ? 1 : 0],
-        phase: progress.state as Trace["phase"], icon: Search,
-      } });
-      const toolPart = parts.map(record).find(candidate => candidate.toolCallId === progress.toolCallId &&
+      const toolPart = records.find(candidate => candidate.toolCallId === progress.toolCallId &&
         (text(candidate.type).startsWith("tool-") || candidate.type === "dynamic-tool"));
+      const didRecover = progress.state === "error" && !!toolPart && recovered(toolPart);
+      const episode = progress.stage === "verify" && progress.state === "completed" ? verifiedEpisode(progress.toolCallId) : null;
+      const canonicalAction = episode ? episodeAction(episode, part) : null;
+      if (!canonicalAction) segments.push({ kind: "trace", key: `episode-progress-${text(part.id) || index}`, trace: {
+        label: didRecover ? "Recovered episode lookup" : options.cancelled && progress.state === "running" ? "Stopped before this step completed"
+          : progress.state === "error" ? displayNavigatorText(text(progress.detail)) || "Could not verify the episode" : labelsForStage[progress.state === "completed" ? 1 : 0],
+        phase: didRecover ? "completed" : options.cancelled && progress.state === "running" ? "stopped" : progress.state as Trace["phase"], icon: Search,
+      } });
       const output = record(toolPart?.output);
       const input = record(toolPart?.input);
-      const episode = progress.stage === "verify" && progress.state === "completed" ? verifiedEpisode(progress.toolCallId) : null;
-      if (episode) segments.push({ kind: "results", key: `episode-match-${text(part.id) || index}`, results: {
+      if (episode && !canonicalAction) segments.push({ kind: "results", key: `episode-match-${text(part.id) || index}`, results: {
         cards: <MediaLinkCard item={{ ...episode, type: "Episode" } as ComponentProps<typeof MediaLinkCard>["item"]} />,
       } });
       if (progress.stage === "episodes" && progress.state === "completed") {
@@ -291,7 +320,7 @@ export function toNavigatorSegments(
           seriesName: output.seriesName || input.seriesQuery,
         };
         segments.push({ kind: "results", key: `episode-catalog-${index}`, results: {
-          cards: <EpisodeMetadataCard catalog={catalog} />,
+          cards: <EpisodeMetadataCard catalog={{ ...catalog, seasonNumber: typeof (catalog.seasonNumber ?? input.seasonNumber) === "number" ? Number(catalog.seasonNumber ?? input.seasonNumber) : undefined }} />,
         } });
       }
       if (progress.stage === "web" || progress.stage === "search") {
@@ -310,8 +339,8 @@ export function toNavigatorSegments(
       if (progress.stage === "title" && records.some(candidate => candidate.type === "data-episodeProgress" &&
         record(candidate.data).toolCallId === record(part.data).toolCallId)) return;
       segments.push({ kind: "trace", key: `progress-${text(part.id) || index}`, trace: {
-        label: progress.state === "error" ? progress.detail || sceneProgressLabel(progress) : sceneProgressLabel(progress), detail: progress.detail,
-        phase: progress.state, icon: progress.stage === "title" ? Search : Subtitles,
+        label: options.cancelled && progress.state === "running" ? "Stopped before this step completed" : progress.state === "error" ? displayNavigatorText(progress.detail || sceneProgressLabel(progress)) : sceneProgressLabel(progress), detail: progress.detail,
+        phase: options.cancelled && progress.state === "running" ? "stopped" : progress.state, icon: progress.stage === "title" ? Search : Subtitles,
       } });
       if (progress.state === "completed") {
         const cards = progress.stage === "title" && progress.media
@@ -329,7 +358,7 @@ export function toNavigatorSegments(
         segments.push({
           kind: "text",
           key: `text-${index}`,
-          text: text(part.text),
+           text: displayNavigatorText(text(part.text)),
           streaming: part.state === "streaming",
         });
       return;
@@ -354,13 +383,17 @@ export function toNavigatorSegments(
       } : output;
       const failed = part.state === "output-error" || part.state === "output-denied" || result.success === false;
       if (failed) {
+        if (recovered(part)) {
+          segments.push({ kind: "trace", key: `recovered-${index}`, trace: { label: episodeTools.has(name) ? "Recovered episode lookup" : "Recovered action attempt", phase: "completed", icon: Search } });
+          return;
+        }
         if (parts.some(candidate => record(candidate).type === "data-sceneProgress" && record(record(candidate).data).toolCallId === part.toolCallId && record(record(candidate).data).state === "error")) return;
         if (parts.some(candidate => record(candidate).type === "data-episodeProgress" && record(record(candidate).data).toolCallId === part.toolCallId && record(record(candidate).data).state === "error")) {
           // The progress row already describes this failure. A failed action has
           // no playable target and must never create a placeholder media card.
           return;
         }
-        const detail = text(part.errorText || result.error || result.message) || "Unable to complete this action";
+        const detail = displayNavigatorText(text(part.errorText || result.error || result.message)) || "Unable to complete this action";
         segments.push({ kind: "trace", key: `trace-${index}`, trace: {
           label: detail, detail, phase: "error", icon: toolLabels[name]?.[2] || Search,
         } });
@@ -368,24 +401,38 @@ export function toNavigatorSegments(
       }
       if (part.state !== "output-available") return;
       const applied = result.execution === "completed" || !result.preparedToolCallId;
+      if (options.cancelled && !applied) {
+        segments.push({ kind: "trace", key: `stopped-action-${index}`, trace: { label: "Stopped before this action was applied", phase: "stopped", icon: toolLabels[name]?.[2] || Search } });
+        return;
+      }
       // Show the existing theme controls only after the browser has applied the change.
       const sceneAlreadyShown = name === "skipToSubtitleContent" && parts.some(candidate => {
         const data = record(record(candidate).data);
         return record(candidate).type === "data-sceneProgress" && data.toolCallId === part.toolCallId
           && data.stage === "scene" && data.state === "completed" && !!data.scene;
       });
-      const episodeAlreadyShown = ["navigateToEpisode", "playMedia"].includes(name) && !!verifiedEpisode(part.toolCallId);
-      const cards = !sceneAlreadyShown && !episodeAlreadyShown && (name !== "themeToggle" || applied) ? toolCards(name, result, input) : null;
+      const verification = verifiedEntries.find(entry => matchesEpisode(part, record(record(entry.data).episode), entry));
+      const episode = record(record(verification?.data).episode);
+      const sameCallEpisode = verifiedEpisode(part.toolCallId);
+      const primaryAction = verification ? episodeAction(episode, verification) : null;
+      const episodeAlreadyShown = primaryAction ? primaryAction !== part : !!sameCallEpisode;
+      const enriched = verification ? { ...result, seriesName: episode.seriesName, thumbnail: result.thumbnail || episode.thumbnail, verified: true } : result;
+      const cards = !sceneAlreadyShown && !episodeAlreadyShown && (name !== "themeToggle" || applied) ? toolCards(name, enriched, input) : null;
       if (cards) segments.push({ kind: "results", key: `results-${index}`, results: { cards } });
       const hasAnswer = parts.some(rawPart => record(rawPart).type === "text" && text(record(rawPart).text).trim());
       if (applied && name !== "themeToggle" && result.message && !hasAnswer) {
-        segments.push({ kind: "text", key: `action-text-${index}`, text: text(result.message), streaming: false });
+        segments.push({ kind: "text", key: `action-text-${index}`, text: displayNavigatorText(text(result.message)), streaming: false });
       }
       return;
     }
-    if (["findEpisode", "findEpisodeByTitle"].includes(name) && verifiedEpisode(part.toolCallId)) return;
+    if (["findEpisode", "findEpisodeByTitle", "verifyEpisode"].includes(name) && verifiedEpisode(part.toolCallId)) return;
     const failed = part.state === "output-error" || part.state === "output-denied" || output.success === false;
     const complete = part.state === "output-available" || failed;
+    if (failed && recovered(part)) {
+      if (records.some(candidate => candidate.type === "data-episodeProgress" && record(candidate.data).toolCallId === part.toolCallId && record(candidate.data).state === "error")) return;
+      segments.push({ kind: "trace", key: `recovered-${index}`, trace: { label: episodeTools.has(name) ? "Recovered episode lookup" : "Recovered lookup attempt", phase: "completed", icon: Search } });
+      return;
+    }
     const [running, completed, icon] = toolLabels[name] ?? [
       "Working",
       "Completed step",
@@ -394,6 +441,8 @@ export function toNavigatorSegments(
     const webResultsAlreadyShown = ["searchMediaWeb", "readMediaWebSources"].includes(name) && records.some(candidate =>
       candidate.type === "data-episodeProgress" && record(candidate.data).toolCallId === part.toolCallId
       && record(candidate.data).stage === (name === "searchMediaWeb" ? "search" : "web") && record(candidate.data).state === "completed");
+    const finalEpisodeAction = successful(part) && list(output.episodes).length === 1 && episodeAction(list(output.episodes)[0]);
+    if (finalEpisodeAction && episodeTools.has(name)) return;
     const cards =
       part.state === "output-available" && !webResultsAlreadyShown ? toolCards(name, output, input) : null;
     const resultCount =
@@ -403,24 +452,25 @@ export function toNavigatorSegments(
     const count = resultCount
       ? ` · ${resultCount} ${resultCount === 1 ? "result" : "results"}`
       : "";
-    const detail = text(
+    const detail = displayNavigatorText(text(
       part.errorText ||
         output.error ||
         input.query ||
         input.question ||
         output.message,
-    );
+    ));
     const trace: Trace = {
       label: failed
         ? detail || "Unable to complete this step"
+        : options.cancelled && !complete ? "Stopped before this step completed"
         : part.state === "approval-requested" ? "Awaiting approval"
-        : `${complete ? completed : running}${count}`,
+        : `${name === "presentMediaResults" && complete ? text(output.heading) || completed : complete ? completed : running}${count}`,
       detail: detail || undefined,
-      phase: failed ? "error" : complete ? "completed" : "running",
+      phase: failed ? "error" : complete ? "completed" : options.cancelled ? "stopped" : "running",
       icon,
     };
-    if (collapseLookups && complete && !failed && cards && lookupTools.has(name) && Children.count(cards) > 3) {
-      segments.push({ kind: "lookup", key: `lookup-${index}`, trace, cards });
+    if (complete && !failed && cards && lookupTools.has(name) && (selectedList || (collapseLookups && Children.count(cards) > 3))) {
+      segments.push({ kind: "lookup", key: `lookup-${index}`, trace: selectedList ? { ...trace, label: `Research · ${trace.label}` } : trace, cards });
     } else {
       const hasProgressError = failed && parts.some(candidate => record(candidate).type === "data-episodeProgress"
         && record(record(candidate).data).toolCallId === part.toolCallId && record(record(candidate).data).state === "error");
@@ -438,9 +488,9 @@ export function toNavigatorSegments(
       const p = record(rawPart);
       return p.type === "text" && text(p.text).trim();
     });
-    const resultText = text(
+    const resultText = displayNavigatorText(text(
       output.explanation || output.analysis || output.answer || output.message,
-    );
+    ));
     if (complete && !failed && resultText && !hasAnswer)
       segments.push({
         kind: "text",

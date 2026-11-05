@@ -12,7 +12,7 @@ export interface EpisodeProgress {
     stage: "episodes" | "search" | "web" | "verify";
     state: "running" | "completed" | "error";
     detail?: string;
-    catalog?: { seriesId: string; seriesName: string; episodeCount: number; seasonCount: number;
+    catalog?: { seriesId: string; seriesName: string; episodeCount: number; seasonCount: number; seasonNumber?: number;
         poster?: string; year?: number; communityRating?: number; genres?: string[]; overview?: string };
     sources?: { url: string; title: string }[];
     episode?: EpisodeCandidate;
@@ -179,6 +179,7 @@ export async function resolveEpisode(input: EpisodeQuery, options: Options = {})
                 ...(item.crew || []).map(person => `${person.name} (${person.job})`)].filter(Boolean).join("\n") }));
         onProgress?.({ stage: "episodes", state: "completed", catalog: {
             seriesId: seriesId!, seriesName, episodeCount: episodes.length, seasonCount: seasonNumbers.length,
+            ...(input.seasonNumber !== undefined ? { seasonNumber: input.seasonNumber } : {}),
             poster: series.poster, year: series.year, communityRating: series.communityRating,
             genres: series.genres, overview: series.overview,
         } });

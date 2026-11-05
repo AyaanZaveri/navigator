@@ -9,6 +9,30 @@ export function record(value: unknown): Record<string, any> {
     return value !== null && typeof value === "object" ? value as Record<string, any> : {};
 }
 
+/** Display-only redaction, never intent classification or action routing. Preserve URLs. */
+export function displayNavigatorText(value: string): string {
+    return value.replace(/(^|[\s(])`?(?:(?:movie|series|episode):)?tmdb:\d+(?::\d+){0,2}`?(?=$|[\s.,;)])/g, "$1the requested title");
+}
+
+/** Continuation messages belong to the same user request, not independent UI tasks. */
+export function navigatorTurnContext(messages: UIMessage[], index: number) {
+    let start = index;
+    while (start >= 0 && messages[start].role !== "user") start--;
+    let end = Math.max(0, start + 1);
+    while (end < messages.length && messages[end].role !== "user") end++;
+    const user = messages[start];
+    const assistants = messages.slice(Math.max(0, start + 1), end).filter(message => message.role === "assistant");
+    return { user, parts: assistants.flatMap(message => message.parts),
+        cancelled: record(user?.metadata).navigatorRequestState === "cancelled",
+        statusMessageId: assistants.at(-1)?.id ?? user?.id };
+}
+
+export function markNavigatorRequestStopped(messages: UIMessage[]): UIMessage[] {
+    const index = messages.findLastIndex(message => message.role === "user");
+    return messages.map((message, i) => i === index ? { ...message,
+        metadata: { ...record(message.metadata), navigatorRequestState: "cancelled" } } : message);
+}
+
 /** Compact model context without modifying the transcript or the latest request. */
 export function compactNavigatorMessages(messages: UIMessage[]): UIMessage[] {
     const lastUser = messages.findLastIndex(message => message.role === "user");
@@ -55,17 +79,23 @@ export function modelToolOutput(name: string, value: unknown): unknown {
         searchMedia: ["id", "tmdbId", "name", "type", "year", "overview", "communityRating", "source"],
         searchPeople: ["id", "name", "department", "knownFor", "source"],
         getFilmography: ["id", "tmdbId", "name", "type", "year", "roles", "characters", "source"],
+        presentMediaResults: ["id", "tmdbId", "name", "type", "year", "roles", "characters", "source"],
         getMediaStreams: ["choice", "streamId", "resolution", "playable", "tags"],
         getEpisodes: ["id", "seriesId", "name", "seasonNumber", "episodeNumber", "overview"],
         getEpisodeCatalog: ["id", "title", "seasonNumber", "episodeNumber", "overview"],
         findEpisodeByTitle: ["id", "seriesId", "title", "seasonNumber", "episodeNumber", "overview"],
     };
-    const listKey = ["searchMedia", "searchPeople", "getFilmography"].includes(name) ? "results" : name === "getMediaStreams" ? "streams" : "episodes";
+    const listKey = ["searchMedia", "searchPeople", "getFilmography", "presentMediaResults"].includes(name) ? "results" : name === "getMediaStreams" ? "streams" : "episodes";
     if (fields[name]) {
-        const pick = (item: unknown) => Object.fromEntries(fields[name].map(key => [key, record(item)[key]]));
+        const pick = (item: unknown) => {
+            const value = record(item), picked = Object.fromEntries(fields[name].map(key => [key, value[key]]));
+            if (value.id != null && ["movie", "series", "episode"].includes(String(value.type).toLowerCase())) picked.presentationId = `${String(value.type).toLowerCase()}:${value.id}`;
+            return picked;
+        };
         return {
             success: output.success, source: output.source, page: output.page, totalPages: output.totalPages, totalResults: output.totalResults, personId: output.personId, count: output.count, mediaId: output.mediaId,
             mediaType: output.mediaType, selectionId: output.selectionId,
+            ...(name === "presentMediaResults" ? { presentation: output.presentation, heading: output.heading } : {}),
             seriesId: output.seriesId, seriesName: output.seriesName,
             error: output.error, message: output.message,
             [listKey]: Array.isArray(output[listKey]) ? output[listKey].slice(0, 40).map(pick) : [],
@@ -98,6 +128,7 @@ export function pendingNavigatorAction(messages: ModelMessage[]): string | undef
 /** Collect unresolved actions from the latest user turn for live request completion. */
 export function preparedNavigatorActions(messages: UIMessage[]) {
     const lastUser = messages.findLastIndex(message => message.role === "user");
+    if (record(messages[lastUser]?.metadata).navigatorRequestState === "cancelled") return [];
     const parts = messages.slice(lastUser + 1).flatMap(message => message.parts).map(record);
     const legacyCompleted = new Set(parts.filter(part => part.type === "tool-completeAction" && part.state === "output-available")
         .map(part => record(part.output).preparedToolCallId));
@@ -110,6 +141,7 @@ export function preparedNavigatorActions(messages: UIMessage[]) {
 }
 
 export function shouldContinueAfterNavigatorAction(messages: UIMessage[]) {
+    if (record(messages.findLast(message => message.role === "user")?.metadata).navigatorRequestState === "cancelled") return false;
     if (preparedNavigatorActions(messages).length) return false;
     return messages.at(-1)?.parts.some(part => {
         const value = record(part);

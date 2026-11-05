@@ -123,9 +123,12 @@ export const getEpisodes = tool({
             };
         } catch (error) {
             abortSignal?.throwIfAborted();
+            const { seasonNumber } = parseSeasonId(seasonId);
             return {
                 success: false,
-                error: error instanceof Error ? error.message : "TMDB episode lookup failed.",
+                error: error instanceof Error && error.message.includes("not found on TMDB") && seasonNumber !== undefined
+                    ? `Season ${seasonNumber} was not found for this series.`
+                    : error instanceof Error ? error.message : "TMDB episode lookup failed.",
                 episodes: [],
             };
         }

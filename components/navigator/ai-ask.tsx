@@ -6,7 +6,7 @@ import { useAtom, useStore } from "jotai";
 import { toast } from "sonner";
 import { useRouter, usePathname } from "next/navigation";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
-import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, readNavigatorHistory, record } from "@/lib/navigator-chat";
+import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, readNavigatorHistory, record, markNavigatorRequestStopped } from "@/lib/navigator-chat";
 import { acknowledgePlayback, type ActionOutcome } from "@/lib/navigator-playback-ack";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { useTheme } from "next-themes";
@@ -382,6 +382,16 @@ const AIAsk = ({ userId }: { userId: string }) => {
         setIsApplyingAction(false);
         finalizeRequestDuration(false);
         stop();
+        setMessages(current => markNavigatorRequestStopped(current));
+    };
+
+    const handleRetryRequest = async (userMessageId: string) => {
+        if (isBusy) return;
+        const question = messages.find(message => message.id === userMessageId && message.role === "user")?.parts
+            .filter(part => part.type === "text").map(part => part.text).join("\n").trim();
+        if (!question) return;
+        prepareRequest();
+        await sendMessage({ text: question });
     };
 
     const responseDurations = useMemo(
@@ -400,6 +410,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
             onInputChange={setInput}
             onSubmit={handleSubmitQuestion}
             onStop={handleStopGeneration}
+            onRetryRequest={handleRetryRequest}
             onNewChat={handleResetChat}
             onRetry={() => {
                 prepareRequest();

@@ -11,6 +11,9 @@ interface NavigationCardProps {
     action?: string;
     url?: string;
     mediaName?: string;
+    seriesName?: string;
+    verified?: boolean;
+    execution?: string;
     mediaType?: string;
     seasonNumber?: number;
     episodeNumber?: number;
@@ -42,6 +45,7 @@ export function NavigationCard({
           : "Navigation failed"
       }
       icon={result.mediaType?.toLowerCase() === "movie" ? Film : Tv}
+      subtitle={result.seriesName}
       image={(episode ? result.thumbnail : result.poster) || artworkFromPath(result.url)}
       imageAspect={episode ? "landscape" : "portrait"}
       href={
@@ -53,6 +57,8 @@ export function NavigationCard({
       }
       metadata={
         <>
+          {result.verified && <ResultMeta>Verified</ResultMeta>}
+          {result.execution && <ResultMeta>{result.execution === "completed" ? "Opened" : "Opening"}</ResultMeta>}
           {result.mediaType && <ResultMeta>{result.mediaType}</ResultMeta>}
           {result.seasonNumber != null && result.episodeNumber != null && (
             <ResultMeta>

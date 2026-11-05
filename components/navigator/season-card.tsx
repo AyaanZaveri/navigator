@@ -44,9 +44,9 @@ export function SeasonCard({
       onClick={onClick}
       metadata={
         <>
-          <ResultMeta>Season {number}</ResultMeta>
+          {season.name !== `Season ${number}` && <ResultMeta>Season {number}</ResultMeta>}
           {season.episodeCount != null && (
-            <ResultMeta>{season.episodeCount} episodes</ResultMeta>
+            <ResultMeta>{season.episodeCount} {season.episodeCount === 1 ? "episode" : "episodes"}</ResultMeta>
           )}
           {season.year && <ResultMeta>{season.year}</ResultMeta>}
         </>

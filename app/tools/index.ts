@@ -34,6 +34,8 @@ import {
 import {
     createSystemPrompt,
 } from "./system-prompt";
+import { createPresentMediaResults, seedMediaResults } from "./presentation";
+import { mediaResultTools, rememberMediaResults, successfulMediaResults, type MediaResult } from "@/lib/navigator-selection";
 
 // Export all media-related tools
 export {
@@ -76,8 +78,11 @@ export function createAllTools(
     currentTimestamp?: number,
     analysisModel?: LanguageModel,
     abortSignal?: AbortSignal,
-    sceneContext?: SceneRequestContext
+    sceneContext?: SceneRequestContext,
+    historyParts: unknown[] = []
 ): ToolSet {
+    const mediaResults = new Map<string, MediaResult>();
+    seedMediaResults(mediaResults, historyParts);
     const baseTools = {
     // Media tools
         searchMedia,
@@ -98,6 +103,7 @@ export function createAllTools(
 
         // Theme tools
         themeToggle,
+        presentMediaResults: createPresentMediaResults(mediaResults),
     };
 
     const definitions: ToolSet = {
@@ -115,6 +121,7 @@ export function createAllTools(
                 options.abortSignal?.throwIfAborted();
                 const output = await definition.execute!(input, options);
                 options.abortSignal?.throwIfAborted();
+                if (mediaResultTools.has(name)) rememberMediaResults(mediaResults, successfulMediaResults(output));
                 if (actionToolNames.has(name) && record(output).success === true) {
                     const { message: _message, ...action } = record(output);
                     return { ...action, preparedToolCallId: options.toolCallId, execution: "prepared" };

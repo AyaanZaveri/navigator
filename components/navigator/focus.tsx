@@ -51,6 +51,7 @@ import floatingSurface from "@/components/arc/floating-surface.module.css";
 import { motionTokens } from "@/components/arc/motion-tokens";
 import { navigatorBeamColors } from "@/lib/navigator-beam";
 import { isNavigatorRequestComplete } from "@/lib/navigator-timing";
+import { navigatorTurnContext } from "@/lib/navigator-chat";
 
 function ActivityPill({
   label,
@@ -93,6 +94,7 @@ type Props = {
   onStop: () => void;
   onNewChat: () => void;
   onRetry: () => void;
+  onRetryRequest?: (_userMessageId: string) => void;
   isBusy: boolean;
   error?: Error;
   responseDurations: Record<string, number>;
@@ -110,6 +112,7 @@ export function NavigatorFocus({
   onStop,
   onNewChat,
   onRetry,
+  onRetryRequest,
   isBusy,
   error,
   responseDurations,
@@ -427,19 +430,30 @@ export function NavigatorFocus({
                             message.role === "user" &&
                             text.length <= 48 &&
                             !text.includes("\n");
+                          const turn = navigatorTurnContext(messages, messageIndex);
+                          const showCancelled = turn.cancelled && turn.statusMessageId === message.id;
+                          const stoppedStatus = showCancelled ? (
+                            <div className="mt-2 px-2 text-sm text-muted-foreground" role="status">
+                              <p>Stopped — this request is incomplete. Partial results have been kept.</p>
+                              <button type="button" className="mt-1 cursor-pointer underline underline-offset-4 disabled:opacity-50" disabled={isBusy} onClick={() => turn.user && onRetryRequest?.(turn.user.id)}>Retry request</button>
+                            </div>
+                          ) : null;
                           const segments =
                             message.role === "assistant"
                               ? toNavigatorSegments(message.parts, {
                                   playbackRequest: isPlaybackRequest(
-                                    messages.slice(0, messageIndex).findLast(candidate => candidate.role === "user")?.parts
+                                messages.slice(0, messageIndex).findLast(candidate => candidate.role === "user")?.parts
                                       .filter(part => part.type === "text").map(part => part.text).join("") ?? "",
                                   ),
+                                  turnParts: turn.parts,
+                                  cancelled: turn.cancelled,
                                 })
                               : [];
 
                           if (message.role === "user") {
                             if (!text) return null;
                             return (
+                              <div key={message.id}>
                               <motion.div
                                 animate={{ opacity: 1 }}
                                 className={`ml-auto w-fit max-w-[80%] bg-primary/10 px-4 py-2 text-primary backdrop-blur-sm ${isShortUserMessage ? "rounded-full" : "rounded-2xl"}`}
@@ -450,10 +464,12 @@ export function NavigatorFocus({
                                   {text}
                                 </p>
                               </motion.div>
+                              {stoppedStatus}
+                              </div>
                             );
                           }
 
-                          if (!segments.length && responseDurations[message.id] === undefined) return null;
+                          if (!segments.length && responseDurations[message.id] === undefined && !showCancelled) return null;
 
                           return (
                             <div className={cn("w-full", messages[messageIndex - 1]?.role === "assistant" && "mt-2!")} key={message.id}>
@@ -526,7 +542,8 @@ export function NavigatorFocus({
 
                                 return null;
                               })}
-                              {responseDurations[message.id] !== undefined ? (
+                              {stoppedStatus}
+                              {!turn.cancelled && responseDurations[message.id] !== undefined ? (
                                 <p
                                   className="mt-2 flex items-center gap-1.5 px-2 text-[0.8125rem] font-normal leading-4 text-muted-foreground tabular-nums"
                                   aria-label={`${isNavigatorRequestComplete(messages.slice(0, messageIndex + 1)) ? "Done" : "Finished"} in ${Math.max(1, Math.round(responseDurations[message.id]))} seconds`}

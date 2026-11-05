@@ -91,6 +91,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     '@/lib/navigator-activity-label': { getNavigatorActivityLabel: () => '', NAVIGATOR_ACTIVITY_VARIANT_COUNT: 1 },
     '@/lib/navigator-beam': { navigatorBeamColors: {} }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
     '@/lib/navigator-timing': timing,
+    '@/lib/navigator-chat': chat,
 });
 const focusTree = NavigatorFocus({ open: true, showLauncher: true, messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: 'Play a show' }] }], input: '', isBusy: false, responseDurations: {} });
 function findTranscript(node) {
@@ -157,6 +158,21 @@ assert.equal(findDuration(timerOnlyTree).props['aria-label'], 'Done in 7 seconds
 focusHookIndex = 0;
 const noMatchTimerTree = NavigatorFocus({ open: true, showLauncher: true, messages: noMatchTurn, input: '', isBusy: false, responseDurations: { 'timed-answer': 7.123 } });
 assert.equal(findDuration(noMatchTimerTree).props['aria-label'], 'Finished in 7 seconds', 'A no-match response displays elapsed time without claiming success');
+focusHookIndex = 0;
+let retryUserId;
+const stoppedFocusTree = NavigatorFocus({ open: true, showLauncher: true,
+    messages: chat.markNavigatorRequestStopped([timedUser, timedAnswer]), input: '', isBusy: false,
+    responseDurations: { 'timed-answer': 7.123 }, onRetryRequest: id => { retryUserId = id; } });
+function findNode(node, predicate) {
+    if (!node || typeof node !== 'object') return;
+    if (predicate(node)) return node;
+    for (const child of focusReact.Children.toArray(node.props?.children)) { const found = findNode(child, predicate); if (found) return found; }
+}
+const retryRequest = findNode(stoppedFocusTree, node => node.type === 'button' && node.props.children === 'Retry request');
+assert.ok(retryRequest, 'A stopped turn has an explicit retry affordance even without rendered tool segments');
+retryRequest.props.onClick();
+assert.equal(retryUserId, timedUser.id, 'Retry targets the stopped request, not whichever user turn is currently last');
+assert.equal(findDuration(stoppedFocusTree), undefined, 'Stopped turns never retain a success duration');
 
 
 const { toNavigatorSegments } = load('components/navigator/focus-results.tsx', { ...cardModules, '@/lib/navigator-chat': chat });
@@ -182,6 +198,41 @@ const streamingWebCards = toNavigatorSegments([
 ]).filter(segment => segment.kind === 'results');
 assert.equal(streamingWebCards[0].results.cards[0].type, widgets['web-source'], 'Fetched sources appear before verification finishes');
 const matchedEpisode = { id: 'tmdb:58957:4:4', name: 'The Anecdote', title: 'The Anecdote', seriesId: 'tmdb:58957', seriesName: 'Nathan for You', seasonNumber: 4, episodeNumber: 4, type: 'Episode' };
+// Live repro: verification and browser handoff may be different tools/messages in one turn.
+const verificationParts = [
+    { type: 'tool-verifyEpisode', toolCallId: 'verify-one', state: 'output-available', output: { success: true, episodes: [matchedEpisode] } },
+    { type: 'data-episodeProgress', id: 'verify-progress', data: { toolCallId: 'verify-one', stage: 'verify', state: 'completed', episode: matchedEpisode } },
+];
+const episodeNavigation = { type: 'tool-navigateToEpisode', toolCallId: 'open-one', state: 'output-available', input: {}, output: {
+    success: true, mediaId: matchedEpisode.id, seriesId: matchedEpisode.seriesId, mediaName: matchedEpisode.name,
+    mediaType: 'Episode', seasonNumber: 4, episodeNumber: 4, url: '/series/tt2297757/4/4', execution: 'completed', status: 'requested',
+} };
+const canonicalParts = [...verificationParts, episodeNavigation];
+const canonicalCards = canonicalParts.flatMap(part => toNavigatorSegments([part], { turnParts: canonicalParts })).filter(s => s.kind === 'results');
+assert.equal(canonicalCards.length, 1, 'Different verification/action calls and continuation messages share one canonical episode card');
+assert.equal(canonicalCards[0].results.cards.props.result.seriesName, 'Nathan for You', 'Navigation retains the verified show subtitle');
+const recoveredParts = [
+    { type: 'tool-findEpisodeByTitle', state: 'output-error', toolCallId: 'failed-attempt', input: {}, errorText: 'Navigator could not complete this request. Please try again.' },
+    ...canonicalParts,
+];
+const recoveredSegments = toNavigatorSegments(recoveredParts);
+assert.equal(recoveredSegments.some(s => s.trace?.phase === 'error'), false, 'A later successful episode lookup marks the earlier related attempt recovered');
+assert.ok(recoveredSegments.some(s => s.trace?.label === 'Recovered episode lookup'));
+const unrelatedFailure = toNavigatorSegments([recoveredParts[0], { type: 'tool-themeToggle', state: 'output-available', output: { success: true, execution: 'completed' } }]);
+assert.ok(unrelatedFailure.some(s => s.trace?.phase === 'error'), 'An unrelated successful action cannot hide a failed episode lookup');
+const cancelledSegments = toNavigatorSegments([{ type: 'tool-searchMediaWeb', state: 'input-available', toolCallId: 'pending' },
+    { type: 'data-episodeProgress', data: { toolCallId: 'pending', stage: 'search', state: 'running' } }], { cancelled: true });
+assert.equal(cancelledSegments.some(s => s.trace?.phase === 'running'), false, 'Stopped requests never retain running progress');
+assert.ok(cancelledSegments.some(s => s.trace?.phase === 'stopped'), 'Aborted progress is distinct from a completed step');
+const cancelledActionParts = [...verificationParts, { ...episodeNavigation, output: { ...episodeNavigation.output, execution: 'prepared', preparedToolCallId: 'open-one' } }];
+const cancelledActionSegments = toNavigatorSegments(cancelledActionParts, { cancelled: true });
+assert.equal(cancelledActionSegments.some(s => s.results?.cards?.type === widgets.navigation), false, 'Cancelled prepared actions cannot remain Opening/Opened cards');
+assert.ok(cancelledActionSegments.some(s => s.trace?.phase === 'stopped'));
+const differentSeriesError = { ...recoveredParts[0], input: { seriesId: 'tmdb:other-series' } };
+assert.ok(toNavigatorSegments([differentSeriesError, episodeNavigation]).some(s => s.trace?.phase === 'error'), 'Success for a different show cannot recover this failure');
+const failedApplication = toNavigatorSegments([...verificationParts, { ...episodeNavigation, output: { ...episodeNavigation.output, success: false, message: 'Navigation failed' } }]);
+assert.ok(failedApplication.some(s => s.trace?.phase === 'error'), 'Browser failure remains visible after successful verification');
+assert.equal(failedApplication.filter(s => s.results?.cards?.type === widgets.media).length, 1, 'Failed handoffs keep the verified target without claiming it opened');
 // Scene title was first inserted while running, then updated in place after lookup.
 const combinedEpisodeParts = [
     { type: 'tool-skipToSubtitleContent', toolCallId: 'episode-cards', state: 'input-available', input: {} },
@@ -309,6 +360,15 @@ const credits = { type: 'tool-getFilmography', state: 'output-available', input:
 } };
 const browsing = presentation.toNavigatorSegments([credits]);
 const allCards = browsing.find(segment => segment.kind === 'results').results.cards;
+const selectedParts = [credits, { type: 'tool-presentMediaResults', toolCallId: 'selected-list', state: 'output-available', input: {}, output: {
+    success: true, presentation: 'selection', heading: 'Selected credits', results: [credits.output.results[6], credits.output.results[2]],
+} }];
+const selectedSegments = presentation.toNavigatorSegments(selectedParts);
+assert.equal(selectedSegments.filter(segment => segment.kind === 'lookup').length, 1, 'Raw retrieval stays available as collapsed research');
+assert.match(selectedSegments[0].trace.label, /^Research/);
+const selectedCards = selectedSegments.find(segment => segment.kind === 'results').results.cards;
+assert.deepEqual(Array.from(selectedCards, c => c.props.item.id), ['6', '2'], 'Primary cards follow the explicit ordered selection, not the raw batch');
+assert.ok(selectedSegments.some(segment => segment.trace?.label === 'Selected credits · 2 results'));
 assert.equal(allCards.length, 39, 'Presentation must not remove candidates from tool output');
 let preview = presentation.NavigatorResultCards({ cards: allCards });
 assert.equal(preview.props.children[0].props.children.length, 5);
