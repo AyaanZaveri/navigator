@@ -5,6 +5,12 @@
     padding-block-start: 0;
 }
 
+/* Keep the trailing avatar at the shared page gutter. Four extra pixels place
+   its hit area below the compact caption row instead of reserving right space. */
+:global(html[data-native-platform="windows"]) .header {
+    padding-block-start: 4px;
+}
+
 @media (display-mode: standalone), (display-mode: fullscreen) {
     .header {
         padding-block-start: env(safe-area-inset-top, 0px);
@@ -17,11 +23,6 @@
 
 .profile {
     margin-inline-start: auto;
-}
-
-/* Keep account actions with search; caption buttons occupy the trailing corner. */
-:global(html[data-native-platform="windows"]) .profile {
-    margin-inline-start: 0;
 }
 
 .surface {

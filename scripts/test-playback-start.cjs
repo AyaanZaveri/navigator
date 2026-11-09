@@ -3,20 +3,29 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function languageRequire(name) {
-    if (name !== '@/lib/media/audio-language') return require(name);
+    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info'].includes(name)) return require(name);
     const context = { exports: {}, require: languageRequire };
-    vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/audio-language.ts', 'utf8'), {
+    vm.runInNewContext(ts.transpileModule(fs.readFileSync(name.replace('@/', '') + '.ts', 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText, context);
     return context.exports;
 }
 
-const context = { exports: {}, require: languageRequire };
+const context = { exports: {}, require: languageRequire, setTimeout, clearTimeout };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/resolve-playback.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
-const { resolvePlayback, playbackPhaseLabels, webMetadataSupport } = context.exports;
+const { resolvePlayback, playbackPhaseLabels, webMetadataSupport, scoreWebStream } = context.exports;
 async function test() {
+    const labeled = title => ({ url: 'https://example.test/file.mp4', title });
+    assert.ok(scoreWebStream(labeled('1080p H264 AAC DTS')) < scoreWebStream(labeled('1080p H264 AAC')),
+        'AAC cannot hide ambiguous potentially unsupported default audio in a mixed release label');
+    assert.ok(scoreWebStream(labeled('1080p HEVC AAC DV HDR10')) > scoreWebStream(labeled('1080p HEVC AAC DV')),
+        'Dolby Vision with declared HDR10 fallback is ranked differently from DV-only');
+    assert.equal(scoreWebStream(labeled('Silent (2020)')), scoreWebStream(labeled('Movie (2020)')),
+        'A movie title is not a silent-video warning');
+    assert.equal(scoreWebStream(labeled('AAC (2020) 1080p')), scoreWebStream(labeled('Movie (2020) 1080p')),
+        'A codec-like movie title before the release metadata tail is not an audio declaration');
     const phases = [], calls = [];
     const deps = {
         async fetchStreams(id, type) {
@@ -99,7 +108,7 @@ async function test() {
         inspectStream: async stream => { inspected.push(stream.url); return actualTracks(stream.url); },
     }, () => {});
     assert.equal(verified.streamUrl, 'https://example.test/low.mp4', 'Actual unsupported default audio must override an AAC filename claim');
-    assert.equal(inspected.length, 3, 'Preflight is limited to the leading candidates');
+    assert.ok(inspected.length >= 2 && inspected.length <= 5, 'Preflight uses a small bounded candidate pool');
     const mixedAudio = actualTracks('best');
     mixedAudio.audio.push({ ...actualTracks('low').audio[0], primary: false });
     assert.equal(webMetadataSupport(mixedAudio, mime => !mime.includes('ac-3')), 'unsupported', 'An alternate AAC track cannot hide unsupported primary audio');

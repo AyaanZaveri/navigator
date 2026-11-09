@@ -247,6 +247,7 @@ pub fn mpv_options(_video: &VideoSurface) -> Vec<(&'static str, String)> {
 
 thread_local! {
     static CHROME_FULLSCREEN_ACTION: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+    static CHROME_CONTROLS_VISIBLE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
     static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
@@ -271,14 +272,75 @@ fn chrome_hover(hit: u32) {
         });
     }
 }
+pub fn set_window_controls_visible(value: bool) {
+    CHROME_CONTROLS_VISIBLE.set(value);
+    if !value { chrome_hover(0); }
+}
+
 pub fn set_chrome_fullscreen(value: bool) {
     CHROME_FULLSCREEN.set(value);
 }
 
-fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
-    if CHROME_FULLSCREEN.get() {
+const CAPTION_BUTTON_WIDTH: f64 = 32.0;
+const CAPTION_HEIGHT: f64 = 24.0;
+
+fn caption_button_hit(x: f64, y: f64, right: f64) -> Option<u32> {
+    if !(3.0..CAPTION_HEIGHT).contains(&y)
+        || !(right - 3.0 * CAPTION_BUTTON_WIDTH..right).contains(&x)
+    {
         return None;
     }
+    Some(if x >= right - CAPTION_BUTTON_WIDTH {
+        HTCLOSE
+    } else if x >= right - 2.0 * CAPTION_BUTTON_WIDTH {
+        HTMAXBUTTON
+    } else {
+        HTMINBUTTON
+    })
+}
+
+fn chrome_region_hit(x: f64, y: f64, right: f64, fullscreen: bool) -> Option<u32> {
+    if y < 3.0 || !(0.0..right).contains(&x) {
+        return None;
+    }
+    if let Some(button) = caption_button_hit(x, y, right) {
+        return Some(button);
+    }
+    if !fullscreen && y < 16.0 {
+        return Some(HTCAPTION);
+    }
+    None
+}
+
+#[cfg(test)]
+#[test]
+fn fullscreen_keeps_caption_actions_without_dragging_the_window() {
+    for fullscreen in [false, true] {
+        assert_eq!(chrome_region_hit(1200.0, 12.0, 1280.0, fullscreen), Some(HTMINBUTTON));
+        assert_eq!(chrome_region_hit(1232.0, 12.0, 1280.0, fullscreen), Some(HTMAXBUTTON));
+        assert_eq!(chrome_region_hit(1264.0, 12.0, 1280.0, fullscreen), Some(HTCLOSE));
+        assert_eq!(chrome_region_hit(1264.0, 26.0, 1280.0, fullscreen), None);
+    }
+    assert_eq!(chrome_region_hit(100.0, 12.0, 1280.0, false), Some(HTCAPTION));
+    assert_eq!(chrome_region_hit(100.0, 12.0, 1280.0, true), None);
+}
+
+#[cfg(test)]
+#[test]
+fn compact_caption_buttons_keep_distinct_hit_regions() {
+    for right in [480.0, 1280.0] {
+        assert_eq!(caption_button_hit(right - 80.0, 12.0, right), Some(HTMINBUTTON));
+        assert_eq!(caption_button_hit(right - 48.0, 12.0, right), Some(HTMAXBUTTON));
+        assert_eq!(caption_button_hit(right - 16.0, 12.0, right), Some(HTCLOSE));
+        assert_eq!(caption_button_hit(right - 112.0, 22.0, right), None);
+        assert_eq!(caption_button_hit(right - 16.0, 24.0, right), None);
+        assert_eq!(caption_button_hit(right - 16.0, 2.0, right), None);
+        assert_eq!(caption_button_hit(right, 12.0, right), None);
+    }
+}
+
+fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
+    if !CHROME_CONTROLS_VISIBLE.get() { return None; }
     unsafe {
         let mut point = POINT {
             x: (lparam as u16 as i16) as i32,
@@ -291,22 +353,7 @@ fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
         let x = point.x as f64 / scale;
         let y = point.y as f64 / scale;
         let right = rect.right as f64 / scale;
-        if y < 3.0 || !(0.0..right).contains(&x) {
-            return None;
-        }
-        if y < 32.0 && x >= right - 138.0 {
-            return Some(if x >= right - 46.0 {
-                HTCLOSE
-            } else if x >= right - 92.0 {
-                HTMAXBUTTON
-            } else {
-                HTMINBUTTON
-            });
-        }
-        if y < 16.0 {
-            return Some(HTCAPTION);
-        }
-        None
+        chrome_region_hit(x, y, right, CHROME_FULLSCREEN.get())
     }
 }
 unsafe extern "system" fn chrome_proc(

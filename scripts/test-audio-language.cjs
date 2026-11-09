@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function load(file, requireFn) {
-    const context = { exports: {}, require: requireFn };
+    const context = { exports: {}, require: requireFn, setTimeout, clearTimeout };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText, context);
@@ -33,7 +33,8 @@ cleanup();
 const titles = load('lib/media/playback-titles.ts');
 const generic = { id: 'tt1442437', type: 'series', showName: 'Modern Family', name: 'Episode 16', episodeTitle: 'Episode 16', mediaSourceId: 'tt1442437:8:16' };
 assert.equal(titles.getPlaybackTitles(generic, { videos: [{ id: generic.mediaSourceId, title: 'Basketball' }] }).primaryTitle, 'Basketball');
-const { resolvePlayback } = load('lib/media/resolve-playback.ts', () => language);
+const { resolvePlayback } = load('lib/media/resolve-playback.ts', name => name === '@/lib/media/stream-release-info'
+    ? load('lib/media/stream-release-info.ts') : language);
 (async () => {
     const streams = [{ url: 'https://test/Russian.mp4', title: 'Russian H264 AAC' }, { url: 'https://test/English.mp4', title: 'English H264 AAC' }];
     for (const environment of ['native', 'web']) {

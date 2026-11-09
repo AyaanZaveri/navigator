@@ -42,7 +42,8 @@ import { toast } from "sonner";
 import { getWebPlaybackElement } from "@/lib/media/playback-source";
 import { getPlaybackTitles, isMeaningfulEpisodeTitle } from "@/lib/media/playback-titles";
 import { probeStreamMetadata } from "@/lib/media/stream-metadata";
-import { fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
+import { createPlaybackStreamRequest, fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
+import { installWebStartupWatchdog } from "@/lib/media/web-startup-watchdog";
 import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
 import type { MediaToPlay } from "@/lib/atoms";
 import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
@@ -679,6 +680,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         autoSelectWebStream: playbackPreferencesRef.current.autoSelectWebStream,
         preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage,
         resolveId: (id, type) => fetchPlaybackId(id, type, metadataAbort.signal),
+        signal: metadataAbort.signal,
+        createStreamRequest: !fallback || !webStreamsRef.current.length
+          // Discovery is shared across fallback attempts and uses its own
+          // bounded request timeouts; per-load abort only cancels selection/probes.
+          ? (id, type) => createPlaybackStreamRequest(id, type)
+          : undefined,
         fetchStreams: fallback && webStreamsRef.current.length
           ? async () => webStreamsRef.current : fetchPlaybackStreams,
         getNextEpisodeForSeries: id => loadEpisode(id, 1, 1),
@@ -760,6 +767,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     if (nativePlayback || !streamUrl || !videoRef.current) return;
     return installAudioLanguagePreference(videoRef.current, playbackPreferencesRef.current.audioLanguage);
   }, [nativePlayback, streamUrl, playerAttempt]);
+
+  // Metadata and canplay aren't playback progress; only media-time movement is.
+  useEffect(() => {
+    if (nativePlayback || !streamUrl || !playbackPreferencesRef.current.autoSelectWebStream) return;
+    const element = videoRef.current;
+    if (!element) return;
+    return installWebStartupWatchdog(element, () => tryNextWebStream(element), document);
+  }, [nativePlayback, streamUrl, playerAttempt, tryNextWebStream, currentMedia?.resumePositionTicks]);
 
   // Update current subtitle
   useEffect(() => {

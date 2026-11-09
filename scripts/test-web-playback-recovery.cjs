@@ -3,15 +3,18 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function languageRequire(name) {
-    if (name !== '@/lib/media/audio-language') return require(name);
+    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info'].includes(name)) return require(name);
     const context = { exports: {}, require: languageRequire };
-    vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/audio-language.ts', 'utf8'), {
+    vm.runInNewContext(ts.transpileModule(fs.readFileSync(name.replace('@/', '') + '.ts', 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText, context);
     return context.exports;
 }
 
 const React = require('react');
+
+// Playback stream requests and the web startup watchdog use bounded timers.
+// Keep them available inside the VM used for utility modules as well.
 
 function transpile(file) {
     return ts.transpileModule(fs.readFileSync(file, 'utf8'), {
@@ -20,7 +23,7 @@ function transpile(file) {
     }).outputText;
 }
 function utility(file) {
-    const context = { exports: {}, URL, require: languageRequire };
+    const context = { exports: {}, URL, setTimeout, clearTimeout, AbortController, AbortSignal, require: languageRequire };
     vm.runInNewContext(transpile(file), context);
     return context.exports;
 }
@@ -84,6 +87,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
                 routes.push({ path, options });
             } }) };
             if (name === 'react') return hooks;
+            if (name === 'framer-motion') return { motion: new Proxy({}, { get: (_, tag) => tag }), AnimatePresence: 'animate-presence' };
             if (name === 'sonner') return { toast };
             if (name.endsWith('.css')) return {};
             if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({
@@ -99,10 +103,13 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
                 const preferences = utility('lib/media/playback-preferences.ts');
                 return { ...preferences, readPlaybackPreferences: () => ({ ...preferences.DEFAULT_PLAYBACK_PREFERENCES, autoSelectWebStream }) };
             }
-    if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
+            if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
             if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
-            if (name === '@/lib/media/fetch-playback-streams') return { async fetchPlaybackStreams() { streamFetches++; return streams; } };
+            if (name === '@/lib/media/fetch-playback-streams') return {
+                async fetchPlaybackStreams() { streamFetches++; return streams; },
+                createPlaybackStreamRequest(id, type) { streamFetches++; return { id, type, canonicalId: Promise.resolve(id), snapshot: { streams, pending: 0, total: streams.length, complete: true }, promise: Promise.resolve(streams), subscribe(listener) { listener(this.snapshot); return () => {}; } }; },
+            };
             if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails: async () => null };
             if (name === '@/app/actions') return { fetchMediaDetails: async () => null, reportPlaybackStart: noOp, reportPlaybackProgress: noOp, reportPlaybackStopped: noOp };
             if (name === '@/app/actions/utils') return { getSubtitleTracks: async () => [] };

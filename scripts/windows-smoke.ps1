@@ -130,7 +130,7 @@ function Save-NavigatorScreenshot($app, $Output, [switch]$CheckBars, [switch]$Ch
     if ($CheckBars -and $colors.Count -lt 4) { throw "Expected visible native color bars beneath WebView2; got $($colors.Count) colors. Inspect $absolute" }
     if ($CheckStartup) {
       # Inspect the central panel, excluding the caption/desktop. The bundled
-      # startup document must actually paint text while Node is still blocked.
+      # startup document must actually paint its logo while Node is still blocked.
       $bright = 0
       for ($y = [int]($bitmap.Height*.35); $y -lt [int]($bitmap.Height*.65); $y += 2) {
         for ($x = [int]($bitmap.Width*.25); $x -lt [int]($bitmap.Width*.75); $x += 2) {

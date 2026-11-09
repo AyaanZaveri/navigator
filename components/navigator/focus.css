@@ -1,6 +1,13 @@
 @import "streamdown/styles.css";
 @source "../../node_modules/streamdown/dist/*.js";
 
+/* Keep the emerald shadow subtle over Windows' native video surface.
+   Override only the shadow token so the panel's border ring stays intact. */
+html[data-native-platform="windows"][data-native-playing]
+  [data-navigator-focus-ui] [data-navigator-panel-shadow] {
+  --tw-shadow: 0 12px 32px -12px color-mix(in oklab, var(--primary) 5%, transparent);
+}
+
 @keyframes navigator-pixel-on {
   0%,
   100% {

@@ -26,7 +26,7 @@ function ProfileMenu({ email }: { email: string }) {
     return (
         <UserMenu
             user={{ name: email.split("@")[0] || "User", email }}
-            align={mounted && desktopBridge()?.platform === "windows" ? "start" : "end"}
+            align="end"
             theme={preference}
             onThemeChange={setTheme}
             items={[
