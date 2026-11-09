@@ -963,7 +963,11 @@ function MediaPlayerVideo(props: MediaPlayerVideoProps) {
   const context = useMediaPlayerContext("MediaPlayerVideo");
   const dispatch = useMediaDispatch();
   const mediaRefCallback = useMediaRef();
-  const composedRef = useComposedRefs(ref, context.mediaRef, mediaRefCallback);
+  const registerMedia = React.useCallback((element: HTMLVideoElement | null) => {
+    context.mediaRef.current = element;
+    mediaRefCallback(element);
+  }, [context.mediaRef, mediaRefCallback]);
+  const composedRef = useComposedRefs(ref, registerMedia);
 
   const onPlayToggle = React.useCallback(
     (event: React.MouseEvent<HTMLVideoElement>) => {
@@ -1007,7 +1011,14 @@ function MediaPlayerAudio(props: MediaPlayerAudioProps) {
 
   const context = useMediaPlayerContext("MediaPlayerAudio");
   const mediaRefCallback = useMediaRef();
-  const composedRef = useComposedRefs(ref, context.mediaRef, mediaRefCallback);
+  const registerMedia = React.useCallback((element: HTMLAudioElement | null) => {
+    context.mediaRef.current = element;
+    // Mux augments audio elements with a partial video-quality API. Media
+    // Chrome only needs the shared media interface for an audio element.
+    const media: Omit<HTMLMediaElement, "getVideoPlaybackQuality"> | null = element;
+    mediaRefCallback(media);
+  }, [context.mediaRef, mediaRefCallback]);
+  const composedRef = useComposedRefs(ref, registerMedia);
 
   const AudioPrimitive = asChild ? Slot : "audio";
 
