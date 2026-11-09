@@ -19,11 +19,6 @@
     margin-inline-start: auto;
 }
 
-/* Keep account actions with search; caption buttons occupy the trailing corner. */
-:global(html[data-native-platform="windows"]) .profile {
-    margin-inline-start: 0;
-}
-
 .surface {
     position: absolute;
     inset: 0 0 -24px;

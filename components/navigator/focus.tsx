@@ -390,6 +390,7 @@ export function NavigatorFocus({
                   duration={4}
                   strength={1}
                   glowSize={1}
+                  data-navigator-panel-shadow=""
                   className="w-full shadow-2xl shadow-primary/10 ring-1 ring-border dark:shadow-primary/15"
                 >
                   <motion.section

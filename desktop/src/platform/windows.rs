@@ -275,6 +275,38 @@ pub fn set_chrome_fullscreen(value: bool) {
     CHROME_FULLSCREEN.set(value);
 }
 
+const CAPTION_BUTTON_WIDTH: f64 = 32.0;
+const CAPTION_HEIGHT: f64 = 24.0;
+
+fn caption_button_hit(x: f64, y: f64, right: f64) -> Option<u32> {
+    if !(3.0..CAPTION_HEIGHT).contains(&y)
+        || !(right - 3.0 * CAPTION_BUTTON_WIDTH..right).contains(&x)
+    {
+        return None;
+    }
+    Some(if x >= right - CAPTION_BUTTON_WIDTH {
+        HTCLOSE
+    } else if x >= right - 2.0 * CAPTION_BUTTON_WIDTH {
+        HTMAXBUTTON
+    } else {
+        HTMINBUTTON
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn compact_caption_buttons_keep_distinct_hit_regions() {
+    for right in [480.0, 1280.0] {
+        assert_eq!(caption_button_hit(right - 80.0, 12.0, right), Some(HTMINBUTTON));
+        assert_eq!(caption_button_hit(right - 48.0, 12.0, right), Some(HTMAXBUTTON));
+        assert_eq!(caption_button_hit(right - 16.0, 12.0, right), Some(HTCLOSE));
+        assert_eq!(caption_button_hit(right - 112.0, 22.0, right), None);
+        assert_eq!(caption_button_hit(right - 16.0, 24.0, right), None);
+        assert_eq!(caption_button_hit(right - 16.0, 2.0, right), None);
+        assert_eq!(caption_button_hit(right, 12.0, right), None);
+    }
+}
+
 fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
     if CHROME_FULLSCREEN.get() {
         return None;
@@ -294,14 +326,8 @@ fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
         if y < 3.0 || !(0.0..right).contains(&x) {
             return None;
         }
-        if y < 32.0 && x >= right - 138.0 {
-            return Some(if x >= right - 46.0 {
-                HTCLOSE
-            } else if x >= right - 92.0 {
-                HTMAXBUTTON
-            } else {
-                HTMINBUTTON
-            });
+        if let Some(button) = caption_button_hit(x, y, right) {
+            return Some(button);
         }
         if y < 16.0 {
             return Some(HTCAPTION);

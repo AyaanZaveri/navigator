@@ -27,11 +27,7 @@ use tao::{
 use wry::{NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder};
 
 fn startup_document() -> &'static str {
-    use base64::{Engine, engine::general_purpose::STANDARD};
-    static DOCUMENT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    DOCUMENT.get_or_init(|| include_str!("startup.html")
-        .replace("__SUNGHYUN_REGULAR__", &STANDARD.encode(include_bytes!("../../app/fonts/sunghyun-sans/SunghyunSans-Regular.woff2")))
-        .replace("__SUNGHYUN_SEMIBOLD__", &STANDARD.encode(include_bytes!("../../app/fonts/sunghyun-sans/SunghyunSans-SemiBold.woff2"))))
+    include_str!("startup.html")
 }
 
 // NavigateToString still exposes about:blank to script/IPC, but recent
@@ -71,8 +67,9 @@ fn smoke_navigation_is_exact() {
 fn startup_navigation_has_no_privileged_origin() {
     use base64::Engine;
     let html = startup_document().as_bytes();
-    assert!(!startup_document().contains("__SUNGHYUN_"));
-    assert!(startup_document().contains("font-src data:"));
+    assert!(startup_document().contains("default-src 'none'"));
+    assert!(!startup_document().contains("<script"));
+    assert!(!startup_document().contains("data-details"));
     let trusted = format!(
         "data:text/html;charset=utf-8;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(html)
@@ -132,14 +129,6 @@ fn bounds(size: PhysicalSize<u32>) -> Rect {
         position: PhysicalPosition::new(0, 0).into(),
         size: size.into(),
     }
-}
-
-fn update_startup(view: &WebView, backend_ready: bool, player_ready: bool) {
-    // The bundled document is unprivileged. Only fixed booleans cross into it;
-    // after navigation this optional function simply no longer exists.
-    let _ = view.evaluate_script(&format!(
-        "window.navigatorStartup?.({backend_ready},{player_ready})"
-    ));
 }
 
 fn placement(window: &Window) -> Option<Placement> {
@@ -467,7 +456,6 @@ pub fn run(app: App) -> Result<(), String> {
                     if let Some(view) = &view {
                         navigating = true;
                         record(&log, started, "navigation-starting");
-                        update_startup(view, true, running.is_some());
                         if let Err(error) = view.load_url(&frontend.url) {
                             exit_code = 1; closing = true; cancelled.store(true, Ordering::Relaxed);
                             platform::show_error(&format!("The interface could not open: {error}"));
@@ -497,7 +485,6 @@ pub fn run(app: App) -> Result<(), String> {
                 Ok((app, player, smoke_path)) => {
                     if closing { player.begin_shutdown(); }
                     running = Some((app, player, smoke_path));
-                    if let Some(view) = &view { update_startup(view, navigating, true); }
                     if !closing {
                         let (app, player, _) = running.as_ref().unwrap();
                         surface.attach(player.mpv.clone());
@@ -536,7 +523,6 @@ pub fn run(app: App) -> Result<(), String> {
             Event::UserEvent(UserEvent::StartupLoaded) => {
                 platform::install_chrome(&window);
                 record(&log, started, "startup-page-loaded");
-                if let Some(view) = &view { update_startup(view, navigating, running.is_some()); }
             }
             Event::UserEvent(UserEvent::PageLoaded) => {
                 glass_shared = crate::windows_glass::SharedGlass::new(frontend.origin.clone());

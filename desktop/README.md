@@ -46,10 +46,9 @@ wrap in narrow windows. Normal window size/position and maximized state persist,
 and saved placement is clamped onto an available display. A second launch
 restores/activates the running window.
 
-The Windows header uses the web's top spacing and keeps account actions beside
-search. Horizontal clearance protects the caption buttons in narrow windows;
-there is no extra caption row. The account menu expands to the right below the
-avatar and clamps to the viewport. The shared page scrollport uses
+The Windows header uses the web's top spacing and trailing account placement.
+Compact 32×24 caption controls use Lucide icons. Horizontal clearance protects the caption buttons in narrow windows;
+there is no extra caption row. The account menu aligns its trailing edge with the avatar and clamps to the viewport. The shared page scrollport uses
 Radix's overlay thumb on every platform, preserving native scrolling without
 reserving a scrollbar gutter.
 
@@ -66,10 +65,9 @@ run `navigator-desktop.exe --prepare-install` once after extraction.
 The first frame is a small native loading view. Backend and mpv initialization
 run on a worker while the window remains responsive. WebView2 starts in parallel
 and paints a bundled startup document that requires no server or network. The
-document shares Android's ship mark and static teal light fields. It shows an
-elapsed timer and actual backend/interface/player stages after a 1.5-second delay; it does not simulate
-installation progress or promise that a slow launch happens only once. The
-same WebView navigates as soon as the backend listens, while mpv continues
+document keeps the ship mark centered over static teal light fields throughout
+startup, with no timer or service/player progress page. The same WebView
+navigates as soon as the backend listens, while mpv continues
 initializing. Up to 64 validated playback commands can wait for the player;
 overflow reports a session error. A painted React readiness signal removes the
 native loading view and synchronizes the caption theme. Closing during startup cancels the
