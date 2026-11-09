@@ -58,7 +58,7 @@ export function parseStreamReleaseInfo(stream: StremioStream): StreamReleaseInfo
     return { context, structured: Boolean(context.trim()) };
   });
   // Filename and meaningful media URL are authoritative; lower-priority text fills absent fields.
-  const field = <T>(get: (p: typeof parsed[number]) => T | undefined): T | undefined => {
+  const field = <T,>(get: (p: typeof parsed[number]) => T | undefined): T | undefined => {
     for (const p of parsed) { const value = get(p); if (value !== undefined) return value; }
     return undefined;
   };

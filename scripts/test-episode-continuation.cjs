@@ -107,15 +107,19 @@ function controller(overrides={}) {
 
   const audio=load('lib/media/audio-language.ts');
   const resolver=load('lib/media/resolve-playback.ts',{'@/lib/media/audio-language':audio});
-  const shared={id:next.id,type:'series',canonicalId:Promise.resolve(next.id),promise:Promise.resolve([
+  const sharedStreams=[
     {url:'https://test/first.mkv',title:'English HEVC DTS'}, {url:'https://test/next.mp4',title:'English H264 AAC'},
-  ])};
+  ];
+  const shared={id:next.id,type:'series',canonicalId:Promise.resolve(next.id),promise:Promise.resolve(sharedStreams),
+    snapshot:{streams:sharedStreams,complete:true,pending:0,total:1},
+    subscribe(listener){listener(this.snapshot);return()=>{};}};
   let preparations=0;
   const preparedApi=load('lib/media/prefetch-next-episode.ts',{
     './fetch-playback-streams':{createPlaybackStreamRequest:(id,type,signal)=>{assert.equal(id,next.id);assert.equal(type,'series');assert.equal(signal.aborted,false);preparations++;return shared;}},
     './fetch-playback-details':{fetchPlaybackDetails:async target=>({id:target.id,type:'series',name:'Modern Family',logo:'/prepared-logo.png'})},
     './resolve-playback':resolver,'./playback-details':require('./test-support/playback-context.cjs').details,
     './stream-metadata':{probeStreamMetadata:async()=>undefined},'./playback-preferences':prefs,
+    './stream-playability':{probeStreamPlayability:async()=> 'supported'},
   },globals);
   const ready=await preparedApi.prepareNextEpisode(target,true,new AbortController().signal);
   assert.equal(ready.mediaSourceId,next.id);assert.equal(ready.streamRequest,shared);assert.equal(ready.details.logo,'/prepared-logo.png');assert.equal(ready.detailsLoaded,true);

@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { getWebPlaybackElement } from "@/lib/media/playback-source";
 import { getPlaybackTitles, isMeaningfulEpisodeTitle } from "@/lib/media/playback-titles";
 import { probeStreamMetadata } from "@/lib/media/stream-metadata";
+import { probeStreamPlayability } from "@/lib/media/stream-playability";
 import { createPlaybackStreamRequest, fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { installWebStartupWatchdog } from "@/lib/media/web-startup-watchdog";
 import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
@@ -182,6 +183,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const metadataAbortRef = useRef<AbortController | null>(null);
   const webStreamsRef = useRef<StremioStream[]>([]);
   const audioCheckRef = useRef<{ start: number; startedAt: number; complete: boolean } | null>(null);
+  const confirmWebPlaybackRef = useRef<(() => void) | null>(null);
   const failedStreamUrlsRef = useRef(new Set<string>());
   const activePlaybackRequestRef = useRef<MediaToPlay | null>(null);
   const loadMediaRef = useRef<((_request: MediaToPlay, _fallback?: boolean) => Promise<void>) | null>(null);
@@ -384,6 +386,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const element = videoRef.current;
       const time = element.currentTime;
       const audioCheck = audioCheckRef.current;
+      const audioDecoder = element as HTMLVideoElement & { webkitAudioDecodedByteCount?: number };
+      if (!element.paused && !element.seeking && audioCheck && time - audioCheck.start > 0.05
+        && (element.muted || element.volume === 0 || typeof audioDecoder.webkitAudioDecodedByteCount !== "number" || audioDecoder.webkitAudioDecodedByteCount > 0)) {
+        // Metadata/canplay alone do not confirm playback. Where exposed, require
+        // decoded sound as well as advancing media time before stopping probes.
+        confirmWebPlaybackRef.current?.();
+      }
       if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream && audioCheck && !audioCheck.complete && !element.paused) {
         const decoder = element as HTMLVideoElement & { webkitAudioDecodedByteCount?: number; webkitVideoDecodedByteCount?: number };
         // Chromium can play the picture while silently dropping an unsupported audio codec.
@@ -597,6 +606,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const metadataAbort = new AbortController();
     metadataAbortRef.current = metadataAbort;
     audioCheckRef.current = null;
+    confirmWebPlaybackRef.current = null;
     if (!fallback) {
       activePlaybackRequestRef.current = request;
       webStreamsRef.current = [];
@@ -691,7 +701,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         getNextEpisodeForSeries: id => loadEpisode(id, 1, 1),
         environment: nativePlayback ? "native" : "web",
         canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
-        inspectStream: probe ? candidate => probeStreamMetadata(candidate, { signal: metadataAbort.signal }) : undefined,
+        inspectStream: probe ? (candidate, options) => probeStreamMetadata(candidate, { signal: options.signal, budget: options.budget }) : undefined,
+        verifyStream: (candidate, options) => probeStreamPlayability(candidate, { signal: options.signal, preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage }),
+        onPlaybackConfirmation: confirm => {
+          if (isCurrent()) confirmWebPlaybackRef.current = confirm;
+          return () => { if (confirmWebPlaybackRef.current === confirm) confirmWebPlaybackRef.current = null; };
+        },
         excludeUrls: !nativePlayback ? failedStreamUrlsRef.current : undefined,
         onCandidates: candidates => { if (isCurrent() && !nativePlayback) webStreamsRef.current = candidates; },
       }, phase => {

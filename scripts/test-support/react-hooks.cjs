@@ -4,7 +4,7 @@ const ts = require('typescript');
 const path = require('node:path');
 
 function load(file, dependencies = {}, globals = {}) {
-  const context = { exports: {}, console, setTimeout, clearTimeout, queueMicrotask, ...globals,
+  const context = { exports: {}, console, setTimeout, clearTimeout, queueMicrotask, AbortController, AbortSignal, ...globals,
     require: name => {
       if (name in dependencies) {
         const dependency = dependencies[name];

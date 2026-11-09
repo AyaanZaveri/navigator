@@ -11,7 +11,7 @@ function languageRequire(name) {
     return context.exports;
 }
 
-const context = { exports: {}, require: languageRequire, setTimeout, clearTimeout };
+const context = { exports: {}, require: languageRequire, setTimeout, clearTimeout, AbortController };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/resolve-playback.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
@@ -72,6 +72,7 @@ async function test() {
     ];
     let candidates;
     const webDeps = { ...deps, environment: 'web', autoSelectWebStream: true, fetchStreams: async () => browserStreams,
+        verifyStream: async () => 'supported',
         onCandidates: streams => { candidates = streams; } };
     for (const autoSelectWebStream of [undefined, false]) {
         let inspections = 0;

@@ -1,11 +1,11 @@
 import { languageMatchScore, streamLanguagePreference } from "@/lib/media/audio-language";
 import type { MediaToPlay } from "@/lib/atoms";
-import type { StreamMetadata, StreamTrackMetadata } from "@/lib/media/stream-metadata";
+import type { StreamMetadata, StreamTrackMetadata, StreamProbeBudget } from "@/lib/media/stream-metadata";
 import type { StremioStream } from "@/types/stremio";
 import type { PlaybackStreamRequest } from "@/lib/media/fetch-playback-streams";
 import { parseStreamReleaseInfo } from "@/lib/media/stream-release-info";
 
-export type PlaybackPhase = "finding-episode" | "fetching-streams" | "loading-stream";
+export type PlaybackPhase = "finding-episode" | "fetching-streams" | "checking-streams" | "loading-stream";
 
 interface PlaybackDependencies {
     autoSelectWebStream?: boolean;
@@ -14,7 +14,9 @@ interface PlaybackDependencies {
     preferredAudioLanguage?: string;
     resolveId?: (_id: string, _type: "movie" | "series") => Promise<string>;
     environment?: "web" | "native";
-    inspectStream?: (_stream: StremioStream) => Promise<StreamMetadata | undefined>;
+    inspectStream?: (_stream: StremioStream, _options: { signal: AbortSignal; budget: StreamProbeBudget }) => Promise<StreamMetadata | undefined>;
+    verifyStream?: (_stream: StremioStream, _options: { signal: AbortSignal }) => Promise<"supported" | "unsupported" | "unknown">;
+    onPlaybackConfirmation?: (_confirm: () => void) => () => void;
     canPlayType?: (_mime: string) => boolean;
     excludeUrls?: ReadonlySet<string>;
     onCandidates?: (_streams: StremioStream[]) => void;
@@ -28,6 +30,7 @@ interface PlaybackDependencies {
 export const playbackPhaseLabels: Record<PlaybackPhase, string> = {
     "finding-episode": "Finding an episode…",
     "fetching-streams": "Fetching streams…",
+    "checking-streams": "Checking video and audio…",
     "loading-stream": "Loading stream…",
 };
 
@@ -108,12 +111,12 @@ function audioCodecString(track: StreamTrackMetadata): string | null {
     return null;
 }
 
-const INITIAL_WEB_PROBES = 2;
-const HEDGED_WEB_PROBES = 3;
-const WEB_PROBE_HEDGE_MS = 400;
-const MAX_WEB_PROBE_CANDIDATES = 5;
+const INITIAL_WEB_PROBES = 5;
+const BACKGROUND_WEB_PROBES = 2;
+const WEB_PROBE_WORK_MS = 8_000;
+const WEB_PROBE_BYTES = 8 * 1024 * 1024;
 
-/** Race bounded metadata reads, not players. Unknown is usable; proven missing/unsupported tracks are not. */
+/** Race real audiovisual decoder checks. Unknown must never reach the main player. */
 function selectFastWebStream(
     source: {
         promise: Promise<StremioStream[]>;
@@ -124,14 +127,19 @@ function selectFastWebStream(
 ): Promise<StremioStream> {
     return new Promise((resolve, reject) => {
         const support = new Map<string, ReturnType<typeof webMetadataSupport>>();
+        const decoded = new Map<string, "supported" | "unsupported" | "unknown">();
         const languages = new Map<string, string>();
         const releaseScores = new Map<StremioStream, number>();
         const checked = new Set<string>();
         let streams: StremioStream[] = [], complete = false, running = 0, selected = false, closed = false;
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        let hedgeTimer: ReturnType<typeof setTimeout> | undefined;
+        let workTimer: ReturnType<typeof setTimeout> | undefined;
+        const pool = new AbortController();
+        const budget: StreamProbeBudget = { remainingBytes: WEB_PROBE_BYTES };
+        let workStopped = false, playbackConfirmed = false;
+        let workStartedAt: number | undefined;
+        let selectedUrl: string | undefined;
+        let removeConfirmation: (() => void) | undefined;
         let probeLimit = INITIAL_WEB_PROBES;
-        let expired = false;
         let unsubscribe: (() => void) | undefined;
         const urlOf = (stream: StremioStream) => (stream.url || stream.externalUrl)!;
         const score = (stream: StremioStream) => {
@@ -146,15 +154,17 @@ function selectFastWebStream(
             const seen = new Set<string>();
             return streams.filter(stream => {
                 const url = urlOf(stream);
-                if (!/^https?:\/\//i.test(url || "") || seen.has(url) || dependencies.excludeUrls?.has(url) || support.get(url) === "unsupported") return false;
+                if (!/^https?:\/\//i.test(url || "") || seen.has(url) || dependencies.excludeUrls?.has(url)
+                    || decoded.get(url) === "unsupported" || (support.get(url) === "unsupported" && decoded.get(url) !== "supported")) return false;
                 seen.add(url);
                 return true;
             }).sort((a, b) => score(b) - score(a));
         };
         const cleanup = () => {
             closed = true;
-            clearTimeout(timer);
-            clearTimeout(hedgeTimer);
+            clearTimeout(workTimer);
+            pool.abort();
+            removeConfirmation?.();
             unsubscribe?.();
             dependencies.signal?.removeEventListener("abort", abort);
         };
@@ -165,61 +175,81 @@ function selectFastWebStream(
         const choose = (stream: StremioStream) => {
             if (selected) return;
             selected = true;
-            clearTimeout(timer);
-            clearTimeout(hedgeTimer);
-            // Background backups don't need the startup hedge's extra bandwidth.
-            probeLimit = INITIAL_WEB_PROBES;
+            selectedUrl = urlOf(stream);
+            probeLimit = BACKGROUND_WEB_PROBES;
             resolve(stream);
         };
         const update = () => {
             if (closed) return;
             const candidates = ranked();
             dependencies.onCandidates?.(candidates);
-            if (!selected && candidates.length && !timer) {
-                // The budget starts with the first candidate, not before addon discovery.
-                timer = setTimeout(() => { expired = true; update(); }, 2200);
+            // Fast cached/CORS results can chain microtasks ahead of timers.
+            const elapsed = workStartedAt === undefined ? 0 : Date.now() - workStartedAt;
+            if (budget.remainingBytes <= 0 || elapsed >= WEB_PROBE_WORK_MS) {
+                workStopped = true;
+                pool.abort();
             }
-            const verified = candidates.find(stream => support.get(urlOf(stream)) === "supported"
+            if (!selected && candidates.length && workStartedAt === undefined) {
+                // The budget starts with the first candidate, not before addon discovery.
+                workStartedAt = Date.now();
+                workTimer = setTimeout(() => {
+                    workStopped = true;
+                    pool.abort();
+                    update();
+                }, WEB_PROBE_WORK_MS);
+            }
+            const verified = candidates.find(stream => decoded.get(urlOf(stream)) === "supported"
                 && (!languages.has(urlOf(stream)) || languageMatchScore(languages.get(urlOf(stream))!, preferredLanguage)));
             if (verified) choose(verified);
-            if (!dependencies.inspectStream || !dependencies.canPlayType) {
-                if (candidates[0]) choose(candidates[0]);
-            } else {
-                if (!selected && candidates.length && hedgeTimer === undefined && checked.size === 0) {
-                    // A slow pair should not block a fast third candidate. This is a
-                    // startup-only hedge, not three permanent background workers.
-                    hedgeTimer = setTimeout(() => {
-                        if (closed || selected) return;
-                        probeLimit = HEDGED_WEB_PROBES;
-                        update();
-                    }, WEB_PROBE_HEDGE_MS);
-                }
-                // A small pool bounds bandwidth. Later arrivals may replace unstarted low-ranked candidates.
-                while (running < probeLimit && checked.size < MAX_WEB_PROBE_CANDIDATES) {
+            const hasBackup = candidates.some(stream => urlOf(stream) !== selectedUrl && decoded.get(urlOf(stream)) === "supported"
+                && (!languages.has(urlOf(stream)) || languageMatchScore(languages.get(urlOf(stream))!, preferredLanguage)));
+            if (selected && (workStopped || (playbackConfirmed && hasBackup))) { cleanup(); return; }
+            {
+                // Walk past rejected candidates without a count cap. Pause once
+                // a backup is ready; the elapsed-time and shared byte budgets
+                // bound work even when an addon supplies hundreds of files.
+                while (!workStopped && !(selected && hasBackup) && running < probeLimit) {
                     const candidate = candidates.find(stream => !checked.has(urlOf(stream)));
                     if (!candidate) break;
                     const url = urlOf(candidate);
                     checked.add(url);
                     running++;
-                    void Promise.resolve().then(() => closed ? undefined : dependencies.inspectStream!(candidate)).then(metadata => {
-                        if (closed || !metadata) return;
-                        support.set(url, webMetadataSupport(metadata, dependencies.canPlayType!));
+                    const candidateAbort = new AbortController();
+                    const cancel = () => candidateAbort.abort();
+                    pool.signal.addEventListener("abort", cancel, { once: true });
+                    // Header inspection and decoding start together, not in two
+                    // serial phases. Metadata can reject early, never approve.
+                    void Promise.resolve().then(() => closed || pool.signal.aborted ? undefined
+                        : dependencies.inspectStream?.(candidate, { signal: candidateAbort.signal, budget })).then(metadata => {
+                        if (closed || candidateAbort.signal.aborted || !metadata) return;
+                        const status = dependencies.canPlayType ? webMetadataSupport(metadata, dependencies.canPlayType) : "unknown";
+                        support.set(url, status);
                         const language = (metadata.audio.find(track => track.primary) || metadata.audio[0])?.language;
                         if (language && language !== "und") languages.set(url, language);
-                    }).catch(() => { /* CORS, timeout and parse failure mean unknown, not broken. */ }).finally(() => {
+                        if (status === "unsupported" && decoded.get(url) !== "supported") {
+                            decoded.set(url, "unsupported");
+                            candidateAbort.abort();
+                        }
+                    }).catch(() => { /* Inconclusive metadata is not permission to play. */ });
+                    void Promise.resolve().then(() => closed || pool.signal.aborted || candidateAbort.signal.aborted ? "unknown" as const
+                        : dependencies.verifyStream?.(candidate, { signal: candidateAbort.signal }) ?? "unknown" as const).then(status => {
+                        if (!closed && decoded.get(url) !== "unsupported") decoded.set(url, status);
+                    }).catch(() => { if (!closed) decoded.set(url, "unknown"); }).finally(() => {
+                        candidateAbort.abort();
+                        pool.signal.removeEventListener("abort", cancel);
                         running--;
                         update();
                     });
                 }
-                if (!selected && candidates[0] && (expired || (complete && running === 0))) choose(candidates[0]);
             }
-            if (complete && running === 0) {
+            if (workStopped || (complete && running === 0)) {
                 cleanup();
-                if (!selected) reject(new Error("No playable streams found. Try another title or check your add-ons."));
+                if (!selected) reject(new Error("No streams could be verified with both video and audio in this browser. Try another stream or use a native player."));
             }
         };
         if (dependencies.signal?.aborted) { abort(); return; }
         dependencies.signal?.addEventListener("abort", abort, { once: true });
+        removeConfirmation = dependencies.onPlaybackConfirmation?.(() => { playbackConfirmed = true; update(); });
         // subscribe immediately publishes its current snapshot, so cleanup can precede assignment.
         unsubscribe = source.subscribe(snapshot => {
             streams = snapshot.streams;
@@ -270,6 +300,15 @@ export async function resolvePlayback(
     }
     onTargetReady?.(media);
     if (media.streamUrl) {
+        if (dependencies.environment === "web" && dependencies.autoSelectWebStream === true) {
+            onPhase("checking-streams");
+            // Manual selection chooses the URL, not permission to skip A/V checks.
+            const stream: StremioStream = { url: media.streamUrl,
+                behaviorHints: { proxyHeaders: { request: media.requestHeaders || {} } } };
+            await selectFastWebStream({ promise: Promise.resolve([stream]), subscribe(listener) {
+                listener({ streams: [stream], complete: true }); return () => {};
+            } }, { ...dependencies, onCandidates: undefined, onPlaybackConfirmation: undefined }, preferredAudioLanguage);
+        }
         onPhase("loading-stream");
         return media;
     }
@@ -290,6 +329,7 @@ export async function resolvePlayback(
                 },
             };
         })();
+        onPhase("checking-streams");
         const stream = await selectFastWebStream(source, dependencies, preferredAudioLanguage);
         onPhase("loading-stream");
         return {

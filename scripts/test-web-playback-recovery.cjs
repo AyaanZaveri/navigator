@@ -106,6 +106,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
             if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
+            if (name === '@/lib/media/stream-playability') return { probeStreamPlayability: async () => 'supported' };
             if (name === '@/lib/media/fetch-playback-streams') return {
                 async fetchPlaybackStreams() { streamFetches++; return streams; },
                 createPlaybackStreamRequest(id, type) { streamFetches++; return { id, type, canonicalId: Promise.resolve(id), snapshot: { streams, pending: 0, total: streams.length, complete: true }, promise: Promise.resolve(streams), subscribe(listener) { listener(this.snapshot); return () => {}; } }; },

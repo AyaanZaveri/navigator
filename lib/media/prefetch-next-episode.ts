@@ -3,6 +3,7 @@ import { fetchPlaybackDetails } from "./fetch-playback-details";
 import { resolvePlayback } from "./resolve-playback";
 import { mergePlaybackDetails, initialPlaybackDetails } from "./playback-details";
 import { probeStreamMetadata } from "./stream-metadata";
+import { probeStreamPlayability } from "./stream-playability";
 import { readPlaybackPreferences } from "./playback-preferences";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { Episode } from "@/app/actions/tv-shows";
@@ -23,9 +24,11 @@ export async function prepareNextEpisode(media: MediaToPlay, native: boolean, si
     resolvePlayback({ ...media, streamRequest }, {
       environment: native ? "native" : "web", preferredAudioLanguage: preferences.audioLanguage,
       autoSelectWebStream: preferences.autoSelectWebStream,
+      signal,
       fetchStreams: () => streamRequest.promise, getNextEpisodeForSeries: async () => null,
       canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
-      inspectStream: probe ? stream => probeStreamMetadata(stream, { signal }) : undefined,
+      inspectStream: probe ? (stream, options) => probeStreamMetadata(stream, { signal: options.signal, budget: options.budget }) : undefined,
+      verifyStream: (stream, options) => probeStreamPlayability(stream, { signal: options.signal, preferredAudioLanguage: preferences.audioLanguage }),
     }, () => {}),
     fetchPlaybackDetails(media, signal).catch(() => null),
   ]);

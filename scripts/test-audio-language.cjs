@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function load(file, requireFn) {
-    const context = { exports: {}, require: requireFn, setTimeout, clearTimeout };
+    const context = { exports: {}, require: requireFn, setTimeout, clearTimeout, AbortController };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText, context);
@@ -43,6 +43,7 @@ const { resolvePlayback } = load('lib/media/resolve-playback.ts', name => name =
     }
     const result = await resolvePlayback({ id: 'movie', type: 'movie' }, {
         environment: 'web', autoSelectWebStream: true, fetchStreams: async () => streams.map(s => ({ ...s, title: 'H264 AAC' })), canPlayType: () => true,
+        verifyStream: async () => 'supported',
         inspectStream: async s => ({ video: { codec: 'h264', codecString: 'avc1.640028' }, audio: [{ codec: 'aac', codecString: 'mp4a.40.2', language: s.url.includes('Russian') ? 'rus' : 'eng', primary: true }] }),
     }, () => {});
     assert.equal(result.streamUrl, streams[1].url, 'Container audio language repairs absent release labels');
