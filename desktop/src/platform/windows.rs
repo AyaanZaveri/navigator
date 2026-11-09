@@ -293,6 +293,32 @@ fn caption_button_hit(x: f64, y: f64, right: f64) -> Option<u32> {
     })
 }
 
+fn chrome_region_hit(x: f64, y: f64, right: f64, fullscreen: bool) -> Option<u32> {
+    if y < 3.0 || !(0.0..right).contains(&x) {
+        return None;
+    }
+    if let Some(button) = caption_button_hit(x, y, right) {
+        return Some(button);
+    }
+    if !fullscreen && y < 16.0 {
+        return Some(HTCAPTION);
+    }
+    None
+}
+
+#[cfg(test)]
+#[test]
+fn fullscreen_keeps_caption_actions_without_dragging_the_window() {
+    for fullscreen in [false, true] {
+        assert_eq!(chrome_region_hit(1200.0, 12.0, 1280.0, fullscreen), Some(HTMINBUTTON));
+        assert_eq!(chrome_region_hit(1232.0, 12.0, 1280.0, fullscreen), Some(HTMAXBUTTON));
+        assert_eq!(chrome_region_hit(1264.0, 12.0, 1280.0, fullscreen), Some(HTCLOSE));
+        assert_eq!(chrome_region_hit(1264.0, 26.0, 1280.0, fullscreen), None);
+    }
+    assert_eq!(chrome_region_hit(100.0, 12.0, 1280.0, false), Some(HTCAPTION));
+    assert_eq!(chrome_region_hit(100.0, 12.0, 1280.0, true), None);
+}
+
 #[cfg(test)]
 #[test]
 fn compact_caption_buttons_keep_distinct_hit_regions() {
@@ -308,9 +334,6 @@ fn compact_caption_buttons_keep_distinct_hit_regions() {
 }
 
 fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
-    if CHROME_FULLSCREEN.get() {
-        return None;
-    }
     unsafe {
         let mut point = POINT {
             x: (lparam as u16 as i16) as i32,
@@ -323,16 +346,7 @@ fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
         let x = point.x as f64 / scale;
         let y = point.y as f64 / scale;
         let right = rect.right as f64 / scale;
-        if y < 3.0 || !(0.0..right).contains(&x) {
-            return None;
-        }
-        if let Some(button) = caption_button_hit(x, y, right) {
-            return Some(button);
-        }
-        if y < 16.0 {
-            return Some(HTCAPTION);
-        }
-        None
+        chrome_region_hit(x, y, right, CHROME_FULLSCREEN.get())
     }
 }
 unsafe extern "system" fn chrome_proc(

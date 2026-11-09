@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Maximize, Minus, X } from "lucide-react";
+import { Maximize, Minimize, Minus, X } from "lucide-react";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import styles from "./window-controls.module.css";
 
@@ -18,15 +18,15 @@ export function DesktopWindowControls() {
       if (message.type === "fullscreen") setFullscreen(message.value);
     });
   }, []);
-  if (!windows || fullscreen) return null;
+  if (!windows) return null;
   const send = (action: "minimize" | "toggle-maximize" | "close") => desktopBridge()?.send({ type: "window-control", action });
   return (
     <div className={styles.controls} aria-label="Window controls" data-no-window-drag="">
       <button type="button" aria-label="Minimize" title="Minimize" onClick={() => send("minimize")}>
         <Minus size={12} strokeWidth={1.5} aria-hidden="true" />
       </button>
-      <button type="button" aria-label="Enter fullscreen" title="Fullscreen (F11)" onClick={() => send("toggle-maximize")}>
-        <Maximize size={12} strokeWidth={1.5} aria-hidden="true" />
+      <button type="button" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={fullscreen ? "Exit fullscreen (F11)" : "Fullscreen (F11)"} onClick={() => send("toggle-maximize")}>
+        {fullscreen ? <Minimize size={12} strokeWidth={1.5} aria-hidden="true" /> : <Maximize size={12} strokeWidth={1.5} aria-hidden="true" />}
       </button>
       <button type="button" aria-label="Close window" title="Close" className={styles.close} onClick={() => send("close")}>
         <X size={12} strokeWidth={1.5} aria-hidden="true" />

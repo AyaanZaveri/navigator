@@ -40,14 +40,15 @@ Release verification inspects imports so the release needs no separately install
 Windows draws minimize, app fullscreen and close inside the app, with no
 separate system title bar. The middle caption control enters fullscreen for the
 entire app, covering the taskbar. Native caption hit testing retains window
-dragging, double-click maximize, Alt+Space, Alt+F4 and Snap hover (HTMAXBUTTON). Fullscreen hides
-the window buttons and retains F11/Escape behavior. Its minimum client size is 480×360 logical pixels; player controls
+dragging, double-click maximize, Alt+Space, Alt+F4 and Snap hover (HTMAXBUTTON). Fullscreen keeps
+the compact window buttons, with an Exit fullscreen action and F11/Escape behavior. Its minimum client size is 480×360 logical pixels; player controls
 wrap in narrow windows. Normal window size/position and maximized state persist,
 and saved placement is clamped onto an available display. A second launch
 restores/activates the running window.
 
 The Windows header uses the web's top spacing and trailing account placement.
-Compact 32×24 caption controls use Lucide icons. Horizontal clearance protects the caption buttons in narrow windows;
+Compact 32×24 caption controls use Lucide icons. A small vertical clearance
+keeps the trailing avatar at the shared page gutter below the caption controls;
 there is no extra caption row. The account menu aligns its trailing edge with the avatar and clamps to the viewport. The shared page scrollport uses
 Radix's overlay thumb on every platform, preserving native scrolling without
 reserving a scrollbar gutter.

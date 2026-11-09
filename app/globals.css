@@ -36,7 +36,6 @@ html[data-native-platform="macos"] {
   --app-header-height: 5.25rem;
 }
 html[data-native-platform="macos"][data-desktop-fullscreen="true"] { --window-controls-inset: 0px; }
-html[data-native-platform="windows"][data-desktop-fullscreen="false"] { --window-controls-right-inset: 112px; }
 @media (width < 48rem) {
   html[data-native-engine="exoplayer"] { --app-header-navigation-padding: .5rem; }
 }
