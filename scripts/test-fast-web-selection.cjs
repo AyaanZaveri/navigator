@@ -65,14 +65,17 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
 
     const timed = source(), hanging = deferred(); let timedSignal;
     const timedPending = resolvePlayback({ ...request, streamRequest: timed }, { ...base,
-        verifyStream: (_, options) => { timedSignal = options.signal; return hanging.promise; },
+        verifyStream: (_, options) => { timedSignal = options.signal; assert.equal(options.timeoutMs, 45000); return hanging.promise; },
     }, () => {});
     timed.publish([fast]); await flush();
     assert.ok(![...timers.values()].some(timer => timer.ms === 2200), 'There is no timer that promotes unknown streams');
-    [...timers.values()].find(timer => timer.ms === 8000).fn();
-    assert.equal(timedSignal.aborted, false, 'Queue admission deadline must not abort an already-admitted playback check');
+    assert.ok([...timers.values()].some(timer => timer.ms === 45000), 'Stream selection gets a single 45-second deadline');
+    assert.ok(![...timers.values()].some(timer => [4000, 8000, 12000].includes(timer.ms)), 'Old short deadlines must not cut checks off');
+    wallTime = 44999;
+    assert.equal(timedSignal.aborted, false, 'Keep an admitted stream alive until the requested 45-second deadline');
     hanging.resolve('supported'); await flush();
     assert.equal((await timedPending).streamUrl, fast.url);
+    timed.publish([fast], true); await flush(); wallTime = 0;
     assert.equal(timed.listeners.size, 0); assert.equal(timers.size, 0);
 
     const hardTimed = source(), hardHanging = deferred(); let hardSignal;
@@ -80,7 +83,7 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
         verifyStream: (_, options) => { hardSignal = options.signal; return hardHanging.promise; },
     }, () => {});
     hardTimed.publish([fast]); await flush();
-    [...timers.values()].find(timer => timer.ms === 12000).fn();
+    [...timers.values()].find(timer => timer.ms === 45000).fn();
     await assert.rejects(hardPending, /timed out/);
     assert.equal(hardSignal.aborted, true);
     hardHanging.resolve('supported'); await flush(); assert.equal(timers.size, 0);

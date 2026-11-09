@@ -28,7 +28,8 @@ export async function prepareNextEpisode(media: MediaToPlay, native: boolean, si
       fetchStreams: () => streamRequest.promise, getNextEpisodeForSeries: async () => null,
       canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
       inspectStream: probe ? (stream, options) => probeStreamMetadata(stream, { signal: options.signal, budget: options.budget }) : undefined,
-      verifyStream: (stream, options) => probeStreamPlayability(stream, { signal: options.signal, preferredAudioLanguage: preferences.audioLanguage, metadata: options.metadata }),
+      verifyStream: (stream, options) => probeStreamPlayability(stream, { signal: options.signal, preferredAudioLanguage: preferences.audioLanguage,
+        metadata: options.metadata, timeoutMs: options.timeoutMs, onAudioLanguage: options.onAudioLanguage }),
     }, () => {}),
     fetchPlaybackDetails(media, signal).catch(() => null),
   ]);

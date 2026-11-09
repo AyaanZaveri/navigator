@@ -5,6 +5,7 @@ import type { StremioStream } from "@/types/stremio";
 import type { PlaybackStreamRequest } from "@/lib/media/fetch-playback-streams";
 import { parseStreamReleaseInfo } from "@/lib/media/stream-release-info";
 import { audioTrackMime } from "@/lib/media/stream-codecs";
+import { WEB_STREAM_CHECK_TIMEOUT_MS } from "@/lib/media/playback-limits";
 
 export type PlaybackPhase = "finding-episode" | "fetching-streams" | "checking-streams" | "loading-stream";
 
@@ -16,7 +17,7 @@ interface PlaybackDependencies {
     resolveId?: (_id: string, _type: "movie" | "series") => Promise<string>;
     environment?: "web" | "native";
     inspectStream?: (_stream: StremioStream, _options: { signal: AbortSignal; budget: StreamProbeBudget }) => Promise<StreamMetadata | undefined>;
-    verifyStream?: (_stream: StremioStream, _options: { signal: AbortSignal; metadata: Promise<StreamMetadata | undefined> }) => Promise<"supported" | "unsupported" | "unknown">;
+    verifyStream?: (_stream: StremioStream, _options: { signal: AbortSignal; metadata: Promise<StreamMetadata | undefined>; timeoutMs: number; onAudioLanguage: (_language: string) => void }) => Promise<"supported" | "unsupported" | "unknown">;
     onPlaybackConfirmation?: (_confirm: () => void) => () => void;
     canPlayType?: (_mime: string) => boolean;
     excludeUrls?: ReadonlySet<string>;
@@ -97,8 +98,6 @@ export function webMetadataSupport(metadata: StreamMetadata, canPlayType: (_mime
 
 const INITIAL_WEB_PROBES = 5;
 const BACKGROUND_WEB_PROBES = 2;
-const WEB_PROBE_WORK_MS = 8_000;
-const WEB_PROBE_DRAIN_MS = 4_000;
 const WEB_PROBE_BYTES = 8 * 1024 * 1024;
 
 /** Race real audiovisual decoder checks. Unknown must never reach the main player. */
@@ -114,11 +113,13 @@ function selectFastWebStream(
         const support = new Map<string, ReturnType<typeof webMetadataSupport>>();
         const decoded = new Map<string, "supported" | "unsupported" | "unknown">();
         const languages = new Map<string, string>();
+        const selectedLanguages = new Map<string, string>();
+        const preferredTrackAvailable = new Map<string, boolean>();
         const releaseScores = new Map<StremioStream, number>();
         const checked = new Set<string>();
+        const languagePending = new Set<string>();
         let streams: StremioStream[] = [], complete = false, running = 0, selected = false, closed = false;
         let workTimer: ReturnType<typeof setTimeout> | undefined;
-        let drainTimer: ReturnType<typeof setTimeout> | undefined;
         const pool = new AbortController();
         const budget: StreamProbeBudget = { remainingBytes: WEB_PROBE_BYTES };
         let workStopped = false, playbackConfirmed = false;
@@ -128,8 +129,16 @@ function selectFastWebStream(
         let probeLimit = INITIAL_WEB_PROBES;
         let unsubscribe: (() => void) | undefined;
         const urlOf = (stream: StremioStream) => (stream.url || stream.externalUrl)!;
+        const languageFor = (stream: StremioStream) => selectedLanguages.get(urlOf(stream)) || languages.get(urlOf(stream));
+        const languageTier = (stream: StremioStream) => {
+            const actual = languageFor(stream);
+            if (actual) return languageMatchScore(actual, preferredLanguage) > 0 ? 2 : -1;
+            const label = streamLanguagePreference(stream, preferredLanguage);
+            // A multi-language label doesn't establish which track is selected.
+            return label > 1 ? 1 : label < 0 ? -1 : 0;
+        };
         const score = (stream: StremioStream) => {
-            const language = languages.get(urlOf(stream));
+            const language = languageFor(stream);
             if (!releaseScores.has(stream)) releaseScores.set(stream, scoreWebStream(stream, dependencies.canPlayType, preferredLanguage));
             return releaseScores.get(stream)!
                 + (language ? languageScore(languageMatchScore(language, preferredLanguage) ? 2 : -1)
@@ -138,6 +147,8 @@ function selectFastWebStream(
         };
         const ranked = () => {
             const seen = new Set<string>();
+            // Keep browser compatibility ahead of language for probe scheduling;
+            // selection below still waits for a viable preferred-language match.
             return streams.filter(stream => {
                 const url = urlOf(stream);
                 if (!/^https?:\/\//i.test(url || "") || seen.has(url) || dependencies.excludeUrls?.has(url)
@@ -149,7 +160,6 @@ function selectFastWebStream(
         const cleanup = () => {
             closed = true;
             clearTimeout(workTimer);
-            clearTimeout(drainTimer);
             pool.abort();
             removeConfirmation?.();
             unsubscribe?.();
@@ -172,27 +182,30 @@ function selectFastWebStream(
             dependencies.onCandidates?.(candidates);
             // Fast cached/CORS results can chain microtasks ahead of timers.
             const elapsed = workStartedAt === undefined ? 0 : Date.now() - workStartedAt;
-            if (elapsed >= WEB_PROBE_WORK_MS) workStopped = true;
+            if (elapsed >= WEB_STREAM_CHECK_TIMEOUT_MS) workStopped = true;
             if (!selected && candidates.length && workStartedAt === undefined) {
                 // The budget starts with the first candidate, not before addon discovery.
                 workStartedAt = Date.now();
                 workTimer = setTimeout(() => {
                     workStopped = true;
                     update();
-                }, WEB_PROBE_WORK_MS);
-                // Stop queue admission at 8s, but don't kill a healthy probe
-                // admitted near that deadline before its own 4s allowance.
-                drainTimer = setTimeout(() => {
-                    cleanup();
-                    if (!selected) reject(new Error("Stream checks timed out before playback could be confirmed. Try again."));
-                }, WEB_PROBE_WORK_MS + WEB_PROBE_DRAIN_MS);
+                }, WEB_STREAM_CHECK_TIMEOUT_MS);
             }
-            const verified = candidates.find(stream => decoded.get(urlOf(stream)) === "supported"
-                && (!languages.has(urlOf(stream)) || languageMatchScore(languages.get(urlOf(stream))!, preferredLanguage)))
-                || ((workStopped || (complete && running === 0)) ? candidates.find(stream => decoded.get(urlOf(stream)) === "supported") : undefined);
+            const verifiedCandidates = candidates.filter(stream => decoded.get(urlOf(stream)) === "supported"
+                && (workStopped || !languagePending.has(urlOf(stream))))
+                .sort((a, b) => languageTier(b) - languageTier(a) || score(b) - score(a));
+            const pending = (stream: StremioStream) => decoded.get(urlOf(stream)) === undefined || languagePending.has(urlOf(stream));
+            const preferredPending = candidates.some(stream => languageTier(stream) > 0 && pending(stream));
+            const possibleMatchPending = candidates.some(stream => pending(stream)
+                && (preferredTrackAvailable.get(urlOf(stream)) ?? true));
+            // Don't let a fast Russian/unknown source outrun a known preferred
+            // language candidate. A known other language is a last resort only.
+            const verified = verifiedCandidates.find(stream => languageTier(stream) > 0)
+                || (!preferredPending ? verifiedCandidates.find(stream => languageTier(stream) === 0) : undefined)
+                || ((workStopped || (complete && !possibleMatchPending)) ? verifiedCandidates[0] : undefined);
             if (verified) choose(verified);
             const hasBackup = candidates.some(stream => urlOf(stream) !== selectedUrl && decoded.get(urlOf(stream)) === "supported"
-                && (!languages.has(urlOf(stream)) || languageMatchScore(languages.get(urlOf(stream))!, preferredLanguage)));
+                && !languagePending.has(urlOf(stream)) && languageTier(stream) >= 0);
             if (selected && (workStopped || (playbackConfirmed && hasBackup))) { cleanup(); return; }
             {
                 // Walk past rejected candidates without a count cap. Pause once
@@ -216,13 +229,30 @@ function selectFastWebStream(
                         const status = dependencies.canPlayType ? webMetadataSupport(metadata, dependencies.canPlayType) : "unknown";
                         support.set(url, status);
                         const language = (metadata.audio.find(track => track.primary) || metadata.audio[0])?.language;
-                        if (language && language !== "und") languages.set(url, language);
+                        if (language && !/^(und|unknown|zxx)$/i.test(language)) languages.set(url, language);
+                        if (metadata.audio.some(track => languageMatchScore(track.language, preferredLanguage) > 0)) {
+                            preferredTrackAvailable.set(url, true);
+                        } else if (metadata.audio.length && metadata.audio.every(track => track.language && !/^(und|unknown|zxx)$/i.test(track.language))) {
+                            preferredTrackAvailable.set(url, false);
+                        }
                         return metadata;
                     }).catch(() => undefined);
                     void Promise.resolve().then(() => closed || pool.signal.aborted || candidateAbort.signal.aborted ? "unknown" as const
-                        : dependencies.verifyStream?.(candidate, { signal: candidateAbort.signal, metadata }) ?? "unknown" as const).then(status => {
+                        : dependencies.verifyStream?.(candidate, { signal: candidateAbort.signal, metadata,
+                            timeoutMs: Math.max(1, WEB_STREAM_CHECK_TIMEOUT_MS - (Date.now() - workStartedAt!)),
+                            onAudioLanguage: language => {
+                                if (!closed && !candidateAbort.signal.aborted && typeof language === "string" && language && !/^(und|unknown|zxx)$/i.test(language)) selectedLanguages.set(url, language);
+                            },
+                        }) ?? "unknown" as const).then(async status => {
                         if (!closed) decoded.set(url, status);
+                        // A quick video/capture success must not abort the header
+                        // read before we learn that its default sound is Russian.
+                        if (status === "supported" && !selectedLanguages.has(url)) {
+                            languagePending.add(url);
+                            await metadata;
+                        }
                     }).catch(() => { if (!closed) decoded.set(url, "unknown"); }).finally(() => {
+                        languagePending.delete(url);
                         candidateAbort.abort();
                         pool.signal.removeEventListener("abort", cancel);
                         running--;
@@ -230,7 +260,7 @@ function selectFastWebStream(
                     });
                 }
             }
-            if ((workStopped && running === 0) || (complete && running === 0)) {
+            if (workStopped || (complete && running === 0)) {
                 cleanup();
                 if (!selected) reject(new Error(workStopped ? "Stream checks timed out before playback could be confirmed. Try again."
                     : [...decoded.values()].includes("unknown") ? "The browser could not finish checking these streams. Try again."

@@ -84,6 +84,20 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   assert.equal(await probe(brave, new AbortController().signal, 5), 'unknown', 'A muted captured source track is not positive audio evidence');
 
   let v = fake(), c = new AbortController();
+  const originalTimeout = sandbox.setTimeout; let defaultTimeout;
+  sandbox.setTimeout = (fn, ms) => { defaultTimeout = ms; return setTimeout(fn, ms); };
+  const defaultProbe = probe(v, c.signal); c.abort();
+  assert.equal(await defaultProbe, 'unknown'); assert.equal(defaultTimeout, 45000, 'The per-stream default must use the same 45-second deadline');
+  sandbox.setTimeout = originalTimeout;
+
+  v = fake(); c = new AbortController();
+  v.webkitVideoDecodedByteCount = 1; v.webkitAudioDecodedByteCount = 1;
+  v.audioTracks = { 0: { enabled: false, language: 'ru' }, 1: { enabled: true, language: 'fr' }, length: 2 };
+  let selectedLanguage;
+  assert.equal(await probe(v, c.signal, 100, undefined, { preferredAudioLanguage: 'fr', onAudioLanguage: language => { selectedLanguage = language; } }), 'supported');
+  assert.equal(selectedLanguage, 'fr', 'Report the actual enabled audio language, not a default or filename guess');
+
+  v = fake(); c = new AbortController();
   const supported = probe(v, c.signal, 100);
   v.webkitVideoDecodedByteCount = 12; v.webkitAudioDecodedByteCount = 8; v.fire('timeupdate');
   assert.equal(await supported, 'supported');

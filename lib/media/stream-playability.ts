@@ -1,8 +1,9 @@
 import type { StremioStream } from "@/types/stremio";
 import { getWebPlaybackElement } from "@/lib/media/playback-source";
-import { installAudioLanguagePreference } from "@/lib/media/audio-language";
+import { installAudioLanguagePreference, preferredAudioTrack } from "@/lib/media/audio-language";
 import { metadataAudioSupport } from "@/lib/media/stream-codecs";
 import type { StreamMetadata } from "@/lib/media/stream-metadata";
+import { WEB_STREAM_CHECK_TIMEOUT_MS } from "@/lib/media/playback-limits";
 
 type ProbeVideo = HTMLVideoElement & {
   webkitVideoDecodedByteCount?: number;
@@ -18,8 +19,9 @@ export type Playability = "supported" | "unsupported" | "unknown";
 export function verifyMediaElementPlayback(
   video: ProbeVideo,
   signal: AbortSignal,
-  timeoutMs = 4000,
+  timeoutMs = WEB_STREAM_CHECK_TIMEOUT_MS,
   metadata?: Promise<StreamMetadata | undefined>,
+  trackOptions: { preferredAudioLanguage?: string; onAudioLanguage?: (_language: string) => void } = {},
 ): Promise<Playability> {
   return new Promise((resolve) => {
     let settled = false;
@@ -76,9 +78,16 @@ export function verifyMediaElementPlayback(
     function inspect() {
       if (settled || signal.aborted) return;
       const decoder = (video.nativeEl ?? video) as ProbeVideo;
+      type TrackView = { enabled?: boolean; language?: string; lang?: string; label?: string };
+      const tracks = (video as unknown as { audioTracks?: ArrayLike<TrackView> }).audioTracks
+        || (decoder as unknown as { audioTracks?: ArrayLike<TrackView> }).audioTracks;
+      const enabledTracks = tracks ? Array.from(tracks).filter(track => track.enabled) : [];
+      const selectedTrack = preferredAudioTrack(enabledTracks, trackOptions.preferredAudioLanguage) || enabledTracks[0];
+      const declaredLanguage = selectedTrack?.language || selectedTrack?.lang;
+      const selectedLanguage = declaredLanguage && !/^(und|unknown|zxx)$/i.test(declaredLanguage) ? declaredLanguage
+        : selectedTrack && preferredAudioTrack([selectedTrack], trackOptions.preferredAudioLanguage) ? trackOptions.preferredAudioLanguage || "en" : undefined;
+      if (selectedLanguage) trackOptions.onAudioLanguage?.(selectedLanguage);
       if (trackMetadata) {
-        const tracks = (video as unknown as { audioTracks?: ArrayLike<{ enabled?: boolean; language?: string }> }).audioTracks;
-        const selectedLanguage = tracks ? Array.from(tracks).find(track => track.enabled)?.language : undefined;
         audioMetadata = metadataAudioSupport(trackMetadata, mime => Boolean(decoder.canPlayType?.(mime)), selectedLanguage);
       }
       if (!captured) {
@@ -128,7 +137,7 @@ export function verifyMediaElementPlayback(
 
 export async function probeStreamPlayability(
   stream: StremioStream,
-  options: { signal: AbortSignal; timeoutMs?: number; preferredAudioLanguage?: string; metadata?: Promise<StreamMetadata | undefined> },
+  options: { signal: AbortSignal; timeoutMs?: number; preferredAudioLanguage?: string; metadata?: Promise<StreamMetadata | undefined>; onAudioLanguage?: (_language: string) => void },
 ): Promise<Playability> {
   const src = stream.url || stream.externalUrl;
   if (!src || options.signal.aborted || typeof document === "undefined"
@@ -163,7 +172,7 @@ export async function probeStreamPlayability(
   video.style.cssText = "position:fixed;width:1px;height:1px;clip-path:inset(100%);pointer-events:none;";
   document.body.append(video);
   const removeLanguagePreference = installAudioLanguagePreference(video, options.preferredAudioLanguage);
-  const result = verifyMediaElementPlayback(video, options.signal, options.timeoutMs ?? 4000, options.metadata);
+  const result = verifyMediaElementPlayback(video, options.signal, options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS, options.metadata, options);
   if (!options.signal.aborted) video.src = src;
   return result.finally(removeLanguagePreference);
 }

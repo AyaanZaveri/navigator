@@ -677,7 +677,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         environment: nativePlayback ? "native" : "web",
         canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
         inspectStream: probe ? (candidate, options) => probeStreamMetadata(candidate, { signal: options.signal, budget: options.budget }) : undefined,
-        verifyStream: (candidate, options) => probeStreamPlayability(candidate, { signal: options.signal, metadata: options.metadata, preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage }),
+        verifyStream: (candidate, options) => probeStreamPlayability(candidate, { signal: options.signal, metadata: options.metadata,
+          timeoutMs: options.timeoutMs, onAudioLanguage: options.onAudioLanguage, preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage }),
         onPlaybackConfirmation: confirm => {
           if (isCurrent()) confirmWebPlaybackRef.current = confirm;
           return () => { if (confirmWebPlaybackRef.current === confirm) confirmWebPlaybackRef.current = null; };
