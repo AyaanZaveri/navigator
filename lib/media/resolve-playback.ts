@@ -1,9 +1,10 @@
 import { languageMatchScore, streamLanguagePreference } from "@/lib/media/audio-language";
 import type { MediaToPlay } from "@/lib/atoms";
-import type { StreamMetadata, StreamTrackMetadata, StreamProbeBudget } from "@/lib/media/stream-metadata";
+import type { StreamMetadata, StreamProbeBudget } from "@/lib/media/stream-metadata";
 import type { StremioStream } from "@/types/stremio";
 import type { PlaybackStreamRequest } from "@/lib/media/fetch-playback-streams";
 import { parseStreamReleaseInfo } from "@/lib/media/stream-release-info";
+import { audioTrackMime } from "@/lib/media/stream-codecs";
 
 export type PlaybackPhase = "finding-episode" | "fetching-streams" | "checking-streams" | "loading-stream";
 
@@ -15,7 +16,7 @@ interface PlaybackDependencies {
     resolveId?: (_id: string, _type: "movie" | "series") => Promise<string>;
     environment?: "web" | "native";
     inspectStream?: (_stream: StremioStream, _options: { signal: AbortSignal; budget: StreamProbeBudget }) => Promise<StreamMetadata | undefined>;
-    verifyStream?: (_stream: StremioStream, _options: { signal: AbortSignal }) => Promise<"supported" | "unsupported" | "unknown">;
+    verifyStream?: (_stream: StremioStream, _options: { signal: AbortSignal; metadata: Promise<StreamMetadata | undefined> }) => Promise<"supported" | "unsupported" | "unknown">;
     onPlaybackConfirmation?: (_confirm: () => void) => () => void;
     canPlayType?: (_mime: string) => boolean;
     excludeUrls?: ReadonlySet<string>;
@@ -88,32 +89,16 @@ export function webMetadataSupport(metadata: StreamMetadata, canPlayType: (_mime
     const videoType = video.codec === "vp8" || video.codec === "vp9" ? "video/webm" : "video/mp4";
     const videoSupported = video.codecString ? canPlayType(`${videoType}; codecs="${video.codecString}"`) : undefined;
     const audio = metadata.audio.find(track => track.primary) || metadata.audio[0];
-    const codec = audioCodecString(audio);
-    const audioType = /^(opus|vorbis)$/.test(codec || "") ? "audio/webm" : codec === "mp3" ? "audio/mpeg" : codec === "flac" ? "audio/flac" : codec === "pcm" ? "audio/wav" : "audio/mp4";
-    const audioSupported = codec ? canPlayType(["mp3", "flac", "pcm"].includes(codec) ? audioType : `${audioType}; codecs="${codec}"`) : undefined;
+    const audioMime = audioTrackMime(audio);
+    const audioSupported = audioMime ? canPlayType(audioMime) : undefined;
     if (videoSupported === false || audioSupported === false) return "unsupported";
     return videoSupported && audioSupported ? "supported" : "unknown";
-}
-
-function audioCodecString(track: StreamTrackMetadata): string | null {
-    const raw = `${track.codec || ""} ${track.internalCodecId || ""}`.toLowerCase();
-    if (/e[_.-]?ac[_.-]?3|eac3/.test(raw)) return "ec-3";
-    if (/ac[_.-]?3/.test(raw)) return "ac-3";
-    if (/truehd/.test(raw)) return "mlpa";
-    if (/dts/.test(raw)) return "dtsc";
-    if (/pcm/.test(raw)) return "pcm";
-    if (track.codecString) return track.codecString;
-    if (/\baac\b/.test(raw)) return "mp4a.40.2";
-    if (/opus/.test(raw)) return "opus";
-    if (/vorbis/.test(raw)) return "vorbis";
-    if (/mp3/.test(raw)) return "mp3";
-    if (/flac/.test(raw)) return "flac";
-    return null;
 }
 
 const INITIAL_WEB_PROBES = 5;
 const BACKGROUND_WEB_PROBES = 2;
 const WEB_PROBE_WORK_MS = 8_000;
+const WEB_PROBE_DRAIN_MS = 4_000;
 const WEB_PROBE_BYTES = 8 * 1024 * 1024;
 
 /** Race real audiovisual decoder checks. Unknown must never reach the main player. */
@@ -133,6 +118,7 @@ function selectFastWebStream(
         const checked = new Set<string>();
         let streams: StremioStream[] = [], complete = false, running = 0, selected = false, closed = false;
         let workTimer: ReturnType<typeof setTimeout> | undefined;
+        let drainTimer: ReturnType<typeof setTimeout> | undefined;
         const pool = new AbortController();
         const budget: StreamProbeBudget = { remainingBytes: WEB_PROBE_BYTES };
         let workStopped = false, playbackConfirmed = false;
@@ -155,7 +141,7 @@ function selectFastWebStream(
             return streams.filter(stream => {
                 const url = urlOf(stream);
                 if (!/^https?:\/\//i.test(url || "") || seen.has(url) || dependencies.excludeUrls?.has(url)
-                    || decoded.get(url) === "unsupported" || (support.get(url) === "unsupported" && decoded.get(url) !== "supported")) return false;
+                    || decoded.get(url) === "unsupported") return false;
                 seen.add(url);
                 return true;
             }).sort((a, b) => score(b) - score(a));
@@ -163,6 +149,7 @@ function selectFastWebStream(
         const cleanup = () => {
             closed = true;
             clearTimeout(workTimer);
+            clearTimeout(drainTimer);
             pool.abort();
             removeConfirmation?.();
             unsubscribe?.();
@@ -185,21 +172,24 @@ function selectFastWebStream(
             dependencies.onCandidates?.(candidates);
             // Fast cached/CORS results can chain microtasks ahead of timers.
             const elapsed = workStartedAt === undefined ? 0 : Date.now() - workStartedAt;
-            if (budget.remainingBytes <= 0 || elapsed >= WEB_PROBE_WORK_MS) {
-                workStopped = true;
-                pool.abort();
-            }
+            if (elapsed >= WEB_PROBE_WORK_MS) workStopped = true;
             if (!selected && candidates.length && workStartedAt === undefined) {
                 // The budget starts with the first candidate, not before addon discovery.
                 workStartedAt = Date.now();
                 workTimer = setTimeout(() => {
                     workStopped = true;
-                    pool.abort();
                     update();
                 }, WEB_PROBE_WORK_MS);
+                // Stop queue admission at 8s, but don't kill a healthy probe
+                // admitted near that deadline before its own 4s allowance.
+                drainTimer = setTimeout(() => {
+                    cleanup();
+                    if (!selected) reject(new Error("Stream checks timed out before playback could be confirmed. Try again."));
+                }, WEB_PROBE_WORK_MS + WEB_PROBE_DRAIN_MS);
             }
             const verified = candidates.find(stream => decoded.get(urlOf(stream)) === "supported"
-                && (!languages.has(urlOf(stream)) || languageMatchScore(languages.get(urlOf(stream))!, preferredLanguage)));
+                && (!languages.has(urlOf(stream)) || languageMatchScore(languages.get(urlOf(stream))!, preferredLanguage)))
+                || ((workStopped || (complete && running === 0)) ? candidates.find(stream => decoded.get(urlOf(stream)) === "supported") : undefined);
             if (verified) choose(verified);
             const hasBackup = candidates.some(stream => urlOf(stream) !== selectedUrl && decoded.get(urlOf(stream)) === "supported"
                 && (!languages.has(urlOf(stream)) || languageMatchScore(languages.get(urlOf(stream))!, preferredLanguage)));
@@ -217,23 +207,21 @@ function selectFastWebStream(
                     const candidateAbort = new AbortController();
                     const cancel = () => candidateAbort.abort();
                     pool.signal.addEventListener("abort", cancel, { once: true });
-                    // Header inspection and decoding start together, not in two
-                    // serial phases. Metadata can reject early, never approve.
-                    void Promise.resolve().then(() => closed || pool.signal.aborted ? undefined
+                    // Share one metadata read with the playback probe. Metadata
+                    // helps establish audio presence/capability, but must never
+                    // cancel a successful real playback path based on MIME guesses.
+                    const metadata = Promise.resolve().then(() => closed || pool.signal.aborted || budget.remainingBytes <= 0 ? undefined
                         : dependencies.inspectStream?.(candidate, { signal: candidateAbort.signal, budget })).then(metadata => {
-                        if (closed || candidateAbort.signal.aborted || !metadata) return;
+                        if (closed || candidateAbort.signal.aborted || !metadata) return undefined;
                         const status = dependencies.canPlayType ? webMetadataSupport(metadata, dependencies.canPlayType) : "unknown";
                         support.set(url, status);
                         const language = (metadata.audio.find(track => track.primary) || metadata.audio[0])?.language;
                         if (language && language !== "und") languages.set(url, language);
-                        if (status === "unsupported" && decoded.get(url) !== "supported") {
-                            decoded.set(url, "unsupported");
-                            candidateAbort.abort();
-                        }
-                    }).catch(() => { /* Inconclusive metadata is not permission to play. */ });
+                        return metadata;
+                    }).catch(() => undefined);
                     void Promise.resolve().then(() => closed || pool.signal.aborted || candidateAbort.signal.aborted ? "unknown" as const
-                        : dependencies.verifyStream?.(candidate, { signal: candidateAbort.signal }) ?? "unknown" as const).then(status => {
-                        if (!closed && decoded.get(url) !== "unsupported") decoded.set(url, status);
+                        : dependencies.verifyStream?.(candidate, { signal: candidateAbort.signal, metadata }) ?? "unknown" as const).then(status => {
+                        if (!closed) decoded.set(url, status);
                     }).catch(() => { if (!closed) decoded.set(url, "unknown"); }).finally(() => {
                         candidateAbort.abort();
                         pool.signal.removeEventListener("abort", cancel);
@@ -242,9 +230,11 @@ function selectFastWebStream(
                     });
                 }
             }
-            if (workStopped || (complete && running === 0)) {
+            if ((workStopped && running === 0) || (complete && running === 0)) {
                 cleanup();
-                if (!selected) reject(new Error("No streams could be verified with both video and audio in this browser. Try another stream or use a native player."));
+                if (!selected) reject(new Error(workStopped ? "Stream checks timed out before playback could be confirmed. Try again."
+                    : [...decoded.values()].includes("unknown") ? "The browser could not finish checking these streams. Try again."
+                    : "No compatible video and audio stream was found. Try another source."));
             }
         };
         if (dependencies.signal?.aborted) { abort(); return; }

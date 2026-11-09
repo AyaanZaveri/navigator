@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function languageRequire(name) {
-    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info'].includes(name)) return require(name);
+    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info', '@/lib/media/stream-codecs'].includes(name)) return require(name);
     const context = { exports: {}, require: languageRequire };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(name.replace('@/', '') + '.ts', 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -23,7 +23,7 @@ function transpile(file) {
     }).outputText;
 }
 function utility(file) {
-    const context = { exports: {}, URL, setTimeout, clearTimeout, AbortController, AbortSignal, require: languageRequire };
+    const context = { exports: {}, Error, URL, setTimeout, clearTimeout, AbortController, AbortSignal, require: languageRequire };
     vm.runInNewContext(transpile(file), context);
     return context.exports;
 }
@@ -75,7 +75,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
         },
     };
     hooks.useLayoutEffect = hooks.useEffect;
-    const context = { exports: {}, AbortController, Date: class extends Date { static now() { return wallTime; } }, console: { warn() {}, error() {} },
+    const context = { exports: {}, Error, AbortController, Date: class extends Date { static now() { return wallTime; } }, console: { warn() {}, error() {} },
         setTimeout(callback, delay) { timers.set(++timerId, { callback, delay }); return timerId; },
         clearTimeout(id) { timers.delete(id); },
         document: { documentElement: { dataset: {} }, addEventListener: noOp, removeEventListener: noOp,
@@ -212,10 +212,10 @@ async function run() {
     silent.media.volume = 1;
     silent.media.paused = false;
     silent.playing(); await silent.settle();
-    assert.equal(silent.events.some(event => event.state === 'playing'), false, 'Silent video must not tell Navigator that playback succeeded');
+    assert.ok(silent.events.some(event => event.state === 'playing'), 'A genuine playing event is acknowledged even without audio byte counters');
     silent.advance(4); await silent.settle();
-    assert.equal(silent.video.props.src, 'https://stream.example/next.mp4', 'Video decoding without supported audio must also try another file');
-    assert.match(silent.toasts.at(-1).message, /no supported audio/);
+    assert.equal(silent.video.props.src, 'https://stream.example/best.mp4', 'Advancing video with a zero audio counter must not trigger failover');
+    assert.equal(silent.toasts.length, 0);
     const audible = harness({ automatic: true }); await audible.settle();
     audible.media.webkitVideoDecodedByteCount = 20000;
     audible.media.webkitAudioDecodedByteCount = 4000;
@@ -230,7 +230,7 @@ async function run() {
     await permanent.settle();
     permanent.fail(); await permanent.settle();
     assert.equal(permanent.errorVisible, true, 'Exhausting unique streams must stop with a useful error');
-    assert.match(permanent.toasts.at(-1).message, /None of the available streams/);
+    assert.match(permanent.toasts.at(-1).message, /No compatible video and audio stream/);
     assert.equal(permanent.streamFetches, 1);
     permanent.retry(); await permanent.settle();
     assert.equal(permanent.errorVisible, false, 'Manual retry begins a fresh attempt');

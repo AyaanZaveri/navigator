@@ -70,9 +70,20 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
     timed.publish([fast]); await flush();
     assert.ok(![...timers.values()].some(timer => timer.ms === 2200), 'There is no timer that promotes unknown streams');
     [...timers.values()].find(timer => timer.ms === 8000).fn();
-    await assert.rejects(timedPending, /verified.*video and audio/);
-    assert.equal(timedSignal.aborted, true); hanging.resolve('supported'); await flush();
+    assert.equal(timedSignal.aborted, false, 'Queue admission deadline must not abort an already-admitted playback check');
+    hanging.resolve('supported'); await flush();
+    assert.equal((await timedPending).streamUrl, fast.url);
     assert.equal(timed.listeners.size, 0); assert.equal(timers.size, 0);
+
+    const hardTimed = source(), hardHanging = deferred(); let hardSignal;
+    const hardPending = resolvePlayback({ ...request, streamRequest: hardTimed }, { ...base,
+        verifyStream: (_, options) => { hardSignal = options.signal; return hardHanging.promise; },
+    }, () => {});
+    hardTimed.publish([fast]); await flush();
+    [...timers.values()].find(timer => timer.ms === 12000).fn();
+    await assert.rejects(hardPending, /timed out/);
+    assert.equal(hardSignal.aborted, true);
+    hardHanging.resolve('supported'); await flush(); assert.equal(timers.size, 0);
 
     // Time and byte exhaustion fail closed instead of starting an unverified source.
     for (const mode of ['time', 'bytes']) {
@@ -82,7 +93,7 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
             verifyStream: async () => { if (mode === 'time') wallTime += 2000; return 'unknown'; },
         }, () => {});
         exhausted.publish(Array.from({ length: 100 }, (_, i) => stream(`${mode}-${i}`)), true);
-        await assert.rejects(exhaustedPending, /verified.*video and audio/);
+        await assert.rejects(exhaustedPending, /checking|timed out/);
         await flush(); assert.equal(timers.size, 0); wallTime = 0;
     }
 

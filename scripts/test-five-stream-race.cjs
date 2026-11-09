@@ -40,13 +40,13 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
     const claimed = { video: { codec: 'avc', codecString: 'avc1.640028' }, audio: [{ codec: 'aac', codecString: 'mp4a.40.2', primary: true }] };
     await assert.rejects(resolvePlayback(request, { ...base, fetchStreams: async () => streams.slice(0, 5),
         inspectStream: async () => claimed, verifyStream: async () => 'unsupported',
-    }, () => {}), /verified|audio|video/i);
+    }, () => {}), /checking|audio|video/i);
     await assert.rejects(resolvePlayback(request, { ...base, fetchStreams: async () => streams.slice(0, 5),
         inspectStream: async () => claimed, verifyStream: async () => 'unknown',
-    }, () => {}), /verified|audio|video/i);
+    }, () => {}), /checking|audio|video/i);
     await assert.rejects(resolvePlayback(request, { ...base, fetchStreams: async () => streams.slice(0, 5),
         inspectStream: async () => claimed,
-    }, () => {}), /verified|audio|video/i, 'Missing verification must fail closed, not restore metadata-only playback');
+    }, () => {}), /checking|audio|video/i, 'Missing verification must fail closed, not restore metadata-only playback');
     await assert.rejects(resolvePlayback({ ...request, streamUrl: streams[0].url }, { ...base,
         verifyStream: async () => 'unsupported',
     }, () => {}), /verified|audio|video/i, 'An explicit URL must not bypass enabled audiovisual verification');
@@ -57,6 +57,31 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
     }, () => {});
     assert.equal(sixth.streamUrl, streams[5].url, 'Rejected first five should release slots for later candidates');
     assert.ok(checked.length >= 6);
+    assert.equal(timers.size, 0);
+
+    // Browser MIME guesses must not abort a playback path that actually works.
+    const mimeWinner = await resolvePlayback(request, { ...base, fetchStreams: async () => streams.slice(0, 1),
+        canPlayType: () => false,
+        inspectStream: async () => claimed,
+        verifyStream: async (_, options) => {
+            assert.equal(await options.metadata, claimed, 'Pass the original metadata read into playback verification');
+            assert.equal(options.signal.aborted, false, 'Unsupported MIME hints cannot veto an active real playback check');
+            return 'supported';
+        },
+    }, () => {});
+    assert.equal(mimeWinner.streamUrl, streams[0].url);
+
+    const byteChecks = [], byteAbort = new AbortController();
+    const bytePending = resolvePlayback(request, { ...base, signal: byteAbort.signal,
+        inspectStream: async (_, options) => { options.budget.remainingBytes = 0; return undefined; },
+        verifyStream: (_, options) => { const check = deferred(); byteChecks.push({ ...check, signal: options.signal }); return check.promise; },
+    }, () => {});
+    await flush();
+    assert.equal(byteChecks.length, 5);
+    assert.ok(byteChecks.every(check => !check.signal.aborted), 'A metadata byte limit must not cancel live decoder checks');
+    byteChecks[0].resolve('supported'); await flush();
+    assert.equal((await bytePending).streamUrl, streams[0].url);
+    byteAbort.abort(); for (const check of byteChecks) check.resolve('unknown'); await flush();
     assert.equal(timers.size, 0);
     console.log('PASS: five simultaneous audiovisual probes, first verified winner, no unknown promotion, and rolling rejection replacement.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

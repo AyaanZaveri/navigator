@@ -182,7 +182,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const playbackPreferencesRef = useRef(initialPlaybackPreferences);
   const metadataAbortRef = useRef<AbortController | null>(null);
   const webStreamsRef = useRef<StremioStream[]>([]);
-  const audioCheckRef = useRef<{ start: number; startedAt: number; complete: boolean } | null>(null);
+  const playbackStartRef = useRef<{ start: number } | null>(null);
   const confirmWebPlaybackRef = useRef<(() => void) | null>(null);
   const failedStreamUrlsRef = useRef(new Set<string>());
   const activePlaybackRequestRef = useRef<MediaToPlay | null>(null);
@@ -314,11 +314,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     sendPlaybackUpdate("progress");
   }, [sendPlaybackUpdate]);
 
-  const tryNextWebStream = useCallback((element: HTMLVideoElement, noAudio = false) => {
+  const tryNextWebStream = useCallback((element: HTMLVideoElement) => {
     if (nativePlayback || !playbackPreferencesRef.current.autoSelectWebStream || !currentMedia || !streamUrl || element !== videoRef.current) return;
     failedStreamUrlsRef.current.add(streamUrl);
     const position = element.currentTime > 0 ? element.currentTime : currentMedia.resumePositionTicks;
-    toast(noAudio ? "That stream has no supported audio. Trying another one…" : "That stream failed. Trying another one…", { id: WEB_RECOVERY_TOAST_ID });
+    toast("That stream failed. Trying another one…", { id: WEB_RECOVERY_TOAST_ID });
     // loadMedia advances the generation synchronously, deduplicating decoder errors.
     void loadMediaRef.current?.({
       ...currentMedia, streamUrl: undefined, requestHeaders: undefined,
@@ -338,15 +338,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     if (event.currentTarget !== videoRef.current) return;
     setVideoReady(true);
     setPlaybackError(null);
-    if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream) {
-      audioCheckRef.current ??= { start: event.currentTarget.currentTime, startedAt: Date.now(), complete: false };
-    }
+    if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream) playbackStartRef.current ??= { start: event.currentTarget.currentTime };
     if (!nativePlayback) toast.dismiss(WEB_RECOVERY_TOAST_ID);
-    const element = event.currentTarget as HTMLVideoElement & { webkitAudioDecodedByteCount?: number };
-    // A Chromium "playing" event can mean silent video. Confirm audible playback when decoder evidence is available.
-    if (nativePlayback || !playbackPreferencesRef.current.autoSelectWebStream || element.muted || element.volume === 0 || typeof element.webkitAudioDecodedByteCount !== "number" || element.webkitAudioDecodedByteCount > 0) {
-      reportNavigatorPlayback("playing");
-    }
+    reportNavigatorPlayback("playing");
   }, [nativePlayback, reportNavigatorPlayback]);
 
   const handleVideoError = useCallback((event: React.SyntheticEvent<HTMLVideoElement>, generation: number) => {
@@ -385,28 +379,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     if (videoRef.current) {
       const element = videoRef.current;
       const time = element.currentTime;
-      const audioCheck = audioCheckRef.current;
-      const audioDecoder = element as HTMLVideoElement & { webkitAudioDecodedByteCount?: number };
-      if (!element.paused && !element.seeking && audioCheck && time - audioCheck.start > 0.05
-        && (element.muted || element.volume === 0 || typeof audioDecoder.webkitAudioDecodedByteCount !== "number" || audioDecoder.webkitAudioDecodedByteCount > 0)) {
-        // Metadata/canplay alone do not confirm playback. Where exposed, require
-        // decoded sound as well as advancing media time before stopping probes.
+      const playbackStart = playbackStartRef.current;
+      if (!element.paused && !element.seeking && playbackStart && time - playbackStart.start > 0.05) {
         confirmWebPlaybackRef.current?.();
-      }
-      if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream && audioCheck && !audioCheck.complete && !element.paused) {
-        const decoder = element as HTMLVideoElement & { webkitAudioDecodedByteCount?: number; webkitVideoDecodedByteCount?: number };
-        // Chromium can play the picture while silently dropping an unsupported audio codec.
-        // Use decoder evidence only where exposed; other browsers retain metadata-based ranking.
-        if (typeof decoder.webkitAudioDecodedByteCount === "number" && (decoder.webkitVideoDecodedByteCount ?? 0) > 0) {
-          if (decoder.webkitAudioDecodedByteCount > 0) {
-            audioCheck.complete = true;
-            reportNavigatorPlayback("playing");
-          } else if (!element.muted && element.volume > 0 && Date.now() - audioCheck.startedAt >= 3500 && time - audioCheck.start >= 3) {
-            audioCheck.complete = true;
-            tryNextWebStream(element, true);
-            return;
-          }
-        }
       }
       setCurrentTime(time);
       setCurrentTimestamp(time);
@@ -605,7 +580,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
     metadataAbortRef.current = metadataAbort;
-    audioCheckRef.current = null;
+    playbackStartRef.current = null;
     confirmWebPlaybackRef.current = null;
     if (!fallback) {
       activePlaybackRequestRef.current = request;
@@ -702,7 +677,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         environment: nativePlayback ? "native" : "web",
         canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
         inspectStream: probe ? (candidate, options) => probeStreamMetadata(candidate, { signal: options.signal, budget: options.budget }) : undefined,
-        verifyStream: (candidate, options) => probeStreamPlayability(candidate, { signal: options.signal, preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage }),
+        verifyStream: (candidate, options) => probeStreamPlayability(candidate, { signal: options.signal, metadata: options.metadata, preferredAudioLanguage: playbackPreferencesRef.current.audioLanguage }),
         onPlaybackConfirmation: confirm => {
           if (isCurrent()) confirmWebPlaybackRef.current = confirm;
           return () => { if (confirmWebPlaybackRef.current === confirm) confirmWebPlaybackRef.current = null; };
@@ -750,8 +725,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
     } catch (error) {
       if (!isCurrent()) return;
-      const message = fallback ? "None of the available streams could play in this browser. Try another title or check your add-ons."
-        : error instanceof Error ? error.message : "Could not load this stream. Try again.";
+      const message = error instanceof Error ? error.message : "Could not load this stream. Try again.";
       setPlaybackError(message);
       if (fallback) toast.error(message, { id: WEB_RECOVERY_TOAST_ID });
       if (request.navigatorActionId) document.dispatchEvent(new CustomEvent(NAVIGATOR_PLAYBACK_EVENT, {
