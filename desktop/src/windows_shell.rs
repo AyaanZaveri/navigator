@@ -466,6 +466,9 @@ pub fn run(app: App) -> Result<(), String> {
             }
             Event::UserEvent(UserEvent::Command(command, session)) => {
                 if !closing {
+                    if let protocol::Command::WindowControlsVisible { visible } = &command {
+                        platform::set_window_controls_visible(*visible);
+                    } else {
                     if let protocol::Command::Load { session, .. } = &command {
                         playback_session = session.clone();
                         playback_ready = false;
@@ -478,6 +481,7 @@ pub fn run(app: App) -> Result<(), String> {
                     else if pending.len() < 64 { pending.push_back(command); }
                     else {
                         if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"error","session":session,"message":"The video player is still starting. Try playback again in a moment."}))); }
+                    }
                     }
                 }
             }

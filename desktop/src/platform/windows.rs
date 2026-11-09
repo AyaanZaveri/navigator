@@ -247,6 +247,7 @@ pub fn mpv_options(_video: &VideoSurface) -> Vec<(&'static str, String)> {
 
 thread_local! {
     static CHROME_FULLSCREEN_ACTION: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+    static CHROME_CONTROLS_VISIBLE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
     static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
@@ -271,6 +272,11 @@ fn chrome_hover(hit: u32) {
         });
     }
 }
+pub fn set_window_controls_visible(value: bool) {
+    CHROME_CONTROLS_VISIBLE.set(value);
+    if !value { chrome_hover(0); }
+}
+
 pub fn set_chrome_fullscreen(value: bool) {
     CHROME_FULLSCREEN.set(value);
 }
@@ -334,6 +340,7 @@ fn compact_caption_buttons_keep_distinct_hit_regions() {
 }
 
 fn chrome_hit(root: HWND, lparam: LPARAM) -> Option<u32> {
+    if !CHROME_CONTROLS_VISIBLE.get() { return None; }
     unsafe {
         let mut point = POINT {
             x: (lparam as u16 as i16) as i32,
