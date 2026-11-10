@@ -109,10 +109,10 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-
   }
 }
 
-/* Match the sign-in sheet with compact padding and safe-area clearance outside. */
+/* Match the sign-in sheet inset, corners, and compact internal padding. */
 @media (width < 40rem) {
   html[data-native-engine="exoplayer"] [role="menu"][aria-modal="true"] {
-    bottom: max(16px, var(--navigator-inset-bottom));
+    bottom: 8px;
     border-radius: 16px;
     padding-bottom: 8px;
   }
