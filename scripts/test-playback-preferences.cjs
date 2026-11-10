@@ -75,7 +75,7 @@ const selectionRequest = { current: 0 }, generation = { current: 1 };
 const selectSubtitle = compile(selection, {
   nativePlayback: false, videoRef: { current: { textTracks: [browserCaption] } }, subtitleSelectionRequest: selectionRequest, loadGenerationRef: generation,
   setSubtitleData: value => { data = value; }, setCurrentSubtitle() {}, setSubtitleTracks: update => { activeTracks = update(activeTracks); },
-  setFetchingSubtitles: value => { fetching = value; }, fetchSubtitleFileContent: src => new Promise((resolve, reject) => pending.push({ src, resolve, reject })),
+  setFetchingSubtitles: value => { fetching = value; }, subtitleLoaderRef: { current: { file: src => new Promise((resolve, reject) => pending.push({ src, resolve, reject })) } },
   parseSubtitleTextContent: text => [text],
 });
 (async () => {

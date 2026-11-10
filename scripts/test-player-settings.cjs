@@ -221,7 +221,7 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
     subtitleManualOverride: { current: false }, subtitleDefaultApplied: { current: false },
     subtitleSelectionRequest: { current: 0 }, loadGenerationRef: { current: 1 },
     setFetchingSubtitles() {}, setSubtitleData() {}, setCurrentSubtitle() {},
-    fetchSubtitleFileContent: async src => { fetched = src; return { success: true, content: 'subtitle' }; },
+    subtitleLoaderRef: { current: { file: async src => { fetched = src; return { success: true, content: 'subtitle' }; } } },
     parseSubtitleTextContent: () => [], setSubtitleTracks: update => { nextTracks = update(tracks); },
   };
   vm.runInNewContext(ts.transpileModule(`exports.selection = ${selection}; exports.handler = ${handler};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, env);
@@ -232,6 +232,8 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   assert.equal(nextTracks[2].active, true);
   assert.equal(nextTracks[1].active, false);
   const utils = load('app/actions/utils.ts', {
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
+    '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
     '@/lib/subtitle-provider': load('lib/subtitle-provider.ts'),
     '@/lib/media/subtitle-episode-identity': load('lib/media/subtitle-episode-identity.ts'),
     './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://addon.test/manifest.json', manifest: { id: 'fixture', name: 'Subtitle provider', resources: ['subtitles'] } }] },
@@ -241,6 +243,8 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   assert.equal(discovered[0].provider, 'Subtitle provider');
   const episodeRequests = [];
   const identityUtils = load('app/actions/utils.ts', {
+    '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
+    '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
     '@/lib/subtitle-provider': load('lib/subtitle-provider.ts'),
     '@/lib/media/subtitle-episode-identity': load('lib/media/subtitle-episode-identity.ts'),
     './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://addon.test/manifest.json', manifest: { id: 'fixture', name: 'Subtitle provider', resources: ['subtitles'] } }] },

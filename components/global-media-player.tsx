@@ -67,8 +67,7 @@ import {
   reportPlaybackProgress,
   reportPlaybackStopped,
 } from "@/app/actions";
-import { fetchSubtitleFileContent } from "@/app/actions/subtitles";
-import { getSubtitleTracks } from "@/app/actions/utils";
+import { PlaybackSubtitles, type PlaybackSubtitleTrack } from "@/lib/media/playback-subtitles";
 import { useSettings } from "@/contexts/settings-context";
 import { SubtitleText } from "@/components/subtitle-text";
 import { PlayerSubtitles } from "@/components/player-subtitles";
@@ -179,6 +178,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [initialPlaybackPreferences] = useState(readPlaybackPreferences);
   const playbackPreferencesRef = useRef(initialPlaybackPreferences);
   const metadataAbortRef = useRef<AbortController | null>(null);
+  const subtitleLoaderRef = useRef<PlaybackSubtitles | null>(null);
   const webStreamsRef = useRef<StremioStream[]>([]);
   const playbackStartRef = useRef<{ start: number } | null>(null);
   const confirmWebPlaybackRef = useRef<(() => void) | null>(null);
@@ -586,6 +586,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
     metadataAbortRef.current = metadataAbort;
+    const subtitleLoader = new PlaybackSubtitles(metadataAbort.signal);
+    subtitleLoaderRef.current = subtitleLoader;
     playbackStartRef.current = null;
     confirmWebPlaybackRef.current = null;
     if (!fallback) {
@@ -638,6 +640,23 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         id: activeMedia.seriesId || activeMedia.id,
         mediaSourceId: activeMedia.mediaSourceId || activeMedia.id,
       });
+    };
+
+    let subtitleFinalizing = false;
+    const preloadSubtitle = (tracks: PlaybackSubtitleTrack[]) => {
+      if (isCurrent() && !subtitleManualOverride.current) subtitleLoader.preload(tracks, playbackPreferencesRef.current);
+    };
+    const discoverSubtitlesEarly = (target: MediaToPlay) => {
+      const title = resolvedEpisodeTitle || getPlaybackTitles(target, latestDetails).episodeTitle;
+      void subtitleLoader.discover(target.mediaSourceId || target.id, target.type, {
+        filename: target.subtitleFilename, videoSize: target.subtitleVideoSize,
+        episodeTitle: isMeaningfulEpisodeTitle(title) ? title : undefined,
+      }).then(tracks => {
+        if (!isCurrent()) return;
+        if (!subtitleFinalizing) preloadSubtitle(tracks);
+        // Keep provisional choices out of the menu until the final release/
+        // episode match. Preloading must not change a user's active selection.
+      }).catch(() => {});
     };
 
     const resolveEpisodeTitle = () => {
@@ -698,6 +717,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         activeMedia = target;
         resolveEpisodeTitle();
         publishTitle();
+        discoverSubtitlesEarly(target);
       });
       if (!isCurrent()) return;
       // Keep an episode title that arrived while the source request was pending.
@@ -711,7 +731,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       setLoading(false);
       const streamSourceId = media.mediaSourceId || media.id;
 
-      // Subtitles load independently; the player can start as soon as its source is ready.
+      // Refine the early catalog with release details without delaying playback.
+      subtitleFinalizing = true;
       const subtitleTitle = resolvedEpisodeTitle || getPlaybackTitles(activeMedia, latestDetails).episodeTitle;
       const subtitleEpisodeTitle = isMeaningfulEpisodeTitle(subtitleTitle) ? Promise.resolve(subtitleTitle)
         : media.seasonNumber !== undefined && media.episodeNumber !== undefined
@@ -719,11 +740,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           : Promise.resolve(undefined);
       void subtitleEpisodeTitle.then(episodeTitle => {
         if (!isCurrent()) return [];
-        return getSubtitleTracks(streamSourceId, media.type, {
+        return subtitleLoader.discover(streamSourceId, media.type, {
           filename: media.subtitleFilename, videoSize: media.subtitleVideoSize, episodeTitle,
         });
       }).then(tracks => {
         if (isCurrent()) {
+          preloadSubtitle(tracks);
           setSubtitleTracks(tracks.map(track => ({ ...track, active: false })));
           setSubtitleOptionsReady(true);
         }
@@ -811,7 +833,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setFetchingSubtitles(Boolean(track));
     if (!track) return;
     try {
-      const result = await fetchSubtitleFileContent(track.src);
+      const result = await subtitleLoaderRef.current?.file(track.src);
+      if (!result) return;
       if (!isCurrent()) return;
       if (result.success) {
         setSubtitleData(parseSubtitleTextContent(result.content));

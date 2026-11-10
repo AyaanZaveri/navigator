@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const slowSubtitles = process.argv.includes('--slow-subtitles');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
@@ -77,7 +78,19 @@ const context = { exports: {}, AbortController, console, document: { createEleme
         return canonical ? { id: ordinarySeries ? 'show:1:1' : 'show:1:3', title: 'Canonical episode title', season: 1, episode: ordinarySeries ? 1 : 3 } : null;
     } };
     if (name === '@/app/actions/tv-shows') return { fetchEpisodeDetails: () => { throw new Error('Client must not queue episode Server Actions'); } };
-    if (name === '@/app/actions/utils') return { getSubtitleTracks: async (id, type, options) => { subtitleRequests.push({ id, type, options }); return []; } };
+    if (name === '@/lib/media/playback-subtitles') return { PlaybackSubtitles: class {
+        constructor(signal) { assert.ok(signal); this.requests = new Map(); }
+        discover(id, type, options) {
+            const key = JSON.stringify([id, type, options]);
+            if (!this.requests.has(key)) {
+                subtitleRequests.push({ id, type, options });
+                this.requests.set(key, slowSubtitles ? new Promise(() => {}) : Promise.resolve([]));
+            }
+            return this.requests.get(key);
+        }
+        preload() {}
+    } };
+    if (name === '@/app/actions/utils') return { getSubtitleTracks: () => assert.fail('Subtitle discovery must not queue a Server Action') };
     if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
     return require(name);
 } };
@@ -89,18 +102,20 @@ assert.ok(load, 'Exercise the actual player loading callback');
     const pending = load(request);
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(requests, onPage ? [] : provided ? ['details', 'streams'] : ordinarySeries ? ['details', 'episode-http', 'streams'] : ['episode-http', 'details', 'streams'], 'Only the selected episode is fetched, independently of pending stream and show requests');
+    assert.ok(subtitleRequests.length > 0 || ordinarySeries, 'Subtitle discovery starts while stream lookup is unresolved');
     finishDetails({ id: 'show', type: 'series', name: 'Show', year: 2009, runtime: '21 min', imdbRating: '8.5', logo: '/logo.svg', poster: '/poster.jpg', background: '/backdrop.jpg', cast: ['Actor'], videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
     await new Promise(resolve => setImmediate(resolve));
     assert.ok(changes.some(value => value?.media?.episodeTitle === expectedTitle), 'Episode title must publish while stream discovery is still pending');
     assert.ok(changes.some(value => value?.year === 2009 && value?.imdbRating === '8.5' && value?.logo === '/logo.svg'), 'All player metadata must publish while streams remain pending');
+    assert.ok(subtitleRequests.length > 0, 'The selected episode starts subtitle discovery before stream resolution');
     finishStreams([{ url: 'https://example.test/top.mp4' }]);
     await pending;
     await new Promise(resolve => setImmediate(resolve));
     const lastPrepared = changes.filter(value => value?.media).at(-1);
     assert.equal(lastPrepared.media.episodeTitle, expectedTitle, 'Source completion must preserve the early title');
     assert.equal(lastPrepared.media.streamUrl, 'https://example.test/top.mp4');
-    assert.equal(subtitleRequests.length, 1);
-    assert.equal(subtitleRequests[0].options.episodeTitle, expectedTitle, 'Normal playback supplies the resolved episode title to shared subtitle discovery');
-    assert.equal(Object.hasOwn(subtitleRequests[0].options, 'signal'), false, 'Server Action arguments must stay serializable');
+    assert.ok(subtitleRequests.length <= 2, 'Only initial discovery and final refinement are needed');
+    assert.equal(subtitleRequests.at(-1).options.episodeTitle, expectedTitle, 'Normal playback supplies the resolved episode title to shared subtitle discovery');
+    assert.equal(Object.hasOwn(subtitleRequests.at(-1).options, 'signal'), false, 'The request session owns cancellation separately from subtitle hints');
     console.log(onPage ? 'PASS: actual player starts from page title/artwork/metadata and joins its stream request with zero duplicate reads.' : 'PASS: actual player requests missing metadata and streams concurrently, publishes the episode title first, and preserves it when playback becomes ready.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

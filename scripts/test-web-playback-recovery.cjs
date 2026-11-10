@@ -113,7 +113,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             };
             if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails: async () => null };
             if (name === '@/app/actions') return { fetchMediaDetails: async () => null, reportPlaybackStart: noOp, reportPlaybackProgress: noOp, reportPlaybackStopped: noOp };
-            if (name === '@/app/actions/utils') return { getSubtitleTracks: async () => [] };
+            if (name === '@/lib/media/playback-subtitles') return { PlaybackSubtitles: class { discover() { return Promise.resolve([]); } preload() {} } };
             if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
             return require(name);
         },
