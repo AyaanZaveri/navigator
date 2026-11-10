@@ -327,11 +327,22 @@
 @media (max-width: 760px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
-    gap: 1rem;
-    padding-block: 1.25rem 3rem;
+    gap: 2rem;
+    padding-block: 1.5rem 3rem;
   }
   .sidebar { display: none; }
   .mobileNavigation { display: block; }
+  .mobileNavigation > div { gap: 1rem; }
+  .mobileNavigation label {
+    margin: 0;
+    color: var(--foreground);
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.22;
+    letter-spacing: -.02em;
+    overflow-wrap: anywhere;
+  }
+  .pageHeader { margin-block-end: 2rem; }
 }
 
 @media (max-width: 480px) {
