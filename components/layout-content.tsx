@@ -27,13 +27,15 @@ interface LayoutContentProps {
 export function LayoutContent({ children, email, userId }: LayoutContentProps) {
     const { authenticated } = useAccountAccess();
     const pathname = usePathname();
+    const scrollResetKey = pathname.replace(/^(\/series\/[^/]+)\/\d+\/\d+\/?$/, "$1");
     const viewportRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
         // Next's document scrolling does not reset this persistent scrollport.
         // Reset before paint so a new title opens on its hero, not the previous
-        // title's recommendations. This also cancels any in-flight smooth scroll.
+        // title's recommendations. Episode changes within one series keep the
+        // page position while the episode carousel handles horizontal centering.
         viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    }, [pathname]);
+    }, [scrollResetKey]);
     const overlayHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
     const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
     const [isFullscreen] = useAtom(isFullscreenAtom);

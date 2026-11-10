@@ -19,6 +19,7 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   const { LayoutContent } = load('components/layout-content.tsx', name => {
     if (name === 'react') return { ...React, useEffect() {}, useLayoutEffect() {}, useRef: () => ({ current: null }) };
     if (name === 'react/jsx-runtime') return require(name);
+    if (name === '@/contexts/account-context') return { useAccountAccess: () => ({ authenticated: true }) };
     if (name === 'jotai') return { useAtom: () => [false, () => {}] };
     if (name === 'next/navigation') return { usePathname: () => path };
     if (name === '@/components/app-header') return { AppHeader: Header };
@@ -60,6 +61,7 @@ const properties = new Map(), effects = [];
 const layout = { style: { setProperty(key, value) { properties.set(key, value); } } };
 const element = { closest: () => layout, getBoundingClientRect: () => ({ height }), querySelectorAll: () => [] };
 const { AppHeader } = load('components/app-header.tsx', name => {
+  if (name === '@/contexts/account-context') return { useAccountAccess: () => ({ authenticated: true }) };
   if (name === 'react') return { ...React, useRef: () => ({ current: element }), useLayoutEffect: effect => effects.push(effect) };
   if (name === 'react/jsx-runtime') return require(name);
   if (name === '@/contexts/MediaPlayerContext') return { useIsPlayerVisible: () => false };
@@ -87,6 +89,7 @@ let pathname = '/movie/first';
 const { LayoutContent: NavigatingLayout } = load('components/layout-content.tsx', name => {
   if (name === 'react') return { ...React, ...navigationHooks.react, useLayoutEffect: navigationHooks.react.useEffect };
   if (name === 'react/jsx-runtime') return require(name);
+  if (name === '@/contexts/account-context') return { useAccountAccess: () => ({ authenticated: true }) };
   if (name === 'jotai') return { useAtom: () => [false, () => {}] };
   if (name === 'next/navigation') return { usePathname: () => pathname };
   if (name === '@/contexts/settings-context') return { useSettings: () => ({ navigatorEnabled: false }) };
@@ -118,5 +121,15 @@ for (const route of ['/movie/first', '/series/second', '/movie/third', '/']) {
   assert.equal(top, 450, 'Metadata/palette/player updates on the same route must preserve scrolling');
   assert.equal(resets, previous + 1);
 }
+for (const route of ['/series/show-a', '/series/show-a/1/2', '/series/show-a/1/3', '/series/show-a/2/1', '/series/show-a/0/1', '/series/show-a', '/series/tmdb%3A123/1/1', '/series/tmdb%3A123/1/2', '/series/show-b/1/1', '/movie/show-b', '/series/show-b/1/2', '/', '/series/show-b/1/3']) {
+  const previousPath = pathname;
+  pathname = route;
+  top = 725;
+  const previous = resets;
+  renderNavigation();
+  const sameShow = previousPath.split('/')[1] === 'series' && route.split('/')[1] === 'series' && previousPath.split('/')[2] === route.split('/')[2];
+  assert.equal(top, sameShow ? 725 : 0, `${previousPath} → ${route}: preserve scroll only within the same series`);
+  assert.equal(resets, previous + (sameShow ? 0 : 1));
+}
 navigationHooks.unmount();
-console.log('PASS: navigation resets the persistent viewport to the hero; same-route updates preserve scroll');
+console.log('PASS: new-title navigation resets to the hero; episode changes within a series and same-route updates preserve scroll');
