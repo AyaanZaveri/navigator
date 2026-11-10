@@ -1,12 +1,13 @@
 export type Chapter = { startTime: number; endTime: number; text: string };
-export type ChapterMarker = { time: number; title?: string };
+export type ChapterMarker = { time: number; end?: number; title?: string };
 
 /** Treat chapter starts as boundaries; reject corrupt markers and duplicate times. */
 export function chapterCues(markers: ChapterMarker[], duration: number): Chapter[] {
     if (!Number.isFinite(duration) || duration <= 0) return [];
     const sorted = markers.filter(marker => Number.isFinite(marker.time) && marker.time >= 0 && marker.time < duration)
         .sort((a, b) => a.time - b.time).filter((marker, index, all) => !index || marker.time !== all[index - 1].time);
-    return sorted.map((marker, index) => ({ startTime: marker.time, endTime: sorted[index + 1]?.time ?? duration,
+    return sorted.map((marker, index) => ({ startTime: marker.time,
+        endTime: Math.min(sorted[index + 1]?.time ?? duration, Number.isFinite(marker.end) && marker.end! > marker.time ? marker.end! : duration),
         text: marker.title?.trim() || `Chapter ${index + 1}` }));
 }
 
@@ -58,9 +59,10 @@ export function parseMatroskaChapters(bytes: Uint8Array): ChapterMarker[] {
         const items = fields(atom);
         if (uint(bytes, items.find(item => item.id === 0x98)) === 1 || uint(bytes, items.find(item => item.id === 0x4598)) === 0) return [];
         const time = uint(bytes, items.find(item => item.id === 0x91)) / 1e9;
+        const end = uint(bytes, items.find(item => item.id === 0x92)) / 1e9;
         const display = items.find(item => item.id === 0x80);
         const title = display && fields(display).find(item => item.id === 0x85);
-        return Number.isFinite(time) ? [{ time, title: title ? new TextDecoder().decode(bytes.subarray(title.start, title.end)).replace(/\0/g, '').slice(0, 256) : undefined }] : [];
+        return Number.isFinite(time) ? [{ time, ...(Number.isFinite(end) && end > time ? { end } : {}), title: title ? new TextDecoder().decode(bytes.subarray(title.start, title.end)).replace(/\0/g, '').slice(0, 256) : undefined }] : [];
     });
 }
 

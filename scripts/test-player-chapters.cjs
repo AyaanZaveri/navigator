@@ -30,6 +30,28 @@ assert.equal(chapterCues(markers, NaN).length, 0);
 const ordered = el(0x1043a770, el(0x45b9, bytes(uint(0x45dd, 1), atom(5, 'Virtual'))));
 assert.equal(parseMatroskaChapters(ordered).length, 0, 'Do not mislabel virtual ordered-edition times');
 
+// A sparse file must not keep Intro over the entire story until Credits.
+const { boundSkipChapterLabels, chapterTrackMask } = load('lib/media/chapter-timeline.ts');
+const sparse = chapterCues([{ time: 0, title: 'Intro' }, { time: 1200, title: 'Credits' }], 1500);
+const bounded = boundSkipChapterLabels(sparse, [
+    { kind: 'intro', start: 0, end: 90 }, { kind: 'credits', start: 1200, end: 1350 },
+]);
+const at = time => bounded.find(cue => cue.startTime <= time && time < cue.endTime)?.text;
+assert.equal(at(30), 'Intro');
+assert.equal(at(90), undefined);
+assert.equal(at(800), undefined, 'Story time must not be labeled Intro');
+assert.equal(at(1250), 'Credits');
+assert.equal(at(1400), undefined, 'Post-credit story time must not be labeled Credits');
+const normal = [{ startTime: 0, endTime: 100, text: 'The journey' }];
+assert.equal(boundSkipChapterLabels(normal, [{ kind: 'intro', start: 0, end: 90 }])[0], normal[0]);
+const explicit = el(0x1043a770, el(0x45b9, el(0xb6, bytes(uint(0x91, 0), uint(0x92, 90e9), el(0x80, el(0x85, Buffer.from('Intro')))))));
+assert.equal(chapterCues(parseMatroskaChapters(explicit), 1500)[0].endTime, 90, 'Retain authored MKV end times');
+const mask = chapterTrackMask(bounded, 0, 1500);
+assert.match(mask, /transparent calc\(6% - 1px\)/, 'Intro end becomes a real transparent gap');
+assert.match(mask, /transparent calc\(80% - 1px\)/);
+assert.equal(chapterTrackMask([], 0, 100), undefined);
+assert.equal(chapterTrackMask(bounded, 0, 0), undefined);
+
 async function main() {
     const segment = el(0x18538067, chapterData);
     const mkv = bytes(el(0x1a45dfa3, []), segment);

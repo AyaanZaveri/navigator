@@ -53,6 +53,7 @@ import * as ReactDOM from "react-dom";
 
 import { desktopBridge, setMacOSWindowControlsVisible } from "@/lib/desktop/bridge";
 import { createDesktopMediaStore } from "@/lib/desktop/media-store";
+import { boundSkipChapterLabels, chapterTrackMask } from "@/lib/media/chapter-timeline";
 import { PlayerSkipTimeline } from "@/components/player-skip-timeline";
 import type { SkipSegment } from "@/lib/media/skip-segments";
 import { SeekPreview } from "@/components/seek-preview";
@@ -1654,7 +1655,9 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const mediaChaptersCues = useMediaSelector(
     (state) => state.mediaChaptersCues ?? []
   );
-  const chapterCues = contextChapters.length > 0 ? contextChapters : mediaChaptersCues;
+  const chapterCues = React.useMemo(() => boundSkipChapterLabels(
+    contextChapters.length > 0 ? contextChapters : mediaChaptersCues, skipSegments
+  ), [contextChapters, mediaChaptersCues, skipSegments]);
   const mediaPreviewTime = useMediaSelector((state) => state.mediaPreviewTime);
   const mediaPreviewImage = useMediaSelector(
     (state) => state.mediaPreviewImage
@@ -2298,31 +2301,9 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const thumbnail = getThumbnail(hoverTimeRef.current);
   const hoverTime = getCachedTime(hoverTimeRef.current, seekableEnd);
 
-  const chapterSeparators = React.useMemo(() => {
-    if (withoutChapter || chapterCues.length === 0 || seekableEnd <= seekableStart) {
-      return null;
-    }
-
-    return chapterCues.map((chapterCue, index) => {
-      const position = ((chapterCue.startTime - seekableStart) / (seekableEnd - seekableStart)) * 100;
-      if (position <= 0 || position >= 100) return null;
-
-      return (
-        <div
-          key={`chapter-${index}-${chapterCue.startTime}`}
-          role="presentation"
-          aria-hidden="true"
-          data-slot="media-player-seek-chapter-separator"
-          className="pointer-events-none absolute top-0 h-full bg-black/80"
-          style={{
-            width: "2px",
-            left: `${position}%`,
-            transform: "translateX(-50%)",
-          }}
-        />
-      );
-    });
-  }, [chapterCues, seekableStart, seekableEnd, withoutChapter]);
+  const chapterMask = React.useMemo(() => withoutChapter ? undefined
+    : chapterTrackMask(chapterCues, seekableStart, seekableEnd),
+    [chapterCues, seekableStart, seekableEnd, withoutChapter]);
 
   const spriteStyle = React.useMemo<React.CSSProperties>(() => {
     if (!thumbnail?.coords || !thumbnail?.src) {
@@ -2373,7 +2354,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         onPointerLeave={onPointerLeave}
         onPointerMove={onPointerMove}
       >
-        <SliderPrimitive.Track data-slot="media-player-seek-track" className="relative h-[9px] w-full grow overflow-hidden rounded-full bg-white/20">
+        <SliderPrimitive.Track data-slot="media-player-seek-track" className="relative h-[9px] w-full grow overflow-hidden rounded-full bg-white/20"
+          style={{ maskImage: chapterMask, WebkitMaskImage: chapterMask }}>
           <div
             data-slot="media-player-seek-buffered"
             className="absolute h-full rounded-full bg-white/30 will-change-[width]"
@@ -2392,7 +2374,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             />
           )}
           <PlayerSkipTimeline segments={skipSegments} start={seekableStart} end={seekableEnd} />
-          {chapterSeparators}
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb
           aria-label="Playback position"
