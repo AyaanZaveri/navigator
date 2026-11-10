@@ -5,6 +5,7 @@ import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/ico
 import { Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
 import Link from "next/link";
 import { OpenCodeIcon } from "@/components/opencode-icon";
+import { useCatalogModels } from "./use-catalog-models";
 import { ModelIcon } from "@/components/model-icon";
 import { Switch } from "@/components/arc/switch/switch";
 import { Select } from "@/components/arc/select/select";
@@ -347,7 +348,7 @@ function SettingsSelect({ id, label, value, onValueChange, options, description,
 
 function ModelCombobox({ id, value, onValueChange, options, description, loading, error, disabled, providerIcon }: Omit<SettingsSelectProps, "label"> & { providerIcon: ComponentType<{ className?: string }> }) {
     const selected = options.find((option) => option.id === value) ?? (value ? { id: value, name: value } : null);
-    const unavailable = disabled || (loading && options.length === 0);
+    const unavailable = disabled || (loading && options.length === 0 && !selected);
     const describedBy = [
         (loading || description) && `${id}-description`,
         error && `${id}-error`,
@@ -444,11 +445,9 @@ function NavigatorSettings() {
     const [geminiModelsError, setGeminiModelsError] = useState<string | null>(
         null
     );
-    const [opencodeModelsProvider, setOpencodeModelsProvider] =
-    useState<ModelsDevProviderResponse["provider"]>(null);
-    const [isLoadingOpencodeModels, setIsLoadingOpencodeModels] = useState(false);
-    const [opencodeModelsError, setOpencodeModelsError] = useState<string | null>(
-        null
+    const catalog = useCatalogModels(
+        aiProvider === "opencode" ? "opencode-go"
+            : aiProvider === "groq" || aiProvider === "openrouter" ? aiProvider : null
     );
 
     const fetchGeminiModels = useCallback(async () => {
@@ -529,65 +528,6 @@ function NavigatorSettings() {
         return () => window.clearTimeout(timeout);
     }, [aiProvider, fetchCerebrasModels]);
 
-    useEffect(() => {
-        if (aiProvider !== "opencode") return;
-
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 15_000);
-        let active = true;
-
-        async function fetchOpencodeModels() {
-            setIsLoadingOpencodeModels(true);
-            setOpencodeModelsError(null);
-
-            try {
-                const params = new URLSearchParams({ providerId: "opencode-go" });
-                const response = await fetch(`/api/models-dev/provider?${params}`, {
-                    signal: controller.signal,
-                });
-                const data = (await response.json()) as ModelsDevProviderResponse;
-
-                if (!response.ok) {
-                    throw new Error(data.error || "Failed to load OpenCode Go models.");
-                }
-                if (!data.provider?.models.length) {
-                    throw new Error("No OpenCode Go models are currently available.");
-                }
-
-                if (active) setOpencodeModelsProvider(data.provider);
-            } catch (error) {
-                if (active) {
-                    setOpencodeModelsError(
-                        controller.signal.aborted
-                            ? "Loading models timed out. Your saved model is still available."
-                            : error instanceof Error
-                                ? error.message
-                                : "Failed to load OpenCode Go models."
-                    );
-                }
-            } finally {
-                window.clearTimeout(timeout);
-                if (active) setIsLoadingOpencodeModels(false);
-            }
-        }
-
-        void fetchOpencodeModels();
-        return () => {
-            active = false;
-            window.clearTimeout(timeout);
-            controller.abort();
-        };
-    }, [aiProvider]);
-
-    const opencodeModelOptions = useMemo(() => {
-        const providerModels = opencodeModelsProvider?.models ?? [];
-        if (!opencodeModel || providerModels.some((model) => model.id === opencodeModel)) {
-            return providerModels;
-        }
-
-        return [{ id: opencodeModel, name: opencodeModel }, ...providerModels];
-    }, [opencodeModel, opencodeModelsProvider]);
-
     const cerebrasModelOptions = useMemo(() => {
         if (!cerebrasModel) return cerebrasModels;
         if (cerebrasModels.includes(cerebrasModel)) return cerebrasModels;
@@ -649,12 +589,12 @@ function NavigatorSettings() {
             description: <a href="https://ollama.com/search?c=tools" target="_blank" rel="noopener noreferrer">Browse Ollama models</a>,
         },
         groq: {
-            value: groqModel, onValueChange: setGroqModel, placeholder: "llama3-8b-8192",
-            description: <a href="https://console.groq.com/docs/models" target="_blank" rel="noopener noreferrer">Browse Groq models</a>,
+            value: groqModel, onValueChange: setGroqModel, options: catalog.models,
+            loading: catalog.loading, error: catalog.error,
         },
         openrouter: {
-            value: openrouterModel, onValueChange: setOpenrouterModel, placeholder: "qwen/qwen3-coder:free",
-            description: <a href="https://openrouter.ai/models?fmt=cards&supported_parameters=tools" target="_blank" rel="noopener noreferrer">Browse OpenRouter models</a>,
+            value: openrouterModel, onValueChange: setOpenrouterModel, options: catalog.models,
+            loading: catalog.loading, error: catalog.error,
         },
         cerebras: {
             value: cerebrasModel, onValueChange: setCerebrasModel,
@@ -662,8 +602,8 @@ function NavigatorSettings() {
             loading: isLoadingCerebrasModels, error: cerebrasModelsError, disabled: !cerebrasApiKey.trim(),
         },
         opencode: {
-            value: opencodeModel, onValueChange: setOpencodeModel, options: opencodeModelOptions,
-            loading: isLoadingOpencodeModels, error: opencodeModelsError,
+            value: opencodeModel, onValueChange: setOpencodeModel, options: catalog.models,
+            loading: catalog.loading, error: catalog.error,
         },
     };
     const currentModel = modelSettings[aiProvider];

@@ -22,6 +22,7 @@ export async function GET(req: Request) {
     // The full catalog exceeds the Next.js Data Cache item-size limit.
     const upstream = await fetch(MODELS_DEV_API_URL, {
       cache: "no-store",
+      signal: AbortSignal.timeout(12_000),
     });
 
     if (!upstream.ok) {
@@ -36,8 +37,8 @@ export async function GET(req: Request) {
       ? getModelsDevProviderById(payload, providerId)
       : matchModelsDevProvider(payload, baseUrl);
 
-    return NextResponse.json({
-      provider,
+    return NextResponse.json({ provider }, {
+      headers: { "Cache-Control": provider ? "public, max-age=3600" : "no-store" },
     });
   } catch (error) {
     console.error("models.dev provider lookup failed:", error);
