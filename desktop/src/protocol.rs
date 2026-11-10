@@ -228,6 +228,13 @@ mod tests {
             assert!(media_url(url).is_err());
         }
         assert!(parse(r#"{"type":"load","session":"one","url":"https://example.com/video.mkv","headers":{"Referer":"https://example.com"}}"#).is_ok());
+        let resume = parse(r#"{"type":"load","session":"one","url":"https://example.com/video.mkv","startPosition":123.4}"#).unwrap();
+        assert!(matches!(resume, Command::Load { start_position, .. } if start_position == 123.4));
+        let legacy = parse(r#"{"type":"load","session":"one","url":"https://example.com/video.mkv"}"#).unwrap();
+        assert!(matches!(legacy, Command::Load { start_position: 0.0, .. }));
+        for value in ["-1", "null", "\"123\"", "1e999"] {
+            assert!(parse(&format!(r#"{{"type":"load","session":"one","url":"https://example.com/video.mkv","startPosition":{value}}}"#)).is_err());
+        }
         assert!(parse(r#"{"type":"load","session":"one","url":"https://example.com","headers":{"X-Test":"x\r\nInjected: x"}}"#).is_err());
         assert!(parse(r#"{"type":"seek","session":"one","position":-1}"#).is_err());
         assert!(parse(r#"{"type":"thumbnail","session":"one","request":1,"position":10}"#).is_ok());

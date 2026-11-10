@@ -23,3 +23,24 @@ for (const platform of ['macos', 'windows', 'linux']) {
  controller.dispose();
 }
 console.log('PASS: initial native resume, zero/reset, finite-value sanitization, and older-runtime compatibility');
+// Execute the real metadata handler: FILE_LOADED may arrive before time-pos
+// reflects mpv's initial seek, so it must not issue a second seek for that case.
+const fs = require('node:fs'), vm = require('node:vm'), ts = require('typescript');
+const source = ts.createSourceFile('player.tsx', fs.readFileSync('components/global-media-player.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+let handler;
+function visit(node) {
+ if (ts.isVariableDeclaration(node) && node.name.getText(source) === 'handleVideoLoadedMetadata') handler = node.initializer.arguments[0].getText(source);
+ ts.forEachChild(node, visit);
+}
+visit(source); assert.ok(handler);
+for (const [initialSeek, requested, expected] of [[true, 123.4, []], [false, 123.4, [123.4]], [true, 500, [299]]]) {
+ const seeks = [], reports = []; let position = 0;
+ const media = { duration: 300, get currentTime() { return position; }, set currentTime(value) { position = value; seeks.push(value); }, play: () => Promise.resolve() };
+ const context = { exports: {}, videoRef: { current: media }, currentMedia: { resumePositionTicks: requested },
+  desktopBridge: () => ({ capabilities: { initialSeek } }), setDuration() {}, setCurrentTime() {}, setCurrentTimestamp() {}, sendPlaybackUpdate: (...args) => reports.push(args) };
+ vm.runInNewContext(ts.transpileModule(`exports.metadata = ${handler}`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, context);
+ context.exports.metadata();
+ assert.deepEqual(seeks, expected, 'Native initial seek is one operation; legacy resume and duration clamping still seek');
+ assert.equal(reports[0][1].currentTimeSeconds, Math.min(requested, 299));
+}
+console.log('PASS: no duplicate metadata seek; older runtime fallback and out-of-range resume correction retained');

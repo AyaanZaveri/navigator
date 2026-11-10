@@ -29,8 +29,12 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
         for (const listener of listeners) listener(snapshot);
     };
     request.promise = (async () => {
-        const canonicalId = await request.canonicalId;
-        const targetsResponse = await fetch('/api/streams/addons?' + new URLSearchParams({ type }), { signal: timeout(15_000) });
+        // The account's add-on list does not depend on the canonical media ID.
+        // Resolve both together; stream URLs still use the validated ID below.
+        const [canonicalId, targetsResponse] = await Promise.all([
+            request.canonicalId,
+            fetch('/api/streams/addons?' + new URLSearchParams({ type }), { signal: timeout(15_000) }),
+        ]);
         if (!targetsResponse.ok) throw new Error('Could not fetch streams. Check your connection and try again.');
         const { addons = [] } = await targetsResponse.json() as { addons?: { id: string; name?: string }[] };
         let pending = addons.length;

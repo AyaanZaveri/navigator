@@ -115,8 +115,13 @@ impl Player {
                             }).collect::<Vec<_>>().join(",");
                             // Per-file options are applied before the initial decode, not
                             // via a second seek after FILE_LOADED. The -1 index precedes
-                            // options since mpv 0.38. Always include zero for fresh starts.
-                            let options = format!("start=+{start_position},hr-seek=yes");
+                            // options since mpv 0.38. `none` resets a fresh load without
+                            // asking the demuxer for an unnecessary seek to zero.
+                            let options = if start_position > 0.0 {
+                                format!("start=+{start_position},hr-seek=yes")
+                            } else {
+                                "start=none".into()
+                            };
                             let result = client.set_property("http-header-fields", &fields)
                                 .and_then(|_| client.set_property("pause", "no"))
                                 .and_then(|_| client.set_property("sub-visibility", "no"))
@@ -363,13 +368,22 @@ mod tests {
             |_, _| {},
         )
         .unwrap();
-        let load = |session: &str| Command::Load {
+        let load = |session: &str, start_position: f64| Command::Load {
             session: session.into(),
             url: file.to_string_lossy().into_owned(),
-            headers: BTreeMap::new(), start_position: 0.0,
+            headers: BTreeMap::new(),
+            start_position,
         };
-        player.send(load("first"));
+        player.send(load("first", 2.0));
         wait_for(&inbox, |v| v["type"] == "loaded" && v["session"] == "first");
+        let ready_position = std::cell::Cell::new(0.0);
+        wait_for(&inbox, |v| {
+            if v["type"] == "state" && v["session"] == "first" {
+                ready_position.set(v["state"]["position"].as_f64().unwrap_or(0.0));
+            }
+            v["type"] == "ready" && v["session"] == "first"
+        });
+        assert!((1.99..2.2).contains(&ready_position.get()), "First ready must already be at the resume position, got {}", ready_position.get());
         player.send(Command::Pause {
             session: "first".into(),
         });
@@ -385,9 +399,16 @@ mod tests {
             v["type"] == "state" && v["state"]["position"].as_f64().unwrap_or(0.0) >= 0.9
         });
         // Both loads can reach mpv before either START_FILE is drained.
-        player.send(load("second"));
-        player.send(load("third"));
+        player.send(load("second", 1.5));
+        player.send(load("third", 0.0));
         wait_for(&inbox, |v| v["type"] == "loaded" && v["session"] == "third");
+        wait_for(&inbox, |v| {
+            if v["type"] == "state" && v["session"] == "third" {
+                ready_position.set(v["state"]["position"].as_f64().unwrap_or(0.0));
+            }
+            v["type"] == "ready" && v["session"] == "third"
+        });
+        assert!(ready_position.get() < 0.5, "A zero-start replacement must not inherit the previous file's start option");
         player.send(Command::Volume {
             session: "third".into(),
             volume: 0.42,
@@ -446,7 +467,8 @@ mod tests {
                     .join(format!("{file}.mkv"))
                     .to_string_lossy()
                     .into_owned(),
-                headers: BTreeMap::new(), start_position: 0.0,
+                headers: BTreeMap::new(),
+                start_position: 0.0,
             });
             wait_for(&inbox, |v| {
                 v["type"] == "colour" && v["gamma"] == gamma && v["primaries"] == primaries
@@ -558,7 +580,8 @@ mod tests {
         player.send(Command::Load {
             session: "captions".into(),
             url: directory.join("sdr.mkv").to_string_lossy().into_owned(),
-            headers: BTreeMap::new(), start_position: 0.0,
+            headers: BTreeMap::new(),
+            start_position: 0.0,
         });
         wait_for(&inbox, |v| {
             v["type"] == "loaded" && v["session"] == "captions"
