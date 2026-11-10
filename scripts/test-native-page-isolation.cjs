@@ -103,6 +103,7 @@ for (const pathname of ['/', '/movie/tt0816692', '/series/tt1442437/6/4']) {
     '@/components/app-header': { AppHeader: 'header' },
     '@/components/deferred-tools': { DeferredTools: 'player-overlays' },
     '@/contexts/settings-context': { useSettings: () => ({ navigatorEnabled: false }) },
+    '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
     '@/lib/desktop/bridge': { desktopBridge: () => null },
     '@/components/aurora-provider': { AuroraProvider: 'provider', PersistentAuroraBackground: 'aurora' },
     '@/components/ui/scroll-area': { ScrollAreaRoot: 'scroll-root', ScrollAreaViewport: 'scroll-viewport', ScrollBar: 'scrollbar' },

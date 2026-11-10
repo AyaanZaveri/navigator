@@ -27,7 +27,15 @@ interface LayoutContentProps {
 export function LayoutContent({ children, email, userId }: LayoutContentProps) {
     const { authenticated } = useAccountAccess();
     const pathname = usePathname();
-    const scrollResetKey = pathname.replace(/^(\/series\/[^/]+)\/\d+\/\d+\/?$/, "$1");
+    const seriesRoute = pathname.match(/^\/series\/([^/]+)(?:\/\d+\/\d+)?\/?$/);
+    let scrollResetKey = pathname;
+    if (seriesRoute) {
+        // Title cards can use raw IDs, while episode links encode them. Compare
+        // the same identity on the first selection as on later episode changes.
+        let seriesId = seriesRoute[1];
+        try { seriesId = decodeURIComponent(seriesId); } catch { /* Keep malformed escapes usable. */ }
+        scrollResetKey = `/series/${encodeURIComponent(seriesId)}`;
+    }
     const viewportRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
         // Next's document scrolling does not reset this persistent scrollport.

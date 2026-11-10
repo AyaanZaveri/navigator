@@ -121,13 +121,26 @@ for (const route of ['/movie/first', '/series/second', '/movie/third', '/']) {
   assert.equal(top, 450, 'Metadata/palette/player updates on the same route must preserve scrolling');
   assert.equal(resets, previous + 1);
 }
-for (const route of ['/series/show-a', '/series/show-a/1/2', '/series/show-a/1/3', '/series/show-a/2/1', '/series/show-a/0/1', '/series/show-a', '/series/tmdb%3A123/1/1', '/series/tmdb%3A123/1/2', '/series/show-b/1/1', '/movie/show-b', '/series/show-b/1/2', '/', '/series/show-b/1/3']) {
+const seriesId = path => {
+  const value = path.split('/')[2];
+  try { return decodeURIComponent(value); } catch { return value; }
+};
+// The title card uses a raw ID; the first episode link encodes that same ID.
+// Include escape casing, trailing slashes and malformed bookmarked IDs too.
+for (const route of [
+  '/series/show-a', '/series/show-a/1/2', '/series/show-a/1/3',
+  '/series/show-a/2/1', '/series/show-a/0/1', '/series/show-a',
+  '/series/tmdb:123', '/series/tmdb%3A123/1/1', '/series/tmdb%3a123/1/2',
+  '/series/tmdb:123/2/1', '/series/tmdb%3A123/', '/series/tmdb%3A123/0/1',
+  '/series/tmdb%3A456/1/1', '/series/bad%ZZ', '/series/bad%25ZZ/1/1',
+  '/series/show-b/1/1', '/movie/show-b', '/series/show-b/1/2', '/', '/series/show-b/1/3',
+]) {
   const previousPath = pathname;
   pathname = route;
   top = 725;
   const previous = resets;
   renderNavigation();
-  const sameShow = previousPath.split('/')[1] === 'series' && route.split('/')[1] === 'series' && previousPath.split('/')[2] === route.split('/')[2];
+  const sameShow = previousPath.split('/')[1] === 'series' && route.split('/')[1] === 'series' && seriesId(previousPath) === seriesId(route);
   assert.equal(top, sameShow ? 725 : 0, `${previousPath} → ${route}: preserve scroll only within the same series`);
   assert.equal(resets, previous + (sameShow ? 0 : 1));
 }

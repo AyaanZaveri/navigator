@@ -82,6 +82,7 @@ function header() {
     const surface = { querySelectorAll: () => layers };
     let refs = 0;
     const { AppHeader } = load('components/app-header.tsx', name => {
+        if (name === '@/contexts/account-context') return { useAccountAccess: () => ({ authenticated: true, requestSignIn() {} }) };
         if (name === 'react') return { ...React, useRef: () => ({ current: refs++ === 0 ? header : surface }), useLayoutEffect: fn => effects.push(fn) };
         if (name === 'react/jsx-runtime') return require(name);
         if (name === '@/contexts/MediaPlayerContext') return { useIsPlayerVisible: () => false };
