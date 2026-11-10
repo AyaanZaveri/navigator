@@ -37,7 +37,7 @@ async function verifyFiles(resources, manifestPath = join(resources, 'install-ma
   return manifest.files.length;
 }
 
-async function checkLocalService(resources) {
+async function checkLocalService(resources, timeoutMs = 30_000) {
   const reservation = net.createServer();
   reservation.listen(0, '127.0.0.1');
   await once(reservation, 'listening');
@@ -48,14 +48,16 @@ async function checkLocalService(resources) {
     env: { ...process.env, NODE_ENV: 'production', HOSTNAME: '127.0.0.1', PORT: String(port), NAVIGATOR_DESKTOP: '1' },
   });
   let spawnError;
+  let lastStatus;
   child.on('error', error => { spawnError = error; });
   try {
-    const deadline = Date.now() + 30_000;
+    const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (spawnError) throw spawnError;
       if (child.exitCode !== null) throw new Error('Local service exited during installation preparation');
       const ready = await new Promise(resolve => {
-        const request = http.get({ hostname: '127.0.0.1', port, path: '/login', timeout: 3000 }, response => {
+        const request = http.get({ hostname: '127.0.0.1', port, path: '/', timeout: 3000 }, response => {
+          lastStatus = response.statusCode;
           let length = 0;
           response.on('data', chunk => { length += chunk.length; if (length > 8*1024*1024) response.destroy(); });
           response.on('end', () => resolve(response.statusCode === 200 && length > 0));
@@ -67,7 +69,7 @@ async function checkLocalService(resources) {
       if (ready) return;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    throw new Error('Local service did not become ready during installation preparation');
+    throw new Error(`Local service did not become ready during installation preparation${lastStatus ? ` (last HTTP status ${lastStatus})` : ''}`);
   } finally {
     if (child.exitCode === null && child.pid) {
       const closed = once(child, 'close');
@@ -84,7 +86,7 @@ async function prepare(resources, manifestPath) {
   await checkLocalService(resources);
   console.log(`Local service check completed in ${Date.now()-started}ms`);
 }
-module.exports = { verifyFiles, prepare };
+module.exports = { verifyFiles, checkLocalService, prepare };
 if (require.main === module) prepare(resolve(process.argv[2] || __dirname), process.argv[3]).catch(error => {
   console.error(error.message);
   if (process.env.LOCALAPPDATA) {
