@@ -36,10 +36,12 @@ navigator-mpv {
   height: 100dvh;
 }
 
-/* Hide only the WebView cursor over an actively playing Windows video surface
-   while the player chrome is hidden. Native menus/popovers/dialogs remain
-   interactive surfaces and must retain a visible pointer. */
-html[data-native-platform="windows"][data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) {
+/* Hide the cursor with the player chrome on both desktop platforms. Apply it
+   to descendants too: explicit cursors on overlays otherwise defeat inheritance.
+   Menus/popovers/dialogs remain interactive and retain a visible pointer. */
+html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]),
+html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) * {
   cursor: none;
 }
-html[data-native-platform="windows"][data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator]) { cursor: auto; }
+html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator]),
+html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator]) * { cursor: auto; }
