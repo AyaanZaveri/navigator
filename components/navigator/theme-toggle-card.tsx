@@ -23,7 +23,7 @@ export function ThemeToggleCard({
       <SegmentedControl
         className={styles.control}
         label="Theme"
-        value={theme ?? "system"}
+        value={theme ?? "dark"}
         onValueChange={setTheme}
         options={[
           { value: "light", label: "Light" },
