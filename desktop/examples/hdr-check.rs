@@ -93,7 +93,7 @@ fn main() {
                 .join(format!("{}.mkv", stages[index].0))
                 .to_string_lossy()
                 .into_owned(),
-            headers: Default::default(),
+            headers: Default::default(), start_position: 0.0,
         });
     };
     load(0, &player);

@@ -129,7 +129,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                         let _ = smoke_requests.send(protocol::Command::Load {
                             session: "native-smoke".into(),
                             url: path.to_string_lossy().into_owned(),
-                            headers: Default::default(),
+                            headers: Default::default(), start_position: 0.0,
                         });
                     }
                 }

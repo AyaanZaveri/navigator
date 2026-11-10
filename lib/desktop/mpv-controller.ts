@@ -128,7 +128,8 @@ export class MpvController extends EventTarget {
     try {
       if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for native playback.");
       this.bridge.send({ type: "load", session: this.session, url, headers,
-        ...(["android", "ios"].includes(this.bridge.platform) ? { startPosition: Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0 } : {}) });
+        ...(this.bridge.capabilities?.initialSeek || ["android", "ios"].includes(this.bridge.platform)
+          ? { startPosition: Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0 } : {}) });
       // iOS owns device volume. A cached HTML-media gain must not overwrite
       // the current hardware level when a title starts or the source switches.
       if (!(this.bridge.platform === "ios" && this.bridge.capabilities?.systemVolume)) {

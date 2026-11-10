@@ -102,7 +102,7 @@ impl Player {
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
                     let target = target.clone();
                     let result = match command {
-                        Command::Load { session: next, url, headers } => {
+                        Command::Load { session: next, url, headers, start_position } => {
                             desired = next.clone();
                             #[cfg(windows)]
                             glass_control.source(next.clone());
@@ -113,11 +113,15 @@ impl Player {
                                 let field = format!("{name}: {value}");
                                 format!("%{}%{field}", field.len())
                             }).collect::<Vec<_>>().join(",");
+                            // Per-file options are applied before the initial decode, not
+                            // via a second seek after FILE_LOADED. The -1 index precedes
+                            // options since mpv 0.38. Always include zero for fresh starts.
+                            let options = format!("start=+{start_position},hr-seek=yes");
                             let result = client.set_property("http-header-fields", &fields)
                                 .and_then(|_| client.set_property("pause", "no"))
                                 .and_then(|_| client.set_property("sub-visibility", "no"))
                                 .and_then(|_| client.set_property("sid", "no"))
-                                .and_then(|_| client.command(&["loadfile", &url, "replace"]));
+                                .and_then(|_| client.command(&["loadfile", &url, "replace", "-1", &options]));
                             if result.is_ok() {
                                 if let Some(id) = client.get_property("playlist/0/id", Kind::Double).and_then(|v| v.as_f64()) {
                                     entries.insert(id as i64, next);
@@ -362,7 +366,7 @@ mod tests {
         let load = |session: &str| Command::Load {
             session: session.into(),
             url: file.to_string_lossy().into_owned(),
-            headers: BTreeMap::new(),
+            headers: BTreeMap::new(), start_position: 0.0,
         };
         player.send(load("first"));
         wait_for(&inbox, |v| v["type"] == "loaded" && v["session"] == "first");
@@ -442,7 +446,7 @@ mod tests {
                     .join(format!("{file}.mkv"))
                     .to_string_lossy()
                     .into_owned(),
-                headers: BTreeMap::new(),
+                headers: BTreeMap::new(), start_position: 0.0,
             });
             wait_for(&inbox, |v| {
                 v["type"] == "colour" && v["gamma"] == gamma && v["primaries"] == primaries
@@ -554,7 +558,7 @@ mod tests {
         player.send(Command::Load {
             session: "captions".into(),
             url: directory.join("sdr.mkv").to_string_lossy().into_owned(),
-            headers: BTreeMap::new(),
+            headers: BTreeMap::new(), start_position: 0.0,
         });
         wait_for(&inbox, |v| {
             v["type"] == "loaded" && v["session"] == "captions"

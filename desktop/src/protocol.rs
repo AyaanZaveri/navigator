@@ -24,6 +24,8 @@ pub enum Command {
         url: String,
         #[serde(default)]
         headers: BTreeMap<String, String>,
+        #[serde(default, rename = "startPosition")]
+        start_position: f64,
     },
     Play {
         session: String,
@@ -128,11 +130,15 @@ pub fn parse(text: &str) -> Result<Command, String> {
             session,
             url,
             headers,
+            start_position,
         } => {
             if session.is_empty() || session.len() > 128 {
                 return Err("Invalid playback session".into());
             }
             media_url(url)?;
+            if !start_position.is_finite() || *start_position < 0.0 {
+                return Err("Invalid start position".into());
+            }
             if headers.len() > 32
                 || headers.iter().any(|(name, value)| {
                     name.is_empty()

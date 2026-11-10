@@ -414,9 +414,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             ? mediaDuration - 1
             : requestedResume;
         const resumeTime = Math.max(0, Math.min(requestedResume, maxSeekTime));
-        // Android receives this in its initial load, before preparing/decoding.
-        // Browser and older desktop engines still apply it at metadata time.
-        if (Math.abs(mediaElement.currentTime - resumeTime) > 0.1) mediaElement.currentTime = resumeTime;
+        // New desktop engines seek as part of loadfile, before the first frame.
+        // FILE_LOADED can precede that seek's time-pos observation; seeking here
+        // again would discard/rebuffer the initial decode. Keep the fallback for
+        // older engines and correct saved positions beyond the file's duration.
+        if ((!desktopBridge()?.capabilities?.initialSeek || resumeTime !== requestedResume)
+          && Math.abs(mediaElement.currentTime - resumeTime) > 0.1) mediaElement.currentTime = resumeTime;
         setCurrentTime(resumeTime);
         setCurrentTimestamp(resumeTime);
         effectiveStartTime = resumeTime;

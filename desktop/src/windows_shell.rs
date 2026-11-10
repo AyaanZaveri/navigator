@@ -537,7 +537,7 @@ pub fn run(app: App) -> Result<(), String> {
                     if app.smoke {
 
                         loading.take(); ready_deadline = None;
-                        if let Some(path) = smoke { player.send(protocol::Command::Load { session:"native-smoke".into(), url:path.to_string_lossy().into_owned(), headers:Default::default() }); }
+                        if let Some(path) = smoke { player.send(protocol::Command::Load { session:"native-smoke".into(), url:path.to_string_lossy().into_owned(), headers:Default::default(), start_position: 0.0,}); }
                     }
                 }
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":fullscreen}))); }

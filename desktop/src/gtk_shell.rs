@@ -150,7 +150,7 @@ pub fn run(app: App) -> Result<(), String> {
                     let _ = requests.send(protocol::Command::Load {
                         session: "native-smoke".into(),
                         url: path.to_string_lossy().into_owned(),
-                        headers: Default::default(),
+                        headers: Default::default(), start_position: 0.0,
                     });
                 }
                 webview.evaluate_javascript(
