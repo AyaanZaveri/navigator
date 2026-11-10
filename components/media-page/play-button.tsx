@@ -12,14 +12,17 @@ import { formatResumePosition, resumePlaybackTarget, type ResumeEpisode, type Re
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 import { WatchToggleButton } from "@/components/media-page/watch-toggle-button";
 import { ShuffleEpisodeButton } from "@/components/media-page/shuffle-episode-button";
+import { useAccountAccess } from "@/contexts/account-context";
 
 export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episodes?: ResumeEpisode[] }) {
+    const { authenticated, requestSignIn } = useAccountAccess();
     const { playMedia } = usePlaybackActions();
     const id = media.seriesId || media.id;
     const sourceId = media.mediaSourceId;
     const key = `${media.type}:${id}:${sourceId || "overview"}`;
     const [saved, setSaved] = useState<{ key: string; progress: ResumeProgress | null } | null>(null);
     useEffect(() => {
+        if (!authenticated) return;
         let cancelled = false;
         let generation = 0;
         const load = () => {
@@ -43,7 +46,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             window.removeEventListener(WATCH_HISTORY_CHANGED, refresh);
             window.removeEventListener("focus", refresh);
         };
-    }, [id, sourceId, key, media.type]);
+    }, [id, sourceId, key, media.type, authenticated]);
 
     const checkingProgress = saved?.key !== key;
     const target = resumePlaybackTarget(media, checkingProgress ? {
@@ -60,20 +63,20 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             <Button
                 type="button"
                 variant="default"
-                size="lg" onPointerEnter={preloadPlayer} onFocus={preloadPlayer}
+                size="lg" onPointerEnter={authenticated ? preloadPlayer : undefined} onFocus={authenticated ? preloadPlayer : undefined}
                 className="min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5 hover:bg-foreground/90 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
-                disabled={checkingProgress}
-                aria-busy={checkingProgress || undefined}
-                aria-label={resume ? `Resume ${media.name} ${context}` : `Play ${media.name}`}
-                onClick={() => playMedia(target)}
+                disabled={authenticated && checkingProgress}
+                aria-busy={(authenticated && checkingProgress) || undefined}
+                aria-label={!authenticated ? `Sign in to play ${media.name}` : resume ? `Resume ${media.name} ${context}` : `Play ${media.name}`}
+                onClick={() => authenticated ? playMedia(target) : requestSignIn()}
             >
                 <Play aria-hidden="true" data-icon="inline-start" className="size-4 fill-current" />
                 <span>
-                    {resume ? "Resume" : "Play"}
-                    {resume && <> <span className="font-medium tabular-nums text-background/60">{context}</span></>}
+                    {!authenticated ? "Sign in to play" : resume ? "Resume" : "Play"}
+                    {authenticated && resume && <> <span className="font-medium tabular-nums text-background/60">{context}</span></>}
                 </span>
             </Button>
-            {resume && (
+            {authenticated && resume && (
                 <Tooltip delayDuration={600}>
                     <TooltipTrigger asChild>
                         <Button
@@ -91,10 +94,10 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
                     <TooltipContent sideOffset={8}>Play from start</TooltipContent>
                 </Tooltip>
             )}
-            {(media.type === "movie" || (media.type === "series" && sourceId)) && (
+            {authenticated && (media.type === "movie" || (media.type === "series" && sourceId)) && (
                 <WatchToggleButton key={key} media={media} />
             )}
-            {overview && <ShuffleEpisodeButton key={id} media={media} episodes={episodes} />}
+            {authenticated && overview && <ShuffleEpisodeButton key={id} media={media} episodes={episodes} />}
         </div>
     );
 }

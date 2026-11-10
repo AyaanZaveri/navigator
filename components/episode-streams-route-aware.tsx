@@ -6,6 +6,8 @@ import { MediaActions } from "@/components/media-actions";
 import { Button } from "@/components/ui/button";
 import type { MediaItem, StremioVideo } from "@/types/stremio";
 import { acquireSeriesSeason } from "@/lib/media/series-season";
+import { useAccountAccess } from "@/contexts/account-context";
+import { SignInForStreams } from "@/components/sign-in-for-streams";
 
 interface EpisodeStreamsRouteAwareProps {
   show: MediaItem;
@@ -22,6 +24,7 @@ export function EpisodeStreamsRouteAware({
   show,
   prefetchedVideos,
 }: EpisodeStreamsRouteAwareProps) {
+  const { authenticated } = useAccountAccess();
   const params = useParams<{ season?: string; episode?: string }>();
   const seasonNumber = useMemo(
     () => toPositiveInt(params?.season, 0),
@@ -37,14 +40,14 @@ export function EpisodeStreamsRouteAware({
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (prefetchedVideos || !/^tmdb:[1-9]\d*$/.test(show.id) || seasonNumber === undefined) return;
+    if (!authenticated || prefetchedVideos || !/^tmdb:[1-9]\d*$/.test(show.id) || seasonNumber === undefined) return;
     let cancelled = false;
     const request = acquireSeriesSeason(show.id, seasonNumber);
     void request.promise.then(episodes => {
       if (!cancelled) { setLoaded({ key, episodes }); setFailedKey(null); }
     }).catch(() => { if (!cancelled) setFailedKey(key); });
     return () => { cancelled = true; request.release(); };
-  }, [key, show.id, seasonNumber, prefetchedVideos, retry]);
+  }, [key, show.id, seasonNumber, prefetchedVideos, retry, authenticated]);
   const videos = prefetchedVideos ?? (loaded?.key === key ? loaded.episodes : undefined);
 
   const episodeMedia = useMemo(() => {
@@ -81,6 +84,8 @@ export function EpisodeStreamsRouteAware({
       poster: selectedEpisode.thumbnail || show.poster,
     } satisfies MediaItem;
   }, [seasonNumber, episodeNumber, videos, show]);
+
+  if (!authenticated) return <div className="mt-6 w-full"><SignInForStreams /></div>;
 
   if (!episodeMedia) {
     return failedKey === key ? <div role="alert" className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">

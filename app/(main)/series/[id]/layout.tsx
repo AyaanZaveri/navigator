@@ -74,7 +74,7 @@ export default async function SeriesLayout({
             {show.logo && (
               <div className={backdropStyles.wordmarkRegion}>
                 <Link
-                  href={buildSeriesPath(id)}
+                  href={buildSeriesPath(show.id)}
                   prefetch={true}
                   draggable={false}
                   aria-label={`Go to ${show.name} series page`}
@@ -119,7 +119,7 @@ export default async function SeriesLayout({
         </Suspense>
 
         <Suspense fallback={null}>
-          <SimilarShows showId={id} />
+          <SimilarShows showId={show.id} />
         </Suspense>
       </div>
       </PlaybackPageProvider>

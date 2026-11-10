@@ -23,7 +23,8 @@ macOS Application Support, Windows LOCALAPPDATA, or Linux XDG_CONFIG_HOME
 for the key. Windows uses the profile directory's ACLs. Deleting the key signs
 that local app out. Never copy this profile directory into a release.
 
-Successful official Stremio login is the only session issuance path. `jose`
+Successful official Stremio email/password login or approved device linking is
+required to issue a session. `jose`
 EncryptJWT creates an authenticated AES-256-GCM JWE with issuer, audience,
 subject, issued-at and 30-day expiration claims. Only a minimal profile and the
 Stremio credential are encrypted inside it. The cookie is HttpOnly,
@@ -40,6 +41,26 @@ stateless sessions, clearing one browser's cookie does not revoke a copied
 Navigator cookie; expiration or deployment-key rotation does. Do not treat
 Navigator's session verifier as upstream account authorization: Stremio still
 checks its bearer key for account data and mutations.
+
+The provider button uses Stremio's official `link.stremio.com` pairing service,
+not a third-party OAuth endpoint. Pairing codes and attempt IDs are bound to a
+five-minute encrypted HttpOnly cookie with a separate JWT audience. Polling
+requires the matching attempt; an approved Stremio key is verified using
+`getUser` and immediately exchanged for the normal encrypted session. Neither
+the polling response nor browser JavaScript receives that Stremio key. Completed
+pairing cookies are deleted, and logout clears any pending pairing cookie.
+
+Guest browsing intentionally allows `/`, `/search`, explicit TMDB movie/series
+routes, and the fixed TMDB search/artwork/episode read endpoints. These reads use
+the server's TMDB credential (or the device's saved token), without exposing it
+to JavaScript. Account pages, Stremio data, add-on requests, playback, mutations,
+and AI requests still require a verified session. The app shell resets its Jotai
+store when the account changes and disables personal watch-history reads for
+guests. `scripts/test-guest-discovery.cjs` and `scripts/test-sign-in-dialog.cjs`
+cover this public discovery and sign-in boundary. Hosted guests prefer the
+server's TMDB key over a previous account's saved token; signed-in users retain
+personal-key precedence. `scripts/test-stremio-link.cjs` covers pairing expiry,
+binding, pending/approved responses, tampering, replay, and credential privacy.
 
 ## Outbound request policy
 

@@ -1,4 +1,3 @@
-import { getAuthData } from "@/lib/server/auth";
 import { getTMDBEpisodes } from "@/lib/tmdb-discovery";
 
 export async function GET(request: Request) {
@@ -8,7 +7,6 @@ export async function GET(request: Request) {
     if (!/^tmdb:[1-9]\d*$/.test(id) || !params.has("season") || !Number.isSafeInteger(season) || season < 0 || season > 10000) {
         return new Response(null, { status: 400 });
     }
-    try { await getAuthData(); } catch { return new Response(null, { status: 401 }); }
     try {
         const episodes = await getTMDBEpisodes(id, season, request.signal);
         request.signal.throwIfAborted();

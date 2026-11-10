@@ -2,6 +2,7 @@ import { cache } from "react";
 import { fetchMediaDetails } from "@/app/actions";
 import { fetchEpisodes } from "@/app/actions/tv-shows";
 import type { MediaItem, StremioVideo } from "@/types/stremio";
+import { parseSeriesRouteId } from "@/lib/series-route";
 
 export interface SeriesLayoutData {
   show: MediaItem;
@@ -50,6 +51,7 @@ export const getSeriesEpisodeSelectionData = cache(
     seasonParam: string,
     episodeParam: string
   ): Promise<SeriesEpisodeSelectionData | null> => {
+    id = parseSeriesRouteId(id).seriesId;
     const seasonNumber = Number(seasonParam);
     const episodeNumber = Number(episodeParam);
 

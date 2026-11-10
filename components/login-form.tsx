@@ -1,209 +1,160 @@
 "use client";
 
-import React, { useState } from "react";
-import Image from "next/image";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import {
-    InputGroup,
-    InputGroupAddon,
-    InputGroupButton,
-    InputGroupInput,
-} from "@/components/ui/input-group";
-import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
-import { authenticateUser } from "@/app/actions";
-import { ArrowRight, Loader2, Mail, LockKeyhole, Eye, EyeOff } from "lucide-react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { authenticateUser, finishStremioSignIn, startStremioSignIn } from "@/app/actions/auth";
+import { Button } from "@/components/account-ui/button";
+import { Input } from "@/components/account-ui/input";
+import { Label } from "@/components/account-ui/label";
+import { Separator } from "@/components/account-ui/separator";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-interface LoginFormProps {
-  onSuccess: () => void;
-}
+type StremioLink = Extract<Awaited<ReturnType<typeof startStremioSignIn>>, { success: true }>;
 
-export function LoginForm({ onSuccess }: LoginFormProps) {
+// Portalhop's SignInContent composition, with Stremio as the account provider.
+export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
+    const id = useId();
+    const pending = useRef(false);
+    const pendingLink = useRef(false);
+    const active = useRef(true);
+    const popup = useRef<Window | null>(null);
+    const success = useRef(onSuccess);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [linking, setLinking] = useState(false);
+    const [link, setLink] = useState<StremioLink | null>(null);
     const [error, setError] = useState("");
-    const [isLoginSuccessful, setIsLoginSuccessful] = useState(false);
-    // Server actions are imported directly
-    const isInputSuccessState = isLoginSuccessful && !error;
-    const emailGroupClass = error
-        ? "border-red-500 ring-red-500/20"
-        : isInputSuccessState
-            ? "border-primary ring-primary/20 ring-[3px]"
-            : "";
-    const passwordGroupClass = error
-        ? "border-red-500 ring-red-500/20"
-        : isInputSuccessState
-            ? "border-primary ring-primary/20 ring-[3px]"
-            : "";
+    const busy = submitting || linking;
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!email.trim()) {
-            setError("Please enter your email");
-            return;
-        }
+    useEffect(() => { success.current = onSuccess; }, [onSuccess]);
 
-        setIsLoading(true);
-        setIsLoginSuccessful(false);
+    useEffect(() => {
+        active.current = true;
+        return () => { active.current = false; popup.current?.close(); };
+    }, []);
+
+    useEffect(() => {
+        if (!link) return;
+        let cancelled = false;
+        let timer: ReturnType<typeof setTimeout>;
+        const poll = async () => {
+            try {
+                const result = Date.now() >= link.expiresAt ? { status: "expired" } : await finishStremioSignIn(link.attempt);
+                if (cancelled) return;
+                if (result.status === "signed-in") {
+                    popup.current?.close();
+                    setPassword("");
+                    toast.success("Signed in to Stremio");
+                    success.current();
+                    return;
+                }
+                if (result.status === "expired") {
+                    pendingLink.current = false;
+                    setLink(null);
+                    setLinking(false);
+                    setError("This sign-in link expired. Please try again.");
+                    return;
+                }
+            } catch { /* A temporary connection failure can recover on the next poll. */ }
+            if (!cancelled) timer = setTimeout(poll, 3000);
+        };
+        timer = setTimeout(poll, 1000);
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [link]);
+
+    async function signInWithStremio() {
+        if (pending.current || pendingLink.current || busy) return;
+        pendingLink.current = true;
+        setLinking(true);
         setError("");
-
+        // Open on the user gesture so the provider window survives popup blocking.
+        popup.current = window.open("about:blank", "_blank");
+        if (popup.current) popup.current.opener = null;
         try {
-            const result = await authenticateUser(email, password);
-
-            if (result) {
-                setIsLoginSuccessful(true);
-                toast.success("Login success");
-                onSuccess();
-            } else {
-                setError("Invalid email or password. Please try again.");
-            }
+            const result = await startStremioSignIn();
+            if (!active.current) return;
+            if (!result.success) throw new Error(result.error);
+            setLink(result);
+            popup.current?.location.replace(result.link);
         } catch {
-            setError("Authentication failed. Please try again.");
-        } finally {
-            setIsLoading(false);
+            popup.current?.close();
+            if (active.current) {
+                pendingLink.current = false;
+                setLinking(false);
+                setError("Couldn't open Stremio. Please try again or use your email and password.");
+            }
         }
-    };
+    }
+
+    async function submit(event: FormEvent) {
+        event.preventDefault();
+        if (pending.current || linking) return;
+        pending.current = true;
+        setSubmitting(true);
+        setError("");
+        try {
+            if (!await authenticateUser(email.trim(), password)) {
+                setError("Couldn't sign in. Check your Stremio email and password and try again.");
+                return;
+            }
+            setPassword("");
+            toast.success("Signed in to Stremio");
+            onSuccess();
+        } catch {
+            setError("Couldn't reach Stremio. Please try again.");
+        } finally {
+            pending.current = false;
+            setSubmitting(false);
+        }
+    }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4 relative w-full">
-            <VibrantAuroraBackground
-                amplitude={0.8}
-                blend={0.4}
-            />
-            <Card className="w-full max-w-md relative z-10 border bg-background/85 backdrop-blur-xl shadow-xs">
-                <CardHeader className="text-center">
-                    <div className="flex items-center justify-center mb-5">
-                        <Image
-                            draggable={false}
-                            src="/logo/navigator.png"
-                            alt="Navigator logo"
-                            width={64}
-                            height={64}
-                            priority
-                            className="drop-shadow-[0_4px_10px_rgba(0,0,0,0.16)] dark:drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]"
-                        />
-                    </div>
-                    <CardTitle className="font-poppins text-3xl font-semibold tracking-tight">Sign in</CardTitle>
-                    <CardDescription className="text-base text-muted-foreground/90 mt-2">
-                        Enter your Stremio credentials to continue
-                    </CardDescription>
-                </CardHeader>
-                <form onSubmit={handleSubmit}>
-                    <CardContent>
-                        <div className="space-y-5">
-                            <div>
-                                <label
-                                    htmlFor="email"
-                                    className="text-sm font-medium block mb-2"
-                                >Email</label>
-                                <InputGroup className={emailGroupClass}>
-                                    <InputGroupAddon>
-                                        <Mail className={isInputSuccessState ? "text-primary" : ""} />
-                                    </InputGroupAddon>
-                                    <InputGroupInput
-                                        id="email"
-                                        type="email"
-                                        placeholder="Enter your email"
-                                        value={email}
-                                        onChange={(e) => {
-                                            setEmail(e.target.value);
-                                            if (isLoginSuccessful) {
-                                                setIsLoginSuccessful(false);
-                                            }
-                                            if (error) {
-                                                setError("");
-                                            }
-                                        }}
-                                        disabled={isLoading}
-                                        autoComplete="email"
-                                        aria-invalid={error ? true : undefined}
-                                    />
-                                </InputGroup>
-                            </div>
-                            <div>
-                                <label
-                                    htmlFor="password"
-                                    className="text-sm font-medium block mb-2"
-                                >Password</label>
-                                <InputGroup className={passwordGroupClass}>
-                                    <InputGroupAddon>
-                                        <LockKeyhole className={isInputSuccessState ? "text-primary" : ""} />
-                                    </InputGroupAddon>
-                                    <InputGroupInput
-                                        id="password"
-                                        type={isPasswordVisible ? "text" : "password"}
-                                        placeholder="Enter your password"
-                                        value={password}
-                                        onChange={(e) => {
-                                            setPassword(e.target.value);
-                                            if (isLoginSuccessful) {
-                                                setIsLoginSuccessful(false);
-                                            }
-                                            if (error) {
-                                                setError("");
-                                            }
-                                        }}
-                                        disabled={isLoading}
-                                        autoComplete="current-password"
-                                        aria-invalid={error ? true : undefined}
-                                    />
-                                    <InputGroupAddon align="inline-end">
-                                        <InputGroupButton
-                                            size="icon-xs"
-                                            aria-label={isPasswordVisible ? "Hide password" : "Show password"}
-                                            title={isPasswordVisible ? "Hide password" : "Show password"}
-                                            onClick={() => setIsPasswordVisible((prev) => !prev)}
-                                        >
-                                            {isPasswordVisible ? <EyeOff /> : <Eye />}
-                                        </InputGroupButton>
-                                    </InputGroupAddon>
-                                </InputGroup>
-                                {error && (
-                                    <p className="text-sm text-red-500 mt-2 flex items-start gap-2">
-                                        <span className="text-red-500 mt-0.5">⚠</span>
-                                        <span>{error}</span>
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                    <CardFooter>
-                        <Button
-                            type="submit"
-                            className="w-full mt-8"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Signing In...
-                                </>
-                            ) : (
-                                <>
-                                    Sign In
-                                    <ArrowRight className="h-4 w-4" />
-                                </>
-                            )}
-                        </Button>
-                    </CardFooter>
-                </form>
-            </Card>
-
-            {/* Theme toggle in bottom right */}
-            <div className="fixed bottom-4 right-4">
-                <ThemeToggle />
+        <div className="flex flex-col gap-4">
+            <Button type="button" variant="outline" size="lg" className="w-full justify-center gap-2 bg-transparent" disabled={busy} onClick={signInWithStremio}>
+                {linking ? <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    // Official asset: github.com/Stremio/stremio-brand
+                    // eslint-disable-next-line @next/next/no-img-element
+                    : <img src="/logo/stremio.svg" alt="" aria-hidden="true" className="size-4 shrink-0" />}
+                Sign in with Stremio
+            </Button>
+            {link && <div className="flex flex-col items-center gap-2 text-center text-sm">
+                <p role="status" className="text-balance text-muted-foreground">Finish signing in in the Stremio window.</p>
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                    <a href={link.link} target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Open Stremio</a>
+                    <button type="button" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { popup.current?.close(); pendingLink.current = false; setLink(null); setLinking(false); }}>Cancel</button>
+                </div>
+            </div>}
+            <div className="flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <Separator className="flex-1" />
             </div>
+            <form className="flex flex-col gap-3" onSubmit={submit} aria-busy={busy}>
+                <div className="flex flex-col gap-2.5">
+                    <Label htmlFor={`${id}-email`}>Email</Label>
+                    <Input id={`${id}-email`} type="email" autoComplete="username" required maxLength={320}
+                        value={email} disabled={busy} placeholder="you@example.com"
+                        aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
+                        onChange={event => { setEmail(event.target.value); setError(""); }} />
+                </div>
+                <div className="flex flex-col gap-2.5">
+                    <Label htmlFor={`${id}-password`}>Password</Label>
+                    <Input id={`${id}-password`} type="password" autoComplete="current-password" required maxLength={4096}
+                        value={password} disabled={busy} placeholder="Password"
+                        aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
+                        onChange={event => { setPassword(event.target.value); setError(""); }} />
+                </div>
+                {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
+                <Button type="submit" size="lg" className="w-full justify-center gap-2" disabled={busy}>
+                    {submitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+                    Sign in
+                </Button>
+            </form>
+            <p className="text-center text-sm text-muted-foreground">
+                {"Don't have an account?"}{" "}
+                <a href="https://web.stremio.com/#/intro" target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Sign up</a>
+            </p>
         </div>
     );
 }

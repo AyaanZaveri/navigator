@@ -16,6 +16,7 @@ license. Preserve each upstream notice when copying or distributing its files.
 | Sunghyun Sans / Pretendard | SIL Open Font License | [Font license](app/fonts/sunghyun-sans/LICENSE) |
 | Country flags | Respective upstream licenses | [3x2](public/flags/3x2/LICENSE), [circle](public/flags/circle/LICENSE) |
 | Subtitle preview photograph | Simon Berger / Pexels | [Photo notice](public/images/subtitle-preview.LICENSE.txt) |
+| Stremio sign-in mark in `public/logo/stremio.svg` | [Official Stremio brand assets](https://github.com/Stremio/stremio-brand/blob/master/logos/SVG/stremio-logo-800px.svg) | Stremio trademark; identifies the connected account provider |
 | Mobile icons | Lucide ISC / Feather MIT | [Android notice](android/app/src/main/assets/third-party-licenses/lucide.txt), [iOS notices](ios/Navigator/Resources/ThirdPartyNotices.txt) |
 
 `skills-lock.json` maps every installed skill to its source and content hash.

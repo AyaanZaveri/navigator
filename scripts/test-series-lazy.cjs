@@ -87,8 +87,8 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
     '@/lib/tmdb-discovery': { getTMDBEpisodes: async (id, season, signal) => { serverCalls++; assert.equal(id, 'tmdb:20'); assert.ok(signal); return [episode(season)]; } },
   }, { Request, Response, URL });
   assert.equal((await api.GET(new Request('http://app/api/series/episodes?id=unknown&season=1'))).status, 400);
-  assert.equal((await api.GET(new Request('http://app/api/series/episodes?id=tmdb:20&season=1'))).status, 401);
-  assert.equal(serverCalls, 0);
+  assert.equal((await api.GET(new Request('http://app/api/series/episodes?id=tmdb:20&season=1'))).status, 200, 'Public episode metadata stays available before sign-in');
+  assert.equal(serverCalls, 1);
   authorized = true;
   const response = await api.GET(new Request('http://app/api/series/episodes?id=tmdb:20&season=0'));
   assert.equal(response.headers.get('vary'), 'Cookie');
@@ -98,6 +98,7 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   let failedSeason = 1;
   const modules = new Proxy({
     react: { ...require('react'), ...h.react }, 'react/jsx-runtime': h.jsx,
+    '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
     '@/lib/artwork': { episodeThumbnailUrl: url => url },
     '@/lib/media/series-season': { acquireSeriesSeason: (id, season) => {
       const record = { id, season, released: false };

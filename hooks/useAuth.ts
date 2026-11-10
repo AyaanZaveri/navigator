@@ -35,7 +35,7 @@ export function useAuth() {
         pending.current?.abort();
         setAuthState({ user: null, timestamp: null, isAuthenticated: false, isLoading: false });
         // A full navigation drops retained account/RSC state after the API clears its HttpOnly cookie.
-        window.location.replace(new URL("/login", window.location.origin).href);
+        window.location.replace(new URL("/", window.location.origin).href);
     }, []);
     const isTokenExpired = useCallback(() => !authState.timestamp || Date.now() - authState.timestamp > 30 * 24 * 60 * 60 * 1000, [authState.timestamp]);
     useEffect(() => {

@@ -57,6 +57,8 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000). You can set up AI and a TMDB artwork token in Settings; shared server keys are optional for local use.
 
+Visitors can browse the home screen, search, and TMDB title details before signing in. Set `TMDB_API_READ_ACCESS_TOKEN` on hosted deployments to populate guest discovery. Guests prefer that shared key over any previous account's saved token. The home screen includes weekly trends, top-rated movies and shows, and regional Netflix catalogs sorted by TMDB popularity. `TMDB_WATCH_REGION` selects the provider region (default `US`); these rows are not Netflix's own Top 10 chart. The top-right sign-in dialog supports Stremio's official device linking or email/password and connects add-ons, library, and Continue Watching.
+
 For web research, connect TinyFish in Settings and enable web search. You can also provide a shared key through `TINYFISH_API_KEY` in your environment file.
 
 For production, set `NAVIGATOR_SESSION_SECRET` with `openssl rand -hex 32`, then run `npm run build` and `npm start`. See the [environment example](.env.example), [security setup](docs/security-hardening.md), and [Cloudflare guide](docs/cloudflare.md).

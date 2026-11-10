@@ -13,7 +13,7 @@ interface WatchHistoryContextValue {
 const WatchHistoryContext = createContext<WatchHistoryContextValue>({ items: {}, subscribe: () => () => {}, update: () => {} });
 
 /** Account-scoped and shared across cards; never one API request per thumbnail. */
-export function WatchHistoryProvider({ children }: { children: ReactNode }) {
+export function WatchHistoryProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
     const [items, setItems] = useState<Record<string, WatchHistoryItem>>({});
     const cached = useRef(new Set<string>());
     const active = useRef(new Map<string, { request: WatchHistoryRequest; count: number }>());
@@ -23,6 +23,7 @@ export function WatchHistoryProvider({ children }: { children: ReactNode }) {
     const versions = useRef(new Map<string, number>());
 
     const enqueue = useCallback((request: WatchHistoryRequest) => {
+        if (!enabled) return;
         const key = watchHistoryKey(request);
         versions.current.set(key, (versions.current.get(key) || 0) + 1);
         pending.current.set(key, request);
@@ -46,7 +47,7 @@ export function WatchHistoryProvider({ children }: { children: ReactNode }) {
                 }).catch(() => { chunk.forEach(item => cached.current.delete(watchHistoryKey(item))); });
             }
         }, 0);
-    }, []);
+    }, [enabled]);
 
     const subscribe = useCallback((request: WatchHistoryRequest) => {
         const key = watchHistoryKey(request);

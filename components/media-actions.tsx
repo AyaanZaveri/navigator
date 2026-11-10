@@ -22,6 +22,8 @@ import { usePlaybackPage } from "@/components/playback-page-provider";
 import { createPlaybackStreamRequest, type StreamWithAddon } from "@/lib/media/fetch-playback-streams";
 import { streamRequestKey } from "@/lib/media/playback-context";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
+import { useAccountAccess } from "@/contexts/account-context";
+import { SignInForStreams } from "@/components/sign-in-for-streams";
 
 interface MediaActionsProps {
   media?: MediaItem;
@@ -32,6 +34,7 @@ interface MediaActionsProps {
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p", "480p"] as const;
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
+  const { authenticated } = useAccountAccess();
   const activeMedia = media ?? movie;
   const page = usePlaybackPage();
   const activeId = activeMedia?.id;
@@ -53,7 +56,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   }, [activeMedia?.resumePositionTicks]);
 
   useEffect(() => {
-    if (!activeMedia) return;
+    if (!authenticated || !activeMedia) return;
     let cancelled = false;
 
     const libraryItemId = activeMedia.seriesId || activeMedia.id;
@@ -82,10 +85,11 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     activeMedia?.id,
     activeMedia?.mediaSourceId,
     activeMedia?.seriesId,
+    authenticated,
   ]);
 
   useEffect(() => {
-    if (!activeId || !activeType) return;
+    if (!authenticated || !activeId || !activeType) return;
     let cancelled = false;
 
     const key = streamRequestKey(activeId, activeType);
@@ -114,9 +118,10 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       if (!cancelled) { console.error("Failed to fetch streams:", error); setLoading(false); setHasCheckedStreams(true); }
     });
     return () => { cancelled = true; unsubscribe(); };
-  }, [activeId, activeType, page]);
+  }, [activeId, activeType, page, authenticated]);
 
   if (!activeMedia) return null;
+  if (!authenticated) return <SignInForStreams />;
 
   const normalizedSearchQuery = streamSearchQuery.trim().toLowerCase();
   const hasActiveFilters = selectedResolutions.length > 0;

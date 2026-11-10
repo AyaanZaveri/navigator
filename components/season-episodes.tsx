@@ -35,6 +35,7 @@ import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import cardStyles from "./media-card.module.css";
 import styles from "./season-episodes.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
+import { useAccountAccess } from "@/contexts/account-context";
 
 interface SeasonEpisodesProps {
   showId: string;
@@ -137,6 +138,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   currentSeasonNumber,
   currentEpisodeNumber,
 }: SeasonEpisodesProps) {
+  const { authenticated } = useAccountAccess();
   const prefetchedEpisodes = useMemo(
     () => normalizeVideosToEpisodes(showId, prefetchedVideos),
     [showId, prefetchedVideos]
@@ -307,6 +309,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   }, [showId, selectedSeason, hasPrefetchedEpisodes, prefetchedEpisodes, episodeRetry]);
 
   useEffect(() => {
+    if (!authenticated) return;
     let cancelled = false;
 
     const cached = playbackProgressCache.get(showId);
@@ -351,7 +354,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     return () => {
       cancelled = true;
     };
-  }, [showId]);
+  }, [showId, authenticated]);
 
   useEffect(() => {
     if (

@@ -22,7 +22,7 @@ export function AuthErrorHandler({ error, children }: AuthErrorHandlerProps) {
           console.error('Failed to clear auth data:', clearError);
         }
         // Redirect to login page
-        router.push('/auth/login');
+        router.replace('/?signIn=1');
       }
     }
 
@@ -34,7 +34,7 @@ export function AuthErrorHandler({ error, children }: AuthErrorHandlerProps) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <p className="text-muted-foreground mb-4">Session expired. Redirecting to login...</p>
+          <p className="text-muted-foreground mb-4">Session expired. Returning to home…</p>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
         </div>
       </div>

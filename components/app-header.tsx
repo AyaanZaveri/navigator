@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AdaptiveHeaderLogo } from "@/components/adaptive-header-logo";
 import { useTheme } from "next-themes";
-import { Home, Puzzle, Settings } from "lucide-react";
+import { Home, LogIn, Puzzle, Settings } from "lucide-react";
+import { useAccountAccess } from "@/contexts/account-context";
 import { logout } from "@/app/actions";
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import { SearchBar } from "@/components/search-component";
@@ -21,7 +22,7 @@ function ProfileMenu({ email }: { email: string }) {
     const router = useRouter();
     const { theme, setTheme } = useTheme();
     const mounted = useSyncExternalStore(subscribe, () => true, () => false);
-    const preference: ThemePreference = mounted && (theme === "light" || theme === "dark") ? theme : "system";
+    const preference: ThemePreference = mounted && theme === "system" ? "system" : mounted && theme === "light" ? "light" : "dark";
 
     return (
         <UserMenu
@@ -43,6 +44,7 @@ function ProfileMenu({ email }: { email: string }) {
 }
 
 export function AppHeader({ email }: { email: string; overlay?: boolean }) {
+    const { authenticated, requestSignIn } = useAccountAccess();
     const isPlayerVisible = useIsPlayerVisible();
     const headerRef = useRef<HTMLElement>(null);
     const surfaceRef = useRef<HTMLDivElement>(null);
@@ -105,7 +107,14 @@ export function AppHeader({ email }: { email: string; overlay?: boolean }) {
                         <SearchBar />
                     </Suspense>
                 </div>
-                <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center`}><ProfileMenu email={email} /></div>
+                <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center`}>
+                    {authenticated ? <ProfileMenu email={email} /> : (
+                        <Button variant="outline" className={styles.signIn} onClick={requestSignIn} aria-label="Sign in">
+                            <LogIn data-icon="inline-start" aria-hidden="true" />
+                            <span>Sign in</span>
+                        </Button>
+                    )}
+                </div>
             </nav>
         </header>
     );

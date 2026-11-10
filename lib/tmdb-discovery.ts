@@ -4,6 +4,7 @@ import { getTMDBToken } from "@/lib/tmdb-credentials";
 import { parseSeriesRouteId } from "@/lib/series-route";
 import { artworkUrl } from "@/lib/artwork";
 import type { MediaItem } from "@/types/stremio";
+import type { HomeCatalogSection } from "@/lib/home-catalogs";
 
 export type TMDBMediaType = "movie" | "series";
 export type FilmographyRole = "all" | "acting" | "directing" | "writing" | "producing";
@@ -76,7 +77,7 @@ async function request<T>(path: string, params: Params = {}, signal?: AbortSigna
             redirect: "manual",
             headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
             signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-            next: { revalidate: path.startsWith("search/") ? 3600 : 86400 },
+            next: { revalidate: /^(search|trending|discover)\//.test(path) ? 3600 : 86400 },
         });
         if (response.status === 401 || response.status === 403) throw new Error("TMDB rejected the access token. Update it in Settings → TMDB.");
         if (response.status === 429) throw new Error("TMDB is rate limiting requests. Please try again shortly.");
@@ -117,6 +118,36 @@ function titleResult(item: TMDBTitleRecord, type: TMDBMediaType) {
         voteCount: item.vote_count, popularity: item.popularity,
         sourceUrl: `https://www.themoviedb.org/${type === "movie" ? "movie" : "tv"}/${item.id}`,
     };
+}
+
+/** Maintained TMDB feeds need no Stremio account or user-owned list IDs.
+ * Provider discovery is TMDB popularity within a regional catalog, not the
+ * provider's own viewing chart. Keep that distinction in the section labels.
+ */
+export async function getTMDBHomeSections(): Promise<{ sections: HomeCatalogSection[]; region: string }> {
+    const configuredRegion = process.env.TMDB_WATCH_REGION?.trim().toUpperCase();
+    const region = configuredRegion && /^[A-Z]{2}$/.test(configuredRegion) ? configuredRegion : "US";
+    const feeds: { key: string; name: string; path: string; type: TMDBMediaType; params?: Params }[] = [
+        { key: "trending-movies", name: "Trending Movies", path: "trending/movie/week", type: "movie" },
+        { key: "trending-series", name: "Trending TV Shows", path: "trending/tv/week", type: "series" },
+        { key: "netflix-movies", name: `Popular on Netflix • Movies • ${region}`, path: "discover/movie", type: "movie",
+            params: { with_watch_providers: 8, watch_region: region, with_watch_monetization_types: "flatrate", sort_by: "popularity.desc" } },
+        { key: "netflix-series", name: `Popular on Netflix • TV Shows • ${region}`, path: "discover/tv", type: "series",
+            params: { with_watch_providers: 8, watch_region: region, with_watch_monetization_types: "flatrate", sort_by: "popularity.desc" } },
+        { key: "top-rated-movies", name: "Top Rated Movies", path: "movie/top_rated", type: "movie" },
+        { key: "top-rated-series", name: "Top Rated TV Shows", path: "tv/top_rated", type: "series" },
+    ];
+    const results = await Promise.allSettled(feeds.map(async feed => {
+        const data = await request<TMDBPage<TMDBTitleRecord>>(feed.path, { include_adult: false, ...feed.params });
+        return {
+            key: `tmdb-${feed.key}`, sectionName: feed.name,
+            mediaItems: data.results.filter(item => !item.adult && Number.isSafeInteger(item.id) && item.id > 0)
+                .slice(0, 20).map(item => titleResult(item, feed.type)),
+        } satisfies HomeCatalogSection;
+    }));
+    const sections = results.flatMap(result => result.status === "fulfilled" && result.value.mediaItems.length ? [result.value] : []);
+    if (!sections.length && results.some(result => result.status === "rejected")) throw new Error("Home discovery is unavailable.");
+    return { sections, region };
 }
 
 export async function searchTMDBMedia(query: string, signal?: AbortSignal, type?: TMDBMediaType, page = 1) {

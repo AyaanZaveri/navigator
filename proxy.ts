@@ -19,7 +19,11 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next();
     }
 
-    const isPublicPath = path === "/login" || path.startsWith("/logo/");
+    // Public discovery only reads TMDB. Account pages and add-on operations
+    // retain their own session gates, including direct API/Server Action calls.
+    const isPublicPath = path === "/" || path === "/search" || path === "/login"
+        || /^\/movie\/tmdb(?::|%3A)[1-9]\d*\/?$/i.test(path)
+        || /^\/series\/tmdb(?::|%3A)[1-9]\d*(?:\/\d+\/[1-9]\d*)?\/?$/i.test(path);
 
     const isAuthenticated = !!await readSession(request.cookies.get(SESSION_COOKIE)?.value);
 
@@ -28,7 +32,7 @@ export async function proxy(request: NextRequest) {
     }
 
     if (!isPublicPath && !isAuthenticated) {
-        return NextResponse.redirect(new URL("/login", request.nextUrl));
+        return NextResponse.redirect(new URL("/?signIn=1", request.nextUrl));
     }
 
     return NextResponse.next();

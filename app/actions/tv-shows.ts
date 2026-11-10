@@ -9,6 +9,7 @@ import type { MediaItem, StremioMeta, StremioMetaResponse
 } from "@/types/stremio";
 import { getAuthData } from "@/lib/server/auth";
 import { getInstalledAddons } from "./auth";
+import { parseSeriesRouteId } from "@/lib/series-route";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -66,8 +67,8 @@ export interface Season {
 
 export async function fetchSeasons(seriesId: string, signal?: AbortSignal): Promise<Season[]> {
   try {
+    seriesId = parseSeriesRouteId(seriesId).seriesId;
     if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
-      await getAuthData();
       const { getTMDBSeasons } = await import("@/lib/tmdb-discovery");
       return await getTMDBSeasons(seriesId, signal);
     }
@@ -131,8 +132,8 @@ export async function fetchEpisodes(
   signal?: AbortSignal
 ): Promise<Episode[]> {
   try {
+    seriesId = parseSeriesRouteId(seriesId).seriesId;
     if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
-      await getAuthData();
       const { getTMDBSeasons, getTMDBEpisodes, mapTMDBSeasons } = await import("@/lib/tmdb-discovery");
       if (seasonNumber !== undefined) return await getTMDBEpisodes(seriesId, seasonNumber, signal);
       const seasons = await getTMDBSeasons(seriesId, signal);
@@ -194,8 +195,8 @@ export async function fetchTVShowDetails(
   seriesId: string
 ): Promise<MediaItem | null> {
   try {
+    seriesId = parseSeriesRouteId(seriesId).seriesId;
     if (/^tmdb:[1-9]\d*$/.test(seriesId)) {
-      await getAuthData();
       const { tmdbMediaItem } = await import("@/lib/tmdb-discovery");
       return await tmdbMediaItem(seriesId, "series");
     }
@@ -233,8 +234,9 @@ export async function fetchEpisodeDetails(
   signal?: AbortSignal
 ): Promise<Episode | null> {
   try {
+    seriesId = parseSeriesRouteId(seriesId).seriesId;
     // A single canonical episode lookup also repairs unnamed add-on/resume entries.
-    await getAuthData();
+    if (!/^tmdb:[1-9]\d*$/.test(seriesId)) await getAuthData();
     const { getTMDBEpisode } = await import("@/lib/tmdb-discovery");
     const item = await getTMDBEpisode(seriesId, season, episode, signal);
     if (item.name?.trim()) return { id: `${seriesId}:${season}:${episode}`, title: item.name,

@@ -29,7 +29,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     listeners.get('focus')();
     const pending = requests.at(-1);
     await state.logout();
-    assert.equal(window.location.href, "https://navigator.example/login");
+    assert.equal(window.location.href, "https://navigator.example/");
     host.unmount(); assert.equal(pending.options.signal.aborted, true);
     assert.equal(listeners.size, 0); assert.equal(intervals.size, 0);
     const updates = host.updates;

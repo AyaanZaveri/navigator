@@ -218,11 +218,11 @@ export default async function Movie({
         </div>
 
         <Suspense fallback={null}>
-          <CastSection id={id} type="movie" names={movie.cast} />
+          <CastSection id={movie.id} type="movie" names={movie.cast} />
         </Suspense>
 
         <Suspense fallback={<SimilarMoviesSkeleton />}>
-          <SimilarMovies movieId={id} />
+          <SimilarMovies movieId={movie.id} />
         </Suspense>
       </div>
       </PlaybackPageProvider>

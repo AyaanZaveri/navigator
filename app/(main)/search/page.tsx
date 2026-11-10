@@ -1,4 +1,3 @@
-import { getAuthData } from "@/lib/server/auth";
 import { searchTMDBMedia } from "@/lib/tmdb-discovery";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { MediaCard } from "@/components/media-card";
@@ -15,7 +14,6 @@ async function SearchResults({ query, page }: { query: string; page: number }) {
     let results: Awaited<ReturnType<typeof searchTMDBMedia>>[] | undefined;
     let failure = "TMDB search is unavailable. Please try again.";
     try {
-        await getAuthData();
         results = await Promise.all([
             searchTMDBMedia(query, undefined, "movie", page),
             searchTMDBMedia(query, undefined, "series", page),

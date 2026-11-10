@@ -1,5 +1,8 @@
 import { fetchCatalogItems, fetchResumeItems, fetchResumeMovieYear } from "@/app/actions/media";
-import { getInstalledAddons } from "@/app/actions/auth";
+import { getInstalledAddons, getUser } from "@/app/actions/auth";
+import { getTMDBHomeSections } from "@/lib/tmdb-discovery";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Button } from "@/components/ui/button";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { MediaSection } from "@/components/media-section";
@@ -188,7 +191,7 @@ async function CatalogSectionsBootstrap({
   catalogEntriesPromise: Promise<HomeCatalogEntry[]>;
 }) {
   const catalogEntries = await catalogEntriesPromise;
-  if (catalogEntries.length === 0) return null;
+  if (catalogEntries.length === 0) return <DiscoverySections />;
 
   const initialEntries = catalogEntries.slice(0, INITIAL_CATALOG_COUNT);
   const remainingEntries = catalogEntries.slice(INITIAL_CATALOG_COUNT);
@@ -203,9 +206,36 @@ async function CatalogSectionsBootstrap({
   );
 }
 
-export default function Home() {
-  const continueWatchingPromise = fetchResumeItems();
-  const catalogEntriesPromise = buildCatalogEntries();
+async function DiscoverySections() {
+  let result: Awaited<ReturnType<typeof getTMDBHomeSections>> | undefined;
+  try { result = await getTMDBHomeSections(); } catch { /* Show a recoverable empty state instead of a blank home. */ }
+  if (!result?.sections.length) {
+    return <Empty className="relative z-10 min-h-80">
+      <EmptyHeader>
+        <EmptyTitle>Discovery is unavailable</EmptyTitle>
+        <EmptyDescription>We couldn’t load movies and TV shows right now. Please try again in a moment.</EmptyDescription>
+      </EmptyHeader>
+      {/* A full reload retries the server feeds even when the URL is unchanged. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+      <Button asChild variant="outline"><a href="/">Try again</a></Button>
+    </Empty>;
+  }
+  const first = result.sections[0].mediaItems[0];
+  const artwork = mediaArtwork(first.id, first.type);
+  return <>
+    <HomeInitialPalette primary={artwork.poster} fallback={artwork.background} />
+    <HomeCatalogSectionsLazy initialSections={result.sections} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
+    <p className="relative z-10 py-4 text-xs text-muted-foreground">
+      Movie and TV data by <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline underline-offset-4">TMDB</a>.
+      {" "}Streaming availability by <a href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({result.region}).
+    </p>
+  </>;
+}
+
+export default async function Home() {
+  const user = await getUser();
+  const continueWatchingPromise = user ? fetchResumeItems() : null;
+  const catalogEntriesPromise = user ? buildCatalogEntries() : null;
 
   return (
     <AuthErrorHandler>
@@ -213,12 +243,12 @@ export default function Home() {
         <div className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
           <HomeGradientBackground />
 
-          <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
+          {continueWatchingPromise && <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
             <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />
-          </Suspense>
+          </Suspense>}
 
           <Suspense fallback={<HomeCatalogsFallback />}>
-            <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
+            {catalogEntriesPromise ? <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} /> : <DiscoverySections />}
           </Suspense>
         </div>
       </HomePaletteProvider>

@@ -240,8 +240,11 @@ export async function fetchMediaDetails(
   options?: { playback?: boolean },
 ): Promise<MediaItem | null> {
   try {
+    // Next's route params can retain percent-encoded separators. Normalize
+    // before choosing the public TMDB path versus account-owned add-ons.
+    try { mediaItemId = decodeURIComponent(mediaItemId); } catch { /* Keep invalid encodings bounded by the existing ID checks. */ }
     if (/^tmdb:[1-9]\d*$/.test(mediaItemId) && (type === "movie" || type === "series")) {
-      await getAuthData();
+      if (options?.playback) await getAuthData();
       const { tmdbMediaItem, resolveTMDBPlaybackId } = await import("@/lib/tmdb-discovery");
       if (options?.playback) {
         try {

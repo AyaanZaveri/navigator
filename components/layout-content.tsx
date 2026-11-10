@@ -16,6 +16,7 @@ import { desktopBridge } from "@/lib/desktop/bridge";
 import { AuroraProvider, PersistentAuroraBackground } from "@/components/aurora-provider";
 import { ScrollAreaRoot, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area";
 import styles from "./layout-content.module.css";
+import { useAccountAccess } from "@/contexts/account-context";
 
 interface LayoutContentProps {
   children: ReactNode;
@@ -24,6 +25,7 @@ interface LayoutContentProps {
 }
 
 export function LayoutContent({ children, email, userId }: LayoutContentProps) {
+    const { authenticated } = useAccountAccess();
     const pathname = usePathname();
     const viewportRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
@@ -42,8 +44,8 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
 
     // Sync the navigator enabled state with the atom
     useEffect(() => {
-        setIsNavigatorEnabled(navigatorEnabled);
-    }, [navigatorEnabled, setIsNavigatorEnabled]);
+        setIsNavigatorEnabled(authenticated && navigatorEnabled);
+    }, [authenticated, navigatorEnabled, setIsNavigatorEnabled]);
 
     // Function to handle opening AI Ask with fullscreen exit if needed
     const handleToggleAIAsk = async () => {
@@ -89,7 +91,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
                         <ScrollBar className={styles.scrollbar} style={{ top: "var(--app-header-height, 5.25rem)", bottom: "env(safe-area-inset-bottom, 0px)" }} />
                     </div>
                 </ScrollAreaRoot>
-                <DeferredTools userId={userId || email} navigatorEnabled={navigatorEnabled} onToggleAIAsk={handleToggleAIAsk} />
+                {authenticated && <DeferredTools key={userId || email} userId={userId || email} navigatorEnabled={navigatorEnabled} onToggleAIAsk={handleToggleAIAsk} />}
             </div>
         </AuroraProvider>
     );

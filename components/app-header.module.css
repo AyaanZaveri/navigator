@@ -25,6 +25,32 @@
     margin-inline-start: auto;
 }
 
+/* Use the same resting material as the adjacent expanding search field. */
+.signIn {
+    background: color-mix(in oklab, var(--background) 90%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+
+:global(.dark) .signIn {
+    background: color-mix(in oklab, var(--background) 70%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .signIn:hover,
+    :global(.dark) .signIn:hover {
+        background: color-mix(in oklab, var(--accent) 90%, transparent);
+    }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .signIn {
+        background: var(--background);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+}
+
 .surface {
     position: absolute;
     inset: 0 0 -24px;

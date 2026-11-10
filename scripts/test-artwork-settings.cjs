@@ -30,7 +30,7 @@ async function run() {
         process: { env }, AbortSignal,
         require(name) {
             if (name === "server-only") return {};
-            if (name === "@/lib/server/auth") return { getAuthData: async () => ({ user: { _id: "fixture" } }) };
+            if (name === "@/lib/server/auth") return { getAuthData: async () => { if (!signedIn) throw new Error("Not authenticated"); return { user: { _id: "fixture" } }; } };
             if (name === "next/headers") return { cookies: async () => store };
             if (name === "next/cache") return { revalidatePath: (...args) => invalidated.push(args) };
             if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getUser: async () => signedIn ? { _id: "fixture" } : null };
@@ -90,7 +90,7 @@ async function run() {
     assert.equal((await settings.removeArtworkToken()).success, false);
     assert.equal(requests.length, requestCount);
     assert.equal(writes.length, writeCount);
-    assert.equal(await credentials.getTMDBToken(), "personal-web-token");
+    assert.equal(await credentials.getTMDBToken(), "hosted-fallback", "Guests use the hosted key even when a previous account's token remains saved");
     console.log("Artwork credential validation, persistence, privacy, removal, and hosted fallback tests passed.");
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
