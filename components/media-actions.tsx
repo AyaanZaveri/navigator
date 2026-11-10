@@ -31,7 +31,7 @@ interface MediaActionsProps {
 }
 
 
-const RESOLUTION_FILTERS = ["2160p", "1080p", "720p", "480p"] as const;
+const RESOLUTION_FILTERS = ["2160p", "1080p", "720p"] as const;
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const { authenticated } = useAccountAccess();
