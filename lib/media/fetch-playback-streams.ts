@@ -1,8 +1,8 @@
 import type { StremioStream } from '@/types/stremio';
 import { fetchPlaybackId } from './fetch-playback-id';
 
-export type StreamWithAddon = StremioStream & { addonId: string; addonName: string };
-export interface PlaybackStreamSnapshot { streams: StreamWithAddon[]; pending: number; total: number; complete: boolean }
+export type StreamWithAddon = StremioStream & { addonId: string; addonName: string; addonIndex?: number };
+export interface PlaybackStreamSnapshot { streams: StreamWithAddon[]; pending: number; total: number; complete: boolean; settledPrefix?: number }
 export interface PlaybackStreamRequest {
     id: string;
     type: string;
@@ -39,7 +39,12 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
         const { addons = [] } = await targetsResponse.json() as { addons?: { id: string; name?: string }[] };
         let pending = addons.length;
         const groups: StreamWithAddon[][] = addons.map(() => []);
-        const update = () => publish({ streams: groups.flat(), pending, total: addons.length, complete: pending === 0 });
+        const settled = addons.map(() => false);
+        const update = () => {
+            let settledPrefix = 0;
+            while (settled[settledPrefix]) settledPrefix++;
+            publish({ streams: groups.flat(), pending, total: addons.length, complete: pending === 0, settledPrefix });
+        };
         update();
         await Promise.allSettled(addons.map(async (addon, index) => {
             try {
@@ -48,9 +53,9 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
                 if (!response.ok) return;
                 const data = await response.json() as { streams?: StremioStream[] };
                 groups[index] = Array.isArray(data.streams) ? data.streams.map(stream => ({
-                    ...stream, addonId: addon.id, addonName: addon.name || addon.id,
+                    ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonIndex: index,
                 })) : [];
-            } finally { pending--; update(); }
+            } finally { settled[index] = true; pending--; update(); }
         }));
         return request.snapshot.streams;
     })();

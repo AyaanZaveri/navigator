@@ -2,7 +2,7 @@ import { languageMatchScore, streamLanguagePreference } from "@/lib/media/audio-
 import type { MediaToPlay } from "@/lib/atoms";
 import type { StreamMetadata, StreamProbeBudget } from "@/lib/media/stream-metadata";
 import type { StremioStream } from "@/types/stremio";
-import type { PlaybackStreamRequest } from "@/lib/media/fetch-playback-streams";
+import type { PlaybackStreamRequest, PlaybackStreamSnapshot } from "@/lib/media/fetch-playback-streams";
 import { parseStreamReleaseInfo } from "@/lib/media/stream-release-info";
 import { audioTrackMime } from "@/lib/media/stream-codecs";
 import { WEB_STREAM_CHECK_TIMEOUT_MS } from "@/lib/media/playback-limits";
@@ -285,6 +285,50 @@ function selectFastWebStream(
     });
 }
 
+function rankNativeStreams(streams: StremioStream[], preferredAudioLanguage: string, excluded?: ReadonlySet<string>) {
+    const seen = new Set<string>();
+    return streams.filter(stream => {
+        const url = stream.url || stream.externalUrl || "";
+        if (!/^https?:\/\//i.test(url) || seen.has(url) || excluded?.has(url)) return false;
+        seen.add(url);
+        return true;
+    }).sort((a, b) => streamLanguagePreference(b, preferredAudioLanguage) - streamLanguagePreference(a, preferredAudioLanguage));
+}
+
+/** Commit early only when no pending add-on can change the existing winner. */
+function selectNativeStream(source: PlaybackStreamRequest, dependencies: PlaybackDependencies, language: string): Promise<StremioStream> {
+    return new Promise((resolve, reject) => {
+        let finished = false;
+        let unsubscribe = () => {};
+        const cleanup = () => { unsubscribe(); dependencies.signal?.removeEventListener("abort", abort); };
+        const fail = (error: unknown) => { if (!finished) { finished = true; cleanup(); reject(error); } };
+        const abort = () => fail(dependencies.signal?.reason || new Error("Playback cancelled"));
+        const update = (snapshot: PlaybackStreamSnapshot) => {
+            if (finished) return;
+            const candidates = rankNativeStreams(snapshot.streams, language, dependencies.excludeUrls);
+            dependencies.onCandidates?.(candidates);
+            const best = candidates[0] as (StremioStream & { addonIndex?: number }) | undefined;
+            const index = best?.addonIndex;
+            const prefix = snapshot.settledPrefix;
+            // Rank 2 is the maximum language tier. Only settled earlier add-ons
+            // may beat it on ordering; legacy snapshots wait for completion.
+            const stable = best && streamLanguagePreference(best, language) === 2
+                && typeof index === "number" && Number.isInteger(index) && index >= 0
+                && typeof prefix === "number" && Number.isInteger(prefix) && prefix <= snapshot.total && index < prefix;
+            if (!snapshot.complete && !stable) return;
+            if (!best) { fail(new Error("No playable streams found. Try another title or check your add-ons.")); return; }
+            finished = true; cleanup(); resolve(best);
+        };
+        if (dependencies.signal?.aborted) { abort(); return; }
+        dependencies.signal?.addEventListener("abort", abort, { once: true });
+        unsubscribe = source.subscribe(update);
+        if (finished) unsubscribe(); // subscribe may synchronously publish a cache hit.
+        // Discovery remains shared after early selection; consume its eventual
+        // rejection without letting it override an already playing source.
+        source.promise.then(streams => update({ ...source.snapshot, streams, complete: true }), fail);
+    });
+}
+
 /** Prefer the requested audio language; retain add-on order within language tiers unless web compatibility selection is enabled. */
 export async function resolvePlayback(
     request: MediaToPlay,
@@ -334,7 +378,7 @@ export async function resolvePlayback(
     }
     onPhase("fetching-streams");
     const autoSelectWebStream = dependencies.environment === "web" && dependencies.autoSelectWebStream === true;
-    const progressive = knownStreams || (autoSelectWebStream
+    const progressive = knownStreams || (autoSelectWebStream || dependencies.environment === "native"
         ? dependencies.createStreamRequest?.(media.mediaSourceId || media.id, media.type) : undefined);
     if (autoSelectWebStream) {
         const source = progressive || await (async () => {
@@ -360,17 +404,18 @@ export async function resolvePlayback(
             subtitleVideoSize: media.subtitleVideoSize ?? stream.behaviorHints?.videoSize,
         };
     }
+    if (dependencies.environment === "native" && progressive) {
+        const stream = await selectNativeStream(progressive, dependencies, preferredAudioLanguage);
+        onPhase("loading-stream");
+        return { ...media, streamRequest: progressive,
+            streamUrl: stream.url || stream.externalUrl,
+            requestHeaders: stream.behaviorHints?.proxyHeaders?.request,
+            subtitleFilename: media.subtitleFilename || stream.behaviorHints?.filename,
+            subtitleVideoSize: media.subtitleVideoSize ?? stream.behaviorHints?.videoSize };
+    }
     const streams = knownStreams ? await knownStreams.promise
         : await dependencies.fetchStreams(media.mediaSourceId || media.id, media.type);
-    const seen = new Set<string>();
-    const candidates = streams.filter(candidate => {
-        const url = candidate.url || candidate.externalUrl || "";
-        if (!/^https?:\/\//i.test(url) || seen.has(url) || dependencies.excludeUrls?.has(url)) return false;
-        seen.add(url);
-        return true;
-    });
-    const languagePreferences = new Map(candidates.map(candidate => [candidate, streamLanguagePreference(candidate, preferredAudioLanguage)]));
-    candidates.sort((a, b) => languagePreferences.get(b)! - languagePreferences.get(a)!);
+    const candidates = rankNativeStreams(streams, preferredAudioLanguage, dependencies.excludeUrls);
     dependencies.onCandidates?.(candidates);
     const stream = candidates[0];
     if (!stream) throw new Error("No playable streams found. Try another title or check your add-ons.");
