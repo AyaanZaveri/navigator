@@ -316,8 +316,11 @@ Only one native instance may use a profile. Cookies and web storage are kept in
 the platform's local data directory under `Navigator Desktop/webview`.
 Restarting with a different server origin starts that origin's own session.
 
-Configure provider keys in **Settings → Navigator**, and the TMDB API Read
-Access Token in **Settings → Artwork**. Artwork tokens are validated before
+Configure provider keys in **Settings → Navigator**. For desktop browsing, search,
+title details and artwork, get your own **API Read Access Token** from
+[TMDB’s API settings](https://www.themoviedb.org/settings/api). Open
+**Settings → Connections → TMDB**, paste it into **TMDB read access token**, and
+select **Save token**. Tokens are validated before
 saving, persist in the WebView's HttpOnly cookie storage for a year, and can
 be replaced or removed in Settings. Desktop artwork does not read environment
 credentials. Rejected replacements preserve the working token.

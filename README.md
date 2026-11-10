@@ -43,6 +43,8 @@ Android and iOS are still a little rougher than desktop. I'm considering Expo fo
 
 Sign in with your Stremio account and configure your addons. AI features need a provider configured in Settings; scene features depend on subtitle availability.
 
+For the desktop app (Windows and macOS), add your own TMDB key after installation. Get an **API Read Access Token** from [TMDB’s API settings](https://www.themoviedb.org/settings/api), then open **Settings → Connections → TMDB**, paste it into **TMDB read access token**, and select **Save token**. This enables TMDB browsing, search, title details, and artwork.
+
 ## Run locally
 
 You'll need Node.js 22+.
