@@ -316,6 +316,7 @@ export async function tmdbMediaItem(id: string, type: TMDBMediaType, signal?: Ab
         releaseInfo: title.releaseInfo, poster: title.poster, background: title.background,
         logo: artworkUrl(id, type, "logo"),
         genres: title.genres, cast: title.cast, director: title.director, writer: title.writer,
+        communityRating: title.communityRating, ratingSource: title.ratingSource, voteCount: title.voteCount,
         runtime: title.runtime ? `${title.runtime} min` : undefined,
         seasons: type === "series" ? title.seasons.filter(season => season.episodeCount > 0)
             .map(({ number, name, episodeCount }) => ({ number, name, episodeCount })) : undefined,

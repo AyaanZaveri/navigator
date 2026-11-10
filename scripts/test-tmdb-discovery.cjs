@@ -32,7 +32,7 @@ async function main() {
     let block = false;
     let getUser = async () => ({ _id: 'test' });
     const movie = { id: 123, media_type: 'movie', title: 'Example Film', release_date: '2020-01-02', overview: 'Movie overview', vote_average: 8, vote_count: 10, poster_path: '/poster.jpg' };
-    const show = { id: 20, media_type: 'tv', name: 'Example Show', first_air_date: '2021-01-01', overview: 'TV overview', poster_path: null };
+    const show = { id: 20, media_type: 'tv', name: 'Example Show', first_air_date: '2021-01-01', overview: 'TV overview', vote_average: 7.65, vote_count: 1234, poster_path: null };
     const person = { id: 7, name: 'Example Person', profile_path: '/person.jpg', known_for_department: 'Directing', known_for: [movie] };
     const fixtures = {
         'search/multi': { page: 2, total_pages: 3, total_results: 50, results: [movie, show, { id: 7, media_type: 'person', name: 'Person' }] },
@@ -124,8 +124,16 @@ async function main() {
     assert.equal(await tmdb.resolveTMDBPlaybackId('tt123', 'movie'), 'tt123');
     assert.equal(requests.length, beforeIMDb, 'Known playback IDs need no further lookup');
     assert.equal((await tmdb.tmdbMediaItem('tmdb:30', 'movie')).name, 'No IMDb mapping');
+    const ratedMovie = await tmdb.tmdbMediaItem('tmdb:123', 'movie');
+    assert.equal(ratedMovie.communityRating, 8, 'Public title adapter must preserve TMDB ratings');
+    assert.equal(ratedMovie.ratingSource, 'TMDB');
+    assert.equal(ratedMovie.voteCount, 10);
+    assert.equal(ratedMovie.imdbRating, undefined, 'TMDB scores must never be relabeled as IMDb');
+    assert.equal((await tmdb.tmdbMediaItem('tmdb:30', 'movie')).communityRating, undefined, 'Unrated titles have no score');
     const beforeOverview = requests.length;
     const nativeShow = await tmdb.tmdbMediaItem('tmdb:20', 'series');
+    assert.equal(nativeShow.communityRating, 7.65, 'Public series retain their TMDB rating');
+    assert.equal(nativeShow.voteCount, 1234);
     assert.equal(nativeShow.videos, undefined, 'Title metadata cannot wait for every season');
     assert.equal(nativeShow.seasons.length, 2);
     assert.equal(nativeShow.seasons[0].number, 0);

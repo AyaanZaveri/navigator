@@ -1,7 +1,7 @@
 import { PosterImage } from "@/components/media-page/poster-image";
 import { MediaPlayButton } from "@/components/media-page/play-button";
 import { Badge } from "@/components/ui/badge";
-import { Star } from "lucide-react";
+import { MediaRatingBadge } from "@/components/media-page/media-rating-badge";
 import { redirect } from "next/navigation";
 import { getSeriesLayoutData } from "./_shared/series-data";
 
@@ -50,14 +50,7 @@ export default async function SeriesOverviewPage({
                     {show.releaseInfo || show.year}
                   </Badge>
                 )}
-                {show.imdbRating && (
-                  <Badge
-                    variant="secondary"
-                  >
-                    <Star className="size-3 fill-yellow-400 text-yellow-400" />
-                    {show.imdbRating}
-                  </Badge>
-                )}
+                <MediaRatingBadge media={show} />
                 {regularSeasonCount > 0 && (
                   <Badge variant="secondary">
                     {regularSeasonCount} Season{regularSeasonCount !== 1 ? "s" : ""}
