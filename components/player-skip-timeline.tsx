@@ -10,7 +10,7 @@ export function PlayerSkipTimeline({ segments, start, end }: { segments: SkipSeg
         if (to <= from) return null;
         return <div key={`${segment.kind}-${segment.start}-${index}`}
             data-slot="media-player-seek-skip-range" data-kind={segment.kind}
-            aria-hidden="true" className="pointer-events-none absolute inset-y-0 bg-white/20"
+            aria-hidden="true" className="pointer-events-none absolute inset-y-0 rounded-[2px] bg-white/20"
             style={{ left: `${(from - start) / (end - start) * 100}%`, width: `${(to - from) / (end - start) * 100}%` }} />;
     })}</>;
 }
