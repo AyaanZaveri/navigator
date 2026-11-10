@@ -2,12 +2,21 @@ import { readPlaybackPreferences } from "@/lib/media/playback-preferences";
 import { preferredAudioTrack } from "@/lib/media/audio-language";
 import type { DesktopBridge, NativeMessage, NativeState, NativeTrack } from "./bridge";
 
-function ranges(end: number): TimeRanges {
-  const length = Number.isFinite(end) && end > 0 ? 1 : 0;
+function ranges(end: number, cached?: { start: number; end: number }[]): TimeRanges {
+  const values = cached === undefined ? (Number.isFinite(end) && end > 0 ? [{ start: 0, end }] : [])
+    : cached.filter(range => Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > Math.max(0, range.start))
+      .map(range => ({ start: Math.max(0, range.start), end: range.end })).sort((a, b) => a.start - b.start);
+  const merged: typeof values = [];
+  for (const range of values) {
+    const last = merged.at(-1);
+    if (last && last.end >= range.start) last.end = Math.max(last.end, range.end);
+    else merged.push(range);
+  }
+  const length = merged.length;
   const validate = (index: number) => {
-    if (index !== 0 || !length) throw new DOMException("Time range index is out of bounds", "IndexSizeError");
+    if (!Number.isInteger(index) || index < 0 || index >= length) throw new DOMException("Time range index is out of bounds", "IndexSizeError");
   };
-  return { length, start(index) { validate(index); return 0; }, end(index) { validate(index); return end; } };
+  return { length, start(index) { validate(index); return merged[index].start; }, end(index) { validate(index); return merged[index].end; } };
 }
 
 const initialState = (): NativeState => ({
@@ -36,13 +45,31 @@ export class MpvController extends EventTarget {
   subtitleText = "";
   private previewId = 0;
   private previewFrames = new Map<number, string>();
+  private previewAliases = new Map<number, number>();
+  private previewRanges = new Map<number, number>();
   private decodedPreviews = new Map<number, HTMLImageElement>();
-  cachedPreview(position: number) { return this.previewFrames.get(position); }
-  private rememberPreview(position: number, src: string) {
+  cachedPreview(position: number) {
+    let key = this.previewFrames.has(position) ? position : this.previewAliases.get(position);
+    if (key === undefined || !this.previewFrames.has(key)) {
+      key = undefined;
+      for (const [start, end] of this.previewRanges) {
+        if (start <= position && position < end && this.previewFrames.has(start)) { key = start; break; }
+      }
+    }
+    if (key === undefined) return;
+    const src = this.previewFrames.get(key);
+    if (src) { this.previewFrames.delete(key); this.previewFrames.set(key, src); }
+    return src;
+  }
+  private rememberPreview(position: number, src: string, range?: { start: number; end: number } | null) {
+    if (range && range.start === position && Number.isFinite(range.end) && range.end > position) this.previewRanges.set(position, range.end);
     if (this.previewFrames.get(position) === src) return;
     this.previewFrames.delete(position);
     this.previewFrames.set(position, src);
-    while (this.previewFrames.size > 256) this.previewFrames.delete(this.previewFrames.keys().next().value!);
+    while (this.previewFrames.size > 256) {
+      const oldest = this.previewFrames.keys().next().value!;
+      this.previewFrames.delete(oldest); this.previewRanges.delete(oldest);
+    }
     // Decode proactively too: a JPEG string alone isn't a paint-ready image.
     if (typeof Image !== "undefined") {
       const image = new Image(); image.src = src;
@@ -52,7 +79,7 @@ export class MpvController extends EventTarget {
     }
   }
   private previewActive = false;
-  private previewPending?: { id: number; resolve: (src: string | null) => void; timer: ReturnType<typeof setTimeout> };
+  private previewPending?: { id: number; position: number; promise: Promise<string | null>; resolve: (src: string | null) => void; timer: ReturnType<typeof setTimeout> };
 
   constructor(private bridge: DesktopBridge) {
     super();
@@ -79,7 +106,7 @@ export class MpvController extends EventTarget {
   get error() { return this.failure; }
   get readyState() { return this.ready && !this.state.buffering ? 4 : this.loaded ? 2 : 0; }
   get networkState() { return this.failure ? 3 : this.source ? (this.ready ? 1 : 2) : 0; }
-  get buffered() { return ranges(Math.max(this.state.position, this.state.buffered)); }
+  get buffered() { return ranges(Math.max(this.state.position, this.state.buffered), this.state.bufferedRanges); }
   get seekable() { return ranges(this.state.duration); }
   get videoWidth() { return this.state.width; }
   get videoHeight() { return this.state.height; }
@@ -114,7 +141,7 @@ export class MpvController extends EventTarget {
     if (this.disposed) return;
     this.pending.clear();
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
-    this.previewFrames.clear(); this.decodedPreviews.clear();
+    this.previewFrames.clear(); this.previewAliases.clear(); this.previewRanges.clear(); this.decodedPreviews.clear();
     this.source = url;
     this.session = crypto.randomUUID();
     this.loaded = this.ready = this.finished = false;
@@ -166,6 +193,7 @@ export class MpvController extends EventTarget {
     this.bridge.send({ type: "track", session: this.session, kind, id });
   }
   preview(position: number): Promise<string | null> {
+    if (this.previewPending?.position === position) return this.previewPending.promise;
     const cached = this.cachedPreview(position);
     if (cached && !this.disposed) {
       if (this.previewPending) this.cancelPreview();
@@ -175,13 +203,14 @@ export class MpvController extends EventTarget {
     if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return Promise.resolve(null);
     const id = ++this.previewId;
     this.previewActive = true;
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        if (this.previewPending?.id === id) { this.previewPending = undefined; resolve(null); }
-      }, 6000);
-      this.previewPending = { id, resolve, timer };
-      this.bridge.send({ type: "thumbnail", session: this.session, request: id, position });
-    });
+    let resolve!: (src: string | null) => void;
+    const promise = new Promise<string | null>(done => { resolve = done; });
+    const timer = setTimeout(() => {
+      if (this.previewPending?.id === id) { this.previewPending = undefined; resolve(null); }
+    }, 6000);
+    this.previewPending = { id, position, promise, resolve, timer };
+    this.bridge.send({ type: "thumbnail", session: this.session, request: id, position });
+    return promise;
   }
   cancelPreview() {
     if (this.previewPending) {
@@ -197,7 +226,7 @@ export class MpvController extends EventTarget {
     if (this.disposed) return;
     this.disposed = true;
     this.pending.clear();
-    this.previewFrames.clear(); this.decodedPreviews.clear();
+    this.previewFrames.clear(); this.previewAliases.clear(); this.previewRanges.clear(); this.decodedPreviews.clear();
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
@@ -228,8 +257,14 @@ export class MpvController extends EventTarget {
           const pending = this.previewPending;
           clearTimeout(pending.timer);
           this.previewPending = undefined;
+          this.previewActive = false;
           const src = message.src?.startsWith("data:image/jpeg;base64,") ? message.src : null;
-          if (src && message.position !== null && Number.isFinite(message.position)) this.rememberPreview(message.position, src);
+          if (src && message.position !== null && Number.isFinite(message.position) && message.position >= 0) {
+            this.rememberPreview(message.position, src, message.range);
+            this.previewAliases.delete(pending.position);
+            this.previewAliases.set(pending.position, message.position);
+            while (this.previewAliases.size > 256) this.previewAliases.delete(this.previewAliases.keys().next().value!);
+          }
           pending.resolve(src);
         }
         break;

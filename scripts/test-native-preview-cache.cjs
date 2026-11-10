@@ -1,0 +1,30 @@
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const { load } = require('./test-support/react-hooks.cjs');
+const { MpvController } = load('lib/desktop/mpv-controller.ts', { '@/lib/media/playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en' }) } }, { Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout });
+async function main() {
+ const sent = []; let receive;
+ const media = new MpvController({ platform: 'macos', send: m => sent.push(m), subscribe: fn => { receive = fn; return () => {}; } });
+ media.load('https://fixture.test/video.mkv');
+ const session = media.previewSession;
+ const first = media.preview(20);
+ const requested = sent.at(-1);
+ receive({ type: 'thumbnail', session, request: requested.request, position: 18, range: { start: 18, end: 24 }, src: 'data:image/jpeg;base64,AA==' });
+ assert.equal(await first, 'data:image/jpeg;base64,AA==');
+ assert.equal(media.cachedPreview(20), 'data:image/jpeg;base64,AA==', 'Cache the requested hover position, not only the earlier keyframe timestamp');
+ const count = sent.length;
+ assert.equal(await media.preview(21), 'data:image/jpeg;base64,AA==', 'Reuse a known keyframe interval without another native/network request');
+ assert.equal(sent.length, count);
+ assert.equal(media.cachedPreview(24), undefined, 'The next keyframe boundary must not reuse the previous scene');
+ const waiting = media.preview(30), coalesced = media.preview(30);
+ assert.equal(waiting, coalesced, 'Identical pending hovers share a single decode');
+ const pending = sent.at(-1);
+ receive({ type: 'thumbnail', session, request: pending.request, position: 28, range: { start: 0, end: 1000 }, src: 'data:image/jpeg;base64,BB==' });
+ assert.equal(await waiting, 'data:image/jpeg;base64,BB==');
+ assert.equal(media.cachedPreview(29), undefined, 'Ignore a range whose start does not match the decoded frame');
+ media.load('https://fixture.test/replacement.mkv');
+ assert.equal(media.cachedPreview(20), undefined, 'A replaced source cannot reuse another title’s image');
+ media.dispose();
+ console.log('PASS: native preview aliases, keyframe bounds, request coalescing, invalid ranges and source isolation');
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });

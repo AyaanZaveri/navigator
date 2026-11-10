@@ -19,6 +19,7 @@ export type NativeState = {
   buffering: boolean;
   seeking: boolean;
   buffered: number;
+  bufferedRanges?: { start: number; end: number }[];
   width: number;
   height: number;
   droppedFrames?: number;
@@ -34,7 +35,7 @@ export type NativeMessage =
   | { type: "tracks"; session: string; tracks: NativeTrack[] }
   | { type: "subtitle"; session: string; text: string }
   | { type: "thumbnail-frame"; session: string; position: number; src: string }
-  | { type: "thumbnail"; session: string; request: number; src: string | null; position: number | null }
+  | { type: "thumbnail"; session: string; request: number; src: string | null; position: number | null; range?: { start: number; end: number } | null }
   | { type: "loading" | "loaded" | "ready" | "ended"; session: string }
   | { type: "error"; session: string; message: string }
   | { type: "window-state"; maximized: boolean }

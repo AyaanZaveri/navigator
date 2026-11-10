@@ -136,6 +136,16 @@ fn publish(weak: &Weak<Shared>, image: Arc<Thumbnail>) {
     }
 }
 fn send(shared: &Shared, request: Request, image: Option<Arc<Thumbnail>>) {
+    // The same keyframe serves this half-open interval. Tell the UI the exact
+    // bounds so nearby hovers can reuse it without crossing the bridge again.
+    let range = image.as_ref().and_then(|image| {
+        let state = shared.state.lock().unwrap();
+        let keys = state.decoder.as_ref()?.keyframes();
+        let index = keys.at(request.position);
+        let start = keys.entries.get(index)?.time_ms;
+        let end = keys.entries.get(index + 1).map_or(keys.duration_ms, |entry| entry.time_ms);
+        (image.time_ms == start && end > start).then(|| json!({"start": start as f64 / 1000.0, "end": end as f64 / 1000.0}))
+    });
     // Images are small JPEGs; only the active playback session may request them.
     let (src, at) = image.map_or((None, None), |image| {
         (
@@ -147,7 +157,7 @@ fn send(shared: &Shared, request: Request, image: Option<Arc<Thumbnail>>) {
         )
     });
     (shared.emit)(
-        json!({"type":"thumbnail", "session":shared.session, "request":request.id, "src":src, "position":at}),
+        json!({"type":"thumbnail", "session":shared.session, "request":request.id, "src":src, "position":at, "range":range}),
     );
 }
 impl Drop for Previews {

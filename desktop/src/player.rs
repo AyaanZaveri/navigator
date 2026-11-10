@@ -17,6 +17,7 @@ const PROPERTIES: &[(&str, Kind)] = &[
     ("paused-for-cache", Kind::Flag),
     ("seeking", Kind::Flag),
     ("demuxer-cache-time", Kind::Double),
+    ("demuxer-cache-state", Kind::Json),
     ("track-list", Kind::Json),
     ("sub-text", Kind::String),
     ("video-params/w", Kind::Double),
@@ -88,7 +89,8 @@ impl Player {
             let mut last_colour = (None, None);
             let mut previews: Option<crate::thumbnails::Previews> = None;
             let mut preview_source = None;
-            let mut state = json!({"position":0.0,"duration":0.0,"paused":true,"volume":1.0,"muted":false,"rate":1.0,"buffering":false,"seeking":false,"buffered":0.0,"width":0,"height":0});
+            let mut pending_preview = None;
+            let mut state = json!({"position":0.0,"duration":0.0,"paused":true,"volume":1.0,"muted":false,"rate":1.0,"buffering":false,"seeking":false,"buffered":0.0,"bufferedRanges":[],"width":0,"height":0});
             let mut dirty = false;
             let mut last = Instant::now();
             while !stopped.load(Ordering::Relaxed) {
@@ -107,6 +109,7 @@ impl Player {
                             #[cfg(windows)]
                             glass_control.source(next.clone());
                             previews = None;
+                            pending_preview = None;
                             preview_source = Some((next.clone(), url.clone(), headers.clone()));
                             // mpv's %length% syntax quotes commas and arbitrary header values.
                             let fields = headers.iter().map(|(name, value)| {
@@ -155,7 +158,7 @@ impl Player {
                         Command::Stop { .. } => {
                             #[cfg(windows)]
                             glass_control.source(String::new());
-                            desired.clear(); previews = None; preview_source = None; client.command(&["stop"]) },
+                            desired.clear(); previews = None; preview_source = None; pending_preview = None; client.command(&["stop"]) },
                         Command::Glass { session, active } => {
                             #[cfg(windows)]
                             glass_control.demand(&session, active);
@@ -163,7 +166,11 @@ impl Player {
                             let _ = (session, active);
                             Ok(())
                         }
-                        Command::Thumbnail { request, position, .. } => { if let Some(previews) = &previews { previews.want(request, position); } Ok(()) },
+                        Command::Thumbnail { request, position, .. } => {
+                            if let Some(previews) = &previews { previews.want(request, position); }
+                            else { pending_preview = position.map(|at| (request, at)); }
+                            Ok(())
+                        },
                         Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => unreachable!(),
                     };
                     if let Err(message) = result { emit(json!({"type":"error","session":target,"message":message})); }
@@ -183,13 +190,11 @@ impl Player {
                         playing_id = playlist_id;
                         session = entries.remove(&playlist_id).unwrap_or_default();
                         state["position"] = json!(0.0); state["duration"] = json!(0.0); state["buffered"] = json!(0.0);
+                        state["bufferedRanges"] = json!([]);
                         emit(json!({"type":"subtitle","session":session,"text":""}));
                         emit(json!({"type":"loading","session":session}));
                     }
                     Some(Event::FileLoaded) => {
-                        if let Some((named, url, headers)) = preview_source.take() {
-                            if named == desired { previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone())); }
-                        }
                         // Publish the complete track snapshot before loadedmetadata so an
                         // external subtitle default cannot win a delayed embedded-track event.
                         if let Ok(tracks) = sync_subtitle_visibility(&client) {
@@ -208,6 +213,16 @@ impl Player {
                         state["seeking"] = json!(false);
                         emit(json!({"type":"state","session":session,"state":state}));
                         emit(json!({"type":"ready","session":session}));
+                        // Indexing opens a second reader. Let the initial decoder finish
+                        // before competing for network/CPU, and retain an early hover.
+                        if session == desired {
+                            if let Some((named, url, headers)) = preview_source.take() {
+                                if named == session { previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone())); }
+                            }
+                            if let (Some(previews), Some((request, position))) = (&previews, pending_preview.take()) {
+                                previews.want(request, Some(position));
+                            }
+                        }
                     }
                     Some(Event::Seek) => { state["seeking"] = json!(true); dirty = true; }
                     Some(Event::EndFile { playlist_id, reason, error }) => {
@@ -215,11 +230,17 @@ impl Player {
                         #[cfg(windows)]
                         glass_control.demand(&session, false);
                         if previews.as_ref().is_some_and(|p| p.session() == session) { previews = None; }
+                        if preview_source.as_ref().is_some_and(|(named, _, _)| named == &session) { preview_source = None; }
+                        pending_preview = None;
                         last_colour = (None, None);
                         colour(None, None);
                         emit(json!({"type":"subtitle","session":session,"text":""}));
                         if let Some(message) = error { emit(json!({"type":"error","session":session,"message":message})); }
                         else if reason == "eof" { emit(json!({"type":"ended","session":session})); }
+                    }
+                    Some(Event::Property { name, value, .. }) if name == "demuxer-cache-state" => {
+                        state["bufferedRanges"] = value.get("seekable-ranges").filter(|ranges| ranges.is_array()).cloned().unwrap_or(json!([]));
+                        dirty = true;
                     }
                     Some(Event::Property { name, value, .. }) if name == "sub-text" => {
                         // An unavailable property also clears the previous cue.
@@ -424,6 +445,34 @@ mod tests {
         player.begin_shutdown();
         player.join();
         std::fs::remove_file(file).unwrap();
+    }
+
+    #[test]
+    #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_VIDEO to a seekable video"]
+    fn headless_preview_waits_for_playback_and_preserves_position() {
+        let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        aiostreams_thumbs::library_dirs(vec![library.parent().unwrap().to_path_buf()]);
+        let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
+        let (send, inbox) = mpsc::channel();
+        let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
+        player.send(Command::Load { session: "preview".into(), url: std::env::var("NAVIGATOR_TEST_VIDEO").unwrap(), headers: BTreeMap::new(), start_position: 3.2 });
+        player.send(Command::Pause { session: "preview".into() });
+        player.send(Command::Thumbnail { session: "preview".into(), request: 1, position: Some(0.5) });
+        let ready = std::cell::Cell::new(false);
+        let first = wait_for(&inbox, |v| {
+            if v["type"] == "ready" { ready.set(true); }
+            if v["type"] == "thumbnail" { assert!(ready.get(), "Indexing must not precede the first ready frame"); }
+            v["type"] == "thumbnail" && v["request"] == 1
+        });
+        assert!(first["src"].as_str().is_some_and(|src| src.starts_with("data:image/jpeg;base64,")));
+        assert_eq!(first["range"]["start"], first["position"]);
+        assert!(first["range"]["end"].as_f64().unwrap() > 0.5);
+        player.send(Command::Thumbnail { session: "preview".into(), request: 2, position: Some(0.7) });
+        let cached = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == 2);
+        assert_eq!(cached["src"], first["src"]);
+        assert!(mpv.get_property("time-pos", Kind::Double).unwrap().as_f64().unwrap() >= 3.19, "Preview decoding cannot seek the playing decoder");
+        player.begin_shutdown();
+        player.join();
     }
 
     #[test]
