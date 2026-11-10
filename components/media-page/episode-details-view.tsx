@@ -1,13 +1,15 @@
+import { MediaRatingBadge } from "./media-rating-badge";
+import type { MediaItem } from "@/types/stremio";
 import artworkStyles from "./detail-artwork.module.css";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Star, TvIcon } from "lucide-react";
+import { TvIcon } from "lucide-react";
 import Link from "next/link";
 
 // Shared by real details and the inert sample so responsive geometry stays aligned.
 export function EpisodeDetailsView({
   titleId, showHref, showName, title, seasonNumber, episodeNumber,
-  released, rating, thumbnail, actions, description,
+  released, rating, ratingMedia, thumbnail, actions, description,
 }: {
   titleId?: string;
   showHref?: string;
@@ -17,6 +19,7 @@ export function EpisodeDetailsView({
   episodeNumber: number;
   released?: string;
   rating?: string;
+  ratingMedia?: Pick<MediaItem, "imdbRating" | "communityRating" | "ratingSource" | "voteCount">;
   thumbnail: ReactNode;
   actions: ReactNode;
   description?: ReactNode;
@@ -71,14 +74,7 @@ export function EpisodeDetailsView({
                   {new Date(released).getFullYear()}
                 </Badge>
               )}
-              {rating && (
-                <Badge
-                  variant="secondary"
-                >
-                  <Star className="size-3 fill-yellow-400 text-yellow-400" />
-                  {rating}
-                </Badge>
-              )}
+              <MediaRatingBadge media={ratingMedia ?? { imdbRating: rating }} />
             </div>
             {actions}
           </div>

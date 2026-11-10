@@ -9,7 +9,7 @@ import { MediaSection } from "@/components/media-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { HeroWordmark } from "@/components/hero-wordmark";
-import { Star } from "lucide-react";
+import { MediaRatingBadge } from "@/components/media-page/media-rating-badge";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { PosterImage } from "@/components/media-page/poster-image";
@@ -148,14 +148,7 @@ export default async function Movie({
                         {formatRuntime(movie.runtime)}
                       </Badge>
                     )}
-                    {movie.imdbRating && (
-                      <Badge
-                        variant="secondary"
-                      >
-                        <Star className="size-3 fill-yellow-400 text-yellow-400" />
-                        {movie.imdbRating}
-                      </Badge>
-                    )}
+                    <MediaRatingBadge media={movie} />
                   </div>
                   <MediaPlayButton
                     media={{

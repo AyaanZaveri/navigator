@@ -236,6 +236,9 @@ export interface MediaItem {
   year?: number;
   releaseInfo?: string;
   imdbRating?: string;
+  communityRating?: number;
+  ratingSource?: string;
+  voteCount?: number;
   runtime?: string;
   genres?: string[];
   cast?: string[];

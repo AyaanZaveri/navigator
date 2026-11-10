@@ -51,7 +51,7 @@ async function LoadedEpisodeDetails({ params }: EpisodePageProps) {
       seasonNumber={seasonNumber}
       episodeNumber={episodeNumber}
       released={selectedEpisode.released}
-      rating={show.imdbRating}
+      ratingMedia={show}
       thumbnail={<EpisodeHeroThumbnail
         thumbnail={selectedEpisode.thumbnail}
         released={selectedEpisode.released}
