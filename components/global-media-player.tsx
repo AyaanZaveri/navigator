@@ -8,6 +8,7 @@ import "@/components/player-mobile.css";
 import "@/components/player-entrance.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
+import { usePlayerChapters } from "@/components/use-player-chapters";
 import { PlayerSkipSegments } from "@/components/player-skip-segments";
 import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
 import { PlayerNextEpisode } from "@/components/player-next-episode";
@@ -193,6 +194,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const lastLoadedPlaybackKeyRef = useRef<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const chapters = usePlayerChapters(videoRef, streamUrl, duration);
 
   useLayoutEffect(() => {
     setNativeSubtitle("");
@@ -900,7 +902,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
         subtitleTiming={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key), onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }}
-        chapters={[]}
+        chapters={chapters}
         onCustomSubtitleChange={track => {
           subtitleManualOverride.current = true;
           subtitleDefaultApplied.current = true;

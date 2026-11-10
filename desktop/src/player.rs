@@ -19,6 +19,7 @@ const PROPERTIES: &[(&str, Kind)] = &[
     ("demuxer-cache-time", Kind::Double),
     ("demuxer-cache-state", Kind::Json),
     ("track-list", Kind::Json),
+    ("chapter-list", Kind::Json),
     ("sub-text", Kind::String),
     ("video-params/w", Kind::Double),
     ("video-params/h", Kind::Double),
@@ -192,6 +193,7 @@ impl Player {
                         state["position"] = json!(0.0); state["duration"] = json!(0.0); state["buffered"] = json!(0.0);
                         state["bufferedRanges"] = json!([]);
                         emit(json!({"type":"subtitle","session":session,"text":""}));
+                        emit(json!({"type":"chapters","session":session,"chapters":[]}));
                         emit(json!({"type":"loading","session":session}));
                     }
                     Some(Event::FileLoaded) => {
@@ -200,6 +202,8 @@ impl Player {
                         if let Ok(tracks) = sync_subtitle_visibility(&client) {
                             emit(json!({"type":"tracks","session":session,"tracks":tracks}));
                         }
+                        let chapters = client.get_property("chapter-list", Kind::Json).unwrap_or(json!([]));
+                        emit(json!({"type":"chapters","session":session,"chapters":chapters}));
                         // Metadata must precede loadedmetadata: the React handler resumes here.
                         for (name, key, kind) in [("duration", "duration", Kind::Double), ("time-pos", "position", Kind::Double), ("video-params/w", "width", Kind::Double), ("video-params/h", "height", Kind::Double)] {
                             if let Some(value) = client.get_property(name, kind) { state[key] = value; }
@@ -237,6 +241,9 @@ impl Player {
                         emit(json!({"type":"subtitle","session":session,"text":""}));
                         if let Some(message) = error { emit(json!({"type":"error","session":session,"message":message})); }
                         else if reason == "eof" { emit(json!({"type":"ended","session":session})); }
+                    }
+                    Some(Event::Property { name, value, .. }) if name == "chapter-list" => {
+                        emit(json!({"type":"chapters","session":session,"chapters":if value.is_array() { value } else { json!([]) }}));
                     }
                     Some(Event::Property { name, value, .. }) if name == "demuxer-cache-state" => {
                         state["bufferedRanges"] = value.get("seekable-ranges").filter(|ranges| ranges.is_array()).cloned().unwrap_or(json!([]));

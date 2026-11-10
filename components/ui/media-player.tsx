@@ -2295,12 +2295,13 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const hoverTime = getCachedTime(hoverTimeRef.current, seekableEnd);
 
   const chapterSeparators = React.useMemo(() => {
-    if (withoutChapter || chapterCues.length <= 1 || seekableEnd <= 0) {
+    if (withoutChapter || chapterCues.length === 0 || seekableEnd <= seekableStart) {
       return null;
     }
 
-    return chapterCues.slice(1).map((chapterCue, index) => {
-      const position = (chapterCue.startTime / seekableEnd) * 100;
+    return chapterCues.map((chapterCue, index) => {
+      const position = ((chapterCue.startTime - seekableStart) / (seekableEnd - seekableStart)) * 100;
+      if (position <= 0 || position >= 100) return null;
 
       return (
         <div
@@ -2308,16 +2309,16 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           role="presentation"
           aria-hidden="true"
           data-slot="media-player-seek-chapter-separator"
-          className="absolute top-0 h-full bg-zinc-50 dark:bg-zinc-950"
+          className="pointer-events-none absolute top-0 h-full bg-black/80"
           style={{
-            width: ".1563rem",
+            width: "2px",
             left: `${position}%`,
             transform: "translateX(-50%)",
           }}
         />
       );
     });
-  }, [chapterCues, seekableEnd, withoutChapter]);
+  }, [chapterCues, seekableStart, seekableEnd, withoutChapter]);
 
   const spriteStyle = React.useMemo<React.CSSProperties>(() => {
     if (!thumbnail?.coords || !thumbnail?.src) {
@@ -2446,7 +2447,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 {currentChapterCue && (
                   <div
                     data-slot="media-player-seek-chapter-title"
-                    className="line-clamp-2 max-w-48 text-balance text-center text-xs"
+                    className="line-clamp-2 max-w-56 px-2 pt-1.5 text-balance text-center text-xs font-medium"
                   >
                     {currentChapterCue.text}
                   </div>

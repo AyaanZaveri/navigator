@@ -41,6 +41,7 @@ export class MpvController extends EventTarget {
     this.pending.set(key, { value, until: Date.now() + (key === "position" ? 2000 : 1000) });
     this.state = { ...this.state, [key]: value };
   }
+  chapters: import("@/lib/media/chapters").ChapterMarker[] = [];
   tracks: NativeTrack[] = [];
   subtitleText = "";
   private previewId = 0;
@@ -147,6 +148,7 @@ export class MpvController extends EventTarget {
     this.loaded = this.ready = this.finished = false;
     this.failure = null;
     this.tracks = [];
+    this.chapters = [];
     this.audioChosen = false;
     this.subtitleText = "";
     const { volume, muted, rate } = this.state;
@@ -247,6 +249,10 @@ export class MpvController extends EventTarget {
   private receive(message: NativeMessage) {
     if (this.disposed || !("session" in message) || message.session !== this.session) return;
     switch (message.type) {
+      case "chapters":
+        this.chapters = Array.isArray(message.chapters) ? message.chapters.filter(chapter => Number.isFinite(chapter.time) && chapter.time >= 0) : [];
+        this.fire("chapterschange");
+        break;
       case "thumbnail-frame":
         if (!Number.isFinite(message.position) || message.position < 0 || !message.src?.startsWith("data:image/jpeg;base64,")) break;
         this.rememberPreview(message.position, message.src);
