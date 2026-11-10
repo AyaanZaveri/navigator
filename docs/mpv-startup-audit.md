@@ -61,9 +61,9 @@ routing, rejection handling, and progressive results.
 | Item | Verified result |
 | --- | --- |
 | Latest official stable mpv release | [0.42.0, November 5, 2026](https://github.com/mpv-player/mpv/releases/tag/v0.42.0) |
-| Navigator library pin | [AIOStreams/libs `20261029-fe27405`](https://github.com/AIOStreams/libs/releases/tag/20261029-fe27405), SHA-256 pinned in `desktop/libs.json` |
-| Loaded macOS bundled binary | `mpv v0.41.0-dev-g2257f4982`, client API **2.6** |
-| Bundled FFmpeg | `git-2026-10-28-c0cd16a` |
+| Navigator library pin | [AIOStreams/libs `20261108-19b1008`](https://github.com/AIOStreams/libs/releases/tag/20261108-19b1008), SHA-256 pinned in `desktop/libs.json` |
+| Loaded macOS bundled binary | `mpv v0.41.0-dev-g9aeb21d5b`, client API **2.6** |
+| Bundled FFmpeg | `git-2026-11-06-ff5da224` |
 | Newer distributor bundle available | [`20261108-19b1008`](https://github.com/AIOStreams/libs/releases/tag/20261108-19b1008): mpv `9aeb21d5b55ef3cc0877663621ca373055dfd5e6`, FFmpeg `ff5da22416a12f0e74cdc0400b65613132ab793c` |
 
 The version string alone is insufficient: the existing development snapshot already
@@ -72,120 +72,75 @@ GitHub's comparison between the pinned mpv SHA and the stable tag reports
 **diverged histories**, with 107 commits on the stable side. Treat replacement as
 a tested library upgrade, not a guaranteed drop-in performance fix. The newer
 distributor bundle also changes FFmpeg and is not automatically equivalent to the
-stable tag. No library pin or binary bundle was changed by this audit.
+stable tag. The follow-up updates the library pin and validates the new bundle separately; it does not claim stable-tag equivalence or a measured startup speedup.
 
 The 0.42.0 release includes CoreAudio device-change/channel-map fixes, network-read
 cancellation changes, and demuxer/seek fixes. A release changelog does not establish
 which improvements are absent from a forked development snapshot or how much
 faster this app would become.
 
-## Ranked follow-up work
+## Follow-up implementation (November 9)
 
-### 1. Keep preview indexing off the first-frame path
+The recommendations were tackled separately; these source changes have not been
+packaged into a new app release.
 
-**Evidence:** `Player::FileLoaded` immediately creates `Previews`. Its background
-`Session::open` can parse/index the same remote source while the main decoder is
-still preparing the initial frame. The preview options permit up to 256 MiB and
-2,048 requests, with two thumbnail workers and two fetches. These are ceilings,
-not evidence that every file consumes that budget. Dropping a preview invalidates
-publication, but the opening thread checks `closed` after `Session::open` returns;
-there is no app-owned cancellation signal passed into that open call.
+1. **Preview startup and reuse:** native preview indexing starts after the first
+   playback-ready event. Early hover requests are retained. The UI caches actual
+   keyframes and their half-open time intervals, coalesces identical pending
+   requests, and keeps bounded image/alias caches per source. A repeat hover in
+   an already-generated keyframe interval needs no native/network request.
+   The follow-up shared source below reuses retained original file bytes; it
+   does not export mpv's demuxed packets.
+   Native source replacement cancels publication; in-flight library indexing
+   still lacks app-owned interruptible network cancellation.
+2. **Progressive native stream selection:** a preferred-language candidate can
+   be chosen when all higher-priority add-ons have settled. Missing/mixed/other
+   language candidates still wait for discovery completion. URL deduplication,
+   exclusions, manual selection and configured add-on order remain authoritative.
+   Discovery continues for switching. Language ranking is cached per resolution.
+3. **macOS render scheduling:** coalesce queued update notifications and schedule
+   future frame targets with cancellable deadline tickets. Recheck mpv when the
+   deadline fires; retain its final render-time timing guard and hidden-frame
+   draining. This reduces redundant queued work; interactive A/V sync, HDR,
+   occlusion and UI responsiveness still require native validation. No measured
+   frame-rate or first-presentation improvement is claimed.
+4. **Diagnostics:** capability-gated fixed client stages now include macOS.
+   Debug logging records monotonic load-to-metadata and load-to-first-ready,
+   plus actual hardware decoder and video codec on the worker. No media URLs
+   are added. These stages require debug logging; first-ready is not physical
+   presentation, and compositor timing / dropped-frame benchmark reports remain
+   follow-up measurement work.
+5. **Library refresh:** all four platform archive hashes are updated to the newer
+   distributor bundle below. macOS ARM64 and Windows x64 libraries passed actual
+   headless resume/preview checks; macOS Intel and Windows ARM64 archives passed
+   hash/integrity verification only. This is not a stable mpv 0.42.0 upgrade.
+6. **Cancellation:** the add-on route forwards its Request signal through the
+   existing guarded fetch. Already-aborted requests stop before auth/upstream
+   work; expected cancellation returns 499 without upstream-error logging.
+   Ownership and outbound protections remain. Real deployment disconnect
+   propagation depends on its runtime and has not been measured here.
+7. **Idle event loop:** replace fixed 20 ms polling with mpv wakeups and the dirty
+   state delivery deadline. Every command sender wakes mpv; a full 32-command
+   batch drains without an indefinite wait. Positive waits round up with a 1 ms guard to avoid Windows timer truncation
+   near the 250 ms flush boundary (at most 2 ms added delivery latency).
+   The headless test covers an 80-command burst, paused seeking and shutdown.
+8. **Buffered ranges:** publish mpv's actual disjoint seekable cache ranges instead
+   of depicting everything before a resumed position as downloaded. Older native
+   runtimes retain the legacy estimate. These ranges report time coverage, not
+   accessible compressed media bytes.
 
-**Proposed change:** defer preview initialization until the current session's first
-`PLAYBACK_RESTART`, or initialize on the first hover if the library supports demand
-opening cleanly. Preserve early hover requests while opening and cancel on source
-replacement. Investigate the media library's cancellation/deadline support before
-reducing indexing limits globally.
+9. **Shared local source bytes:** mpv and previews now read one bounded,
+   per-load 64 MiB memory cache for eligible HTTP file streams. New previews
+   reuse retained playback bytes, sparse misses fetch missing intervals,
+   playback never waits on preview reads, and failures retry the direct source
+   once with resume/pause/headers preserved. No cloud/database/disk storage.
+   See [shared-media-cache.md](shared-media-cache.md) for scope and tests.
 
-**Validation:** log request/byte counts and first-ready timings with previews enabled
-and deferred on the same cold-cache sources. Cover MP4 with metadata at either end,
-large MKV indexes, HLS, rapid replacement, first hover, pause and cancellation.
-Expected benefit is reduced startup network/CPU contention; its magnitude is unmeasured.
-
-### 2. Allow native selection to use progressive results under an explicit policy
-
-**Evidence:** native `resolvePlayback` waits for `knownStreams.promise` or the final
-`fetchPlaybackStreams` result. Discovery already publishes partial snapshots, but
-final completion waits for every add-on. Client add-on reads have a 30-second
-budget; the server's guarded outbound read normally has a 15-second timeout.
-A slow or unavailable add-on can therefore delay selection after another add-on
-has already supplied a playable URL.
-
-**Proposed change:** define when native selection can commit early. Preserve preferred
-language, user-configured add-on priority, URL deduplication, exclusions and manual
-selection. For example, only commit when pending higher-priority add-ons can no
-longer outrank the current candidate, with a separately specified deadline/fallback.
-Keep unresolved discovery available for stream switching.
-
-**Validation:** deterministic fast/slow/failing add-on fixtures; preferred-language
-results arriving late; a slow highest-priority add-on; expired URLs; manual URLs;
-cancellation and concurrent page/player consumers. Do not simply choose the first
-network response, which would silently change today's selection semantics.
-
-### 3. Measure macOS render-thread blocking before changing frame pacing
-
-**Evidence:** the macOS callback dispatches to the main queue, calls `display()` and
-`CATransaction::flush()`, and draws through `render.render(..., wait=true)`.
-The renderer asks mpv to block for the frame target time. This shares time with
-WKWebView input/layout. `Held` already records long main-thread render holds, but
-there is no per-load latency breakdown or percentile report.
-
-**Proposed change:** measure callback dispatch delay, draw duration, frame-target wait,
-and first drawable submission. Then evaluate a render queue/display-clock design
-compatible with CAOpenGLLayer/CGL ownership. Preserve hidden/minimized-frame draining.
-Do not switch `BLOCK_FOR_TARGET_TIME` off without implementing replacement timing:
-upstream explicitly notes that this can disturb A/V synchronization.
-
-**Validation:** 24/30/60 fps, variable frame rate, pause/seek/resize, window occlusion,
-other Spaces, SDR/HDR transitions and UI interactions. Physical presentation and
-A/V sync need native interactive checks; JS style-update counts cannot prove them.
-
-Source: [render API threading and timing contract](https://github.com/mpv-player/mpv/blob/v0.42.0/include/mpv/render.h).
-
-### 4. Add phase timing and actual decoder diagnostics
-
-The Windows host has useful fixed, URL-free stages; `recordDesktopStage` currently
-excludes macOS. Extend the same capability-gated scheme to macOS. Record monotonic
-load-to-metadata, load-to-first-ready, and first compositor submission separately.
-Read `hwdec-current`, codec/format, dropped-frame counts and cache state on the
-worker, not the render thread. `hwdec=auto-safe` enables selection; it does not
-prove a particular file is actually hardware decoded.
-
-Benchmark repeated cold/warm runs, normal start and 25/50/90% resume, representative
-containers/codecs and slow/fast origins. Record p50/p95, failures, bytes and request
-counts. Keep account tokens and complete/signed media URLs out of logs. Current
-headless checks establish correctness, not universal startup speed.
-
-### 5. Upgrade the binary bundle as a separate tested change
-
-Evaluate stable 0.42.0 and the newer distributor bundle against the existing pin.
-Compare startup/resume, VideoToolbox/software fallback, CoreAudio device changes,
-SDR/HDR rendering, subtitles and native preview decoding. Confirm client/render
-symbols and dependent-library compatibility; re-pin artifact hashes. Windows
-compilation stays on the user's Zenbook over SSH.
-
-This should follow the resume correction so engine-version changes do not obscure
-whether the application-level bug was fixed.
-
-### 6. Forward cancellation to upstream add-on reads
-
-`app/api/streams/addon/route.ts` receives a Request but does not pass its signal to
-`fetchAddonStreams`/`outboundFetch`. The guarded fetch already supports combining a
-caller signal with its timeout. Forwarding it could stop abandoned reads earlier
-when the runtime reports a client disconnect. Test disconnect propagation on the
-actual deployment; do not assume every runtime reports it identically. Preserve
-SSRF/redirect protection, response-size bounds, and per-account add-on ownership.
-
-### 7. Remove idle polling only after checking queue-drain semantics
-
-The worker uses `wait_event(0.02)`, potentially waking roughly 50 times per second
-while idle. An event-driven wait using the existing `mpv_wakeup` plus a deadline
-for dirty-state delivery could reduce idle CPU/wakeups. Preserve the 250 ms progress
-flush, immediate control-state delivery, shutdown, and the 32-command batch limit:
-wakeup coalescing must not leave queued commands stranded behind an indefinite wait.
-This is primarily an energy/idle-overhead opportunity, not a demonstrated load-time win.
-
-Source: [client API event-loop and wakeup contract](https://github.com/mpv-player/mpv/blob/v0.42.0/include/mpv/client.h).
+Sources: [client event/wakeup contract](https://github.com/mpv-player/mpv/blob/v0.42.0/include/mpv/client.h),
+[render timing/threading contract](https://github.com/mpv-player/mpv/blob/v0.42.0/include/mpv/render.h),
+[cache properties](https://github.com/mpv-player/mpv/blob/v0.42.0/DOCS/man/input.rst),
+[Request.signal](https://developer.mozilla.org/en-US/docs/Web/API/Request/signal).
+The source comparison for previews is in [preview-cache-research.md](preview-cache-research.md).
 
 ## API and configuration review
 
@@ -232,14 +187,18 @@ configurable cache behavior; it does not justify copying its settings blindly.
 - Targeted Rust `headless_library_playback_and_session_replacement`: passes against
   the bundled library, with the first ready state at the requested two-second
   position and a rapid zero-start replacement that does not inherit it.
-- Native unit suite: 10 pass, 5 environment-dependent tests ignored; the targeted
-  headless resume test above was explicitly run separately.
+- Native unit suite: macOS binary 21 pass / 8 ignored and HDR example 16 pass /
+  8 ignored; Windows binary 26 pass / 8 ignored. Environment-dependent tests
+  remain opt-in. Actual-library resume/replacement and deferred-preview checks
+  were explicitly run on macOS ARM64 and the Zenbook Windows x64.
 - Stream-discovery startup, page/player request sharing, all five metadata/stream
   parallelism variants, episode continuation/selection, native readiness, desktop
   bridge, Windows control and macOS window-control checks pass. The existing
   parallelism fixture needed its pure dependency stubs updated for current imports.
-- TypeScript passes. No new app package, installation, release, physical cursor/
-  frame-presentation check, real CDN timing run, or Windows compilation is included.
+- TypeScript and targeted preview-cache, range, progressive-selection and add-on
+  cancellation checks pass. Native tests were compiled on macOS and the Zenbook.
+  No new app package, installation, release, physical cursor/frame-presentation
+  check or real CDN timing run is included.
   The published 0.3.6 packages predate these fixes; a new native package is required.
 
 Reproduce the headless checks without starting the app/dev server:

@@ -52,6 +52,34 @@ async function main() {
  const emptyCheck = assert.rejects(noStreams, /No playable streams/); empty.publish([], 3, true); await emptyCheck;
  const manual = await resolvePlayback({ ...request, streamUrl: 'https://fixture.test/manual.mkv' }, { ...deps, createStreamRequest: () => assert.fail('Manual selection must not start discovery') }, () => {});
  assert.equal(manual.streamUrl, 'https://fixture.test/manual.mkv');
+ // Every completion order and language-tier combination must keep the final winner.
+ const titles = ['German', '1080p H264', 'Multi English German', 'English'];
+ const orders = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+ for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) for (let c = 0; c < 4; c++) {
+  const tiers = [a,b,c];
+  const candidates = tiers.map((tier,index) => stream(String(index), index, titles[tier]));
+  const expected = tiers.indexOf(Math.max(...tiers));
+  for (const order of orders) {
+   const provider = source(), settled = [false,false,false];
+   const playback = resolvePlayback({ ...request, streamRequest: provider }, deps, () => {});
+   for (const index of order) {
+    settled[index] = true;
+    let prefix = 0; while (settled[prefix]) prefix++;
+    provider.publish(candidates.filter((_, i) => settled[i]), prefix, settled.every(Boolean));
+    await flush();
+   }
+   assert.equal((await playback).streamUrl, candidates[expected].url, 'Early selection must equal full discovery across 384 order/tier cases');
+   assert.equal(provider.listeners.size, 0);
+  }
+ }
+ const alreadyCancelled = source();
+ const aborted = resolvePlayback({ ...request, streamRequest: alreadyCancelled }, { ...deps, signal: AbortSignal.abort(new Error('already cancelled')) }, () => {});
+ await assert.rejects(aborted, /already cancelled/);
+ alreadyCancelled.reject(new Error('late discovery error')); await flush();
+ const duplicates = source();
+ const deduped = resolvePlayback({ ...request, streamRequest: duplicates }, deps, () => {});
+ duplicates.publish([stream('same', 0, 'German'), stream('same', 1), stream('different', 2)], 3, true);
+ assert.equal((await deduped).streamUrl, 'https://fixture.test/different.mkv', 'Duplicate URLs retain earlier-provider metadata before language ranking');
  console.log('PASS: progressive native selection preserves language/add-on order, keeps late results, avoids probes, and handles cancellation/errors/manual URLs');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -81,6 +81,9 @@ pub fn run(mut app: App) -> Result<(), String> {
                 return;
             }
             match protocol::parse(request.body()) {
+                Ok(protocol::Command::ClientStage { stage }) => {
+                    log::debug!("playback client stage {}", stage.label());
+                }
                 Ok(protocol::Command::Fullscreen { value }) => {
                     let _ = ipc_proxy.send_event(UserEvent::Fullscreen(value));
                 }

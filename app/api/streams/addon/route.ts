@@ -18,7 +18,8 @@ function addonSupportsStream(addon: StremioAddon, type?: string): boolean {
 async function fetchAddonStreams(
   transportUrl: string,
   mediaItemId: string,
-  type: string
+  type: string,
+  signal: AbortSignal
 ) {
   const base = transportUrl.replace(/\/manifest\.json$/, "");
   const response = await outboundFetch(`${base}/stream/${type}/${mediaItemId}.json`, {
@@ -29,6 +30,7 @@ async function fetchAddonStreams(
       Accept: "application/json, text/plain, */*",
     },
     cache: "no-store",
+    signal,
   });
 
   if (!response.ok) {
@@ -41,6 +43,7 @@ async function fetchAddonStreams(
 
 export async function GET(request: Request) {
   try {
+    request.signal.throwIfAborted();
     const { searchParams } = new URL(request.url);
     const mediaItemId = searchParams.get("mediaItemId");
     const type = searchParams.get("type") ?? "movie";
@@ -64,7 +67,8 @@ export async function GET(request: Request) {
       const { resolveAddonMediaId } = await import("@/lib/tmdb-discovery");
       sourceId = await resolveAddonMediaId(sourceId, type, request.signal);
     }
-    const streams = await fetchAddonStreams(addon.transportUrl, sourceId, type);
+    request.signal.throwIfAborted();
+    const streams = await fetchAddonStreams(addon.transportUrl, sourceId, type, request.signal);
 
     return NextResponse.json({
       streams: streams.map((stream) => ({
@@ -73,6 +77,8 @@ export async function GET(request: Request) {
       })),
     });
   } catch (error: any) {
+    // The client has gone away; stop owned I/O without logging an upstream fault.
+    if (request.signal.aborted) return new Response(null, { status: 499 });
     if (error?.message?.includes("Not authenticated")) {
       return NextResponse.json({ streams: [] }, { status: 401 });
     }
