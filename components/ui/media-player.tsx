@@ -2405,7 +2405,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 className={cn(
                   "flex flex-col items-center rounded-[inherit] p-1 pb-0 text-foreground",
                   thumbnail && "min-h-10",
-                  !thumbnail && currentChapterCue && "px-3 py-1.5"
+                  (thumbnail || previewFrames) && "w-[232px]",
+                  !thumbnail && !previewFrames && currentChapterCue && "px-3 py-1.5"
                 )}
               >
                 {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} source={previewSource} time={touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} deferWhileMoving={seekMode === "surface"} />}
@@ -2433,7 +2434,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 {currentChapterCue && (
                   <div
                     data-slot="media-player-seek-chapter-title"
-                    className="line-clamp-2 max-w-56 px-2 pt-1.5 text-balance text-center text-xs font-medium"
+                    className={cn(
+                      "w-full max-w-56 px-2 text-balance text-center text-sm font-medium leading-snug [overflow-wrap:anywhere]",
+                      (thumbnail || previewFrames) && "pt-2"
+                    )}
                   >
                     {currentChapterCue.text}
                   </div>
@@ -2442,7 +2446,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   data-slot="media-player-seek-time"
                   className={cn(
                     "whitespace-nowrap text-center font-sans text-xs font-semibold tabular-nums",
-                    (thumbnail || previewFrames) && (touchScrubSpeed !== null ? "pt-0.5 pb-2" : "py-2"),
+                    (thumbnail || previewFrames) && (currentChapterCue ? "pt-1 pb-2" : touchScrubSpeed !== null ? "pt-0.5 pb-2" : "py-2"),
                     !(thumbnail || previewFrames || currentChapterCue) && "px-2.5 py-1"
                   )}
                 >
