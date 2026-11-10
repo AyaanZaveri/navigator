@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   distDir: '.next',
   output: 'standalone',
+  // Explicit hostnames for temporary LAN/tunnel previews; no public wildcard.
+  allowedDevOrigins: process.env.NAVIGATOR_DEV_ALLOWED_ORIGINS?.split(',').map((host) => host.trim()).filter(Boolean),
   // Signed desktop bundles are immutable; keep the bounded Next cache in memory.
   experimental: {
     isrFlushToDisk: process.env.NAVIGATOR_DESKTOP !== '1',
