@@ -27,19 +27,25 @@
 
 /* Use the same resting material as the adjacent expanding search field. */
 .signIn {
+    border-radius: 12px;
+    border-color: var(--border);
+    box-shadow: none;
     background: color-mix(in oklab, var(--background) 90%, transparent);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
 }
 
 :global(.dark) .signIn {
+    border-color: rgb(255 255 255 / .12);
     background: color-mix(in oklab, var(--background) 70%, transparent);
 }
 
 @media (hover: hover) and (pointer: fine) {
-    .signIn:hover,
+    .signIn:hover {
+        background: color-mix(in oklab, var(--background) 90%, transparent);
+    }
     :global(.dark) .signIn:hover {
-        background: color-mix(in oklab, var(--accent) 90%, transparent);
+        background: color-mix(in oklab, var(--background) 70%, transparent);
     }
 }
 
