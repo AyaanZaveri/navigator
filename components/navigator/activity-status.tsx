@@ -1,5 +1,7 @@
 "use client";
 
+import { ActivityTextShimmer } from "@/components/motion-primitives/activity-text-shimmer";
+
 const chevronDelays = Array.from({ length: 9 }, (_, index) => {
   const row = Math.floor(index / 3);
   const column = index % 3;
@@ -28,17 +30,7 @@ export function NavigatorActivityStatus({ label }: { label: string }) {
           />
         ))}
       </span>
-      <span
-        className="bg-clip-text text-sm font-medium text-transparent"
-        style={{
-          backgroundImage:
-            "linear-gradient(90deg, var(--muted-foreground) 35%, var(--foreground) 50%, var(--muted-foreground) 65%)",
-          backgroundSize: "200% 100%",
-          animation: "navigator-shimmer-text 1.4s linear infinite",
-        }}
-      >
-        {label}
-      </span>
+      <ActivityTextShimmer>{label}</ActivityTextShimmer>
     </div>
   );
 }

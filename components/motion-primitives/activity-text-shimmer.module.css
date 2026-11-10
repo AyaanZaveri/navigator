@@ -1,0 +1,29 @@
+.text {
+    display: inline-block;
+    min-width: 0;
+    font-size: .875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+}
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+    .text {
+        background-image: linear-gradient(90deg, var(--muted-foreground) 35%, var(--foreground) 50%, var(--muted-foreground) 65%);
+        background-size: 200% 100%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
+        animation: activity-text-shimmer 1.4s linear infinite;
+    }
+}
+@keyframes activity-text-shimmer {
+    from { background-position: 150% center; }
+    to { background-position: -50% center; }
+}
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+    .text {
+        animation: none;
+        background-image: none;
+        color: var(--muted-foreground);
+    }
+}

@@ -1121,9 +1121,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         )}
 
         {fetchingSubtitles && (
-          <div role="status" className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
+          <div className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
             <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
-            Fetching subtitles
+            <PlayerLoadingStatus label="Fetching subtitles" />
           </div>
         )}
 
