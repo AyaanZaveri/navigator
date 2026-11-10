@@ -109,13 +109,12 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] :is(button[data-
   }
 }
 
-/* Concentric lower corners follow Android's reported display radius. */
+/* Match the sign-in sheet with compact padding and safe-area clearance outside. */
 @media (width < 40rem) {
   html[data-native-engine="exoplayer"] [role="menu"][aria-modal="true"] {
-    bottom: 16px;
-    border-bottom-left-radius: max(20px, calc(var(--navigator-corner-bottom-left, 48px) - 8px));
-    border-bottom-right-radius: max(20px, calc(var(--navigator-corner-bottom-right, 48px) - 8px));
-    padding-bottom: max(8px, var(--navigator-inset-bottom));
+    bottom: max(16px, var(--navigator-inset-bottom));
+    border-radius: 16px;
+    padding-bottom: 8px;
   }
 }
 
