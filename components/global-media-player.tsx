@@ -7,6 +7,7 @@ import { installAudioLanguagePreference } from "@/lib/media/audio-language";
 import "@/components/player-mobile.css";
 import "@/components/player-entrance.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
+import { PlayerLoadingStatus } from "@/components/player-loading-status";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
 import { usePlayerChapters } from "@/components/use-player-chapters";
 import type { SkipSegment } from "@/lib/media/skip-segments";
@@ -1056,7 +1057,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     </div>
                   ) : (
                     <><Loader2 aria-hidden="true" className="size-4 animate-spin text-white/70 motion-reduce:animate-none" />
-                    <span className="text-sm text-white/70" role="status">{playbackPhaseLabels[playbackPhase]}</span></>
+                    <PlayerLoadingStatus label={playbackPhaseLabels[playbackPhase]} /></>
                   )}
                 </motion.div>
               </motion.div>
