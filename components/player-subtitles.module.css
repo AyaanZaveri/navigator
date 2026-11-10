@@ -1,4 +1,11 @@
 .menu { --dropdown-width: 24rem; }
+/* Let section rules reach the shell; keep selectable rows inset for focus. */
+.menu[role="menu"] { padding-inline: 0; }
+.menu [role="separator"] { margin-inline: 0; }
+.menu [role="menuitemradio"],
+.menu [role="menuitem"],
+.menu .heading,
+.menu .empty { margin-inline: 5px; }
 /* The glass shell clips its canvas; this inner viewport owns track scrolling. */
 .list { max-height: min(22rem, max(6rem, calc(var(--radix-dropdown-menu-content-available-height, 100dvh) - 4rem))); }
 .list [data-slot="scroll-area-viewport"] { max-height: inherit; }
