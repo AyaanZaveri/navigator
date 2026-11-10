@@ -59,7 +59,7 @@ import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
 import { DesktopTracks } from "@/components/desktop/tracks";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
-import { ArrowLeft, RotateCcw, RotateCw, Users, Ship, Loader2 } from "lucide-react";
+import { ArrowLeft, RotateCcw, RotateCw, Ship, Loader2 } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   reportPlaybackStart,
@@ -68,11 +68,6 @@ import {
 } from "@/app/actions";
 import { fetchSubtitleFileContent } from "@/app/actions/subtitles";
 import { getSubtitleTracks } from "@/app/actions/utils";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { useSettings } from "@/contexts/settings-context";
 import { SubtitleText } from "@/components/subtitle-text";
 import { PlayerSubtitles } from "@/components/player-subtitles";
@@ -1191,46 +1186,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     <Ship className="h-4 w-4" />
                   </Button>
                 </MediaPlayerTooltip>
-              )}
-
-              {/* Cast popover */}
-              {mediaDetails?.cast && mediaDetails.cast.length > 0 && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <MediaPlayerTooltip tooltip="Cast">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-white hover:bg-white/20"
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                    </MediaPlayerTooltip>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-80 bg-black/90 border-white/20 text-white"
-                    side="top"
-                  >
-                    <div className="space-y-3">
-                      <h3 className="font-semibold text-lg">Cast</h3>
-                      <div className="max-h-64 overflow-y-auto space-y-2">
-                        {mediaDetails.cast.map((name, index) => (
-                          <div
-                            key={`${name}-${index}`}
-                            className="flex items-center space-x-3 p-2 rounded hover:bg-white/10"
-                          >
-                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs flex-shrink-0">
-                              {name.charAt(0) || "?"}
-                            </div>
-                            <p className="font-medium text-sm truncate">
-                              {name}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
               )}
 
               {nativePlayback && <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />}
