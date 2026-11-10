@@ -53,6 +53,8 @@ import * as ReactDOM from "react-dom";
 
 import { desktopBridge, setMacOSWindowControlsVisible } from "@/lib/desktop/bridge";
 import { createDesktopMediaStore } from "@/lib/desktop/media-store";
+import { PlayerSkipTimeline } from "@/components/player-skip-timeline";
+import type { SkipSegment } from "@/lib/media/skip-segments";
 import { SeekPreview } from "@/components/seek-preview";
 import { PreviewImage } from "@/components/preview-image";
 import { attachTouchScrubbing } from "@/lib/media/touch-scrubbing";
@@ -1601,6 +1603,7 @@ interface SeekState {
 
 interface MediaPlayerSeekProps
   extends React.ComponentProps<typeof SliderPrimitive.Root> {
+  skipSegments?: SkipSegment[];
   withTime?: boolean;
   withoutChapter?: boolean;
   withoutTooltip?: boolean;
@@ -1618,6 +1621,7 @@ interface MediaPlayerSeekProps
 
 function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const {
+    skipSegments = [],
     withTime = false,
     withoutChapter = false,
     withoutTooltip = false,
@@ -2387,6 +2391,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
               }}
             />
           )}
+          <PlayerSkipTimeline segments={skipSegments} start={seekableStart} end={seekableEnd} />
           {chapterSeparators}
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb

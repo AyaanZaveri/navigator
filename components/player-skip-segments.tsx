@@ -8,8 +8,9 @@ import styles from "./player-skip-segments.module.css";
 
 const labels = { intro: "Skip Intro", recap: "Skip Recap", credits: "Skip Credits" };
 
-export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, enabled = true }: {
+export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSegmentsChange, enabled = true }: {
     enabled?: boolean;
+    onSegmentsChange?: (_segments: SkipSegment[]) => void;
     lookup: SkipLookup;
     currentTime: number;
     mediaRef: RefObject<HTMLVideoElement | null>;
@@ -18,6 +19,10 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, enab
     const [segments, setSegments] = useState<SkipSegment[]>([]);
     const [skipped, setSkipped] = useState<SkipSegment[]>([]);
     const pendingSkip = useRef(false);
+    useEffect(() => {
+        onSegmentsChange?.(segments);
+    }, [segments, onSegmentsChange]);
+    useEffect(() => () => onSegmentsChange?.([]), [onSegmentsChange]);
     const { id, type, season, episode, duration } = lookup;
     useEffect(() => {
         const root = mediaRef.current?.closest<HTMLElement>('[data-slot="media-player"]');

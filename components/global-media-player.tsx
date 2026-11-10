@@ -9,6 +9,7 @@ import "@/components/player-entrance.css";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
 import { usePlayerChapters } from "@/components/use-player-chapters";
+import type { SkipSegment } from "@/lib/media/skip-segments";
 import { PlayerSkipSegments } from "@/components/player-skip-segments";
 import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
 import { PlayerNextEpisode } from "@/components/player-next-episode";
@@ -194,6 +195,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const lastLoadedPlaybackKeyRef = useRef<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [skipTimeline, setSkipTimeline] = useState<{ source: string | null; segments: SkipSegment[] }>({ source: null, segments: [] });
+  const handleSkipSegments = useCallback((segments: SkipSegment[]) => {
+    setSkipTimeline({ source: streamUrl, segments });
+  }, [streamUrl]);
   const chapters = usePlayerChapters(videoRef, streamUrl, duration);
 
   useLayoutEffect(() => {
@@ -1106,6 +1111,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         {!playbackError && streamUrl && duration > 0
           && (currentMedia.type === "movie" || currentMedia.type === "series") && (
           <PlayerSkipSegments
+            onSegmentsChange={handleSkipSegments}
             enabled={videoReady && !loading}
             key={`${streamUrl}:${currentMedia.seriesId || currentMedia.id}:${season}:${episodeNumber}`}
             lookup={{ id: currentMedia.seriesId || currentMedia.id, type: currentMedia.type,
@@ -1154,7 +1160,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             </div>
           </div>
 
-          <MediaPlayerSeek previewFrames previewSource={streamUrl ?? undefined} />
+          <MediaPlayerSeek previewFrames previewSource={streamUrl ?? undefined}
+            skipSegments={skipTimeline.source === streamUrl ? skipTimeline.segments : []} />
 
           <div data-player-toolbar="" className="flex w-full items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
