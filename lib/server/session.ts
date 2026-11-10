@@ -5,6 +5,7 @@ import type { StremioUser } from "@/types/stremio";
 
 export const SESSION_COOKIE = "stremio-auth";
 export const SESSION_SECONDS = 30 * 24 * 60 * 60;
+export const STREMIO_LINK_COOKIE = "navigator-stremio-link";
 export type SessionUser = Pick<StremioUser, "_id" | "email" | "avatar">;
 export type Session = { authKey: string; user: SessionUser; issuedAt: number };
 
@@ -73,5 +74,26 @@ export async function readSession(value: string | undefined): Promise<Session | 
             || !user || typeof user._id !== "string" || !user._id || user._id !== payload.sub
             || typeof user.email !== "string" || typeof payload.iat !== "number") return null;
         return { authKey: payload.authKey, user: publicUser(user), issuedAt: payload.iat * 1000 };
+    } catch { return null; }
+}
+
+/** Pairing state is short-lived, encrypted, and bound to this browser. It is
+ * never accepted as a Navigator session or returned as a Stremio credential. */
+export async function sealStremioLink(code: string, attempt: string): Promise<string> {
+    return new EncryptJWT({ code })
+        .setProtectedHeader({ alg: "dir", enc: "A256GCM", typ: "JWT" })
+        .setIssuer("navigator").setAudience("navigator-stremio-link").setSubject(attempt)
+        .setIssuedAt().setExpirationTime("5m").encrypt(await sessionKey());
+}
+
+export async function readStremioLink(value: string | undefined, attempt: string): Promise<string | null> {
+    if (!value || value.length > 4096 || typeof attempt !== "string" || attempt.length > 64) return null;
+    try {
+        const { payload } = await jwtDecrypt(value, await sessionKey(), {
+            issuer: "navigator", audience: "navigator-stremio-link", subject: attempt,
+            keyManagementAlgorithms: ["dir"], contentEncryptionAlgorithms: ["A256GCM"],
+            requiredClaims: ["exp", "iat", "sub"], maxTokenAge: "5m",
+        });
+        return typeof payload.code === "string" && /^[a-zA-Z0-9_-]{4,128}$/.test(payload.code) ? payload.code : null;
     } catch { return null; }
 }
