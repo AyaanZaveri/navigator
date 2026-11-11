@@ -61,3 +61,25 @@ public/_next-video
 .wrangler/
 .dev.vars*
 cloudflare-env.d.ts
+
+# Agent folders (including all files inside)
+.agents/
+.claude/
+.codex/
+.cursor/
+.firecrawl/
+.claw/
+.github/instructions/
+.github/agents/
+
+# Standalone agent files outside those folders
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.cursorrules
+skills-lock.json
+
+# Keep shared editor defaults, not local tool connections
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

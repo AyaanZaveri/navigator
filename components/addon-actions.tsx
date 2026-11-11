@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Loader2, Settings, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getInstalledAddonLinks, uninstallAddon } from "@/app/actions/addons";
@@ -11,7 +11,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import type { AddonListItem } from "@/lib/addons";
 import styles from "./addons-list.module.css";
 
-export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; onUninstalled: () => void }) {
+export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: AddonListItem; onUninstalled: (_options: { animate: boolean }) => void; onRemovalFocus: () => void }) {
+    const uninstalled = useRef(false);
     const [shareOpen, setShareOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
     const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -46,7 +47,7 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
         } finally { setCopying(false); }
     }
 
-    async function remove() {
+    async function remove(animate: boolean) {
         if (removing) return;
         setRemoving(true);
         setRemoveError(null);
@@ -54,8 +55,9 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
             const result = await uninstallAddon(addon.id);
             if (result.error) { setRemoveError(result.error); return; }
             toast.success(`${addon.name} uninstalled`);
+            uninstalled.current = true;
             setRemoveOpen(false);
-            onUninstalled();
+            onUninstalled({ animate });
         } catch {
             setRemoveError("Could not uninstall this addon. Please try again.");
         } finally { setRemoving(false); }
@@ -92,7 +94,12 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
             {!addon.protected && (
                 <AlertDialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>
                     <AlertDialogTrigger asChild><Button variant="ghost" size="sm" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></AlertDialogTrigger>
-                    <AlertDialogContent aria-busy={removing}>
+                    <AlertDialogContent aria-busy={removing} onCloseAutoFocus={event => {
+                        if (uninstalled.current) {
+                            event.preventDefault();
+                            onRemovalFocus();
+                        }
+                    }}>
                         <AlertDialogHeader>
                             <AlertDialogTitle>Uninstall {addon.name}?</AlertDialogTitle>
                             <AlertDialogDescription>This removes this addon configuration from your Stremio account and all your synced devices. You can install it again later.</AlertDialogDescription>
@@ -100,7 +107,7 @@ export function AddonActions({ addon, onUninstalled }: { addon: AddonListItem; o
                         {removeError && <p role="alert" className={styles.error}>{removeError}</p>}
                         <AlertDialogFooter>
                             <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction variant="destructive" disabled={removing} onClick={(event) => { event.preventDefault(); void remove(); }}>
+                            <AlertDialogAction variant="destructive" disabled={removing} onClick={(event) => { event.preventDefault(); void remove(event.detail > 0); }}>
                                 {removing ? (
                                     <>
                                         <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
