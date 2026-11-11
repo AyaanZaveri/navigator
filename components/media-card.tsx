@@ -2,7 +2,7 @@
 
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 
-import { ArtworkImage } from "@/components/artwork-image";
+import { ArtworkImage, ArtworkPlaceholder } from "@/components/artwork-image";
 
 import { preloadPlayer } from "@/lib/preload-tools";
 
@@ -22,11 +22,15 @@ export function MediaCard({
   continueWatching = false,
   fullWidth = false,
   subtitleContent,
+  titleLines = 1,
+  revealArtwork = true,
 }: {
   item: MediaItem;
   continueWatching?: boolean;
   fullWidth?: boolean;
   subtitleContent?: React.ReactNode;
+  titleLines?: 1 | 2;
+  revealArtwork?: boolean;
 }) {
   const { playMedia, setIsPlayerVisible } = usePlaybackActions();
   const homeScene = useHomePaletteScene();
@@ -53,10 +57,14 @@ export function MediaCard({
   }
 
   const artwork = mediaArtwork(item.seriesId || item.id, item.type);
-  const imageUrl = continueWatching ? backdropVariantUrl(artwork.background, 780) : artwork.poster;
+  // Search already supplies an exact TMDB poster. Reusing it avoids another
+  // metadata request per card and preserves posters in the title's own language.
+  const suppliedPoster = item.poster?.startsWith("https://image.tmdb.org/t/p/") ? item.poster : undefined;
+  const [failedImages, setFailedImages] = useState<string[]>([]);
+  const imageUrl = (continueWatching ? [backdropVariantUrl(artwork.background, 780)] : [suppliedPoster, artwork.poster])
+    .find((source): source is string => !!source && !failedImages.includes(source));
   const imageSrcSet = continueWatching && artwork.background
     ? ([300, 780, 1280] as const).map(width => `${backdropVariantUrl(artwork.background, width)} ${width}w`).join(", ") : undefined;
-  const [failedImage, setFailedImage] = useState<string | null>(null);
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const [loadedLogo, setLoadedLogo] = useState<string | null>(null);
   const attachLogo = useCallback((image: HTMLImageElement | null) => {
@@ -142,8 +150,9 @@ export function MediaCard({
       >
         {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
         <Link href={linkHref} prefetch={true} scroll={false} draggable={false} className="absolute inset-0">
-          {imageUrl && failedImage !== imageUrl ? (
+          {imageUrl ? (
             <ArtworkImage
+              reveal={revealArtwork}
               src={imageUrl}
               srcSet={imageSrcSet}
               sizes={continueWatching ? "320px" : undefined}
@@ -151,15 +160,13 @@ export function MediaCard({
               height={continueWatching ? 180 : 216}
               loading="lazy"
               data-prefetch-artwork={continueWatching ? "" : undefined}
-              onError={() => setFailedImage(imageUrl)}
+              onError={() => setFailedImages(previous => previous.includes(imageUrl) ? previous : [...previous, imageUrl])}
               alt={item.name || ""}
               className={`${styles.artwork} block w-full h-full object-cover`}
               draggable={false}
             />
           ) : (
-            <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-              <div className="text-white/60 text-sm">No Image</div>
-            </div>
+            <ArtworkPlaceholder className="w-full h-full" aria-hidden="true" />
           )}
         </Link>
 
@@ -214,7 +221,7 @@ export function MediaCard({
       </div>
       <Link href={linkHref} prefetch={true} scroll={false} draggable={false}>
         <div className="px-1">
-          <div className="mt-2.5 text-sm font-medium text-foreground truncate">
+          <div className={`mt-2.5 text-sm font-medium text-foreground ${titleLines === 2 ? "line-clamp-2 break-words leading-snug" : "truncate"}`}>
             {item.name}
           </div>
           <div className={`text-xs text-muted-foreground mt-0.5 ${continueWatching ? "min-h-4" : ""}`}>

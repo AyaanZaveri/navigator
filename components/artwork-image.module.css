@@ -25,11 +25,20 @@
 }
 
 .fallback {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
   overflow: hidden;
-  background-color: var(--accent);
+  background-color: var(--muted);
   color: var(--muted-foreground);
   font-size: .75rem;
+  line-height: 1.5;
   text-align: center;
 }
+
+.fallbackIcon { width: 1.75rem; max-width: 100%; height: auto; flex-shrink: 0; }
+.fallbackLabel { font-weight: 500; }
+.fallback[data-compact] { gap: 0; padding: .25rem; }

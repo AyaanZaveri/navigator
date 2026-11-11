@@ -59,5 +59,10 @@ export async function getTMDBArtwork(
     `${mediaType}/${tmdbId}/images?include_image_language=en,null`, token,
   );
   const images = kind === "poster" ? data?.posters : kind === "backdrop" ? data?.backdrops : data?.logos;
-  return selectArtwork(images, kind);
+  const selected = selectArtwork(images, kind);
+  if (selected || kind !== "poster" || !data) return selected;
+  // Regional titles may only have a poster in their original language. Keep
+  // English/untagged art preferred, but don't mistake that filter for no art.
+  const international = await fetchTMDB<{ posters?: TMDBImage[] }>(`${mediaType}/${tmdbId}/images`, token);
+  return selectArtwork(international?.posters, kind);
 }

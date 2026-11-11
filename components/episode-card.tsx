@@ -1,6 +1,6 @@
 "use client";
 
-import { ArtworkImage } from "@/components/artwork-image";
+import { ArtworkImage, ArtworkPlaceholder } from "@/components/artwork-image";
 
 import { preloadPlayer } from "@/lib/preload-tools";
 
@@ -64,9 +64,7 @@ export function EpisodeCard({
               alt={episode.title || "Episode"}
             />
           ) : (
-            <div className="w-full h-full bg-gray-800 flex items-center justify-center rounded-lg">
-              <div className="text-white/60 text-sm">No Image</div>
-            </div>
+            <ArtworkPlaceholder className="w-full h-full" aria-hidden="true" />
           )}
         </Link>
 

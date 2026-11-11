@@ -117,6 +117,25 @@ async function run() {
   assert.equal(await artwork.getTMDBArtwork('tmdb:20', 'series', 'still', 2, 3), 'https://image.tmdb.org/t/p/w500/episode.jpg');
   assert.ok(calls.at(-1).url.includes('/tv/20/season/2?language=en-US'));
   assert.equal(await artwork.getTMDBArtwork('tmdb:20', 'series', 'still', 2, 4), undefined);
+  const foreignPaths = [];
+  const foreignArtwork = load('lib/tmdb-artwork.ts', {
+    require: name => name === '@/lib/tmdb' ? {
+      resolveTMDBId: async () => 236182,
+      fetchTMDB: async path => {
+        foreignPaths.push(path);
+        return { posters: path.includes('include_image_language') ? [] : [
+          { file_path: '/u17FjBbauOJailVQC1siM9yGfDw.jpg', iso_639_1: 'fi' },
+        ], logos: [] };
+      },
+    } : name === '@/lib/tmdb-credentials' ? { getTMDBToken: async () => 'fixture' } : {},
+  });
+  assert.equal(await foreignArtwork.getTMDBArtwork('tmdb:236182', 'series', 'poster'),
+    'https://image.tmdb.org/t/p/w500/u17FjBbauOJailVQC1siM9yGfDw.jpg',
+    'Amazing Race Finland must fall back to its Finnish poster when English/untagged images are absent');
+  assert.equal(foreignPaths.length, 2);
+  foreignPaths.length = 0;
+  assert.equal(await foreignArtwork.getTMDBArtwork('tmdb:236182', 'series', 'logo'), undefined);
+  assert.equal(foreignPaths.length, 1, 'Do not change established logo language selection');
   const count = calls.length;
   assert.equal(await artwork.getTMDBArtwork('unknown', 'movie', 'poster'), undefined);
   assert.equal(calls.length, count);

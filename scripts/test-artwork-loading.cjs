@@ -36,6 +36,33 @@ for (const continueWatching of [false, true]) {
 }
 console.log('PASS: card artwork reserves an opaque loading surface before image requests complete.');
 
+const cardHooks = hooks();
+const cardFixture = load('components/media-card.tsx', {
+  ...dependencies, react: { ...React, ...cardHooks.react }, 'react/jsx-runtime': cardHooks.jsx,
+  '@/components/artwork-image': { ArtworkImage: 'artwork-image', ArtworkPlaceholder: 'artwork-placeholder' },
+});
+function nodes(node) {
+  if (!node || typeof node !== 'object') return [];
+  const children = [node.props?.children].flat(Infinity).filter(Boolean);
+  return [node, ...children.flatMap(nodes)];
+}
+const posterProps = { item: { id: 'tmdb:236182', type: 'series', name: 'Amazing Race Finland',
+  poster: 'https://image.tmdb.org/t/p/w500/u17FjBbauOJailVQC1siM9yGfDw.jpg' } };
+let card = cardHooks.render(cardFixture.MediaCard, posterProps);
+let poster = nodes(card).find(node => node.type === 'artwork-image');
+assert.equal(poster.props.src, posterProps.item.poster, 'Search cards keep the same exact poster as suggestions');
+poster.props.onError();
+card = cardHooks.render(cardFixture.MediaCard, posterProps);
+poster = nodes(card).find(node => node.type === 'artwork-image');
+assert.equal(poster.props.src, '/poster.jpg', 'A failed supplied poster falls back to the canonical resolver');
+poster.props.onError();
+card = cardHooks.render(cardFixture.MediaCard, posterProps);
+assert.ok(!nodes(card).some(node => node.type === 'artwork-image'), 'Exhausted sources stop without a retry loop');
+card = cardHooks.render(cardFixture.MediaCard, { item: { ...posterProps.item, poster: 'https://image.tmdb.org/t/p/w500/new.jpg' } });
+assert.equal(nodes(card).find(node => node.type === 'artwork-image').props.src, 'https://image.tmdb.org/t/p/w500/new.jpg', 'New metadata can recover a failed card');
+cardHooks.unmount();
+console.log('PASS: supplied TMDB posters, canonical fallback, exhausted-source termination, and changed-poster recovery');
+
 const h = hooks();
 const { ArtworkImage } = load('components/artwork-image.tsx', {
   ...imageDependencies, react: { ...React, ...h.react }, 'react/jsx-runtime': h.jsx,
@@ -54,6 +81,9 @@ image = h.render(ArtworkImage, props);
 assert.equal(image.props['data-artwork-state'], 'ready', 'Reveal immediately on load, with no timeout or decode wait');
 assert.doesNotMatch(image.props.className, /pending/);
 assert.match(image.props.className, /reveal/, 'Loaded images fade over their reserved surface');
+image = h.render(ArtworkImage, { ...props, reveal: false });
+assert.equal(image.props['data-artwork-state'], 'ready', 'Disabling a reveal retains the decoded image state');
+assert.doesNotMatch(image.props.className, /reveal/, 'Search images never replay their reveal when a card moves between segment orders');
 const next = { ...props, src: '/second.jpg' };
 image = h.render(ArtworkImage, next);
 assert.equal(image.props['data-artwork-state'], 'loading', 'A reused card must show a skeleton for its new URL');
@@ -63,7 +93,8 @@ assert.equal(image.props['data-artwork-state'], 'loading', 'A stale request cann
 image.props.onError({ currentTarget: {} });
 image = h.render(ArtworkImage, next);
 assert.equal(image.props['data-artwork-state'], 'error');
-assert.equal(image.props.role, 'img');
+assert.equal(image.type.name, 'ArtworkPlaceholder');
+assert.equal(image.type(image.props).props.role, 'img');
 assert.match(image.props['aria-label'], /unavailable/);
 const cached = { ...props, src: '/cached.jpg' };
 image = h.render(ArtworkImage, cached);

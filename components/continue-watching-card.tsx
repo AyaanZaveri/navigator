@@ -2,7 +2,7 @@
 
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 
-import { ArtworkImage } from "@/components/artwork-image";
+import { ArtworkImage, ArtworkPlaceholder } from "@/components/artwork-image";
 
 import React from "react";
 import type { MediaItem } from "@/types/stremio";
@@ -56,9 +56,7 @@ export function ContinueWatchingCard({ item }: ContinueWatchingCardProps) {
             draggable="false"
           />
         ) : (
-          <div className="w-full h-full bg-gray-800 flex items-center justify-center rounded-lg shadow-lg">
-            <div className="text-white/60 text-sm">No Image</div>
-          </div>
+          <ArtworkPlaceholder className="w-full h-full rounded-lg" aria-hidden="true" />
         )}
       </div>
 
