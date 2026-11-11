@@ -8,6 +8,12 @@ interface CanvasSample {
     captured: number;
 }
 const samples = new WeakMap<HTMLCanvasElement, CanvasSample>();
+const listeners = new Set<() => void>();
+/** Wake contrast sampling only when an actual readable canvas crop changes. */
+export function subscribeLogoCanvas(listener: () => void) {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+}
 const same = (a: LogoRect | undefined, b: LogoRect) => a && a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
 
 export function registerLogoCanvas(canvas: HTMLCanvasElement, wake: () => void) {
@@ -48,5 +54,6 @@ export function captureLogoCanvas(canvas: HTMLCanvasElement, now: number) {
             (top - bounds.top) / bounds.height * canvas.height,
             width / bounds.width * canvas.width, height / bounds.height * canvas.height, 0, 0, 64, 64);
         entry.image = image; entry.rect = { left, top, width, height }; entry.captured = now;
+        listeners.forEach(listener => listener());
     } catch { /* Retain the last readable crop during context loss. */ }
 }

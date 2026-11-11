@@ -16,7 +16,7 @@ const backdrop = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast 
 const surfaces = load('lib/logo-surfaces.ts', { './logo-canvas': load('lib/logo-canvas.ts') });
 const h = hooks();
 const raf = new Map(), listeners = new Map();
-let frame = 0, now = 0;
+let frame = 0, now = 0, pixelReads = 0, canvasWake;
 const rect = (left, top, width, height) => ({ left, top, width, height });
 const defaults = { display: 'block', visibility: 'visible', opacity: '1', overflowX: 'visible', overflowY: 'visible',
   backgroundColor: 'transparent', backgroundImage: 'none', objectFit: 'cover', objectPosition: '50% 50%', getPropertyValue: () => '' };
@@ -69,7 +69,7 @@ function canvas() {
       const [x, y, w, height] = args.length === 8 ? args.slice(4) : args;
       if (46 >= x && 46 <= x + w && 46 >= y && 46 <= y + height) color = image.color;
     },
-    getImageData() { return { data: new Uint8ClampedArray(Array.from({ length: 64 * 64 }, () => color).flat()) }; },
+    getImageData() { pixelReads++; return { data: new Uint8ClampedArray(Array.from({ length: 64 * 64 }, () => color).flat()) }; },
   };
   result.getContext = () => ctx;
   return result;
@@ -79,6 +79,7 @@ const document = { ...eventTarget, hidden: false, documentElement: { root: true 
 const { AdaptiveHeaderLogo } = load('components/adaptive-header-logo.tsx', {
   react: h.react, 'react/jsx-runtime': h.jsx, 'next/image': 'img',
   'next/navigation': { usePathname: () => '/series/tt123' }, 'next-themes': { useTheme: () => ({ resolvedTheme: 'light' }) },
+  '@/lib/logo-canvas': { subscribeLogoCanvas: fn => { canvasWake = fn; return () => { canvasWake = null; }; } },
   '@/lib/logo-contrast': contrast, '@/lib/logo-backdrop': backdrop, '@/lib/logo-surfaces': surfaces,
   './adaptive-header-logo.module.css': { frame: 'frame', mark: 'mark' },
 }, { document, performance: { now: () => now },
@@ -89,40 +90,47 @@ const { AdaptiveHeaderLogo } = load('components/adaptive-header-logo.tsx', {
 });
 const render = () => h.render(AdaptiveHeaderLogo, { adaptive: true });
 function tick(time) { now = time; const work = [...raf.values()]; raf.clear(); work.forEach(fn => fn(time)); }
-async function settle(time) { tick(time); await new Promise(resolve => setImmediate(resolve)); tick(time + 50); tick(time + 180); tick(time + 300); }
+async function settle(time) { now = time; listeners.get('scroll')?.(); tick(time); await new Promise(resolve => setImmediate(resolve)); tick(time + 50); tick(time + 180); tick(time + 450); }
 (async () => {
   render().props.ref.current = logo; h.flush();
   await new Promise(resolve => setImmediate(resolve));
   await settle(0);
   assert.equal(render().props['data-logo-tone'], 'deep', 'Bright hero uses the dark high-contrast logo');
+  assert.equal(raf.size, 0, 'Static pages stop sampling after settlement');
+  const quietReads = pixelReads; tick(480);
+  assert.equal(pixelReads, quietReads, 'Idle time does not read any pixels');
   hero.bounds.top = -500; poster.bounds.top = 0;
   await settle(500);
   assert.equal(render().props['data-logo-tone'], 'light', 'A poster scrolled behind the logo is sampled after the hero leaves, even without another scroll event');
   assert.ok(requestedImages.some(source => source.includes('kind=poster') && source.includes('sample=1')), 'Posters also use readable same-origin bytes');
-  assert.ok(raf.size, 'The idle sampler stays alive after the settling window');
-  poster.bounds.top = 600; tick(900);
+  assert.equal(raf.size, 0, 'The sampler sleeps after scroll settlement');
+  poster.bounds.top = 600; now = 1000; listeners.get('scroll')(); tick(1000);
   assert.equal(render().props['data-logo-tone'], 'light', 'A transient bright patch cannot reverse the current fade');
-  poster.bounds.top = 0; tick(1000);
+  poster.bounds.top = 0; now = 1050; listeners.get('scroll')(); tick(1050);
   assert.equal(render().props['data-logo-tone'], 'light');
-  poster.src = '/broken.jpg'; await settle(1200);
-  assert.ok(raf.size, 'An image failure cannot stop the sampler');
-  poster.src = '/new-dark.jpg'; await settle(1700);
+  poster.src = '/broken.jpg'; await settle(1500);
+  assert.equal(raf.size, 0, 'Image failure does not create permanent polling');
+  poster.src = '/new-dark.jpg'; await settle(2100);
   assert.equal(render().props['data-logo-tone'], 'light', 'New content recovers after a failed image');
   const clipped = new Element('DIV', rect(250, 0, 200, 300), scroller, 2);
   clipped.style.overflowX = 'hidden'; poster.parentElement = clipped;
-  await settle(2200);
+  await settle(2700);
   assert.equal(render().props['data-logo-tone'], 'deep', 'Offscreen carousel images cannot affect the logo through an overflow clip');
   poster.parentElement = scroller;
-  poster.bounds.top = 600; await settle(2700);
+  poster.bounds.top = 600; await settle(3300);
   assert.equal(render().props['data-logo-tone'], 'deep', 'The real page background replaces artwork once it leaves the sampling region');
-  document.hidden = true; tick(3300); assert.equal(raf.size, 0);
-  document.hidden = false; listeners.get('visibilitychange')(); tick(3350); assert.ok(raf.size);
+  const beforeFrame = pixelReads; now = 3900; canvasWake(); tick(3900);
+  assert.ok(pixelReads > beforeFrame, 'A real canvas crop wakes the sleeping sampler');
+  tick(4050); tick(4300);
+  assert.equal(raf.size, 0, 'The last animated frame settles without permanent polling');
+  document.hidden = true; tick(4400); assert.equal(raf.size, 0);
+  document.hidden = false; listeners.get('visibilitychange')(); tick(4450); assert.ok(raf.size);
   const tree = render();
   assert.equal(tree.props.children.length, 4);
   assert.ok(tree.props.children.every(image => image.props.className === 'mark'), 'Every tone, including neutral, shares the same mounted transition layer');
-  h.unmount(); assert.equal(raf.size, 0); assert.equal(listeners.size, 0);
+  h.unmount(); assert.equal(raf.size, 0); assert.equal(listeners.size, 0); assert.equal(canvasWake, null);
   const css = require('postcss').parse(fs.readFileSync('components/adaptive-header-logo.module.css', 'utf8'));
   assert.ok(css.nodes.find(node => node.selector === '.mark').nodes.some(node => node.prop === 'transition' && node.value.includes('240ms')));
   assert.ok(css.nodes.find(node => node.params === '(prefers-reduced-motion: reduce)').nodes[0].nodes.some(node => node.prop === 'transition' && node.value.includes('opacity')));
-  console.log('PASS: actual sampler follows hero → scrolled poster → page, continues idle, recovers from image failures, pauses hidden, cleans up, and crossfades all four variants.');
+  console.log('PASS: actual sampler follows hero → scrolled poster → page, sleeps idle, recovers from image failures, pauses hidden, cleans up, and crossfades all four variants.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

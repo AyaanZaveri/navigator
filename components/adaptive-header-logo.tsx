@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { HEADER_LOGO_SOURCES, chooseLogoTreatment, createLogoToneStabilizer, type LogoPixels, type LogoTone } from "@/lib/logo-contrast";
 import { logoBlurRadius, logoSampleSource, paintLogoBackdrop, type LogoArtwork, type LogoOverlay } from "@/lib/logo-backdrop";
 import { collectLogoSurfaces } from "@/lib/logo-surfaces";
+import { subscribeLogoCanvas } from "@/lib/logo-canvas";
 import styles from "./adaptive-header-logo.module.css";
 
 export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
@@ -32,6 +33,7 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         let stopped = false;
         let frame = 0;
         let settleUntil = 0;
+        let motionUntil = 0;
         let lastRead = -Infinity;
         const images = new Map<string, { image: HTMLImageElement; failedAt?: number }>();
         let previous: LogoTone | null = null;
@@ -57,9 +59,21 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         });
 
         function schedule() {
-            // Keep sampling through the header's 180ms opacity transition,
-            // including after the final scroll event in a fling.
-            settleUntil = performance.now() + 220;
+            // Allow the 120ms tone confirmation and 240ms crossfade to settle.
+            // Actual animated canvas frames have their own bounded wake signal.
+            settleUntil = performance.now() + 360;
+            motionUntil = settleUntil;
+            wake();
+        }
+
+        function canvasUpdated() {
+            // Keep the last animated frame long enough to confirm its tone,
+            // without upgrading canvas-only updates to scroll sampling speed.
+            settleUntil = Math.max(settleUntil, performance.now() + 360);
+            wake();
+        }
+
+        function wake() {
             if (!stopped && !document.hidden && !frame) frame = window.requestAnimationFrame(tick);
         }
 
@@ -70,13 +84,13 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         function tick(now: number) {
             frame = 0;
             if (stopped || document.hidden) return;
-            // Keep checking moving/late-loading content even after scrolling
-            // stops. Only sample pixels at 10Hz idle, up to 30Hz during motion.
-            if (now - lastRead >= (now < settleUntil ? 32 : 100)) {
+            // During scrolling/settling sample up to 30Hz. Canvas crops notify
+            // us at their existing 10Hz limit; static scenes need no idle loop.
+            if (now - lastRead >= (now < motionUntil ? 32 : 100)) {
                 lastRead = now;
                 inspect();
             }
-            if (!stopped) frame = window.requestAnimationFrame(tick);
+            if (!stopped && now < settleUntil) frame = window.requestAnimationFrame(tick);
         }
 
         function readable(source: string) {
@@ -160,10 +174,12 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
         window.addEventListener("resize", schedule, { passive: true });
         window.addEventListener("scroll", schedule, { capture: true, passive: true });
         document.addEventListener("visibilitychange", schedule);
+        const unsubscribeCanvas = subscribeLogoCanvas(canvasUpdated);
         schedule();
 
         return () => {
             stopped = true;
+            unsubscribeCanvas();
             window.cancelAnimationFrame(frame);
             resize.disconnect();
             changes.disconnect();
