@@ -5,10 +5,6 @@ const vm = require('node:vm');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 const globals = { AbortController, AbortSignal, Response, Request, URL, URLSearchParams };
 const sequence = load('lib/media/episode-continuation.ts', {}, globals);
-const prefetch = load('lib/media/prefetch-next-episode.ts', {
-  './fetch-playback-streams': {}, './fetch-playback-details': {}, './resolve-playback': {}, './playback-details': {},
-  './stream-metadata': {}, './playback-preferences': {},
-}, globals);
 const prefs = load('lib/media/playback-preferences.ts');
 const titles = load('lib/media/playback-titles.ts');
 const media = { id: 'tt1442437', seriesId: 'tt1442437', type: 'series', mediaSourceId: 'tt1442437:6:6',
@@ -27,8 +23,10 @@ function controller(overrides={}) {
   return { instance,calls };
 }
 (async()=>{
-  for(const [time,duration,wanted] of [[0,1000,false],[800,1000,false],[910,1000,true],[999,1000,true],[1000,1000,false],[79,100,false],[80,100,true],[10,NaN,false],[1,Infinity,false]])
+  for(const [time,duration,wanted] of [[0,1800,false],[1499,1800,false],[1500,1800,true],[749,1000,false],[750,1000,true],[999,1000,true],[1000,1000,false],[74,100,false],[75,100,true],[10,NaN,false],[1,Infinity,false]])
     assert.equal(sequence.shouldPrefetchEpisode(time,duration),wanted);
+  assert.equal(sequence.shouldPrefetchEpisode(1300,1800,1600),true,'Prepare five minutes before verified credits');
+  assert.equal(sequence.shouldPrefetchEpisode(1300,1800,1900),false,'Ignore credits outside the file');
   const target=sequence.nextEpisodeRequest(media,next);
   assert.equal(target.mediaSourceId,next.id); assert.equal(target.episodeTitle,next.title);
   for(const field of ['streamUrl','resumePositionTicks','navigatorActionId','streamRequest']) assert.equal(target[field],undefined);
@@ -47,6 +45,13 @@ function controller(overrides={}) {
   let clock=1000; ({instance,calls}=controller({now:()=>clock})); await instance.prefetch();
   clock+=sequence.NEXT_EPISODE_PREFETCH_TTL+1; await instance.advance(true);
   assert.equal(calls.prepare,2,'Old signed stream preparations are refreshed after a long pause');
+  let claimed=0,released=0,warmSignal;
+  ({instance,calls}=controller({warm:async(_media,signal)=>{warmSignal=signal;calls.warm++;return {claim(){claimed++;},dispose(){released++;}};}}));
+  await instance.prefetch(false);assert.equal(calls.prepare,1);assert.equal(calls.warm,0,'Stream discovery does not require spare video bandwidth');
+  await instance.prefetch(true);assert.equal(calls.warm,1);
+  instance.suspendVideoPrefetch();assert.ok(warmSignal.aborted);assert.equal(released,1);
+  await instance.prefetch(true);assert.equal(calls.prepare,1,'Resuming video preload reuses discovery');
+  await instance.advance();assert.equal(claimed,1,'Advance claims video data before changing playback ownership');instance.dispose();
   const pending=deferred(); ({instance,calls}=controller({prepare:()=>pending.promise}));
   const warm=instance.prefetch(); await tick(); const move=instance.advance(true); instance.dispose();
   pending.resolve({...target,streamUrl:'https://test/next.mp4'}); await Promise.all([warm,move]);
@@ -64,32 +69,18 @@ function controller(overrides={}) {
   let lookups=0; ({instance,calls}=controller({lookup:async()=>{if(!lookups++) throw Error('offline');return next;}}));
   assert.equal(await instance.next(),null); assert.ok(await instance.advance(true),'A transient lookup failure can recover on advance');
 
-  const web={...target,streamUrl:'https://test/next.mp4'},signal=new AbortController().signal;
-  let range;
-  const read=await prefetch.warmEpisodeOpening(web,signal,async(url,options)=>{
-    range=options.headers.Range; return new Response(new Uint8Array(128),{status:206,headers:{'Content-Range':'bytes 0-127/5000'}});
-  });
-  assert.equal(read,128); assert.equal(range,`bytes=0-${prefetch.EPISODE_OPENING_BYTES-1}`);
-  let cancelled=false;
-  assert.equal(await prefetch.warmEpisodeOpening(web,signal,async()=>new Response(new ReadableStream({cancel(){cancelled=true;}}),{status:200})),0);
-  assert.ok(cancelled,'Servers ignoring Range are cancelled without downloading the whole episode');
-  assert.equal(await prefetch.warmEpisodeOpening(web,signal,async()=>new Response(new Uint8Array(prefetch.EPISODE_OPENING_BYTES+1),{status:206})),0);
-  assert.equal(await prefetch.warmEpisodeOpening({...web,requestHeaders:{Authorization:'private'}},signal,()=>{throw Error('Must not forward native-only headers');}),0);
-  assert.equal(await prefetch.warmEpisodeOpening({...web,streamUrl:'https://test/next.m3u8'},signal,()=>{throw Error('Do not range-warm manifests');}),0);
-  const aborted=new AbortController();aborted.abort();
-  assert.equal(await prefetch.warmEpisodeOpening(web,aborted.signal,()=>{throw Error('Must not fetch after cancel');}),0);
-
   function hookHarness(preferences={...prefs.DEFAULT_PLAYBACK_PREFERENCES,episodePrefetch:true}) {
-    const host=hooks(),played=[],stopped=[],finished=[],requests=[];
+    const host=hooks(),played=[],stopped=[],finished=[],requests=[],prepared=[],warmed=[];
     const {useEpisodeContinuation}=load('lib/media/use-episode-continuation.ts',{
-      react:host.react,'@/contexts/settings-context':{useSettings:()=>({playbackPreferences:preferences})},
+      react:{...host.react,useLayoutEffect:host.react.useEffect},'@/contexts/settings-context':{useSettings:()=>({playbackPreferences:preferences})},
       './episode-continuation':sequence,'./playback-preferences':prefs,'./playback-titles':titles,
       './prefetch-next-episode':{fetchFollowingEpisode:async(id,season,episode,signal)=>{requests.push(signal);return {...next,id:`${id}:${season}:${episode+1}`,season,episode:episode+1};},
-        prepareNextEpisode:async target=>({...target,streamUrl:'https://test/prepared.mp4'}),warmEpisodeOpening:async()=>{}},
-    });
+        prepareNextEpisode:async target=>{prepared.push(target);return {...target,streamUrl:'https://test/prepared.mp4'};}},
+      './preload-next-video':{preloadNextVideo:async target=>{warmed.push(target);},videoPreloadAllowed:()=>true},
+    },{document:{addEventListener(){},removeEventListener(){}}});
     const options={media,visible:true,native:false,time:0,duration:1000,play:target=>played.push(target),beforeAdvance:value=>stopped.push(value),finish:()=>finished.push(true)};
     const render=()=>{ const value=host.render(()=>useEpisodeContinuation(options));host.flush();return value; };
-    return {host,render,preferences,options,played,stopped,finished,requests};
+    return {host,render,preferences,options,played,stopped,finished,requests,prepared,warmed};
   }
   let h=hookHarness(); h.render(); await tick(); h.options.time=920; let value=h.render(); await tick();
   value=h.render();value.onEnded();value.onEnded(); await tick();
@@ -104,6 +95,40 @@ function controller(overrides={}) {
   assert.ok(h.requests[0].aborted);assert.equal(h.requests.at(-1).aborted,false,'Strict Mode replay creates a live continuation');
   value.onEnded();await tick();assert.equal(h.played.length,1);h.host.unmount();
   h=hookHarness();h.options.media={id:'movie',type:'movie',name:'Movie'};value=h.render();value.onEnded();await tick();assert.equal(h.requests.length,0);assert.equal(h.finished.length,1);h.host.unmount();
+
+  // Exercise actual native state events rather than supplying a synthetic
+  // options.time value: the player uses mediaRef for both desktop platforms.
+  const {MpvController}=load('lib/desktop/mpv-controller.ts',{},
+    {Event,EventTarget,CustomEvent,DOMException,URL,crypto:require('node:crypto')});
+  for(const platform of ['macos','windows']) {
+    const commands=[],listeners=new Set();
+    const adapter=new MpvController({platform,capabilities:{initialSeek:true},
+      send:command=>commands.push(command),subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);}});
+    h=hookHarness();h.options.native=true;delete h.options.time;
+    h.options.duration=0;h.options.mediaRef={current:null};h.render();await tick();
+    h.options.mediaRef.current=adapter;adapter.load(media.streamUrl);
+    const session=commands.find(command=>command.type==='load').session;
+    const state={position:0,duration:1000,paused:false,volume:1,muted:false,rate:1,buffering:false,seeking:false,buffered:0,width:1920,height:1080};
+    adapter.addEventListener('durationchange',()=>{h.options.duration=adapter.duration;});
+    const position=time=>{for(const listener of listeners) listener({type:'state',session,state:{...state,position:time}});};
+    position(0);
+    for(const listener of listeners) listener({type:'loaded',session});
+    h.render();await tick();
+    position(749);await tick();assert.equal(h.prepared.length,0,`${platform}: do not fetch streams before the window`);
+    position(750);await tick();
+    assert.equal(adapter.currentTime,750);assert.equal(h.options.duration,1000);assert.equal(h.requests.length,1);
+    assert.equal(h.prepared.length,1,`${platform}: native timeupdate starts preparation in the final 25 percent`);
+    position(950);await tick();assert.equal(h.prepared.length,1,`${platform}: preparation is shared across position updates`);
+    assert.equal(h.warmed.length,1,`${platform}: native playback now requests reusable video bytes too`);
+    assert.equal(commands.filter(command=>command.type==='load').length,1,'No next-file load reaches mpv before advance');
+    h.options.play=target=>{h.played.push(target);adapter.load(target.streamUrl,target.requestHeaders);};
+    value=h.render();value.onEnded();await tick();
+    assert.equal(h.played[0].streamUrl,'https://test/prepared.mp4');
+    assert.equal(commands.filter(command=>command.type==='load').at(-1).url,'https://test/prepared.mp4','Advance passes the prepared URL to the native adapter');
+    assert.equal(h.prepared.length,1,'Advance reuses preparation');
+    h.host.unmount();adapter.dispose();
+  }
+  console.log('PASS: macOS/Windows state events trigger earlier discovery and video preload; advance reuses preparation');
 
   const audio=load('lib/media/audio-language.ts');
   const resolver=load('lib/media/resolve-playback.ts',{'@/lib/media/audio-language':audio});
@@ -125,6 +150,14 @@ function controller(overrides={}) {
   assert.equal(ready.mediaSourceId,next.id);assert.equal(ready.streamRequest,shared);assert.equal(ready.details.logo,'/prepared-logo.png');assert.equal(ready.detailsLoaded,true);
   await resolver.resolvePlayback(ready,{fetchStreams(){throw Error('Prepared playback must not refetch streams');}},()=>{});
   assert.equal(preparations,1);
+  let verified=0;
+  const checkedMedia={...ready,preparedWebStream:{url:ready.streamUrl,audioLanguage:'en',headersKey:JSON.stringify(ready.requestHeaders||{}),expires:Date.now()+60_000}};
+  const verifyDependencies={environment:'web',autoSelectWebStream:true,preferredAudioLanguage:'en',
+    fetchStreams:async()=>sharedStreams,verifyStream:async()=>{verified++;return 'supported';}};
+  await resolver.resolvePlayback(checkedMedia,verifyDependencies,()=>{});
+  assert.equal(verified,0,'A prepared URL does not repeat its audiovisual probe during the handoff');
+  await resolver.resolvePlayback({...checkedMedia,preparedWebStream:{...checkedMedia.preparedWebStream,expires:0}},verifyDependencies,()=>{});
+  assert.equal(verified,1,'Expired preparations must be verified again');
   for (const autoSelectWebStream of [false,true]) {
     prefs.savePlaybackPreferences({...prefs.DEFAULT_PLAYBACK_PREFERENCES,autoSelectWebStream});
     const prepared=await preparedApi.prepareNextEpisode(target,false,new AbortController().signal);
@@ -149,5 +182,5 @@ function controller(overrides={}) {
   assert.equal((await GET(new Request('http://test/api/playback/next-episode?id=bad/id&season=6&episode=6'))).status,400);
   const unauthorized=load('app/api/playback/next-episode/route.ts',{'@/app/actions/auth':{getAuthData:async()=>{throw Error('signed out');}}, "@/lib/server/auth": { getAuthData:async()=>{throw Error('signed out');} },'@/app/actions/tv-shows':{getFollowingEpisodeForSeries:async()=>{throw Error('Must authenticate first');}}},globals);
   assert.equal((await unauthorized.GET(new Request('http://test/api/playback/next-episode?id=tt1442437&season=6&episode=6'))).status,401);
-  console.log('PASS: episode autoplay on/off, Next parity, one-shot preparation, bounds, expiration, cancellation, stale callbacks, Strict Mode, movie/finale guards, bounded range warming and authenticated endpoint validation');
+  console.log('PASS: episode autoplay on/off, Next parity, one-shot preparation, bounds, expiration, cancellation, stale callbacks, Strict Mode, movie/finale guards, preload ownership and authenticated endpoint validation');
 })().catch(error=>{console.error(error);process.exitCode=1});

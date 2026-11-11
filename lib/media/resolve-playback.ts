@@ -406,7 +406,10 @@ async function resolvePlaybackAttempt(
     }
     onTargetReady?.(media);
     if (media.streamUrl) {
-        if (dependencies.environment === "web" && dependencies.autoSelectWebStream === true) {
+        const checked = media.preparedWebStream;
+        const alreadyChecked = checked?.url === media.streamUrl && checked.audioLanguage === preferredAudioLanguage
+            && checked.headersKey === JSON.stringify(media.requestHeaders || {}) && checked.expires > Date.now();
+        if (dependencies.environment === "web" && dependencies.autoSelectWebStream === true && !alreadyChecked) {
             onPhase("checking-streams");
             // Manual selection chooses the URL, not permission to skip A/V checks.
             const stream: StremioStream = { url: media.streamUrl,

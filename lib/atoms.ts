@@ -24,6 +24,10 @@ export const isDesktopFullscreenAtom = atom((get) => {
 
 // Media Player state
 export interface MediaToPlay {
+  /** Ephemeral loopback byte cache; never replaces the canonical stream URL. */
+  nativePreload?: { url: string; source: string; expires: number };
+  /** Exact URL/audio preference already checked by next-episode preparation. */
+  preparedWebStream?: { url: string; audioLanguage: string; headersKey: string; expires: number };
   details?: MediaItem;
   /** Full metadata already read on a details page; absent fields need no refetch. */
   detailsLoaded?: boolean;

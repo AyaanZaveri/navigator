@@ -41,9 +41,8 @@ import {
   MediaPlayerSettings,
   MediaPlayerTooltip,
 } from "@/components/ui/media-player";
-import MuxVideo from "@mux/mux-video-react";
+import { WebPlaybackVideo } from "@/components/web-playback-video";
 import { toast } from "sonner";
-import { getWebPlaybackElement } from "@/lib/media/playback-source";
 import { getPlaybackTitles, isMeaningfulEpisodeTitle } from "@/lib/media/playback-titles";
 import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { probeStreamPlayability } from "@/lib/media/stream-playability";
@@ -850,6 +849,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const episodeContinuation = useEpisodeContinuation({
     media: currentMedia ? { ...currentMedia, details: mediaDetails || currentMedia.details } : null,
     visible: isPlayerVisible, native: nativePlayback, mediaRef: videoRef, duration,
+    creditsStart: skipTimeline.source === streamUrl ? skipTimeline.segments.find(segment => segment.kind === "credits")?.start : undefined,
     play: media => { void playMedia(media); },
     beforeAdvance: ended => sendPlaybackUpdate("stopped", { ended }),
     finish: () => handleClose({ ended: true }),
@@ -876,9 +876,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const Video = nativePlayback
     ? MpvVideo
-    : getWebPlaybackElement(streamUrl) === "mux"
-      ? MuxVideo
-      : "video";
+    : WebPlaybackVideo;
   return (
     <div data-player-shell="" data-native-player-shell={nativePlayback ? "" : undefined} data-player-enter={playbackRequest?.animateEntrance ? "" : undefined} className="fixed inset-0 z-[var(--layer-player)] flex items-center justify-center w-screen bg-black">
       <MediaPlayer
@@ -907,7 +905,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               // @ts-ignore
               ref={videoRef}
               src={streamUrl}
-              {...(nativePlayback ? { requestHeaders, startPosition: currentMedia?.resumePositionTicks ?? 0 } : {})}
+              {...(nativePlayback ? { requestHeaders, startPosition: currentMedia?.resumePositionTicks ?? 0, onPreloadFallback: () => setVideoReady(false) } : {})}
+              {...(nativePlayback && !playerAttempt && currentMedia?.nativePreload?.source === streamUrl
+                ? { preloadSrc: currentMedia.nativePreload.url, preloadExpires: currentMedia.nativePreload.expires } : {})}
               crossOrigin=""
               playsInline
               preload="auto"

@@ -1,0 +1,75 @@
+"use client";
+
+import { useCallback, useLayoutEffect, useRef, type ComponentProps, type Ref } from "react";
+import { createWebVideoSession, takeWebVideo, type WebVideoSession } from "@/lib/media/web-video-preload";
+
+type Props = ComponentProps<"video"> & { src: string };
+const events = { onPause: "pause", onPlaying: "playing", onEnded: "ended", onLoadedMetadata: "loadedmetadata",
+    onTimeUpdate: "timeupdate", onDurationChange: "durationchange", onCanPlay: "canplay", onLoadedData: "loadeddata",
+    onError: "error", onClick: "click" } as const;
+function assign(ref: Ref<HTMLVideoElement> | undefined, value: HTMLVideoElement | null) {
+    if (typeof ref === "function") return ref(value);
+    if (ref) ref.current = value;
+}
+
+/** React owns the slot, while the session owns the media element and Mux engine.
+ * A preloaded element can move here without a src reset or engine teardown. */
+export function WebPlaybackVideo(props: Props) {
+    const host = useRef<HTMLDivElement>(null);
+    const current = useRef(props);
+    useLayoutEffect(() => { current.current = props; });
+    const session = useRef<WebVideoSession | null>(null);
+    const registration = useRef<{ ref: Props["ref"]; cleanup?: (() => void) | void } | null>(null);
+    const register = useCallback(() => {
+        if (!session.current || registration.current?.ref === current.current.ref) return;
+        if (registration.current?.cleanup) registration.current.cleanup();
+        else if (registration.current) assign(registration.current.ref, null);
+        registration.current = { ref: current.current.ref, cleanup: assign(current.current.ref, session.current.video) };
+    }, []);
+    const update = useCallback(() => {
+        const video = session.current?.video;
+        if (!video) return;
+        video.setAttribute("class", current.current.className || "");
+        for (const [key, value] of Object.entries(current.current)) {
+            if (key === "id" || key.startsWith("aria-") || key.startsWith("data-")) {
+                if (value === undefined || value === null) video.removeAttribute(key);
+                else video.setAttribute(key, String(value));
+            }
+        }
+        register();
+    }, [register]);
+    useLayoutEffect(() => {
+        let cancelled = false;
+        const removers: (() => void)[] = [];
+        const install = (owned: WebVideoSession, adopted = false) => {
+            if (cancelled || !host.current) { owned.dispose(); return; }
+            session.current = owned; host.current.append(owned.video); update();
+            for (const [prop, name] of Object.entries(events)) {
+                const callback = (event: Event) => {
+                    const handler = current.current[prop as keyof typeof events] as ((_event: unknown) => void) | undefined;
+                    handler?.(event);
+                };
+                owned.video.addEventListener(name, callback);
+                removers.push(() => owned.video.removeEventListener(name, callback));
+            }
+            // A standby element may already have emitted these before adoption.
+            queueMicrotask(() => {
+                if (cancelled || !adopted) return;
+                if (owned.video.readyState >= 1) owned.video.dispatchEvent(new Event("loadedmetadata"));
+                if (owned.video.readyState >= 2) owned.video.dispatchEvent(new Event("loadeddata"));
+                if (owned.video.readyState >= 3) owned.video.dispatchEvent(new Event("canplay"));
+            });
+        };
+        const warm = takeWebVideo(props.src);
+        if (warm) install(warm, true);
+        else install(createWebVideoSession(props.src));
+        return () => {
+            cancelled = true; removers.forEach(remove => remove());
+            if (registration.current?.cleanup) registration.current.cleanup();
+            else if (registration.current) assign(registration.current.ref, null);
+            registration.current = null; session.current?.dispose(); session.current = null;
+        };
+    }, [props.src, update]);
+    useLayoutEffect(update);
+    return <div ref={host} style={{ display: "contents" }} />;
+}

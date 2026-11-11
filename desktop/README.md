@@ -534,6 +534,54 @@ It plays the HTTP(S) stream URLs Navigator already obtains from addons.
 
 ## Documentation consulted
 
+### Next-episode preloading
+
+Shared playback discovers the following episode immediately, then prepares its
+stream within five minutes of the end (or known credits), capped at a quarter of
+the runtime for short episodes. Only one following episode is prepared. Video
+preloading waits for 20 seconds of current playback to be buffered. It yields
+when fewer than five seconds remain buffered, on pause/seek, while hidden, or
+with Save-Data/2G. Disabling **Preload next episode**, changing titles or closing
+the player cancels speculative work. Preparations expire after six minutes.
+
+Desktop direct files use a memory prefix cache in the existing loopback Next
+server, not a second mpv decoder. The prefix targets eight seconds using the
+file-size/current-episode-duration estimate, or 8 MiB if unavailable; the hard
+cap is 32 MiB. mpv reads that same cached prefix, with remaining ranges streamed
+under backpressure. Range/validator checks prevent joining different file
+versions. The cache retains at most the current file and one speculative file,
+expires unused entries, and is released when playback closes. A cache error
+falls back once to the original URL/headers and current playback position.
+HLS/DASH, unsupported Range responses, missing validators and remote hosted
+servers retain stream preparation without this direct-file byte cache. The
+loopback endpoint requires authentication and a matching Origin for creation or
+deletion; reads use an unguessable per-preload capability token.
+
+Web/Mux retains a paused media element and its Mux playback-core engine, then
+adopts the exact element into the player without resetting its source. HLS
+standby configuration targets eight seconds and a 32 MiB buffer-size setting;
+loading stops after the opening buffer or a 20-second loading deadline. HLS
+limits are segment-granular, not a strict transferred-byte cap. Native browser
+preload is a hint: it is reduced to metadata after the opening buffer/deadline,
+so neither an exact duration nor a strict byte ceiling is promised for it.
+Normal HLS buffering budgets resume on adoption. No speculative element plays
+audio, and unused elements/engines are destroyed. Custom-header web streams
+keep stream preparation without speculative browser loading.
+
+mpv's [`prefetch-playlist`](https://mpv.io/manual/stable/#options-prefetch-playlist)
+only opens the next entry once the current URL is fully read. Its
+[loadfile implementation](https://github.com/mpv-player/mpv/blob/master/player/loadfile.c)
+also ties reusable demuxers to matching URLs/options; simply fetching bytes in
+WebKit cannot populate mpv's cache. The loopback design gives the explicit
+earlier schedule without replacing the native renderer or creating a parallel
+decoder. Its tradeoff is a local streaming hop during adopted playback; CPU and
+transition latency still need measurement on actual media before claiming an
+improvement. Mux lifecycle and preload behavior follow its
+[playback-core implementation](https://github.com/muxinc/elements/tree/main/packages/playback-core)
+and [browser preload semantics](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/preload).
+
+### Window integration
+
 The macOS window uses Tao's transparent titlebar, hidden title and full-size
 content view, keeping the native traffic lights in the app header. Blank header
 space starts a native window drag through the origin-checked bridge; links,
