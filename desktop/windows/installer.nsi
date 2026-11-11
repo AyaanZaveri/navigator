@@ -2,6 +2,11 @@ Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "x64.nsh"
+!include "FileFunc.nsh"
+Var UpdateMode
+Var UpdateWait
+Var HadPrevious
+Var InstallerMutex
 
 Name "Navigator"
 OutFile "${OUTPUT_FILE}"
@@ -33,18 +38,51 @@ Function .onInit
   ${EndIf}
   SetShellVarContext current
   SetRegView 64
+  ; Serialize installations before touching staging/backup folders.
+  System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Local\NavigatorDesktopInstaller") p .r0 ?e'
+  Pop $1
+  StrCpy $InstallerMutex $0
+  ${If} $0 == 0
+    SetErrorLevel 2
+    Abort
+  ${EndIf}
+  ${If} $1 == 183
+    SetErrorLevel 2
+    Abort
+  ${EndIf}
+  StrCpy $UpdateMode 0
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/UPDATE" $1
+  ${IfNot} ${Errors}
+    StrCpy $UpdateMode 1
+  ${EndIf}
   ReadRegStr $0 HKLM "Software\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
   ${If} $0 < 22000
     MessageBox MB_OK|MB_ICONSTOP "This private build requires Windows 11."
     Abort
   ${EndIf}
+  StrCpy $UpdateWait 300
   retry:
   FindWindow $0 "NavigatorDesktop"
   ${If} $0 == 0
     FindWindow $0 "NavigatorDesktopSmoke"
   ${EndIf}
   ${If} $0 != 0
+    ${If} $UpdateMode == 1
+      IntOp $UpdateWait $UpdateWait - 1
+      ${If} $UpdateWait > 0
+        Sleep 100
+        Goto retry
+      ${EndIf}
+      SetErrorLevel 3
+      MessageBox MB_OK|MB_ICONSTOP "Navigator did not finish closing. No update was installed. Close it and try again."
+      Abort
+    ${EndIf}
+    IfSilent busy_install
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Close Navigator before installing or upgrading it." IDRETRY retry
+    busy_install:
+    SetErrorLevel 3
     Abort
   ${EndIf}
 FunctionEnd
@@ -61,6 +99,25 @@ Function DetectWebView2
 FunctionEnd
 
 Section "Navigator"
+  ; Whole-directory replacement is only allowed for an owned installation.
+  ; A new install may use an empty directory, never an unrelated populated one.
+  FindFirst $2 $3 "$INSTDIR\*"
+  check_install_directory:
+    ${If} $3 == ""
+      FindClose $2
+      Goto install_directory_safe
+    ${EndIf}
+    ${If} $3 != "."
+    ${AndIf} $3 != ".."
+      FindClose $2
+      IfFileExists "$INSTDIR\navigator-desktop.exe" 0 unsafe_directory
+      IfFileExists "$INSTDIR\Uninstall.exe" 0 unsafe_directory
+      IfFileExists "$INSTDIR\resources\*" 0 unsafe_directory
+      Goto install_directory_safe
+    ${EndIf}
+    FindNext $2 $3
+    Goto check_install_directory
+  install_directory_safe:
   Call DetectWebView2
   ${If} $0 == ""
   ${OrIf} $0 == "0.0.0.0"
@@ -76,24 +133,55 @@ Section "Navigator"
       Abort
     ${EndIf}
   ${EndIf}
-  SetOutPath "$INSTDIR"
-  ; Remove an older server before copying, so renamed hashed chunks and removed
-  ; dependencies cannot survive manual upgrades. Profile data lives elsewhere.
-  RMDir /r "$INSTDIR\resources"
+  ; Never delete a backup left by an interrupted prior upgrade.
+  IfFileExists "$INSTDIR.update-backup\*" recovery_needed
+  IfFileExists "$INSTDIR.update-stage\*" staging_recovery_needed
+  SetOutPath "$INSTDIR.update-stage"
+  ClearErrors
   File /r "${PACKAGE_DIR}\*"
+  IfErrors preparation_failed
   DetailPrint "Verifying startup files and preparing Navigator's local services…"
   ; Installation-only preparation loads the bundled service and video engine.
   ; The ordinary shortcut never runs this step. No antivirus settings change.
-  ExecWait '"$INSTDIR\navigator-desktop.exe" --prepare-install' $1
+  ClearErrors
+  ExecWait '"$INSTDIR.update-stage\navigator-desktop.exe" --prepare-install' $1
+  IfErrors preparation_failed
   ${If} $1 != 0
-    SetErrorLevel 1
-    IfSilent preparation_failed
-    MessageBox MB_OK|MB_ICONSTOP "Navigator could not finish preparing its files. See %LOCALAPPDATA%\Navigator Desktop\installation.log, then run this installer again."
-    preparation_failed:
-    Abort
+    Goto preparation_failed
   ${EndIf}
+  ClearErrors
+  WriteUninstaller "$INSTDIR.update-stage\Uninstall.exe"
+  IfErrors preparation_failed
+  ; Release the installer's staging working directory before renaming it.
+  SetOutPath "$TEMP"
+  StrCpy $HadPrevious 0
+  IfFileExists "$INSTDIR\*" 0 activate_stage
+  StrCpy $UpdateWait 300
+  rename_previous:
+    ClearErrors
+    Rename "$INSTDIR" "$INSTDIR.update-backup"
+    IfErrors 0 previous_saved
+    IntOp $UpdateWait $UpdateWait - 1
+    ${If} $UpdateWait > 0
+      Sleep 100
+      Goto rename_previous
+    ${EndIf}
+    Goto preparation_failed
+  previous_saved:
+    StrCpy $HadPrevious 1
+  activate_stage:
+    ClearErrors
+    Rename "$INSTDIR.update-stage" "$INSTDIR"
+    IfErrors 0 stage_activated
+    ${If} $HadPrevious == 1
+      ClearErrors
+      Rename "$INSTDIR.update-backup" "$INSTDIR"
+      IfErrors recovery_needed
+    ${EndIf}
+    Goto preparation_failed
+  stage_activated:
+  SetOutPath "$INSTDIR"
   DetailPrint "Navigator is ready."
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateShortCut "$SMPROGRAMS\Navigator.lnk" "$INSTDIR\navigator-desktop.exe" "" "$INSTDIR\Navigator.ico"
   WriteRegStr HKCU "Software\Navigator Desktop" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\NavigatorDesktop" "DisplayName" "Navigator"
@@ -102,6 +190,52 @@ Section "Navigator"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\NavigatorDesktop" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\NavigatorDesktop" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\NavigatorDesktop" "NoRepair" 1
+  RMDir /r "$INSTDIR.update-backup"
+  ${If} $UpdateMode == 1
+    Exec '"$INSTDIR\navigator-desktop.exe"'
+  ${EndIf}
+  Goto installation_done
+  unsafe_directory:
+    SetErrorLevel 5
+    ${If} $UpdateMode == 1
+      MessageBox MB_OK|MB_ICONSTOP "This folder is not a recognized Navigator installation. No files were changed. Choose an empty folder or reinstall Navigator."
+      Abort
+    ${EndIf}
+    IfSilent +2
+    MessageBox MB_OK|MB_ICONSTOP "Choose an empty folder or an existing Navigator installation. This folder's files were left untouched."
+    Abort
+  staging_recovery_needed:
+    SetErrorLevel 4
+    ${If} $UpdateMode == 1
+      MessageBox MB_OK|MB_ICONSTOP "A prior staging folder needs recovery: $INSTDIR.update-stage. Its files were left untouched."
+      Abort
+    ${EndIf}
+    IfSilent +2
+    MessageBox MB_OK|MB_ICONSTOP "A prior staging folder needs recovery: $INSTDIR.update-stage. Its files were left untouched."
+    Abort
+  recovery_needed:
+    SetErrorLevel 4
+    ${If} $UpdateMode == 1
+      MessageBox MB_OK|MB_ICONSTOP "The update needs recovery. Your previous files are in $INSTDIR.update-backup. They were left untouched."
+      Abort
+    ${EndIf}
+    IfSilent +2
+    MessageBox MB_OK|MB_ICONSTOP "A previous update backup needs recovery. Your files are in $INSTDIR.update-backup. The installer has left them untouched."
+    Abort
+  preparation_failed:
+    SetOutPath "$TEMP"
+    RMDir /r "$INSTDIR.update-stage"
+    SetErrorLevel 1
+    ${If} $UpdateMode == 1
+      MessageBox MB_OK|MB_ICONSTOP "Navigator could not finish the update. The previous installation was retained and will reopen. See %LOCALAPPDATA%\Navigator Desktop\installation.log."
+      IfFileExists "$INSTDIR\navigator-desktop.exe" 0 +2
+      Exec '"$INSTDIR\navigator-desktop.exe"'
+      Abort
+    ${EndIf}
+    IfSilent +2
+    MessageBox MB_OK|MB_ICONSTOP "Navigator could not finish the update. The previous installation was retained. See %LOCALAPPDATA%\Navigator Desktop\installation.log."
+    Abort
+  installation_done:
 SectionEnd
 
 Function un.onInit

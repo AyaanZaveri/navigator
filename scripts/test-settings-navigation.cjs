@@ -3,7 +3,7 @@ const { load, hooks } = require('./test-support/react-hooks.cjs');
 
 async function main() {
     const navigation = load('lib/settings-navigation.ts');
-    assert.deepEqual(Array.from(navigation.SETTINGS_CATEGORIES, item => item.id), ['playback', 'subtitles', 'navigator', 'connections']);
+    assert.deepEqual(Array.from(navigation.SETTINGS_CATEGORIES, item => item.id), ['playback', 'subtitles', 'navigator', 'connections', 'about']);
     assert.equal(navigation.isSettingsCategory('unknown'), false);
     assert.equal(navigation.settingsCategoryFromPath('/settings/connections'), 'connections');
 
@@ -38,7 +38,7 @@ async function main() {
     assert.equal(document.title, 'Playback settings · Navigator');
     assert.equal(focuses.length, 0, 'Initial load does not steal focus');
     let links = find(tree, node => node.type === 'Link');
-    assert.equal(links.length, 4);
+    assert.equal(links.length, 5);
     assert.equal(links.filter(link => link.props['aria-current'] === 'page').length, 1);
     assert.equal(links.find(link => link.props['aria-current']).props.href, '/settings/playback');
     const selection = find(tree, node => node.type === 'Selection')[0];

@@ -60,6 +60,9 @@ pub enum Command {
     Fullscreen {
         value: bool,
     },
+    UpdateStatus {},
+    UpdateCheck {},
+    UpdateAutomatic { enabled: bool },
     WindowDrag {},
     WindowControlsVisible {
         visible: bool,
@@ -198,6 +201,13 @@ mod tests {
     use super::*;
     #[test]
     fn playback_boundary() {
+        assert!(parse(r#"{"type":"update-check"}"#).is_ok());
+        assert!(parse(r#"{"type":"update-status"}"#).is_ok());
+        assert!(parse(r#"{"type":"update-automatic","enabled":false}"#).is_ok());
+        for invalid in [r#"{"type":"update-check","url":"https://evil.example"}"#, r#"{"type":"update-status","path":"x"}"#, r#"{"type":"update-automatic","enabled":"false"}"#] {
+            assert!(parse(invalid).is_err());
+        }
+
         assert!(parse(r#"{"type":"glass-consumed","slot":2,"sequence":1}"#).is_ok());
         for invalid in [r#"{"type":"glass-consumed","slot":3,"sequence":1}"#, r#"{"type":"glass-consumed","slot":0,"sequence":0}"#, r#"{"type":"glass-consumed","slot":0,"sequence":9007199254740992}"#] { assert!(parse(invalid).is_err()); }
 

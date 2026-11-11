@@ -94,9 +94,14 @@ try {
             await run("codesign", ["--force", "--deep", "--sign", "-", join(output, "Navigator.app")]);
         }
         if (process.platform === "win32") {
+            const { fetchWinSparkle } = await import("./fetch-winsparkle.mjs");
+            const winsparkle = await fetchWinSparkle();
+            await cp(join(winsparkle, "WinSparkle.dll"), join(resources, "lib", "WinSparkle.dll"));
+            await cp(winsparkle, join(resources, "licenses", "WinSparkle"), { recursive: true, filter: source => !source.endsWith(".dll") });
             await cp(join(desktop, "windows", "prepare.cjs"), join(resources, "prepare.cjs"));
             await writeInstallManifest(resources);
             const artifacts = await packageWindows(output, version);
+            if (artifacts.appcast) console.log(`Signed Windows appcast: ${artifacts.appcast}`);
             console.log(`Windows installer: ${artifacts.installer}\nPortable ZIP: ${artifacts.portable}`);
         }
         console.log(`Packaged desktop app: ${output}`);

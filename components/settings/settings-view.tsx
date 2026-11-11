@@ -34,6 +34,7 @@ import {
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 import { Button } from "@/components/ui/button";
 import { getArtworkSettings, saveArtworkToken, removeArtworkToken, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
+import { AppUpdates } from "./app-updates";
 import { PlaybackSettings } from "@/components/playback-settings";
 import { PlaybackLanguageSettings } from "@/components/playback-language-settings";
 import { SubtitleSettings } from "@/components/subtitle-settings";
@@ -753,6 +754,8 @@ function NavigatorSettings() {
 
 export function SettingsView({ category }: { category: SettingsCategory }) {
     switch (category) {
+    case "about":
+        return <AppUpdates />;
     case "playback":
         return <><PlaybackSettings /><PlaybackLanguageSettings />
             <p className={styles.credits}>Skip timings from <a href="https://theintrodb.org" target="_blank" rel="noreferrer">TheIntroDB</a>, <a href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB</a>, and <a href="https://skipdb.tv" target="_blank" rel="noreferrer">SkipDB</a> (<a href="https://skipdb.tv/license" target="_blank" rel="noreferrer">ODbL license</a>).</p>

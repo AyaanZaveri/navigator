@@ -26,7 +26,10 @@ export type NativeState = {
   decoderDroppedFrames?: number;
 };
 
+export type UpdateStatus = { type: "update-status"; version: string; available: boolean; automatic: boolean; state: "idle" | "checking" | "available" | "current" | "error"; message?: string };
+
 export type NativeMessage =
+  | UpdateStatus
   | { type: "chapters"; session: string; chapters: import("@/lib/media/chapters").ChapterMarker[] }
   // Shared frame bytes are valid only during the synchronous listener call.
   | { type: "glass-pixels"; session: string; frame: ImageData; sequence: number }
@@ -45,6 +48,8 @@ export type NativeMessage =
 export type ClientStage = "interface-hydrated" | "play-requested" | "player-mounted" | "stream-resolving" | "stream-resolved";
 
 export type NativeRequest =
+  | { type: "update-status" | "update-check" }
+  | { type: "update-automatic"; enabled: boolean }
   | { type: "client-stage"; stage: ClientStage }
   | { type: "app-ready"; dark: boolean }
   | { type: "video-fit"; session: string; mode: "fit" | "crop" | "stretch" }
@@ -68,7 +73,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
+  readonly capabilities?: { updates?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

@@ -3,6 +3,7 @@ export const SETTINGS_CATEGORIES = [
     { id: "subtitles", label: "Subtitles" },
     { id: "navigator", label: "Navigator" },
     { id: "connections", label: "Connections" },
+    { id: "about", label: "About" },
 ] as const;
 
 export type SettingsCategory = typeof SETTINGS_CATEGORIES[number]["id"];

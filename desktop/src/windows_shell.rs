@@ -88,6 +88,7 @@ fn startup_navigation_has_no_privileged_origin() {
 type Boot = Result<(App, Player, Option<PathBuf>), String>;
 enum UserEvent {
     RenderError(String),
+    Update(crate::windows_updater::Event),
     ClientStage(protocol::ClientStage),
     Boot(Box<Boot>),
     BackendReady,
@@ -346,6 +347,21 @@ pub fn run(app: App) -> Result<(), String> {
     }
     record(&log, started, "window-visible");
     let frontend = Frontend::from(&app);
+    let update_settings = app.data.join("update-checks.json");
+    let mut automatic_updates = std::fs::read(&update_settings).ok()
+        .and_then(|bytes| serde_json::from_slice::<bool>(&bytes).ok()).unwrap_or(true);
+    let installed_directory = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from));
+    let update_proxy = proxy.clone();
+    let updater_result = if !app.smoke && app.backend.is_some()
+        && installed_directory.as_ref().is_some_and(|p| p.join("Uninstall.exe").is_file()) {
+        Some(crate::windows_updater::Updater::start(installed_directory.as_ref().unwrap(), automatic_updates,
+            move |event| { let _ = update_proxy.send_event(UserEvent::Update(event)); }))
+    } else { None };
+    let update_error = updater_result.as_ref().and_then(|r|r.as_ref().err()).cloned();
+    let mut updater = updater_result.and_then(Result::ok);
+    let mut update_state = if update_error.is_some() { "error" } else { "idle" };
+    let mut update_message = update_error;
+
     let webview_data = app.data.join("webview");
 
     let cancelled = Arc::new(AtomicBool::new(false));
@@ -450,6 +466,17 @@ pub fn run(app: App) -> Result<(), String> {
                 closing=true;cancelled.store(true,Ordering::Relaxed);
                 if let Some((_,player,_))=&running {player.begin_shutdown();}
             }
+            Event::UserEvent(UserEvent::Update(event)) => {
+                use crate::windows_updater::Event as UpdateEvent;
+                match event {
+                    UpdateEvent::Shutdown => platform::request_close(&window),
+                    UpdateEvent::Available => { update_state = "available"; update_message = None; }
+                    UpdateEvent::Current => { update_state = "current"; update_message = None; }
+                    UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
+                    UpdateEvent::Dismissed => { if update_state == "checking" { update_state = "idle"; } }
+                }
+                if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }
+            }
             Event::UserEvent(UserEvent::ClientStage(stage)) => record(&log, started, stage.label()),
             Event::UserEvent(UserEvent::BackendReady) => {
                 if !closing && !frontend.smoke {
@@ -466,7 +493,21 @@ pub fn run(app: App) -> Result<(), String> {
             }
             Event::UserEvent(UserEvent::Command(command, session)) => {
                 if !closing {
-                    if let protocol::Command::WindowControlsVisible { visible } = &command {
+                    if matches!(&command, protocol::Command::UpdateStatus {} | protocol::Command::UpdateCheck {} | protocol::Command::UpdateAutomatic { .. }) {
+                        if let Some(updater) = &updater {
+                            match command {
+                                protocol::Command::UpdateCheck {} => { if update_state != "checking" { update_state = "checking"; update_message = None; updater.check(); } }
+                                protocol::Command::UpdateAutomatic { enabled } => {
+                                    match std::fs::write(&update_settings, if enabled { "true" } else { "false" }) {
+                                        Ok(()) => { automatic_updates = enabled; updater.automatic(enabled); }
+                                        Err(_) => { update_state = "error"; update_message = Some("Couldn’t save update preferences.".into()); }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }
+                    } else if let protocol::Command::WindowControlsVisible { visible } = &command {
                         platform::set_window_controls_visible(*visible);
                     } else {
                     if let protocol::Command::Load { session, .. } = &command {
@@ -656,6 +697,7 @@ pub fn run(app: App) -> Result<(), String> {
             surface.begin_shutdown();
             if !surface.finished() {*flow=ControlFlow::WaitUntil(Instant::now()+Duration::from_millis(16));return;}
             // Dispose the WebView before its context/profile and backend.
+            drop(updater.take());
             view.take(); context.take();
             if let Some((mut app, mut player, smoke)) = running.take() {
                 surface.shutdown(); player.join(); drop(app._server.take());

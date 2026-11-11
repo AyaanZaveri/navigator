@@ -24,6 +24,8 @@ mod window_state;
 #[cfg(windows)]
 mod windows_install;
 #[cfg(windows)]
+mod windows_updater;
+#[cfg(windows)]
 mod windows_process;
 #[cfg(windows)]
 mod windows_shell;
@@ -58,6 +60,7 @@ impl App {
         let mut args = std::env::args().skip(1);
         let mut url = None;
         let mut resources = None;
+        let mut profile = None;
         let mut library = std::env::var_os("NAVIGATOR_LIBMPV").map(PathBuf::from);
         let mut port: u16 = 37371;
         let mut devtools = cfg!(debug_assertions);
@@ -65,6 +68,7 @@ impl App {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--url" => url = Some(args.next().ok_or("--url needs a value")?),
+                "--profile" => profile = Some(PathBuf::from(args.next().ok_or("--profile needs a path")?)),
                 "--resources" => {
                     resources = Some(PathBuf::from(
                         args.next().ok_or("--resources needs a path")?,
@@ -84,7 +88,7 @@ impl App {
                 "--smoke-test" => smoke = true,
                 "--help" | "-h" => {
                     println!(
-                        "Navigator Desktop\n  --url http://localhost:3000  Use an existing Next server\n  --resources PATH           Packaged server/runtime/lib folder\n  --libmpv PATH              Override the native library\n  --port PORT                Packaged server port (default 37371)\n  --devtools                 Enable web inspector\n  --smoke-test               Check compositing with generated color bars"
+                        "Navigator Desktop\n  --url http://localhost:3000  Use an existing Next server\n  --resources PATH           Packaged server/runtime/lib folder\n  --libmpv PATH              Override the native library\n  --port PORT                Packaged server port (default 37371)\n  --profile PATH             Separate profile for native QA\n  --devtools                 Enable web inspector\n  --smoke-test               Check compositing with generated color bars"
                     );
                     std::process::exit(0);
                 }
@@ -94,9 +98,10 @@ impl App {
         if port == 0 {
             return Err("Use a stable nonzero port so sign-ins keep their origin".into());
         }
-        let data = dirs::data_local_dir()
-            .ok_or("No local data directory")?
-            .join("Navigator Desktop");
+        let data = match profile {
+            Some(path) => path,
+            None => dirs::data_local_dir().ok_or("No local data directory")?.join("Navigator Desktop"),
+        };
         #[cfg(windows)]
         let data = if smoke { data.join("smoke") } else { data };
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
