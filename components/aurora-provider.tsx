@@ -58,7 +58,7 @@ export function PersistentAuroraBackground() {
     const pathname = usePathname();
     const playing = useAtomValue(isPlayerVisibleAtom);
     if (!scene) return null;
-    const eligible = /^\/(movie|series|person|search)(?:\/|$)/.test(pathname);
+    const eligible = /^\/(movie|series|person)(?:\/|$)/.test(pathname);
     const settled = scene.owner && scene.route === pathname && scene.ready;
     const opacity = eligible && scene.hasPalette && !scene.failed
         ? scene.opacity * (settled ? 1 : 0.25) : 0;

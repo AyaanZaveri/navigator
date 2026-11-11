@@ -3,10 +3,9 @@ const { load, hooks } = require('./test-support/react-hooks.cjs');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream, TextEncoder, TextDecoder, AbortController, AbortSignal };
 (async () => {
-  let signedIn = false, upstream, finish, fail;
+  let upstream, finish, fail;
   const calls = [];
   const { GET } = load('app/api/search/suggestions/route.ts', {
-    '@/app/actions/auth': { getAuthData: async () => { if (!signedIn) throw Error('unauthorized'); } }, "@/lib/server/auth": { getAuthData: async () => { if (!signedIn) throw Error('unauthorized'); } },
     '@/lib/tmdb-discovery': { searchTMDBMedia: (query, signal) => {
       calls.push(query); upstream = signal;
       return new Promise((resolve, reject) => { finish = resolve; fail = reject;
@@ -17,9 +16,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   for (const query of ['', '   ', 'a'.repeat(301)]) {
     assert.equal((await GET(new Request(`http://app/api/search/suggestions?${new URLSearchParams({ q: query })}`))).status, 400);
   }
-  assert.equal((await GET(new Request('http://app/api/search/suggestions?q=test'))).status, 401);
   assert.equal(calls.length, 0);
-  signedIn = true;
   for (const query of ['f1', 'it', 'x']) {
     const shortSearch = GET(new Request(`http://app/api/search/suggestions?q=${query}`));
     await tick();
@@ -91,7 +88,16 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
     'next/navigation': { useRouter: () => ({ prefetch() {} }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
     '@/lib/search-catalog-stream': { fetchSearchSuggestions: async (query, publish, signal) => {
       suggestions.push({ query, signal });
-      publish([{ catalogType: 'movie', items: [{ id: 'tmdb:911430', type: 'movie', name: 'F1' }] }]);
+      publish([{ catalogType: 'multi', items: query === 'amazing race' ? [
+        { id: 'tmdb:30957', type: 'series', name: 'The Amazing Race', communityRating: 6.9 },
+        { id: 'tmdb:45665', type: 'series', name: 'The Amazing Race Australia', communityRating: 8.3 },
+        { id: 'tmdb:236182', type: 'series', name: 'Amazing Race Finland', communityRating: 10, poster: '/poster.jpg' },
+        { id: 'tmdb:30957', type: 'series', name: 'Duplicate' },
+        { id: 'tmdb:30957', type: 'movie', name: 'Different media type with same ID' },
+        { id: 'tmdb:5', type: 'movie', name: 'Fifth' },
+        { id: 'tmdb:6', type: 'series', name: 'Sixth' },
+        { id: 'tmdb:7', type: 'series', name: 'Seventh' },
+      ] : [{ id: 'tmdb:911430', type: 'movie', name: 'F1' }] }]);
     } },
     '@/components/arc/expanding-search/expanding-search': { ExpandingSearch: 'search' },
     '@/contexts/MediaPlayerContext': { useIsPlayerVisible: () => false },
@@ -110,6 +116,13 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   tree = render();
   assert.equal(suggestions[0].query, 'f1');
   assert.equal(tree.props.items[0].title, 'F1');
+  tree.props.onValueChange('amazing race'); tree = render();
+  for (const [id, run] of timers) { timers.delete(id); await run(); }
+  tree = render();
+  assert.deepEqual(Array.from(tree.props.items, item => item.id), [
+    'series:tmdb:30957', 'series:tmdb:45665', 'series:tmdb:236182',
+    'movie:tmdb:30957', 'movie:tmdb:5', 'series:tmdb:6',
+  ], 'Suggestions preserve provider rank, deduplicate by media type and ID, and cap at six without rating/artwork/prefix boosts');
   tree.props.onValueChange('   ');
   tree = render();
   assert.equal(tree.props.loading, false);
@@ -117,5 +130,5 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   assert.equal(timers.size, 0, 'Blank input must not schedule a search');
   assert.equal(suggestions[0].signal.aborted, true);
   h.unmount();
-  console.log('PASS: TMDB-only authenticated suggestions, one-request lookup, cancellation, token errors, split UTF-8 chunks and reader cleanup.');
+  console.log('PASS: public TMDB suggestions, native result ordering, one-request lookup, cancellation, token errors, split UTF-8 chunks and reader cleanup.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -10,45 +10,6 @@ import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expa
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import type { SearchResult } from "@/types/stremio";
 
-const normalizeText = (value: string): string =>
-    value
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/[^\w\s]|_/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-const getNameRelevanceScore = (query: string, name: string): number => {
-    const normalizedQuery = normalizeText(query);
-    const normalizedName = normalizeText(name);
-    if (!normalizedQuery || !normalizedName) return 0;
-
-    let score = 0;
-    if (normalizedName === normalizedQuery) score += 1_000;
-    else if (normalizedName.startsWith(normalizedQuery)) score += 700;
-    else if (normalizedName.includes(normalizedQuery)) score += 450;
-
-    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
-    const nameTokens = normalizedName.split(" ").filter(Boolean);
-    for (const token of queryTokens) {
-        if (nameTokens.includes(token)) score += 120;
-        else if (nameTokens.some((nameToken) => nameToken.startsWith(token))) score += 65;
-        else if (normalizedName.includes(token)) score += 30;
-    }
-
-    return score;
-};
-
-const getMetadataQualityScore = (item: Pick<SearchResult, "poster" | "imdbRating" | "communityRating">): number => {
-    let score = 0;
-    if (item.poster) score += 10;
-    if (item.communityRating || item.imdbRating) {
-        const parsed = Number(item.communityRating ?? item.imdbRating);
-        if (!Number.isNaN(parsed)) score += parsed;
-    }
-    return score;
-};
-
 interface SearchBarProps {
   className?: string;
   initialQuery?: string;
@@ -119,49 +80,21 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
                 let receivedResults = false;
                 try {
                     const trimmedQuery = searchQuery.trim();
-                    const bestById = new Map<
-            string,
-            { result: SearchResult; relevanceScore: number }
-          >();
-
-                    const publishSuggestions = () => {
-                        const ranked = Array.from(bestById.values())
-                            .sort((a, b) => {
-                                if (b.relevanceScore !== a.relevanceScore) {
-                                    return b.relevanceScore - a.relevanceScore;
-                                }
-                                return a.result.name.localeCompare(b.result.name);
-                            })
-                            .map(({ result }) => result)
-                            .slice(0, 6);
-
-                        setSuggestions(ranked);
-                    };
+                    // TMDB already ranks the response. Deduplicate without
+                    // promoting title prefixes, ratings, or artwork availability.
+                    const byId = new Map<string, SearchResult>();
 
                     await fetchSearchSuggestions(trimmedQuery, (sections) => {
                         if (requestId !== searchRequestIdRef.current) return;
                         receivedResults = true;
                         for (const section of sections) {
-                            const sectionBoost =
-                    section.catalogType === "movie" || section.catalogType === "series"
-                        ? 10
-                        : 0;
-                            section.items.forEach((item, resultOrder) => {
-                                const nameScore = getNameRelevanceScore(trimmedQuery, item.name);
-                                const qualityScore = getMetadataQualityScore(item);
-                                const providerRankScore = Math.max(0, 200 - resultOrder);
-                                const relevanceScore =
-                      nameScore + qualityScore + providerRankScore + sectionBoost;
-
+                            for (const item of section.items) {
                                 const key = `${item.type}:${item.id}`;
-                                const existing = bestById.get(key);
-                                if (!existing || relevanceScore > existing.relevanceScore) {
-                                    bestById.set(key, { result: item, relevanceScore });
-                                }
-                            });
+                                if (!byId.has(key)) byId.set(key, item);
+                            }
                         }
 
-                        publishSuggestions();
+                        setSuggestions(Array.from(byId.values()).slice(0, 6));
                     }, controller.signal);
                 } catch (error) {
                     if (controller.signal.aborted) return;
