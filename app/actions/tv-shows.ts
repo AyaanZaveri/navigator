@@ -1,5 +1,6 @@
 "use server";
 
+import { releaseYear } from "@/lib/media/release-year";
 import { outboundFetch } from "@/lib/server/outbound-fetch";
 
 import { artworkUrl, mediaArtwork } from "@/lib/artwork";
@@ -45,7 +46,7 @@ function metaToMediaItem(meta: StremioMeta, addonTransportUrl?: string): MediaIt
     director: meta.director,
     writer: meta.writer,
     runtime: meta.runtime,
-    year: meta.year,
+    year: releaseYear(meta.year, meta.releaseInfo),
     videos: meta.videos?.map((video) => ({
       ...video,
       thumbnail: artworkUrl(meta.id, "series", "still", video.season ?? 1, video.episode ?? 1),

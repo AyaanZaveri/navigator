@@ -1,5 +1,6 @@
 "use server";
 
+import { releaseYear } from "@/lib/media/release-year";
 import { outboundFetch } from "@/lib/server/outbound-fetch";
 
 import { artworkUrl, mediaArtwork } from "@/lib/artwork";
@@ -132,7 +133,7 @@ function fullMetaToMediaItem(
     director: normalizeStringList(meta.director),
     writer: normalizeStringList(meta.writer),
     runtime: meta.runtime,
-    year: meta.year ? meta.year : undefined,
+    year: releaseYear(meta.year, meta.releaseInfo),
     videos: meta.videos?.map((video) => ({
       ...video,
       thumbnail: artworkUrl(meta.id, "series", "still", video.season ?? 1, video.episode ?? 1),

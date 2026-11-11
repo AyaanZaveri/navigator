@@ -1,3 +1,4 @@
+import { releaseYear } from "./release-year";
 import { z } from "zod";
 import type { MediaItem } from "@/types/stremio";
 import type { Episode } from "@/app/actions/tv-shows";
@@ -46,7 +47,7 @@ export function titleEnvelope(item: MediaItem, fetchedAt: number, coverage: "pre
     if (item.imdbRating && Number.isFinite(imdb) && imdb >= 0 && imdb <= 10) ratings.push({ source: "IMDb", scope: "title", value: imdb });
     if (item.ratingSource === "TMDB" && typeof item.communityRating === "number") ratings.push({ source: "TMDB", scope: "title", value: item.communityRating, votes: item.voteCount });
     const data = titleMetadataSchema.parse({ id: item.id, type: item.type, imdbId: clean(item.imdbId) || (/^tt\d+$/.test(item.id) ? item.id : undefined), tmdbId: item.tmdbId || (/^tmdb:[1-9]\d*$/.test(item.id) ? Number(item.id.slice(5)) : undefined),
-        name: clean(item.name), year: item.year, releaseInfo: clean(item.releaseInfo), releaseDate: /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(item.releaseInfo || "") ? item.releaseInfo : undefined, runtime: clean(item.runtime), synopsis: clean(item.description),
+        name: clean(item.name), year: releaseYear(item.year, item.releaseInfo), releaseInfo: clean(item.releaseInfo), releaseDate: /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(item.releaseInfo || "") ? item.releaseInfo : undefined, runtime: clean(item.runtime), synopsis: clean(item.description),
         genres: item.genres, cast: item.cast, directors: item.director, writers: item.writer, ratings,
         artwork: { poster: clean(item.poster), backdrop: clean(item.background), logo: clean(item.logo) } });
     return { data, fetchedAt, coverage, unavailable: coverage === "header" ? [...Object.entries(data).filter(([, v]) => v === undefined || Array.isArray(v) && !v.length).map(([k]) => k), ...Object.entries(data.artwork).filter(([, v]) => !v).map(([k]) => `artwork.${k}`)] : [] };

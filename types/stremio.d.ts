@@ -110,7 +110,7 @@ export interface StremioMeta extends StremioMetaPreview {
   director?: string[];
   writer?: string[];
   runtime?: string;
-  year?: number;
+  year?: number | string;
   country?: string;
   awards?: string;
   website?: string;
