@@ -1,5 +1,6 @@
 "use client";
 
+import { useMetadataIntent } from "@/components/metadata-preload";
 import { preloadPlayer } from "@/lib/preload-tools";
 
 import { useEffect, useState } from "react";
@@ -52,6 +53,8 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
     const target = resumePlaybackTarget(media, checkingProgress ? {
         resumePositionTicks: media.resumePositionTicks, videoId: sourceId,
     } : saved.progress, episodes);
+    const metadataIntent = useMetadataIntent(target);
+    const warm = () => { if (authenticated) { preloadPlayer(); metadataIntent.start(); } };
     const resume = typeof target.resumePositionTicks === "number" && target.resumePositionTicks > 0;
     const overview = media.type === "series" && !sourceId;
     const context = resume ? overview
@@ -63,7 +66,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             <Button
                 type="button"
                 variant="default"
-                size="lg" onPointerEnter={authenticated ? preloadPlayer : undefined} onFocus={authenticated ? preloadPlayer : undefined}
+                size="lg" onPointerEnter={warm} onFocus={warm} onPointerLeave={metadataIntent.cancel} onBlur={metadataIntent.cancel}
                 className="min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5 hover:bg-foreground/90 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
                 disabled={authenticated && checkingProgress}
                 aria-busy={(authenticated && checkingProgress) || undefined}

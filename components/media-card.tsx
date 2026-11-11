@@ -1,5 +1,6 @@
 "use client";
 
+import { useMetadataIntent } from "@/components/metadata-preload";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 
 import { ArtworkImage, ArtworkPlaceholder } from "@/components/artwork-image";
@@ -57,9 +58,11 @@ export function MediaCard({
     linkHref = `/movie/${item.id}`;
   }
 
+  const metadataIntent = useMetadataIntent(item);
   const warmup = useContinueWatchingWarmup();
   const cancelWarmup = useRef<(() => void) | null>(null);
   const warmOnIntent = () => {
+    metadataIntent.start();
     if (!continueWatching) return;
     cancelWarmup.current?.();
     cancelWarmup.current = warmup?.intent(item) ?? null;
@@ -133,8 +136,8 @@ export function MediaCard({
           fallback: continueWatching ? artwork.poster : artwork.background,
         });
       }}
-      onPointerLeave={() => { homeScene?.leave(paletteOwner.current); cancelWarmup.current?.(); }}
-      onBlurCapture={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) cancelWarmup.current?.(); }}
+      onPointerLeave={() => { homeScene?.leave(paletteOwner.current); cancelWarmup.current?.(); metadataIntent.cancel(); }}
+      onBlurCapture={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) { cancelWarmup.current?.(); metadataIntent.cancel(); } }}
       onFocusCapture={event => {
         // Pointer clicks focus links too; only keyboard focus selects instantly.
         if (!(event.target instanceof Element) || !event.target.matches(":focus-visible")) return;

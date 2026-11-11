@@ -11,6 +11,14 @@ export function PlaybackSettings() {
     <FieldGroup className="min-w-0 gap-6">
       <Field orientation="horizontal">
         <FieldContent>
+          <FieldLabel htmlFor="metadata-prefetch">Preload metadata</FieldLabel>
+          <FieldDescription id="metadata-prefetch-description">Prepare title details and episode names in the background.</FieldDescription>
+        </FieldContent>
+        <Switch id="metadata-prefetch" aria-describedby="metadata-prefetch-description" checked={playbackPreferences.metadataPrefetch}
+          onCheckedChange={metadataPrefetch => updatePlaybackPreferences({ metadataPrefetch })} />
+      </Field>
+      <Field orientation="horizontal">
+        <FieldContent>
           <FieldLabel htmlFor="continue-watching-prefetch">Preload Continue Watching</FieldLabel>
           <FieldDescription id="continue-watching-prefetch-description">Find streams in the background so you can resume sooner.</FieldDescription>
         </FieldContent>

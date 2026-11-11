@@ -1,3 +1,4 @@
+import { MetadataPreloadPolicy } from "@/components/metadata-preload";
 import type { ReactNode } from "react";
 import { JotaiProvider } from "@/components/jotai-provider";
 import { FullscreenDetector } from "@/components/fullscreen-detector";
@@ -22,6 +23,7 @@ export default async function MainLayout({
         <JotaiProvider key={scope}>
             <StreamQueryProvider key={scope} scope={scope}>
                 <AccountProvider key={user?._id ?? "anonymous"} authenticated={Boolean(user)}>
+                    <MetadataPreloadPolicy />
                     <FullscreenDetector />
                     <KeyboardShortcuts />
                     <WatchHistoryProvider key={user?._id ?? "anonymous"} enabled={Boolean(user)}>

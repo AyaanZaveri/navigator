@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useContinueWatchingMetadata } from "@/components/metadata-preload";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import type { MediaItem } from "@/types/stremio";
 import { useAccountAccess } from "@/contexts/account-context";
@@ -17,6 +18,7 @@ export const useContinueWatchingWarmup = () => useContext(Context);
 export function ContinueWatchingWarmup({ items, children }: { items: MediaItem[]; children: ReactNode }) {
     const queries = useStreamQueries();
     const root = useRef<HTMLDivElement>(null);
+    useContinueWatchingMetadata(root, items);
     const manager = useRef<Manager | null>(null);
     const { authenticated } = useAccountAccess();
     const { playbackPreferences: { continueWatchingPrefetch } } = useSettings();

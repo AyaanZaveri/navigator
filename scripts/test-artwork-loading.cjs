@@ -11,6 +11,7 @@ const dependencies = {
     return React.createElement('a', props);
   },
   '@/lib/preload-tools': { preloadPlayer() {} },
+  '@/components/metadata-preload': { useMetadataIntent: () => ({ start() {}, cancel() {} }) },
   '@/components/home-palette-provider': { useHomePaletteScene: () => null },
   '@/lib/media/playback-details': require('./test-support/playback-context.cjs').details,
   '@/lib/artwork': { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/still.jpg' }), backdropVariantUrl: url => url },
