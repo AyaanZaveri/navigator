@@ -1,12 +1,12 @@
 .root {
-  --wordmark-max-height: var(--hero-wordmark-height, 7rem);
+  --wordmark-max-height: calc(var(--hero-wordmark-height, 7rem) * 1.35);
   display: grid;
   height: var(--wordmark-max-height);
   min-width: 0;
   place-items: center;
 }
-/* Wide marks can include flourishes much taller than their lettering.
-   Let them fill the available width without enlarging compact logos. */
+/* Compact marks need more height to carry similar visual weight.
+   Wide marks retain their larger limit for lettering with tall flourishes. */
 .root[data-wide] {
   --wordmark-max-height: calc(var(--hero-wordmark-height, 7rem) * 1.6);
 }
