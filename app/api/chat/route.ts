@@ -20,7 +20,7 @@ import { needsTextToolLoop, runTextToolLoop } from "@/app/tools/text-tool-loop";
 import type { SceneProgress } from "@/lib/navigator-scene-progress";
 import type { EpisodeProgress } from "@/lib/episode-discovery";
 import { createOpenCodeGoModel } from "@/lib/opencode-go";
-import { getTMDBTitle, getTMDBEpisodes } from "@/lib/tmdb-discovery";
+import { getTMDBPageContext } from "@/lib/tmdb-discovery";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
 import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
 import { getAuthData } from "@/lib/server/auth";
@@ -296,19 +296,13 @@ export async function POST(req: Request) {
         let pageContext = null;
         if (pageTarget) {
             try {
-                const details = await getTMDBTitle(pageTarget.id, pageTarget.type, req.signal);
-                const episode = pageTarget.season !== undefined && pageTarget.episode !== undefined
-                    ? (await getTMDBEpisodes(details.id, pageTarget.season, req.signal)).find(item => item.episode === pageTarget.episode) : null;
-                pageContext = {
-                    id: details.id, name: details.name, type: pageTarget.type, source: "TMDB",
-                    ...(episode ? { episodeId: episode.id, episodeTitle: episode.title,
-                        seasonNumber: pageTarget.season, episodeNumber: pageTarget.episode } : {}),
-                };
+                pageContext = await getTMDBPageContext(pageTarget, req.signal);
             } catch (error) {
                 req.signal.throwIfAborted();
                 pageContext = { ...pageTarget, metadataUnavailable: error instanceof Error ? error.message : "TMDB metadata unavailable." };
             }
         }
+        req.signal.throwIfAborted();
         const systemPrompt = createSystemPrompt(currentMedia, currentTimestamp, pageContext);
         const toolPolicy = navigatorToolPolicy(validatedMessages);
         const startedAt = Date.now();

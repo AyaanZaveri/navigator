@@ -238,6 +238,26 @@ export async function getTMDBEpisode(seriesId: string, season: number, episode: 
     };
 }
 
+/** Small chat context, not full title/credits or a season enumeration. */
+export async function getTMDBPageContext(target: { id: string; type: TMDBMediaType; season?: number; episode?: number }, signal?: AbortSignal) {
+    const tmdbId = await tmdbIdForTitle(target.id, target.type, signal);
+    const id = `tmdb:${tmdbId}`;
+    const episodeTarget = target.type === "series" && target.season !== undefined && target.episode !== undefined;
+    const [title, episode] = await Promise.allSettled([
+        request<TMDBTitleRecord>(`${target.type === "movie" ? "movie" : "tv"}/${tmdbId}`, {}, signal),
+        episodeTarget ? getTMDBEpisode(id, target.season!, target.episode!, signal) : Promise.resolve(null),
+    ]);
+    signal?.throwIfAborted();
+    if (title.status === "rejected") throw title.reason;
+    const details = titleResult(title.value, target.type);
+    return { id, name: details.name, type: target.type, source: "TMDB" as const,
+        ...(episode.status === "fulfilled" && episode.value ? {
+            episodeId: episode.value.id, episodeTitle: episode.value.name,
+            seasonNumber: target.season, episodeNumber: target.episode,
+        } : {}),
+    };
+}
+
 export async function getTMDBEpisodes(seriesId: string, season: number, signal?: AbortSignal) {
     if (!Number.isSafeInteger(season) || season < 0) throw new Error("Choose a valid season number.");
     const tmdbId = await tmdbIdForTitle(seriesId, "series", signal);

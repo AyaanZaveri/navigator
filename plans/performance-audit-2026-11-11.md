@@ -6,6 +6,8 @@ Follow-up: P01–P03 have been implemented in source with deterministic regressi
 
 Further follow-up: P04/P05/P07 and bounded Continue Watching discovery are implemented. See [playback and home implementation notes](performance-playback-home-implementation.md), including unfinished-request reuse on quick Play and validation limits.
 
+Further follow-up: shared TanStack stream queries plus P06/P10 Navigator rendering/context improvements are implemented. See [implementation, documentation and validation notes](tanstack-playback-navigator-implementation.md). Broader metadata/library/model caching remains future work.
+
 ## What would make the largest difference
 
 Prioritize less competing work and earlier useful results before adding more speculative requests. The strongest paths are: stop idle header pixel sampling; remove the watched-status metadata waterfall; budget full-route prefetching; reduce player clock/context fan-out; and reduce repeated chat rendering. Home rows should become usable independently of the slowest provider.
