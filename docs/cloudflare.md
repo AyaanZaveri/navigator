@@ -39,7 +39,8 @@ can be configured separately if it becomes necessary.
 
 ## Build and deploy
 
-Use Node.js 22 or newer. Install dependencies with the checked-in Bun lockfile:
+Use Node.js 22 or newer and Bun 1.4.2. Older Bun releases cannot read the current
+lockfile format. Install dependencies with the checked-in Bun lockfile:
 
 ```sh
 bun install --frozen-lockfile
@@ -103,9 +104,33 @@ redirect and TMDB artwork responses. Confirm that authenticated/dynamic response
 cached. Device playback and a signed-in Ask Navigator request still require
 application-level testing with the user's account/provider configuration.
 
-GitHub Actions are not needed for this deployment and remain disabled. The
-initial heavy build is run on the Zenbook over SSH; credentials used to upload
-the Worker stay on the Mac.
+## Automatic GitHub deployments
+
+The existing Worker is connected to `AyaanZaveri/navigator` using Cloudflare
+Workers Builds. Production pushes to `main` should build and deploy this same
+Worker and hostname; GitHub Actions are not required.
+
+Configure **Settings > Builds** with:
+
+- Production branch: `main`.
+- Root directory: `/`.
+- Build command: `bun run cloudflare:build`.
+- Deploy command: `npx wrangler deploy --config wrangler.jsonc --no-autoconfig`.
+- Build variables: `BUN_VERSION=1.4.2` and `NODE_VERSION=22`.
+- Other-branch builds: disabled unless preview deployments are explicitly needed.
+
+The OpenNext build command is required: the ordinary `bun run build` does not
+produce the Worker entry point. Keep runtime secrets on the existing Worker;
+they do not belong in GitHub or the build command. Cloudflare manages a separate
+build token for its deployment pipeline.
+
+After connecting the repository, verify a push to `main` produces a successful
+Cloudflare check on the commit and a new active Worker deployment, then run the
+public HTTP smoke checks above. If no build starts, check the GitHub app's
+repository access and the production branch under **Settings > Builds**.
+
+The initial heavy build ran on the Zenbook over SSH; manual upload credentials
+stay on the Mac.
 
 ## Initial build validation
 
@@ -118,9 +143,8 @@ including TMDB artwork resolution and the private image proxy. OpenNext reports 
 as experimental, so the smoke checks cover both anonymous and synthetic-cookie
 proxy redirects without sending a real session to upstream services.
 
-Wrangler minifies the upload. No automatic GitHub deployment pipeline is enabled;
-future source changes need another Cloudflare build and deployment. GitHub Actions
-remain disabled.
+Wrangler minifies the upload. The original deployment was manual; subsequent
+production updates use the Cloudflare Workers Builds connection described above.
 
 The initial published version is `6fbb8c08-9e1c-4a2c-8dfd-17acbc96d685`
 from source `3de0685`. Both TMDB bindings were verified as `secret_text`.
