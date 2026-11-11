@@ -27,12 +27,13 @@ const context = { exports: {}, Element: TestElement, Node: TestNode, window: { m
         const index = stateIndex++;
         if (!(index in state)) state[index] = initial;
         return [state[index], value => { state[index] = value; }];
-    }, useRef: initial => ({ current: initial }), useEffect() {} };
+    }, useRef: initial => ({ current: initial }), useCallback: callback => callback, useEffect() {} };
     if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/backdrop.jpg' }), backdropVariantUrl: (url, width) => `${url}?width=${width}` };
     if (name === '@/components/watched-indicator') return { WatchedIndicator: () => null };
     if (name === '@/lib/series-route') return routeContext.exports;
     if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: async item => playback.push(item), setIsPlayerVisible: visible => playback.push(visible) }) };
     if (name === 'next/link') return ({ children }) => children;
+    if (name === '@/components/intent-link') return { IntentLink: ({ children }) => children };
     if (name === 'next/navigation') return { useRouter: () => ({ push: (href, options) => routes.push({ href, options }) }) };
     if (name.endsWith('.module.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
     return require(name);

@@ -5,7 +5,7 @@ import { ArtworkImage, ArtworkPlaceholder } from "@/components/artwork-image";
 import { preloadPlayer } from "@/lib/preload-tools";
 
 import React from "react";
-import Link from "next/link";
+import { IntentLink } from "@/components/intent-link";
 import { Play } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import type { Episode } from "@/app/actions/tv-shows";
@@ -54,7 +54,7 @@ export function EpisodeCard({
         data-pressed={pressed || undefined}
         onPointerDown={event => { if (event.button === 0) setPressed(true); }}
         onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)} onPointerCancel={() => setPressed(false)}>
-        <Link href={linkHref} prefetch={true} draggable={false} className="absolute inset-0">
+        <IntentLink href={linkHref} draggable={false} className="absolute inset-0">
           {imageUrl ? (
             <ArtworkImage
               src={imageUrl}
@@ -66,7 +66,7 @@ export function EpisodeCard({
           ) : (
             <ArtworkPlaceholder className="w-full h-full" aria-hidden="true" />
           )}
-        </Link>
+        </IntentLink>
 
         <WatchedIndicator id={seriesId} type="series" videoId={episode.id} />
 
@@ -84,7 +84,7 @@ export function EpisodeCard({
             </button>
         </div>
       </div>
-      <Link href={linkHref} prefetch={true} draggable={false}>
+      <IntentLink href={linkHref} draggable={false}>
         <div className="px-1">
           <div className="mt-2.5 text-sm font-medium text-foreground line-clamp-2">
             {episode.title}
@@ -93,7 +93,7 @@ export function EpisodeCard({
             S{episode.season} &bull; E{episode.episode}
           </div>
         </div>
-      </Link>
+      </IntentLink>
     </div>
   );
 }

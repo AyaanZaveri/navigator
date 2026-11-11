@@ -2,6 +2,8 @@
 
 Baseline: `3abf7dd`, including optimistic web-search (`a7a1d11`) and subtitle-selection changes (`3abf7dd`) that were uncommitted when this audit was conducted. Read-only source audit; no application source changed during this audit. No production build, browser automation, server start, native build, profiler recording, or live account mutation was performed. Findings identify avoidable work or blocking dependencies, not measured speedups.
 
+Follow-up: P01–P03 have been implemented in source with deterministic regression checks. See [implementation notes and documentation](performance-first-three-implementation.md) for scope, validation and remaining runtime checks. The findings/inventory below retain their original audit baseline.
+
 ## What would make the largest difference
 
 Prioritize less competing work and earlier useful results before adding more speculative requests. The strongest paths are: stop idle header pixel sampling; remove the watched-status metadata waterfall; budget full-route prefetching; reduce player clock/context fan-out; and reduce repeated chat rendering. Home rows should become usable independently of the slowest provider.

@@ -2,13 +2,14 @@
 
 import { ArtworkImage } from "@/components/artwork-image";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Film, Star, Tv } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { fetchSearchSuggestions } from "@/lib/search-catalog-stream";
 import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expanding-search/expanding-search";
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import type { SearchResult } from "@/types/stremio";
+import { scheduleRoutePrefetch } from "@/lib/route-prefetch";
 
 interface SearchBarProps {
   className?: string;
@@ -31,17 +32,18 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
     const inputRef = useRef<HTMLInputElement>(null);
     const urlQuery = (searchParams.get("q") ?? "").trim();
 
-    useEffect(() => {
-        if (isPlayerVisible) return;
-
-        // Suggestions use router.push rather than Link. Warm the same full-route
-        // cache as the catalog cards while the (at most six) results are shown.
-        for (const item of suggestions) {
-            if (item.type === "movie" || item.type === "series") {
-                router.prefetch(`/${item.type}/${item.id}`);
-            }
+    const cancelPrefetch = useRef<(() => void) | null>(null);
+    const handleItemIntent = useCallback((item: ExpandingSearchItem | null) => {
+        cancelPrefetch.current?.();
+        cancelPrefetch.current = null;
+        if (!item) return;
+        const target = suggestions.find(result => `${result.type}:${result.id}` === item.id);
+        if (target?.type === "movie" || target?.type === "series") {
+            const href = `/${target.type}/${target.id}`;
+            cancelPrefetch.current = scheduleRoutePrefetch(href, () => router.prefetch(href));
         }
-    }, [suggestions, isPlayerVisible, router]);
+    }, [suggestions, router]);
+    useEffect(() => () => { cancelPrefetch.current?.(); }, []);
 
     useEffect(() => {
         if (pathname !== "/search") {
@@ -200,6 +202,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             filterResults={false}
             minQueryLength={1}
             onSelect={handleSelect}
+            onItemIntent={handleItemIntent}
             onSubmit={handleSearch}
             emptyHint={searchError || "Try another title, or press Enter to see all results."}
             expandedWidth={576}

@@ -4,7 +4,7 @@ import artworkStyles from "./detail-artwork.module.css";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { TvIcon } from "lucide-react";
-import Link from "next/link";
+import { IntentLink } from "@/components/intent-link";
 
 // Shared by real details and the inert sample so responsive geometry stays aligned.
 export function EpisodeDetailsView({
@@ -40,15 +40,14 @@ export function EpisodeDetailsView({
               aria-label="Episode context"
               className="flex min-w-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-medium text-muted-foreground @4xl:justify-start"
             >
-              {showHref ? <Link
+              {showHref ? <IntentLink
                 href={showHref}
-                prefetch={true}
                 draggable={false}
                 className="inline-flex min-w-0 max-w-full items-center gap-2 transition-colors hover:text-foreground"
               >
                 <TvIcon aria-hidden="true" className="relative -top-[0.5px] size-3.5 shrink-0" />
                 <span className="min-w-0 break-words">{showName}</span>
-              </Link> : <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+              </IntentLink> : <span className="inline-flex min-w-0 max-w-full items-center gap-2">
                 <TvIcon aria-hidden="true" className="relative -top-[0.5px] size-3.5 shrink-0" />
                 <span className="min-w-0 break-words">{showName}</span>
               </span>}

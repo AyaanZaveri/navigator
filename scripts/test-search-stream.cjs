@@ -79,13 +79,14 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   await assert.rejects(work);
   assert.equal(upstreamSignal.aborted, true);
 
-  const h = hooks(), timers = new Map(), suggestions = [];
+  const h = hooks(), timers = new Map(), suggestions = [], warmups = [], prefetched = [];
   let timerId = 0;
   const { SearchBar } = load('components/search-component.tsx', {
     react: h.react, 'react/jsx-runtime': h.jsx,
     '@/components/artwork-image': { ArtworkImage: 'artwork' },
+    '@/lib/route-prefetch': { scheduleRoutePrefetch(href, warm) { const entry = { href, warm, cancelled: false }; warmups.push(entry); return () => { entry.cancelled = true; }; } },
     'lucide-react': { Film: 'film', Star: 'star', Tv: 'tv' },
-    'next/navigation': { useRouter: () => ({ prefetch() {} }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
+    'next/navigation': { useRouter: () => ({ prefetch: href => prefetched.push(href) }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
     '@/lib/search-catalog-stream': { fetchSearchSuggestions: async (query, publish, signal) => {
       suggestions.push({ query, signal });
       publish([{ catalogType: 'multi', items: query === 'amazing race' ? [
@@ -123,6 +124,13 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
     'series:tmdb:30957', 'series:tmdb:45665', 'series:tmdb:236182',
     'movie:tmdb:30957', 'movie:tmdb:5', 'series:tmdb:6',
   ], 'Suggestions preserve provider rank, deduplicate by media type and ID, and cap at six without rating/artwork/prefix boosts');
+  assert.equal(warmups.length, 0, 'Publishing six suggestions never prefetches six routes');
+  tree.props.onItemIntent(tree.props.items[1]);
+  assert.equal(warmups[0].href, '/series/tmdb:45665');
+  tree.props.onItemIntent(tree.props.items[0]);
+  assert.equal(warmups[0].cancelled, true, 'Moving selection cancels the old suggestion dwell');
+  warmups[1].warm(); assert.deepEqual(prefetched, ['/series/tmdb:30957']);
+  tree.props.onItemIntent(null); assert.equal(warmups[1].cancelled, true);
   tree.props.onValueChange('   ');
   tree = render();
   assert.equal(tree.props.loading, false);

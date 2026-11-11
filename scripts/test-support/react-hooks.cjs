@@ -14,6 +14,12 @@ function load(file, dependencies = {}, globals = {}) {
         }
         return dependency;
       }
+      // Markup fixtures mock the routing boundary as an anchor. Intent and
+      // scheduling behavior is exercised with the real component separately.
+      if (name === '@/components/intent-link' && dependencies['next/link']) {
+        const link = dependencies['next/link'];
+        return { IntentLink: link.default ?? link };
+      }
       // Existing behavioral fixtures mock the previous auth module; preserve that boundary after its server-only split.
       if (name === '@/lib/server/auth') {
         const fixture = dependencies['@/app/actions/auth'] || dependencies['./auth'];

@@ -5,7 +5,7 @@ import { CastSection } from "@/components/media-page/cast-section";
 import { MediaSection } from "@/components/media-section";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { HeroWordmark } from "@/components/hero-wordmark";
-import Link from "next/link";
+import { IntentLink } from "@/components/intent-link";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { SeriesEpisodesRouteAware } from "@/components/series-episodes-route-aware";
@@ -73,9 +73,8 @@ export default async function SeriesLayout({
             />
             {show.logo && (
               <div className={backdropStyles.wordmarkRegion}>
-                <Link
+                <IntentLink
                   href={buildSeriesPath(show.id)}
-                  prefetch={true}
                   draggable={false}
                   aria-label={`Go to ${show.name} series page`}
                   className="pointer-events-auto block w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(48rem,75%)] md:[--hero-wordmark-height:7rem] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:hover:scale-[1.01]"
@@ -86,7 +85,7 @@ export default async function SeriesLayout({
                     movieName={show.name || ""}
                     className="w-full"
                   />
-                </Link>
+                </IntentLink>
               </div>
             )}
             <BackdropTransition />

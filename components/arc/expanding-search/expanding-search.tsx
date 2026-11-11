@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, Ref, RefObject } from "react";
 import { flushSync } from "react-dom";
 import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from "motion/react";
@@ -51,6 +51,8 @@ export interface ExpandingSearchProps {
   suggestionsLabel?: string;
   placeholder?: string;
   onSelect?: (item: ExpandingSearchItem) => void;
+  /** A hovered or keyboard-active item; null cancels obsolete speculative work. */
+  onItemIntent?: (_item: ExpandingSearchItem | null) => void;
   onExpandedChange?: (expanded: boolean) => void;
   /** The widest the field grows. It never grows past its container. */
   expandedWidth?: number;
@@ -180,7 +182,8 @@ function Listbox({ id, label, groups, query, activeIndex, optionId, reduced, key
     if (keyboard.current) row.scrollIntoView({ block: "nearest" });
   }, [activeId, layoutKey, reduced, travel, fade, keyboard]);
 
-  return <div ref={listRef} id={id} role="listbox" aria-label={label} className={styles.listbox}>
+  return <div ref={listRef} id={id} role="listbox" aria-label={label} className={styles.listbox}
+    onPointerLeave={() => { if (!keyboard.current) onHover(-1); }}>
     <AnimatePresence mode="popLayout" initial={false}>
       {groups.map(group => {
         const headingId = `${id}-${group.name || "results"}`.replace(/\s+/g, "-");
@@ -215,7 +218,7 @@ function Listbox({ id, label, groups, query, activeIndex, optionId, reduced, key
   </div>;
 }
 
-export function ExpandingSearch({ label, items, suggestions = [], suggestionsLabel = "Recent", placeholder, onSelect, onExpandedChange, expandedWidth = 360, maxResults = 6, anchor = "end", emptyHint = "Try a shorter word or check the spelling.", className, value, onValueChange, loading = false, filterResults = true, minQueryLength = 1, onSubmit, persistent = false, ref }: ExpandingSearchProps) {
+export function ExpandingSearch({ label, items, suggestions = [], suggestionsLabel = "Recent", placeholder, onSelect, onItemIntent, onExpandedChange, expandedWidth = 360, maxResults = 6, anchor = "end", emptyHint = "Try a shorter word or check the spelling.", className, value, onValueChange, loading = false, filterResults = true, minQueryLength = 1, onSubmit, persistent = false, ref }: ExpandingSearchProps) {
   const id = useId();
   const reduced = useReducedMotion() ?? false;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -301,6 +304,10 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
   const optionId = (item: ExpandingSearchItem) => `${id}-${mode}-${item.id}`;
   const listboxId = `${id}-${mode}-listbox`;
   const panelOpen = expanded && focused && mode !== null;
+  useEffect(() => {
+    onItemIntent?.(panelOpen ? activeItem ?? null : null);
+    return () => onItemIntent?.(null);
+  }, [panelOpen, activeItem, onItemIntent]);
   const announcement = !panelOpen ? "" : mode === "loading" ? `Searching for ${trimmed}` : mode === "empty" ? `No results for ${trimmed}` : mode === "results" ? `${flat.length} ${flat.length === 1 ? "result" : "results"}` : `${flat.length} ${suggestionsLabel.toLocaleLowerCase()} ${flat.length === 1 ? "item" : "items"}`;
 
   function choose(item: ExpandingSearchItem) {

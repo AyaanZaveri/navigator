@@ -6,7 +6,7 @@ import { useContext, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
-import Link from "next/link";
+import { IntentLink } from "@/components/intent-link";
 import { useSetAtom } from "jotai";
 import { isAIAskOpenAtom } from "@/lib/atoms";
 import { Badge } from "@/components/ui/badge";
@@ -139,16 +139,15 @@ export function ResultCard({
           {content}
         </a>
       ) : href ? (
-        <Link
+        <IntentLink
           href={href}
-          prefetch={!href.startsWith("/api/navigator/title")}
           className={rowClass}
           draggable={false}
           onDragStart={(event) => event.preventDefault()}
           onClick={activate}
         >
           {content}
-        </Link>
+        </IntentLink>
       ) : onClick ? (
         <button type="button" className={rowClass} onClick={activate}>
           {content}

@@ -9,7 +9,7 @@ import { preloadPlayer } from "@/lib/preload-tools";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useHomePaletteScene } from "@/components/home-palette-provider";
 import { mediaArtwork, backdropVariantUrl } from "@/lib/artwork";
-import Link from "next/link";
+import { IntentLink } from "@/components/intent-link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
@@ -149,7 +149,7 @@ export function MediaCard({
         onPointerCancel={() => setPressed(false)}
       >
         {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
-        <Link href={linkHref} prefetch={true} scroll={false} draggable={false} className="absolute inset-0">
+        <IntentLink href={linkHref} scroll={false} draggable={false} className="absolute inset-0">
           {imageUrl ? (
             <ArtworkImage
               reveal={revealArtwork}
@@ -168,7 +168,7 @@ export function MediaCard({
           ) : (
             <ArtworkPlaceholder className="w-full h-full" aria-hidden="true" />
           )}
-        </Link>
+        </IntentLink>
 
         {/* Play button overlay */}
         <div className={`${styles.playOverlay} absolute inset-0 z-30 flex items-center justify-center`}>
@@ -219,7 +219,7 @@ export function MediaCard({
           </div>
         ) : null}
       </div>
-      <Link href={linkHref} prefetch={true} scroll={false} draggable={false}>
+      <IntentLink href={linkHref} scroll={false} draggable={false}>
         <div className="px-1">
           <div className={`mt-2.5 text-sm font-medium text-foreground ${titleLines === 2 ? "line-clamp-2 break-words leading-snug" : "truncate"}`}>
             {item.name}
@@ -228,7 +228,7 @@ export function MediaCard({
             {subtitleContent ?? subtitle}
           </div>
         </div>
-      </Link>
+      </IntentLink>
     </div>
   );
 }

@@ -25,7 +25,7 @@ import {
   type Episode,
 } from "@/app/actions/tv-shows";
 import { fetchPlaybackProgress } from "@/app/actions";
-import Link from "next/link";
+import { IntentLink } from "@/components/intent-link";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import { buildEpisodePath } from "@/lib/series-route";
@@ -612,9 +612,8 @@ const EpisodeCard = React.memo(function EpisodeCard({
       onPointerLeave={() => setPressed(false)}
       onPointerCancel={() => setPressed(false)}
     >
-      <Link
+      <IntentLink
         href={buildEpisodePath(showId, episode.season, episode.episode)}
-        prefetch={true}
         className="block"
         draggable={false}
         scroll={false}
@@ -689,7 +688,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
             </div>
           </div>
         </div>
-      </Link>
+      </IntentLink>
       {!isUpcoming && (
         <div className={cardStyles.playOverlay + " absolute inset-x-0 top-2 aspect-video flex items-center justify-center rounded-lg"}>
           <button
