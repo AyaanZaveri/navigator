@@ -16,7 +16,7 @@ export async function fetchFollowingEpisode(id: string, season: number, episode:
   if (!response.ok) throw new Error('Could not find the next episode');
   return ((await response.json()) as { episode?: Episode | null }).episode || null;
 }
-export async function prepareNextEpisode(media: MediaToPlay, native: boolean, signal: AbortSignal, createStreams = createPlaybackStreamRequest): Promise<MediaToPlay> {
+export async function prepareNextEpisode(media: MediaToPlay, native: boolean, signal: AbortSignal, createStreams = createPlaybackStreamRequest, readDetails = fetchPlaybackDetails): Promise<MediaToPlay> {
   signal.throwIfAborted();
   const streamRequest = createStreams(media.mediaSourceId || media.id, media.type, signal);
   const preferences = readPlaybackPreferences();
@@ -32,7 +32,7 @@ export async function prepareNextEpisode(media: MediaToPlay, native: boolean, si
       verifyStream: (stream, options) => probeStreamPlayability(stream, { signal: options.signal, preferredAudioLanguage: preferences.audioLanguage,
         metadata: options.metadata, timeoutMs: options.timeoutMs, onAudioLanguage: options.onAudioLanguage }),
     }, () => {}),
-    fetchPlaybackDetails(media, signal).catch(() => null),
+    preferences.metadataPrefetch ? readDetails(media, signal).catch(() => null) : Promise.resolve(null),
   ]);
   signal.throwIfAborted();
   return { ...resolved, details: mergePlaybackDetails(initialPlaybackDetails(media), details), detailsLoaded: Boolean(details),

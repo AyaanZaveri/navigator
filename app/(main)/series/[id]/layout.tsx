@@ -1,4 +1,4 @@
-import { PlaybackPageProvider } from "@/components/playback-page-provider";
+import { MetadataPage as PlaybackPageProvider } from "@/components/metadata-hydration";
 import backdropStyles from "@/components/media-page/backdrop-transition.module.css";
 import { BackdropTransition } from "@/components/media-page/backdrop-transition";
 import { CastSection } from "@/components/media-page/cast-section";

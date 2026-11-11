@@ -32,6 +32,16 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
         return bytes;
     };
     const root = ["playback", scope] as const;
+    const identityOptions = (id: string, type: string) => queryOptions({ ...STREAM_QUERY_DEFAULTS, staleTime: 300_000, gcTime: 300_000,
+        queryKey: [...root, "id", type, id.replace(/:\d+:\d+$/, "")],
+        queryFn: ({ signal }) => fetchPlaybackId(id.replace(/:\d+:\d+$/, ""), type as "movie" | "series", AbortSignal.any([signal, AbortSignal.timeout(15_000)])),
+    });
+    const resolveIdentity = (id: string, type: string) => {
+        const base = id.replace(/:\d+:\d+$/, "");
+        const seeded = client.getQueryData<string>(["metadata", scope, "identity", type, base]);
+        return seeded ? Promise.resolve(seeded) : /^tmdb:/.test(id) ? client.query(identityOptions(id, type)).finally(() => prune()) : Promise.resolve(base);
+    };
+    const peekIdentity = (id: string, type: string) => client.getQueryData<string>(["metadata", scope, "identity", type, id.replace(/:\d+:\d+$/, "")]) || (/^tmdb:/.test(id) ? client.getQueryData<string>(identityOptions(id, type).queryKey) : id.replace(/:\d+:\d+$/, ""));
     const keyFor = (target: Target) => `${generation}:${target.type}:${target.id}`;
     const read = async <T,>(url: string, signal: AbortSignal): Promise<T> => {
         const response = await fetchFn(url, { signal, cache: "no-store" });
@@ -119,7 +129,8 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
     };
     const invalidate = (target?: Target) => {
         if (target) {
-            const id = client.getQueryData<string>([...root, "id", target.type, target.id]) || target.id;
+            const base = target.id.replace(/:\d+:\d+$/, "");
+            const id = (peekIdentity(base, target.type) || base) + target.id.slice(base.length);
             void client.invalidateQueries({ queryKey: root, predicate: query => query.queryKey[2] === "streams"
                 && query.queryKey[4] === target.type && query.queryKey[5] === id, refetchType: "none" });
         }
@@ -130,6 +141,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
         }
         if (!target) {
             generation++;
+            void client.invalidateQueries({ queryKey: ["metadata", scope], refetchType: "none" });
             void client.invalidateQueries({ queryKey: root, refetchType: "none" });
         }
     };
@@ -163,12 +175,8 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
             if (!entry.required && !entry.speculative) prune();
         };
         const operation = (async () => {
-            const idOptions = queryOptions({ ...STREAM_QUERY_DEFAULTS, staleTime: 300_000, gcTime: 300_000,
-                queryKey: [...root, "id", target.type, target.id],
-                queryFn: ({ signal }) => fetchPlaybackId(target.id.replace(/:(\d+):(\d+)$/, ""), target.type as "movie" | "series", AbortSignal.any([signal, AbortSignal.timeout(15_000)]))
-                    .then(base => base + target.id.slice(target.id.replace(/:(\d+):(\d+)$/, "").length)),
-            });
-            const canonical = /^tmdb:/.test(target.id) ? client.query(idOptions) : Promise.resolve(target.id);
+            const base = target.id.replace(/:\d+:\d+$/, "");
+            const canonical = resolveIdentity(base, target.type).then(id => id + target.id.slice(base.length));
             const addonsOptions = queryOptions({ ...STREAM_QUERY_DEFAULTS,
                 queryKey: [...root, "addons", entry.generation, target.type],
                 queryFn: ({ signal }) => read<Addons>("/api/streams/addons?" + new URLSearchParams({ type: target.type }), AbortSignal.any([signal, AbortSignal.timeout(15_000)])),
@@ -255,7 +263,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
         void request.promise.then(release, release);
         return request;
     };
-    return { client, acquire, create, speculate: (id: string, type: string, signal?: AbortSignal) => create(id, type, signal, "speculative"),
+    return { client, scope, resolveIdentity, peekIdentity, acquire, create, speculate: (id: string, type: string, signal?: AbortSignal) => create(id, type, signal, "speculative"),
         invalidate, prune,
         clear() { if (disposed) return; disposed = true; for (const entry of entries) stop(entry); lastUse.clear(); client.clear(); },
     };

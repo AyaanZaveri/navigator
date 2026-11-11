@@ -1,3 +1,4 @@
+import { useMetadataQueries } from "@/components/stream-query-provider";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback } from "react";
 import { useAccountAccess } from "@/contexts/account-context";
@@ -11,11 +12,14 @@ import {
 export function usePlaybackActions() {
     const { authenticated, requestSignIn } = useAccountAccess();
     const play = useSetAtom(playMediaAtom);
+    const metadata = useMetadataQueries();
     const setVisible = useSetAtom(isPlayerVisibleAtom);
     const playMedia = useCallback((media: MediaToPlay) => {
         if (!authenticated) { requestSignIn(); return; }
-        play(media);
-    }, [authenticated, requestSignIn, play]);
+        const enriched = metadata?.enrich(media) || media;
+        if (metadata) void metadata.prepare(media, "required");
+        play(enriched);
+    }, [authenticated, requestSignIn, play, metadata]);
     const setIsPlayerVisible = useCallback<typeof setVisible>((visible) => {
         if (!authenticated && visible !== false) { requestSignIn(); return; }
         setVisible(visible);

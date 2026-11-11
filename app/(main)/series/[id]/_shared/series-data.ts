@@ -1,6 +1,7 @@
+import { cachedHeaderEpisode } from "@/lib/server/metadata-readers";
 import { cache } from "react";
 import { fetchMediaDetails } from "@/app/actions";
-import { fetchEpisodes } from "@/app/actions/tv-shows";
+import { fetchEpisodeDetails, type Episode } from "@/app/actions/tv-shows";
 import type { MediaItem, StremioVideo } from "@/types/stremio";
 import { parseSeriesRouteId } from "@/lib/series-route";
 
@@ -15,6 +16,7 @@ export interface SeriesEpisodeSelectionData {
   seasonNumber: number;
   episodeNumber: number;
   selectedEpisode: StremioVideo;
+  episodeRecord: Episode | null;
   selectedEpisodeTitle: string;
   episodeMedia: MediaItem;
 }
@@ -71,7 +73,12 @@ export const getSeriesEpisodeSelectionData = cache(
       return null;
     }
 
-    const videos: StremioVideo[] = layoutData.show.videos ?? await getSeriesSeasonEpisodes(id, seasonNumber);
+    const embedded = layoutData.show.videos?.find(video => video.season === seasonNumber && video.episode === episodeNumber);
+    const episodeRecord = await cachedHeaderEpisode(layoutData.show, seasonNumber, episodeNumber)
+      || (!embedded ? await fetchEpisodeDetails(id, seasonNumber, episodeNumber) : null);
+    const videos: StremioVideo[] = episodeRecord ? [{ id: episodeRecord.id, title: episodeRecord.title,
+      season: episodeRecord.season, episode: episodeRecord.episode, overview: episodeRecord.overview,
+      thumbnail: episodeRecord.thumbnail, released: episodeRecord.released }] : layoutData.show.videos ?? [];
     const selectedEpisode = videos.find(
       (video) =>
         video.season === seasonNumber && video.episode === episodeNumber
@@ -106,10 +113,9 @@ export const getSeriesEpisodeSelectionData = cache(
       seasonNumber,
       episodeNumber,
       selectedEpisode,
+      episodeRecord,
       selectedEpisodeTitle,
       episodeMedia,
     };
   }
 );
-
-const getSeriesSeasonEpisodes = cache((id: string, season: number) => fetchEpisodes(id, season));

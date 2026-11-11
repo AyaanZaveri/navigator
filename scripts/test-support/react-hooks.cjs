@@ -14,9 +14,10 @@ function load(file, dependencies = {}, globals = {}) {
         }
         return dependency;
       }
+      if (name === '@/components/metadata-hydration') return { MetadataHydration: 'metadata-hydration', MetadataPage: 'metadata-page' };
       // Legacy fixtures isolate external provider boundaries. Shared query
       // behavior is exercised with a real QueryClient in test-stream-queries.
-      if (name === '@/components/stream-query-provider') return { useStreamQueries: () => null, StreamQueryProvider: 'stream-queries' };
+      if (name === '@/components/stream-query-provider') return { useStreamQueries: () => null, useMetadataQueries: () => undefined, useMetadataWarmup: () => undefined, StreamQueryProvider: 'stream-queries' };
       // Markup fixtures mock the routing boundary as an anchor. Intent and
       // scheduling behavior is exercised with the real component separately.
       if (name === '@/components/intent-link' && dependencies['next/link']) {
@@ -83,6 +84,7 @@ function hooks() {
     createContext(value) { const context = { current: value }; context.Provider = { context }; return context; },
     useContext(context) { return context.current; },
   };
+  react.useLayoutEffect = react.useEffect;
   return { react, jsx: { jsx, jsxs: jsx },
     get updates() { return updates; },
     render(component, props) { cursor = 0; return component(props); },

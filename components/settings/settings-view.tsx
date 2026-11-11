@@ -1,4 +1,5 @@
 "use client";
+import { useMetadataQueries } from "@/components/stream-query-provider";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
@@ -276,6 +277,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
 }
 
 function ArtworkSettings() {
+    const metadata = useMetadataQueries();
     const [state, setState] = useState<ArtworkSettingsState>({ configured: false, personal: false });
     const { value: token, setValue: setToken, persist: persistToken } = useConnectionCredential("tmdb");
     const [loading, setLoading] = useState(true);
@@ -301,6 +303,7 @@ function ArtworkSettings() {
         try {
             const result = operation === "save" ? await saveArtworkToken(token) : await removeArtworkToken();
             if (!result.success) { setError(result.error); return; }
+            metadata?.invalidate();
             setState({ configured: result.configured, personal: result.personal });
             persistToken(operation === "save" ? token.trim() : "");
             setStatus(operation === "save" ? "Token saved." : "Token removed.");

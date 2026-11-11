@@ -7,14 +7,15 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   const selectedSeasons = [];
   const { getSeriesLayoutData, getSeriesEpisodeSelectionData } = load('app/(main)/series/[id]/_shared/series-data.ts', {
     react: { cache: fn => { const values = new Map(); return (...args) => { const key = JSON.stringify(args); if (!values.has(key)) values.set(key, fn(...args)); return values.get(key); }; } },
+    '@/lib/server/metadata-readers': { cachedHeaderEpisode: async () => null },
     '@/app/actions': { fetchMediaDetails: async () => ({ id: 'tmdb:20', type: 'series', name: 'Show', seasons: seasonList }) },
-    '@/app/actions/tv-shows': { fetchEpisodes: async (_id, season) => { selectedSeasons.push(season); return [episode(season)]; } },
+    '@/app/actions/tv-shows': { fetchEpisodeDetails: async (_id, season, number) => { selectedSeasons.push([season, number]); return episode(season, number); }, fetchEpisodes: async (_id, season) => { selectedSeasons.push(season); return [episode(season)]; } },
   });
   const overview = await getSeriesLayoutData('tmdb:20');
   assert.equal(overview.regularSeasonCount, 2);
   assert.deepEqual(selectedSeasons, [], 'Overview requires no episode requests');
   const detail = await getSeriesEpisodeSelectionData('tmdb:20', '20', '1');
-  assert.deepEqual(selectedSeasons, [20], 'A direct episode route requests only its selected season');
+  assert.deepEqual(selectedSeasons, [[20, 1]], 'A direct episode route requests exactly one episode, without a season list');
   assert.equal(detail.selectedEpisodeTitle, 'Title 20/1');
   assert.equal(detail.episodeMedia.mediaSourceId, undefined);
   assert.equal(detail.episodeMedia.id, 'tmdb:20:20:1');
@@ -125,5 +126,5 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   assert.equal(find(tree, node => node.type === 'Button' && node.props.children === 'Retry').length, 0);
   assert.equal(uiRequests.at(-1).season, 1);
   h.unmount();
-  console.log('PASS: lightweight overview/counts, one-season episode routes, explicit specials, shared/retryable reads, auth, cancellation and on-demand season browsing.');
+  console.log('PASS: lightweight overview/counts, single-episode headers without season requests, explicit specials, shared/retryable reads, auth, cancellation and on-demand season browsing.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

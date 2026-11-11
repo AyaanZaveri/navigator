@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { useStreamQueries } from "@/components/stream-query-provider";
+import { useMetadataWarmup, useStreamQueries } from "@/components/stream-query-provider";
 import { useSettings } from "@/contexts/settings-context";
 import { EpisodeContinuation, shouldPrefetchEpisode } from "./episode-continuation";
 import { fetchFollowingEpisode, prepareNextEpisode } from "./prefetch-next-episode";
@@ -18,6 +18,7 @@ export function useEpisodeContinuation(options: {
 }) {
     const { playbackPreferences = DEFAULT_PLAYBACK_PREFERENCES } = useSettings();
     const streamQueries = useStreamQueries();
+    const metadataWarmer = useMetadataWarmup();
     const latest = useRef(options);
     useLayoutEffect(() => { latest.current = options; });
     const titles = options.media ? getPlaybackTitles(options.media, options.media.details || null) : null;
@@ -39,16 +40,22 @@ export function useEpisodeContinuation(options: {
                 return `${current.media.seriesId || current.media.id}:${target.season}:${target.episodeNumber}` === key;
             },
             lookup: signal => fetchFollowingEpisode(id!, season!, episode!, signal),
-            prepare: (media, signal) => prepareNextEpisode(media, options.native, signal, streamQueries?.create),
+            prepare: (media, signal) => prepareNextEpisode(media, options.native, signal, streamQueries?.create, streamQueries?.metadata?.details),
             warm: (media, signal) => preloadNextVideo(media, options.native, latest.current.duration, signal),
             beforeAdvance: value => latest.current.beforeAdvance(value),
             play: media => latest.current.play(media),
         });
         owner.current = { key, continuation };
         let cancelled = false;
-        void continuation.next().then(next => { if (!cancelled) setSnapshot({ owner: key, next, busy: false }); });
+        void continuation.next().then(next => {
+            if (cancelled) return;
+            setSnapshot({ owner: key, next, busy: false });
+            if (next && latest.current.media) metadataWarmer?.enqueue({ ...latest.current.media,
+                id: id!, seriesId: id!, mediaSourceId: next.id, seasonNumber: next.season, episodeNumber: next.episode,
+                episodeTitle: next.title, name: next.title });
+        });
         return () => { cancelled = true; continuation.dispose(); };
-    }, [key, id, season, episode, options.native, streamQueries]);
+    }, [key, id, season, episode, options.native, streamQueries, metadataWarmer]);
     useEffect(() => {
         if (!playbackPreferences.episodePrefetch && owner.current?.key === key) owner.current.continuation.cancelPrefetch();
     }, [key, playbackPreferences.episodePrefetch]);

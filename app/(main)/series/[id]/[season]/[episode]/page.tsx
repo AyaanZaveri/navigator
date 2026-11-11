@@ -1,3 +1,4 @@
+import { MetadataHydration } from "@/components/metadata-hydration";
 import { EpisodeDetailsView } from "@/components/media-page/episode-details-view";
 import { EpisodeDetailsBoundary } from "@/components/media-page/episode-details-boundary";
 import { EpisodeDetailsSample } from "@/components/media-page/episode-details-sample";
@@ -39,11 +40,12 @@ async function LoadedEpisodeDetails({ params }: EpisodePageProps) {
     seasonNumber,
     episodeNumber,
     selectedEpisode,
+    episodeRecord,
     selectedEpisodeTitle,
   } = episodeData;
 
   return (
-    <EpisodeDetailsView
+    <MetadataHydration media={show} episode={episodeRecord || undefined}><EpisodeDetailsView
       titleId="episode-title"
       showHref={buildSeriesPath(id)}
       showName={show.name}
@@ -75,7 +77,7 @@ async function LoadedEpisodeDetails({ params }: EpisodePageProps) {
       description={selectedEpisode.overview
         ? <EpisodeDescription key={selectedEpisode.id} text={selectedEpisode.overview} />
         : undefined}
-    />
+    /></MetadataHydration>
   );
 }
 

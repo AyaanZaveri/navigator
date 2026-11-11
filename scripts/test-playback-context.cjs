@@ -44,7 +44,7 @@ const resolve = load('lib/media/resolve-playback.ts', { '@/lib/media/audio-langu
   assert.equal(store.get(atoms.currentMediaAtom).episodeTitle, ready.episodeTitle);
   let cleanup;
   const { PlaybackPageProvider } = load('components/playback-page-provider.tsx', {
-    react: { ...require('react'), useMemo: factory => factory(), useLayoutEffect: effect => { cleanup = effect(); } },
+    react: { ...require('react'), useMemo: factory => factory(), useCallback: callback => callback, useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useLayoutEffect: effect => { cleanup = effect(); } },
     jotai: { useSetAtom: atom => update => store.set(atom, update) }, '@/lib/atoms': atoms,
   });
   PlaybackPageProvider({ media: show, children: null });

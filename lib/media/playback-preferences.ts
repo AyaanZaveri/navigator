@@ -1,5 +1,6 @@
 export interface PlaybackPreferences {
   continueWatchingPrefetch: boolean;
+  metadataPrefetch: boolean;
   episodeAutoplay: boolean;
   episodePrefetch: boolean;
   autoSelectWebStream: boolean;
@@ -9,7 +10,7 @@ export interface PlaybackPreferences {
   subtitlesEnabledByDefault: boolean;
 }
 export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
-  continueWatchingPrefetch: true,
+  continueWatchingPrefetch: true, metadataPrefetch: true,
   episodeAutoplay: true, episodePrefetch: true,
   autoSelectWebStream: false,
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
@@ -42,7 +43,7 @@ function language(value: unknown): string {
 export function normalizePlaybackPreferences(value: unknown): PlaybackPreferences {
   const candidate = value && typeof value === "object" ? value as Partial<PlaybackPreferences> : {};
   return {
-    continueWatchingPrefetch: candidate.continueWatchingPrefetch !== false,
+    continueWatchingPrefetch: candidate.continueWatchingPrefetch !== false, metadataPrefetch: candidate.metadataPrefetch !== false,
     episodeAutoplay: candidate.episodeAutoplay !== false,
     episodePrefetch: candidate.episodePrefetch !== false,
     autoSelectWebStream: candidate.autoSelectWebStream === true,

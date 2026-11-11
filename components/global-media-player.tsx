@@ -85,6 +85,7 @@ const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const streamQueries = useStreamQueries();
+  const metadataQueries = streamQueries?.metadata;
   const navigatorShortcut = useNavigatorShortcut();
   const router = useRouter();
   const {
@@ -109,6 +110,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
+  useEffect(() => {
+    if (currentMedia && isPlayerVisible) return metadataQueries?.observe(currentMedia, () => {});
+  }, [metadataQueries, currentMedia, isPlayerVisible]);
+
   const subtitleTiming = useSubtitleTiming(currentMedia);
   const [timingOpenKey, setTimingOpenKey] = useState<string | null>(null);
   useEffect(() => { setTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible]);
@@ -563,13 +568,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     let metadataLoaded = Boolean(request.detailsLoaded);
     let sourceReady = false;
     let resolvedEpisodeTitle: string | undefined;
+    let resolvedEpisodeRuntime: string | undefined;
     let episodeLookupKey: string | undefined;
     const episodeRequests = new Map<string, ReturnType<typeof fetchPlaybackEpisode>>();
     const loadEpisode = (id: string, season: number, episode: number) => {
       const key = `${id}:${season}:${episode}`;
       let pending = episodeRequests.get(key);
       if (!pending) {
-        pending = fetchPlaybackEpisode(id, season, episode, metadataAbort.signal);
+        pending = metadataQueries ? metadataQueries.episodeDetails(id, season, episode, metadataAbort.signal) : fetchPlaybackEpisode(id, season, episode, metadataAbort.signal);
         episodeRequests.set(key, pending);
       }
       return pending;
@@ -610,23 +616,26 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const resolveEpisodeTitle = () => {
       const titles = getPlaybackTitles(activeMedia, latestDetails);
       if (!titles.isEpisode || titles.season === undefined || titles.episodeNumber === undefined) return;
-      if (isMeaningfulEpisodeTitle(titles.episodeTitle) && titles.episodeTitle !== titles.showTitle) return;
+      if (!metadataQueries && isMeaningfulEpisodeTitle(titles.episodeTitle) && titles.episodeTitle !== titles.showTitle) return;
       const seriesId = activeMedia.seriesId || activeMedia.id;
       const key = `${seriesId}:${titles.season}:${titles.episodeNumber}`;
       if (episodeLookupKey === key) return;
       episodeLookupKey = key;
       void loadEpisode(seriesId, titles.season, titles.episodeNumber).then(episode => {
-        if (!isCurrent() || !episode || !isMeaningfulEpisodeTitle(episode.title) || episodeLookupKey !== key) return;
-        resolvedEpisodeTitle = episode.title;
+        if (!isCurrent() || !episode || episodeLookupKey !== key) return;
+        if (isMeaningfulEpisodeTitle(episode.title)) resolvedEpisodeTitle = episode.title;
+        resolvedEpisodeRuntime = typeof episode.runtime === "number" ? `${episode.runtime} min` : episode.runtime;
+        if (resolvedEpisodeRuntime && latestDetails) { latestDetails = { ...latestDetails, runtime: resolvedEpisodeRuntime }; setMediaDetails(latestDetails); }
         publishTitle();
       }).catch(() => {});
     };
     // Neither episode names nor show metadata wait on stream resolution or each other.
     publishTitle();
     resolveEpisodeTitle();
-    if (!request.detailsLoaded) void fetchPlaybackDetails(request, metadataAbort.signal).then(details => {
+    if (!request.detailsLoaded) void (metadataQueries ? metadataQueries.details(request, metadataAbort.signal) : fetchPlaybackDetails(request, metadataAbort.signal)).then(details => {
       if (!isCurrent()) return;
       latestDetails = mergePlaybackDetails(initialDetails, details);
+      if (resolvedEpisodeRuntime) latestDetails.runtime = resolvedEpisodeRuntime;
       metadataLoaded = Boolean(details);
       setMediaDetails(latestDetails);
       publishTitle();
@@ -712,7 +721,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [nativePlayback, setCurrentMediaWithSource, streamQueries]);
+  }, [nativePlayback, setCurrentMediaWithSource, streamQueries, metadataQueries]);
   loadMediaRef.current = loadMedia;
 
   useEffect(() => {
@@ -874,6 +883,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
   const fallbackBackdrop =
     currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
+  const titleRating = mediaDetails?.imdbRating ? `IMDb ${mediaDetails.imdbRating}`
+    : mediaDetails?.ratingSource === "TMDB" && typeof mediaDetails.communityRating === "number" && mediaDetails.communityRating > 0
+      ? `TMDB ${mediaDetails.communityRating.toFixed(1)}` : undefined;
   const loadingLogo = mediaDetails?.logo || initialPlaybackDetails(currentMedia).logo;
   const videoGeneration = loadGenerationRef.current;
 
@@ -1021,9 +1033,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                     <span>{formatRuntime(mediaDetails.runtime)}</span>
                   )}
                   {mediaDetails?.year && <span>{mediaDetails.year}</span>}
-                  {mediaDetails?.imdbRating && (
-                    <span>IMDb {mediaDetails.imdbRating}</span>
-                  )}
+                  {titleRating && <span>{titleRating}</span>}
                 </motion.div>
 
                 <motion.div
@@ -1122,7 +1132,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 <span>{formatRuntime(mediaDetails.runtime)}</span>
               )}
               {mediaDetails?.year && <span>{mediaDetails.year}</span>}
-              {mediaDetails?.imdbRating && <span>IMDb {mediaDetails.imdbRating}</span>}
+              {titleRating && <span>{titleRating}</span>}
             </div>
           </div>
 
