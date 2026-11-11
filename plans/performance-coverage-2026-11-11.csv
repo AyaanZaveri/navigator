@@ -1,0 +1,491 @@
+file,kind,lines,review_depth,literal_import_path_from_production_entry,client_boundary,performance_signals,finding_ids,scope_note
+app/(main)/addons/page.tsx,tsx,23,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/dashboard/page.tsx,tsx,5,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/layout.tsx,tsx,29,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/library/[id]/page.tsx,tsx,42,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/movie/[id]/page.tsx,tsx,230,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/movie/loading.tsx,tsx,1,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/(main)/page.tsx,tsx,257,targeted call-path review,yes,False,async,P07,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/person/[id]/page.tsx,tsx,29,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/search/loading.tsx,tsx,16,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/(main)/search/page.tsx,tsx,69,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/season/[id]/page.tsx,tsx,13,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/series/[id]/[season]/[episode]/page.tsx,tsx,89,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/series/[id]/_shared/series-data.ts,ts,115,targeted call-path review,yes,False,async; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/series/[id]/layout.tsx,tsx,134,targeted call-path review,yes,False,async; prefetch,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/series/[id]/page.tsx,tsx,124,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/series/loading.tsx,tsx,1,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/(main)/settings/[category]/page.tsx,tsx,9,targeted call-path review,yes,False,async,P16,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/settings/layout.tsx,tsx,6,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/settings/page.tsx,tsx,5,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/(main)/settings/settings.module.css,css,368,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/actions/addons.ts,ts,32,targeted call-path review,yes,False,async; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/actions/artwork-settings.ts,ts,54,targeted call-path review,yes,False,network; async; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/actions/auth.ts,ts,244,targeted call-path review,yes,False,network; async; cache,P19 P25,No individual runtime profiling; targeted review is not a full semantic proof.
+app/actions/browser-connection-credentials.ts,ts,33,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/actions/index.ts,ts,69,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/actions/media.ts,ts,1031,targeted call-path review,yes,False,network; async; timers; cache,P08 P09 P19,No individual runtime profiling; targeted review is not a full semantic proof.
+app/actions/search.ts,ts,276,inventory + performance-pattern scan,yes,False,network; async; timers; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/actions/skip-segments.ts,ts,17,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/actions/subtitles.ts,ts,152,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/actions/tv-shows.ts,ts,297,targeted call-path review,yes,False,network; async; cache,P02 P09,No individual runtime profiling; targeted review is not a full semantic proof.
+app/actions/utils.ts,ts,311,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/actions/watch-history.ts,ts,132,targeted call-path review,yes,False,network; async; cache,P02,No individual runtime profiling; targeted review is not a full semantic proof.
+app/actions/web-search-settings.ts,ts,41,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/api/addons/[key]/configure/route.ts,ts,18,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/artwork/route.ts,ts,42,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/auth/login/route.ts,ts,35,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/auth/logout/route.ts,ts,15,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/auth/session/route.ts,ts,9,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/cerebras/models/route.ts,ts,57,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/chat/route.ts,ts,460,targeted call-path review,yes,False,network; async,P10,No individual runtime profiling; targeted review is not a full semantic proof.
+app/api/home/catalogs/route.ts,ts,70,targeted call-path review,yes,False,async,P07,No individual runtime profiling; targeted review is not a full semantic proof.
+app/api/library/route.ts,ts,17,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/models-dev/provider/route.ts,ts,50,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/navigator/title/route.ts,ts,26,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/openai/models/route.ts,ts,68,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/playback/details/route.ts,ts,25,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/playback/episode/route.ts,ts,23,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/playback/id/route.ts,ts,17,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/playback/next-episode/route.ts,ts,23,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/playback/subtitles/route.ts,ts,38,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/search/suggestions/route.ts,ts,20,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/series/episodes/route.ts,ts,17,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/skip-segments/introdb/route.ts,ts,29,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/streams/addon/route.ts,ts,82,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/api/streams/addons/route.ts,ts,38,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/apple-icon.png,png,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/components/auth-error-handler.tsx,tsx,45,inventory + performance-pattern scan,yes,True,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/favicon.ico,ico,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/LICENSE,,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-Black.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-Bold.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-ExtraBold.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-ExtraLight.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-Light.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-Medium.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-Regular.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-SemiBold.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/fonts/sunghyun-sans/SunghyunSans-Thin.woff2,woff2,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/globals.css,css,325,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/icon0.svg,svg,3,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/icon1.png,png,,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/layout.tsx,tsx,86,targeted call-path review,yes,False,,P26,No individual runtime profiling; targeted review is not a full semantic proof.
+app/login/page.tsx,tsx,5,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+app/manifest.json,json,21,asset inventory,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/states/player-settings/fixtures.ts,ts,57,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+app/states/player-settings/page.tsx,tsx,113,inventory + performance-pattern scan,not detected,True,geometry,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+app/states/player-settings/states.module.css,css,23,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/browser-action.ts,ts,11,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/episodes.ts,ts,187,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/index.ts,ts,158,inventory + performance-pattern scan,yes,False,async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/media.ts,ts,1125,inventory + performance-pattern scan,yes,False,async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/people.ts,ts,57,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/presentation.ts,ts,12,inventory + performance-pattern scan,yes,False,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/scene-workflow.ts,ts,85,inventory + performance-pattern scan,not detected,False,async,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+app/tools/subtitles.ts,ts,845,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/system-prompt.ts,ts,68,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/text-tool-loop.ts,ts,78,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/theme.ts,ts,68,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+app/tools/tv-shows.ts,ts,136,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+components/Aurora/Aurora.tsx,tsx,215,inventory + performance-pattern scan,not detected,True,frame-loop,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/Aurora/AuroraTransition.tsx,tsx,289,targeted call-path review,yes,True,frame-loop; observers,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/Aurora/aurora.module.css,css,7,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/LightRays/LightRays.tsx,tsx,450,inventory + performance-pattern scan,not detected,True,async; frame-loop; timers; observers; geometry,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/account-provider.tsx,tsx,79,targeted call-path review,yes,True,,P18,No individual runtime profiling; targeted review is not a full semantic proof.
+components/account-ui/button.tsx,tsx,59,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/account-ui/dialog.tsx,tsx,162,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/account-ui/drawer.tsx,tsx,230,inventory + performance-pattern scan,yes,True,context,,No individual semantic/runtime review; use findings and group coverage in report.
+components/account-ui/input.tsx,tsx,21,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/account-ui/label.tsx,tsx,22,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/account-ui/separator.tsx,tsx,27,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/account-ui/surface.module.css,css,25,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/adaptive-header-logo.module.css,css,25,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/adaptive-header-logo.tsx,tsx,188,targeted call-path review,yes,True,frame-loop; observers; geometry; canvas-read; cache; image,P01,No individual runtime profiling; targeted review is not a full semantic proof.
+components/addon-actions.tsx,tsx,124,inventory + performance-pattern scan,yes,True,async,,No individual semantic/runtime review; use findings and group coverage in report.
+components/addon-removal-motion.ts,ts,102,inventory + performance-pattern scan,yes,False,geometry; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+components/addons-list.module.css,css,189,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/addons-list.tsx,tsx,138,inventory + performance-pattern scan,yes,True,frame-loop; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ai-elements/code-block.tsx,tsx,148,inventory + performance-pattern scan,not detected,True,async; timers; context,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ai-elements/tool.tsx,tsx,152,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/app-header.module.css,css,107,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/app-header.tsx,tsx,121,targeted call-path review,yes,True,frame-loop; observers; geometry,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/arc/accordion/accordion.module.css,css,24,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/accordion/accordion.tsx,tsx,60,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/chip-group/chip-group.module.css,css,170,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/chip-group/chip-group.tsx,tsx,595,inventory + performance-pattern scan,yes,True,frame-loop; observers,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/combobox/combobox.module.css,css,33,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/combobox/combobox.tsx,tsx,299,targeted call-path review,yes,True,observers,P27,No individual runtime profiling; targeted review is not a full semantic proof.
+components/arc/dialog/dialog.module.css,css,35,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/dialog/dialog.tsx,tsx,74,inventory + performance-pattern scan,yes,True,context,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/dropdown-menu/dropdown-menu.module.css,css,46,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/dropdown-menu/dropdown-menu.tsx,tsx,99,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/expanding-search/expanding-search.module.css,css,95,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/expanding-search/expanding-search.tsx,tsx,389,inventory + performance-pattern scan,yes,True,observers; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/floating-surface.module.css,css,24,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/foundation.css,css,183,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/lib/motion-tokens.ts,ts,1,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/motion-tokens.ts,ts,28,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/number-field/number-field.module.css,css,71,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/number-field/number-field.tsx,tsx,477,targeted call-path review,not detected,True,timers; observers; geometry,,No individual runtime profiling; targeted review is not a full semantic proof. No literal import path detected; not proof of unused code.
+components/arc/popover/popover.module.css,css,35,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/popover/popover.tsx,tsx,40,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/ruler-slider/ruler-slider.module.css,css,30,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/ruler-slider/ruler-slider.tsx,tsx,236,inventory + performance-pattern scan,yes,True,timers; geometry,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/search-field/search-field.module.css,css,126,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/search-field/search-field.tsx,tsx,114,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/segmented-control/segmented-control.module.css,css,14,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/segmented-control/segmented-control.tsx,tsx,73,inventory + performance-pattern scan,yes,True,observers,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/select/select.module.css,css,51,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/select/select.tsx,tsx,100,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/arc/slider/slider.module.css,css,45,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/slider/slider.tsx,tsx,405,targeted call-path review,yes,True,timers; geometry,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/arc/switch/switch.module.css,css,13,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/switch/switch.tsx,tsx,75,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/user-menu/user-menu.module.css,css,169,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/arc/user-menu/user-menu.tsx,tsx,431,inventory + performance-pattern scan,yes,True,frame-loop; timers; geometry; image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/artwork-image.module.css,css,44,inventory + performance-pattern scan,not graphed,,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+components/artwork-image.tsx,tsx,66,targeted call-path review,yes,True,geometry; image,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/aurora-background.tsx,tsx,31,targeted call-path review,yes,True,frame-loop,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/aurora-provider.tsx,tsx,72,targeted call-path review,yes,True,context,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/auth-status.tsx,tsx,52,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/biography-section.tsx,tsx,60,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/browser-connection-sync.tsx,tsx,36,targeted call-path review,yes,True,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/browser-player-glass.tsx,tsx,13,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/carousel-action.tsx,tsx,22,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/cast-scrollarea.tsx,tsx,117,targeted call-path review,yes,True,observers,P12,No individual runtime profiling; targeted review is not a full semantic proof.
+components/continue-watching-card.tsx,tsx,73,inventory + performance-pattern scan,not detected,True,async; image,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/deferred-tools.tsx,tsx,68,targeted call-path review,yes,True,timers,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/desktop/app-ready.tsx,tsx,21,inventory + performance-pattern scan,yes,True,frame-loop,,No individual semantic/runtime review; use findings and group coverage in report.
+components/desktop/mpv-video.tsx,tsx,36,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/desktop/native-playback.css,css,47,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/desktop/tracks.tsx,tsx,39,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/desktop/window-controls.module.css,css,13,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/desktop/window-controls.tsx,tsx,40,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/episode-card.tsx,tsx,99,inventory + performance-pattern scan,not detected,True,async; image; prefetch,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/episode-description.tsx,tsx,63,inventory + performance-pattern scan,yes,True,observers,,No individual semantic/runtime review; use findings and group coverage in report.
+components/episode-hero-thumbnail.tsx,tsx,58,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/episode-streams-route-aware.tsx,tsx,101,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/fullscreen-detector.tsx,tsx,47,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/global-media-player.tsx,tsx,1248,targeted call-path review,yes,True,async; cache; image,P04 P05,No individual runtime profiling; targeted review is not a full semantic proof.
+components/gradient-ascii/gradient-ascii.css,css,14,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/gradient-ascii/gradient-ascii.jsx,jsx,994,targeted call-path review,not graphed,,frame-loop; observers; geometry; canvas-read; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/hero-wordmark.module.css,css,35,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/hero-wordmark.tsx,tsx,138,targeted call-path review,yes,True,canvas-read,P22,No individual runtime profiling; targeted review is not a full semantic proof.
+components/home-catalog-sections-lazy.tsx,tsx,183,targeted call-path review,yes,True,network; async; observers; geometry; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/home-gradient-background.module.css,css,18,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/home-gradient-background.tsx,tsx,56,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/home-palette-provider.tsx,tsx,22,targeted call-path review,yes,True,context,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/icons/codecs.tsx,tsx,160,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/icons/imdb.tsx,tsx,135,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/icons/rotten-tomatoes.tsx,tsx,25,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/icons/tinyfish.tsx,tsx,52,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/icons/tmdb.tsx,tsx,32,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/image-editor-dialog.tsx,tsx,13,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/jellyfin-icon.tsx,tsx,19,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/jotai-provider.tsx,tsx,8,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/keyboard-shortcuts.tsx,tsx,86,inventory + performance-pattern scan,yes,True,async; timers,,No individual semantic/runtime review; use findings and group coverage in report.
+components/layout-content.module.css,css,25,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/layout-content.tsx,tsx,108,targeted call-path review,yes,True,async; timers,P20,No individual runtime profiling; targeted review is not a full semantic proof.
+components/library-media-list.tsx,tsx,216,targeted call-path review,yes,True,network; async; timers; cache,P14,No individual runtime profiling; targeted review is not a full semantic proof.
+components/login-form.tsx,tsx,160,targeted call-path review,yes,True,async; timers; image,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/logs/columns.tsx,tsx,117,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/logs/data-table.tsx,tsx,185,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/logs/log-viewer-dialog.tsx,tsx,261,inventory + performance-pattern scan,not detected,True,async; timers,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/magicui/aurora-text.tsx,tsx,43,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/magicui/border-beam.tsx,tsx,106,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/magicui/rainbow-button.tsx,tsx,62,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/magicui/text-animate.tsx,tsx,410,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/media-actions.module.css,css,240,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-actions.tsx,tsx,352,targeted call-path review,yes,True,async,P24,No individual runtime profiling; targeted review is not a full semantic proof.
+components/media-card.module.css,css,180,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-card.tsx,tsx,234,targeted call-path review,yes,True,async; image; prefetch,P03 P15 P21,No individual runtime profiling; targeted review is not a full semantic proof.
+components/media-info-dialog.tsx,tsx,64,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/media-page/backdrop-image.tsx,tsx,55,targeted call-path review,yes,True,image,P15,No individual runtime profiling; targeted review is not a full semantic proof.
+components/media-page/backdrop-transition.module.css,css,150,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/backdrop-transition.tsx,tsx,11,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/cast-section.tsx,tsx,13,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/detail-artwork.module.css,css,18,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/episode-details-boundary.module.css,css,5,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/episode-details-boundary.tsx,tsx,22,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/episode-details-sample.tsx,tsx,39,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/episode-details-view.tsx,tsx,87,inventory + performance-pattern scan,yes,False,prefetch,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/loading.tsx,tsx,31,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/media-rating-badge.tsx,tsx,24,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/play-button.tsx,tsx,103,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/playback-progress-overlay.tsx,tsx,54,inventory + performance-pattern scan,not detected,False,async,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/media-page/poster-image.tsx,tsx,58,targeted call-path review,yes,True,image,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/media-page/shuffle-episode-button.tsx,tsx,75,inventory + performance-pattern scan,yes,True,async,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-page/use-backdrop-overscroll.ts,ts,91,targeted call-path review,yes,True,frame-loop; observers,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/media-page/watch-toggle-button.tsx,tsx,53,inventory + performance-pattern scan,yes,True,async,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-section.module.css,css,22,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/media-section.tsx,tsx,102,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/model-icon.tsx,tsx,50,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/motion-primitives/activity-text-shimmer.module.css,css,29,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/motion-primitives/activity-text-shimmer.tsx,tsx,7,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/motion-primitives/progressive-blur.tsx,tsx,66,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/motion-primitives/text-scramble.tsx,tsx,85,inventory + performance-pattern scan,not detected,True,timers,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/motion-primitives/text-shimmer.tsx,tsx,57,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/native-player-glass.tsx,tsx,94,inventory + performance-pattern scan,yes,True,frame-loop; observers; geometry,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/activity-status.tsx,tsx,36,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/ai-ask.tsx,tsx,430,targeted call-path review,yes,True,async; timers; cache,P06,No individual runtime profiling; targeted review is not a full semantic proof.
+components/navigator/composer-input.tsx,tsx,56,inventory + performance-pattern scan,yes,True,observers; geometry,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/episode-card.tsx,tsx,74,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/navigator/episode-metadata-card.tsx,tsx,27,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus-results.tsx,tsx,611,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus-ui/badge.tsx,tsx,49,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/navigator/focus-ui/button.tsx,tsx,57,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus-ui/input-group.tsx,tsx,152,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus-ui/input.tsx,tsx,19,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus-ui/kbd.tsx,tsx,27,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus-ui/textarea.tsx,tsx,17,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus.css,css,63,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/focus.tsx,tsx,671,targeted call-path review,yes,True,frame-loop; timers,P06,No individual runtime profiling; targeted review is not a full semantic proof.
+components/navigator/index.ts,ts,12,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/navigator/launcher.css,css,27,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/launcher.tsx,tsx,30,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/media-analysis-card.tsx,tsx,53,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/media-details-card.tsx,tsx,96,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/media-link-card.tsx,tsx,105,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/navigation-card.tsx,tsx,73,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/person-card.tsx,tsx,23,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/play-media-card.tsx,tsx,80,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/result-card-motion.ts,ts,6,inventory + performance-pattern scan,yes,True,context,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/result-card.module.css,css,194,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/result-card.tsx,tsx,166,inventory + performance-pattern scan,yes,True,context; image; prefetch,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/scene-explain-card.tsx,tsx,61,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/season-card.tsx,tsx,61,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/stream-card.tsx,tsx,54,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/stream-list-card.tsx,tsx,116,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/subtitle-evidence.tsx,tsx,21,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/subtitle-skip-card.module.css,css,23,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/subtitle-skip-card.tsx,tsx,39,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/subtitle-track-card.tsx,tsx,20,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/theme-toggle-card.module.css,css,33,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/theme-toggle-card.tsx,tsx,36,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/navigator/web-source-card.tsx,tsx,35,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/onboarding-flow.tsx,tsx,28,inventory + performance-pattern scan,not detected,True,async,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/opencode-icon.tsx,tsx,18,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/person-card.tsx,tsx,41,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/playback-language-settings.tsx,tsx,61,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/playback-page-provider.tsx,tsx,20,targeted call-path review,yes,True,context; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/playback-settings.tsx,tsx,36,inventory + performance-pattern scan,yes,True,prefetch,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-entrance.css,css,18,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-loading-status.tsx,tsx,5,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-loading-wordmark.module.css,css,96,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-loading-wordmark.tsx,tsx,44,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-mobile.css,css,254,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-next-episode.tsx,tsx,18,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/player-settings-menu.module.css,css,5,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-settings-menu.tsx,tsx,68,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-skip-segments.module.css,css,80,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-skip-segments.tsx,tsx,112,inventory + performance-pattern scan,yes,True,observers; geometry,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-skip-timeline.tsx,tsx,16,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-subtitles.module.css,css,15,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/player-subtitles.tsx,tsx,112,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/player-video-fit.tsx,tsx,41,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/poster-url-updater.tsx,tsx,,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/preview-image.tsx,tsx,50,inventory + performance-pattern scan,yes,True,canvas-read; cache; image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/scan-library-button.tsx,tsx,32,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/scheduled-task-card.tsx,tsx,47,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/search-component.tsx,tsx,210,targeted call-path review,yes,True,async; timers; cache; image; prefetch,P03,No individual runtime profiling; targeted review is not a full semantic proof.
+components/search-page-controls.tsx,tsx,51,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/search-page.module.css,css,39,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/search-results-view.tsx,tsx,81,targeted call-path review,yes,True,cache,P23,No individual runtime profiling; targeted review is not a full semantic proof.
+components/search-section-loading.tsx,tsx,25,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/search-suggestion-item.tsx,tsx,91,inventory + performance-pattern scan,not detected,False,image,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/season-episodes.module.css,css,7,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/season-episodes.tsx,tsx,707,targeted call-path review,yes,True,async; cache; image; prefetch,P03 P13,No individual runtime profiling; targeted review is not a full semantic proof.
+components/seek-preview.tsx,tsx,203,inventory + performance-pattern scan,yes,True,timers; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+components/series-episodes-route-aware.tsx,tsx,46,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/series-page-header.tsx,tsx,74,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/series-play-button.tsx,tsx,83,inventory + performance-pattern scan,not detected,True,async,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/settings/settings-shell.tsx,tsx,66,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/settings/settings-view.tsx,tsx,764,targeted call-path review,yes,True,network; async; timers,P16 P17,No individual runtime profiling; targeted review is not a full semantic proof.
+components/settings/use-catalog-models.ts,ts,57,targeted call-path review,yes,True,network; async; timers; cache,P17,No individual runtime profiling; targeted review is not a full semantic proof.
+components/settings/use-connection-credential.ts,ts,40,targeted call-path review,yes,True,,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/settings/use-openai-models.ts,ts,60,targeted call-path review,yes,True,network; async; timers,P17,No individual runtime profiling; targeted review is not a full semantic proof.
+components/sign-in-for-streams.tsx,tsx,27,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/stream-summary.tsx,tsx,38,targeted call-path review,yes,False,,P24,No individual runtime profiling; targeted review is not a full semantic proof.
+components/subtitle-settings.tsx,tsx,58,inventory + performance-pattern scan,yes,True,image,,No individual semantic/runtime review; use findings and group coverage in report.
+components/subtitle-text.module.css,css,25,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/subtitle-text.tsx,tsx,16,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/subtitle-timing-popover.module.css,css,15,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/subtitle-timing-popover.tsx,tsx,78,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/alert-dialog.tsx,tsx,196,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/avatar.tsx,tsx,54,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/backdrop-blur.tsx,tsx,,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/badge.tsx,tsx,48,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/bento-grid.tsx,tsx,166,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/button.tsx,tsx,64,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/card.tsx,tsx,92,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/checkbox.tsx,tsx,32,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/collapsible.tsx,tsx,33,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/combobox.tsx,tsx,310,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/dialog.tsx,tsx,143,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/dropdown-menu.tsx,tsx,260,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/empty.tsx,tsx,105,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/field.tsx,tsx,249,inventory + performance-pattern scan,yes,True,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/flag.tsx,tsx,94,inventory + performance-pattern scan,not detected,False,cache; image,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/input-group.tsx,tsx,170,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/input.tsx,tsx,21,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/kbd.tsx,tsx,28,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/label.tsx,tsx,24,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/loading-placeholder.module.css,css,12,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/loading-placeholder.tsx,tsx,16,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/media-player.tsx,tsx,3293,targeted call-path review,yes,True,frame-loop; timers; observers; context; geometry; cache,P04,No individual runtime profiling; targeted review is not a full semantic proof.
+components/ui/popover.tsx,tsx,49,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/progress.tsx,tsx,31,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/scroll-area.module.css,css,17,inventory + performance-pattern scan,not graphed,,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/scroll-area.tsx,tsx,65,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/select.tsx,tsx,194,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/separator.tsx,tsx,28,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/sheet.tsx,tsx,139,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/sidebar.tsx,tsx,726,inventory + performance-pattern scan,not detected,True,context,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/skeleton.tsx,tsx,14,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/slider.tsx,tsx,63,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/sonner.tsx,tsx,26,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/sortable.tsx,tsx,591,inventory + performance-pattern scan,not detected,True,context,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/switch.tsx,tsx,31,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/table.tsx,tsx,116,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/tabs.tsx,tsx,91,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/text-shimmer-wave.tsx,tsx,89,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/textarea.tsx,tsx,18,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/ui/theme-toggle.tsx,tsx,50,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/toggle-group.tsx,tsx,83,inventory + performance-pattern scan,not detected,True,context,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/toggle.tsx,tsx,47,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/ui/tooltip.tsx,tsx,64,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/use-player-chapters.ts,ts,34,targeted call-path review,yes,True,timers,P04,No individual runtime profiling; targeted review is not a full semantic proof.
+components/vibrant-aurora-background.tsx,tsx,45,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+components/vibrant-backdrop.tsx,tsx,87,inventory + performance-pattern scan,not detected,True,async; image,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+components/vibrant-logo.tsx,tsx,38,targeted call-path review,yes,True,image,,No individual runtime profiling; targeted review is not a full semantic proof.
+components/watched-indicator.tsx,tsx,27,targeted call-path review,yes,True,,P11,No individual runtime profiling; targeted review is not a full semantic proof.
+contexts/AuthContext.tsx,tsx,41,inventory + performance-pattern scan,not detected,True,context,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+contexts/MediaPlayerContext.tsx,tsx,51,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+contexts/account-context.tsx,tsx,11,inventory + performance-pattern scan,yes,True,context,,No individual semantic/runtime review; use findings and group coverage in report.
+contexts/settings-context.tsx,tsx,503,targeted call-path review,yes,True,context,P20,No individual runtime profiling; targeted review is not a full semantic proof.
+contexts/watch-history-context.tsx,tsx,150,targeted call-path review,yes,True,timers; context; cache,P11,No individual runtime profiling; targeted review is not a full semantic proof.
+hooks/use-mobile.ts,ts,19,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+hooks/use-navigator-shortcut.ts,ts,14,inventory + performance-pattern scan,yes,True,,,No individual semantic/runtime review; use findings and group coverage in report.
+hooks/useAI.ts,ts,65,inventory + performance-pattern scan,not detected,False,network; async,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+hooks/useAuth.ts,ts,50,targeted call-path review,not detected,True,network; async; timers; cache,,No individual runtime profiling; targeted review is not a full semantic proof. No literal import path detected; not proof of unused code.
+hooks/useKeyboardShortcut.ts,ts,64,inventory + performance-pattern scan,not detected,True,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/addon-management.ts,ts,69,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/addons.ts,ts,64,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/artwork.ts,ts,91,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/atoms.ts,ts,119,inventory + performance-pattern scan,yes,False,timers,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/aurora-palette-loader.ts,ts,99,targeted call-path review,yes,False,async; timers; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/aurora-palette.ts,ts,32,inventory + performance-pattern scan,yes,False,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/aurora-transition.ts,ts,48,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/auth-client.ts,ts,40,inventory + performance-pattern scan,not detected,True,network; async,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/browser-connection-credentials.ts,ts,16,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/cast.ts,ts,31,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/compose-refs.ts,ts,62,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/cookie-policy.ts,ts,6,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/desktop/bridge.ts,ts,100,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/desktop/media-store.ts,ts,18,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/desktop/mpv-controller.ts,ts,337,targeted call-path review,yes,False,timers; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/desktop/mpv-element.ts,ts,58,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/desktop/windows-caption-visibility.ts,ts,45,inventory + performance-pattern scan,yes,False,observers; geometry,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/desktop/windows-player-glass.ts,ts,85,inventory + performance-pattern scan,yes,False,observers; geometry; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/device-detection.ts,ts,190,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/episode-discovery.ts,ts,262,inventory + performance-pattern scan,yes,False,async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/episode-research.ts,ts,89,inventory + performance-pattern scan,yes,False,async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/episode-web-plan.ts,ts,35,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/format-runtime.ts,ts,21,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/format-scene-time.ts,ts,12,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/gradient-palette.ts,ts,89,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/home-catalogs.ts,ts,18,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/home-palette-colors.ts,ts,85,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/home-palette.ts,ts,105,inventory + performance-pattern scan,yes,False,timers,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/library-page.ts,ts,59,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/logo-backdrop.ts,ts,182,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/logo-canvas.ts,ts,52,inventory + performance-pattern scan,yes,False,geometry,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/logo-contrast.ts,ts,103,inventory + performance-pattern scan,yes,False,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/logo-surfaces.ts,ts,79,targeted call-path review,yes,False,geometry; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media-description.ts,ts,30,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/audio-language.ts,ts,90,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/browser-player-glass.ts,ts,139,inventory + performance-pattern scan,yes,False,observers; geometry; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/carousel-artwork.ts,ts,87,targeted call-path review,yes,False,frame-loop; observers; geometry; cache; prefetch,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/chapter-timeline.ts,ts,34,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/chapters.ts,ts,115,targeted call-path review,yes,False,network; async,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/control-activity.ts,ts,11,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/episode-continuation.ts,ts,99,inventory + performance-pattern scan,yes,False,async; prefetch,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/fetch-playback-details.ts,ts,17,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/fetch-playback-episode.ts,ts,11,targeted call-path review,yes,False,network; async,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/fetch-playback-id.ts,ts,7,targeted call-path review,yes,False,network; async; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/fetch-playback-streams.ts,ts,68,targeted call-path review,yes,False,network; async,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/playback-context.ts,ts,43,inventory + performance-pattern scan,yes,False,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/playback-details.ts,ts,41,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/playback-limits.ts,ts,2,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/playback-preferences.ts,ts,62,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/playback-source.ts,ts,16,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/playback-subtitles.ts,ts,58,targeted call-path review,yes,False,network; async; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/playback-titles.ts,ts,32,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/prefetch-next-episode.ts,ts,64,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/preview-content.ts,ts,28,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/preview-frames.ts,ts,186,inventory + performance-pattern scan,yes,False,timers; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/range-preview-frames.ts,ts,89,inventory + performance-pattern scan,yes,False,network; async; timers; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/resolve-playback.ts,ts,430,targeted call-path review,yes,False,async; timers; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/resume-playback.ts,ts,57,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/series-season.ts,ts,66,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/shuffle-episode.ts,ts,29,inventory + performance-pattern scan,yes,False,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/skip-segments.ts,ts,212,inventory + performance-pattern scan,yes,False,async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/stream-codecs.ts,ts,37,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/stream-metadata.ts,ts,110,targeted call-path review,yes,False,async; timers; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/stream-playability.ts,ts,178,targeted call-path review,yes,False,async; timers,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/stream-presentation.ts,ts,49,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/stream-release-info.ts,ts,82,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/subtitle-episode-identity.ts,ts,31,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/subtitle-preference.ts,ts,18,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/subtitle-timing.ts,ts,28,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/touch-scrubbing.ts,ts,114,inventory + performance-pattern scan,yes,False,geometry,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/track-flags.ts,ts,62,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/track-label.ts,ts,50,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/media/use-episode-continuation.ts,ts,79,targeted call-path review,yes,True,async; prefetch,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/media/web-startup-watchdog.ts,ts,67,inventory + performance-pattern scan,yes,False,timers,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/models-dev.ts,ts,186,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-activity-label.ts,ts,169,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-beam.ts,ts,11,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-chat.ts,ts,186,targeted call-path review,yes,False,,P06,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/navigator-evidence.ts,ts,30,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-model-settings.ts,ts,19,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-playback-ack.ts,ts,28,inventory + performance-pattern scan,yes,False,timers,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-scene-context.ts,ts,48,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-scene-intent.ts,ts,32,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/navigator-scene-progress.ts,ts,40,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-selection.ts,ts,39,inventory + performance-pattern scan,yes,False,cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-structured-output.ts,ts,121,inventory + performance-pattern scan,yes,False,async; timers,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-subtitles.ts,ts,30,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-timing.ts,ts,51,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-title-path.ts,ts,18,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-title-selection.ts,ts,29,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/navigator-tool-policy.ts,ts,14,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/opencode-go.ts,ts,23,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/optimistic-toggle.ts,ts,43,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/palette-worker-client.ts,ts,104,inventory + performance-pattern scan,yes,False,async; timers; canvas-read,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/palette.worker.ts,ts,18,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/preload-tools.ts,ts,8,targeted call-path review,yes,False,,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/scheduled-task-icon-mapping.ts,ts,136,inventory + performance-pattern scan,not detected,False,,,No individual semantic/runtime review; use findings and group coverage in report. No literal import path detected; not proof of unused code.
+lib/search-catalog-stream.ts,ts,41,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/search-presentation.ts,ts,27,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/series-route.ts,ts,87,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/server/auth.ts,ts,10,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/server/library-page.ts,ts,44,targeted call-path review,yes,False,async; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/server/outbound-fetch.ts,ts,135,targeted call-path review,yes,False,network; async; cache,P09,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/server/session.ts,ts,99,targeted call-path review,yes,False,async; timers,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/settings-navigation.ts,ts,17,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/stremio-watched.ts,ts,60,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/subtitle-appearance.ts,ts,34,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/subtitle-provider.ts,ts,13,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/tinyfish-credentials.ts,ts,16,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/tinyfish.ts,ts,99,inventory + performance-pattern scan,yes,False,network; async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/tmdb-artwork.ts,ts,68,targeted call-path review,yes,False,async,P15,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/tmdb-cast.ts,ts,22,targeted call-path review,yes,False,async,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/tmdb-credentials.ts,ts,19,inventory + performance-pattern scan,yes,False,async,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/tmdb-discovery.ts,ts,324,targeted call-path review,yes,False,network; async; cache,P07 P10 P15,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/tmdb.ts,ts,27,targeted call-path review,yes,False,network; async; cache,,No individual runtime profiling; targeted review is not a full semantic proof.
+lib/utils.ts,ts,101,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/watch-history.ts,ts,19,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/watch-status-queue.ts,ts,94,inventory + performance-pattern scan,yes,False,async; cache,,No individual semantic/runtime review; use findings and group coverage in report.
+lib/wordmark-bounds.ts,ts,54,inventory + performance-pattern scan,yes,False,,,No individual semantic/runtime review; use findings and group coverage in report.
