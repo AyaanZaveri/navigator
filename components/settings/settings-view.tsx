@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
 import { Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
 import Link from "next/link";
@@ -41,6 +41,7 @@ import { getWebSearchSettings, saveWebSearchKey, removeWebSearchKey, setWebSearc
 import { useConnectionCredential } from "@/components/settings/use-connection-credential";
 import { useOpenAIModels } from "@/components/settings/use-openai-models";
 import { CONNECTION_CREDENTIALS_EVENT } from "@/lib/browser-connection-credentials";
+import { createOptimisticToggle } from "@/lib/optimistic-toggle";
 import type { SettingsCategory } from "@/lib/settings-navigation";
 import styles from "@/app/(main)/settings/settings.module.css";
 
@@ -188,22 +189,51 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState("");
+    const stateRef = useRef(state);
+    const toggleQueue = useRef<ReturnType<typeof createOptimisticToggle> | null>(null);
+    const loadVersion = useRef(0);
+    useEffect(() => {
+        const queue = createOptimisticToggle({
+            read: () => stateRef.current.enabled,
+            update: enabled => {
+                stateRef.current = { ...stateRef.current, enabled };
+                setState(previous => ({ ...previous, enabled }));
+            },
+            save: async enabled => {
+                const result = await setWebSearchEnabled(enabled);
+                if (!result.success) throw new Error(result.error);
+                return result.enabled;
+            },
+            failed: error => setError(error instanceof Error ? error.message : "Couldn’t update web search. Try again."),
+        });
+        toggleQueue.current = queue;
+        return () => { queue.dispose(); toggleQueue.current = null; };
+    }, []);
     useEffect(() => {
         let active = true;
-        const load = () => getWebSearchSettings().then(value => { if (active) setState(value); })
-            .catch(() => { if (active) setError("Couldn’t load web search settings."); })
-            .finally(() => { if (active) setLoading(false); });
+        const load = () => {
+            const version = ++loadVersion.current;
+            const wasPending = toggleQueue.current?.isPending();
+            return getWebSearchSettings().then(value => {
+                if (active && version === loadVersion.current && !wasPending && !toggleQueue.current?.isPending()) {
+                    stateRef.current = value;
+                    setState(value);
+                }
+            })
+                .catch(() => { if (active && version === loadVersion.current && !wasPending && !toggleQueue.current?.isPending()) setError("Couldn’t load web search settings."); })
+                .finally(() => { if (active) setLoading(false); });
+        };
         void load();
         window.addEventListener(CONNECTION_CREDENTIALS_EVENT, load);
         return () => { active = false; window.removeEventListener(CONNECTION_CREDENTIALS_EVENT, load); };
     }, []);
-    async function update(operation: "save" | "remove" | "toggle", enabled?: boolean) {
+    async function update(operation: "save" | "remove") {
         setPending(true); setError(null); setStatus("");
         try {
-            const result = operation === "save" ? await saveWebSearchKey(key)
-                : operation === "remove" ? await removeWebSearchKey() : await setWebSearchEnabled(!!enabled);
+            const result = operation === "save" ? await saveWebSearchKey(key) : await removeWebSearchKey();
             if (!result.success) { setError(result.error); return; }
-            setState({ configured: result.configured, personal: result.personal, enabled: result.enabled });
+            stateRef.current = { configured: result.configured, personal: result.personal, enabled: result.enabled };
+            setState(stateRef.current);
             if (operation === "save") persistKey(key.trim());
             if (operation === "remove") persistKey("");
             setStatus(operation === "save" ? "Key saved." : operation === "remove" ? "Key removed." : "");
@@ -218,7 +248,11 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
             {variant === "preference" && <Field orientation="horizontal">
                 <FieldContent><FieldLabel htmlFor="tinyfish-web-search"><TinyFishIcon size={16} className="shrink-0" />Use TinyFish web search</FieldLabel></FieldContent>
                 <Switch id="tinyfish-web-search" checked={state.enabled && state.configured} disabled={loading || pending || !state.configured}
-                    onCheckedChange={enabled => void update("toggle", enabled)} />
+                    onCheckedChange={enabled => {
+                        loadVersion.current++;
+                        setError(null);
+                        toggleQueue.current?.set(enabled);
+                    }} />
             </Field>}
             {variant === "preference" && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
             {variant === "preference" && !loading && !state.configured && <p className={styles.description}>
