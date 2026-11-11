@@ -10,8 +10,16 @@ import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { AddonListItem } from "@/lib/addons";
 import styles from "./addons-list.module.css";
+import { useStreamQueries } from "@/components/stream-query-provider";
 
 export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: AddonListItem; onUninstalled: (_options: { animate: boolean }) => void; onRemovalFocus: () => void }) {
+    const queries = useStreamQueries();
+    const configuring = useRef(false);
+    useEffect(() => {
+        const returned = () => { if (configuring.current) { configuring.current = false; queries?.invalidate(); } };
+        window.addEventListener("focus", returned);
+        return () => window.removeEventListener("focus", returned);
+    }, [queries]);
     const uninstalled = useRef(false);
     const [shareOpen, setShareOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
@@ -54,6 +62,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
         try {
             const result = await uninstallAddon(addon.id);
             if (result.error) { setRemoveError(result.error); return; }
+            queries?.invalidate();
             toast.success(`${addon.name} uninstalled`);
             uninstalled.current = true;
             setRemoveOpen(false);
@@ -67,7 +76,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
         <div className={styles.actions}>
             {addon.configurable && (
                 <Button asChild variant="outline" size="sm">
-                    <a href={`/api/addons/${addon.id}/configure`} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
+                    <a href={`/api/addons/${addon.id}/configure`} onClick={() => { configuring.current = true; }} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
                         <Settings data-icon="inline-start" aria-hidden="true" />Settings
                     </a>
                 </Button>

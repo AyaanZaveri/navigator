@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useStreamQueries } from "@/components/stream-query-provider";
 import { useSettings } from "@/contexts/settings-context";
 import { EpisodeContinuation, shouldPrefetchEpisode } from "./episode-continuation";
 import { fetchFollowingEpisode, prepareNextEpisode } from "./prefetch-next-episode";
@@ -16,6 +17,7 @@ export function useEpisodeContinuation(options: {
   play(_media: MediaToPlay): void; beforeAdvance(_ended: boolean): void; finish(): void;
 }) {
     const { playbackPreferences = DEFAULT_PLAYBACK_PREFERENCES } = useSettings();
+    const streamQueries = useStreamQueries();
     const latest = useRef(options);
     useLayoutEffect(() => { latest.current = options; });
     const titles = options.media ? getPlaybackTitles(options.media, options.media.details || null) : null;
@@ -37,7 +39,7 @@ export function useEpisodeContinuation(options: {
                 return `${current.media.seriesId || current.media.id}:${target.season}:${target.episodeNumber}` === key;
             },
             lookup: signal => fetchFollowingEpisode(id!, season!, episode!, signal),
-            prepare: (media, signal) => prepareNextEpisode(media, options.native, signal),
+            prepare: (media, signal) => prepareNextEpisode(media, options.native, signal, streamQueries?.create),
             warm: (media, signal) => preloadNextVideo(media, options.native, latest.current.duration, signal),
             beforeAdvance: value => latest.current.beforeAdvance(value),
             play: media => latest.current.play(media),
@@ -46,7 +48,7 @@ export function useEpisodeContinuation(options: {
         let cancelled = false;
         void continuation.next().then(next => { if (!cancelled) setSnapshot({ owner: key, next, busy: false }); });
         return () => { cancelled = true; continuation.dispose(); };
-    }, [key, id, season, episode, options.native]);
+    }, [key, id, season, episode, options.native, streamQueries]);
     useEffect(() => {
         if (!playbackPreferences.episodePrefetch && owner.current?.key === key) owner.current.continuation.cancelPrefetch();
     }, [key, playbackPreferences.episodePrefetch]);

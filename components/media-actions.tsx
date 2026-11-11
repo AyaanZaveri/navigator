@@ -18,9 +18,8 @@ import { SearchField } from "@/components/arc/search-field/search-field";
 import { ChipGroup } from "@/components/arc/chip-group/chip-group";
 import styles from "./media-actions.module.css";
 import { StreamSummary } from "@/components/stream-summary";
-import { usePlaybackPage } from "@/components/playback-page-provider";
 import { createPlaybackStreamRequest, type StreamWithAddon } from "@/lib/media/fetch-playback-streams";
-import { streamRequestKey } from "@/lib/media/playback-context";
+import { useStreamQueries } from "@/components/stream-query-provider";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 import { useAccountAccess } from "@/contexts/account-context";
 import { SignInForStreams } from "@/components/sign-in-for-streams";
@@ -36,7 +35,7 @@ const RESOLUTION_FILTERS = ["2160p", "1080p", "720p"] as const;
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const { authenticated } = useAccountAccess();
   const activeMedia = media ?? movie;
-  const page = usePlaybackPage();
+  const queries = useStreamQueries();
   const activeId = activeMedia?.id;
   const activeType = activeMedia?.type;
   const { setIsPlayerVisible, playMedia } = usePlaybackActions();
@@ -92,15 +91,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     if (!authenticated || !activeId || !activeType) return;
     let cancelled = false;
 
-    const key = streamRequestKey(activeId, activeType);
-    let request = page?.streamRequests.get(key);
-    if (!request) {
-      request = createPlaybackStreamRequest(activeId, activeType);
-      // Keep only this page's current stream list. Already-joined players own
-      // their promise independently, even after navigation/unmount.
-      page?.streamRequests.clear();
-      page?.streamRequests.set(key, request);
-    }
+    const lease = queries?.acquire({ id: activeId, type: activeType });
+    const request = lease?.request || createPlaybackStreamRequest(activeId, activeType);
     let firstSnapshot = true;
     const unsubscribe = request.subscribe(snapshot => {
       if (cancelled) return;
@@ -114,11 +106,10 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     void request.promise.then(() => {
       if (!cancelled) { setLoading(false); setHasCheckedStreams(true); }
     }).catch(error => {
-      if (page?.streamRequests.get(key) === request) page.streamRequests.delete(key);
       if (!cancelled) { console.error("Failed to fetch streams:", error); setLoading(false); setHasCheckedStreams(true); }
     });
-    return () => { cancelled = true; unsubscribe(); };
-  }, [activeId, activeType, page, authenticated]);
+    return () => { cancelled = true; unsubscribe(); lease?.release(); };
+  }, [activeId, activeType, queries, authenticated]);
 
   if (!activeMedia) return null;
   if (!authenticated) return <SignInForStreams />;
@@ -172,7 +163,6 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     await playMedia({
       details: projectPlaybackDetails({ ...activeMedia, id: activeMedia.seriesId || activeMedia.id, name: activeMedia.showName || activeMedia.name }),
       detailsLoaded: true,
-      streamRequest: page?.streamRequests.get(streamRequestKey(activeMedia.id, activeMedia.type)),
       id: isEpisode ? activeMedia.seriesId! : activeMedia.id,
       name: isEpisode
         ? activeMedia.episodeTitle || activeMedia.name

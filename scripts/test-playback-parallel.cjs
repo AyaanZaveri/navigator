@@ -29,6 +29,8 @@ function utility(file) {
 }
 const callbacks = [], changes = [], requests = [];
 const subtitleRequests = [];
+const sharedMode = process.argv.includes('--shared');
+let sharedAcquisitions = 0;
 const ordinarySeries = process.argv.includes("--series");
 const onPage = process.argv.includes("--page");
 const provided = process.argv.includes("--provided") || onPage;
@@ -52,7 +54,7 @@ const hooks = {
     useRef: initial => ({ current: initial }),
     useEffect: noOp,
     useLayoutEffect: noOp,
-    useCallback: callback => { callbacks.push(callback); return callback; },
+    useMemo: fn => fn(), useCallback: callback => { callbacks.push(callback); return callback; },
 };
 const context = { exports: {}, AbortController, console, document: { createElement: () => ({ canPlayType: () => "" }) }, require(name) {
     if (name === 'next/navigation') return { useRouter: () => ({ push: noOp }) };
@@ -60,12 +62,13 @@ const context = { exports: {}, AbortController, console, document: { createEleme
     if (name === 'sonner') return { toast: Object.assign(noOp, { dismiss: noOp, error: noOp }) };
     if (name.endsWith('.css')) return {};
     if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({ currentMedia: request, isPlayerVisible: false, setCurrentMediaWithSource: noOp }) };
+    if (name === '@/components/stream-query-provider') return { useStreamQueries: () => sharedMode ? { create: (id, type) => { sharedAcquisitions++; return { id, type, canonicalId: Promise.resolve(id), promise: streams }; } } : null };
     if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
     if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
     if (name === '@/lib/media/playback-preferences') return utility('lib/media/playback-preferences.ts');
     if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
     if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
-    if (name === '@/lib/media/fetch-playback-streams') return { fetchPlaybackStreams() { requests.push('streams'); return streams; } };
+    if (name === '@/lib/media/fetch-playback-streams') return { fetchPlaybackStreams() { assert.equal(sharedMode, false, 'Playback must use the session QueryClient'); requests.push('streams'); return streams; } };
     if (name === '@/app/actions') return { fetchMediaDetails() { throw Error('Player metadata must not queue a Server Action'); } };
     if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails(_media, signal) { assert.ok(signal); requests.push('details'); return details; } };
     if (name === '@/lib/media/playback-details') return utility('lib/media/playback-details.ts');
@@ -101,13 +104,14 @@ assert.ok(load, 'Exercise the actual player loading callback');
 (async () => {
     const pending = load(request);
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(requests, onPage ? [] : provided ? ['details', 'streams'] : ordinarySeries ? ['details', 'episode-http', 'streams'] : ['episode-http', 'details', 'streams'], 'Only the selected episode is fetched, independently of pending stream and show requests');
+    assert.deepEqual(requests, (onPage ? [] : provided ? ['details', 'streams'] : ordinarySeries ? ['details', 'episode-http', 'streams'] : ['episode-http', 'details', 'streams']).filter(value => !sharedMode || value !== 'streams'), 'Only the selected episode is fetched, independently of pending stream and show requests');
     assert.ok(subtitleRequests.length > 0 || ordinarySeries, 'Subtitle discovery starts while stream lookup is unresolved');
     finishDetails({ id: 'show', type: 'series', name: 'Show', year: 2009, runtime: '21 min', imdbRating: '8.5', logo: '/logo.svg', poster: '/poster.jpg', background: '/backdrop.jpg', cast: ['Actor'], videos: [{ id: 'show:1:3', title: 'Early episode title', season: 1, episode: 3 }] });
     await new Promise(resolve => setImmediate(resolve));
     assert.ok(changes.some(value => value?.media?.episodeTitle === expectedTitle), 'Episode title must publish while stream discovery is still pending');
     assert.ok(changes.some(value => value?.year === 2009 && value?.imdbRating === '8.5' && value?.logo === '/logo.svg'), 'All player metadata must publish while streams remain pending');
     assert.ok(subtitleRequests.length > 0, 'The selected episode starts subtitle discovery before stream resolution');
+    if (sharedMode) assert.equal(sharedAcquisitions, 1, 'Player acquires the shared discovery instead of the raw factory');
     finishStreams([{ url: 'https://example.test/top.mp4' }]);
     await pending;
     await new Promise(resolve => setImmediate(resolve));

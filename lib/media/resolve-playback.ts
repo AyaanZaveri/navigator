@@ -333,6 +333,8 @@ function selectNativeStream(source: PlaybackStreamRequest, dependencies: Playbac
 const invalidatedWarmups = new WeakSet<object>();
 const warmupLeases = new WeakMap<object, { count: number }>();
 export function invalidatePlaybackWarmup(request: PlaybackStreamRequest | undefined) {
+    if (request?.invalidate) invalidatedWarmups.add(request);
+    request?.invalidate?.();
     if (request?.speculative) { invalidatedWarmups.add(request); request.cancel?.(); }
 }
 export async function resolvePlayback(
@@ -343,12 +345,14 @@ export async function resolvePlayback(
 ): Promise<MediaToPlay> {
     const candidate = request.streamRequest?.speculative ? request.streamRequest : undefined;
     const warmup = candidate && !invalidatedWarmups.has(candidate) ? candidate : undefined;
-    if (candidate && !warmup) request = { ...request, streamRequest: undefined };
+    if (request.streamRequest && invalidatedWarmups.has(request.streamRequest)) request = { ...request, streamRequest: undefined };
     if (dependencies.signal?.aborted) {
         if (warmup) queueMicrotask(() => { if (!warmupLeases.get(warmup)?.count) warmup.cancel?.(); });
         dependencies.signal.throwIfAborted();
     }
-    if (warmup && dependencies.signal && warmup.cancel) {
+    const releaseShared = request.streamRequest?.retain?.(dependencies.signal);
+    if (releaseShared) void request.streamRequest!.promise.then(releaseShared, releaseShared);
+    if (warmup && !warmup.retain && dependencies.signal && warmup.cancel) {
         const signal = dependencies.signal;
         const lease = warmupLeases.get(warmup) ?? { count: 0 };
         warmupLeases.set(warmup, lease); lease.count++;

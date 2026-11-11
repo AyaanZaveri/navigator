@@ -1,7 +1,8 @@
 import { outboundFetch } from "@/lib/server/outbound-fetch";
 import { NextResponse } from "next/server";
 import { getInstalledAddons } from "@/app/actions/auth";
-import type { StremioAddon, StremioStreamResponse } from "@/types/stremio";
+import type { StremioAddon } from "@/types/stremio";
+import { parseStreamResponse } from "@/lib/media/stream-schema";
 
 function addonSupportsStream(addon: StremioAddon, type?: string): boolean {
   return addon.manifest.resources.some((resource) => {
@@ -18,7 +19,8 @@ function addonSupportsStream(addon: StremioAddon, type?: string): boolean {
 async function fetchAddonStreams(
   transportUrl: string,
   mediaItemId: string,
-  type: string
+  type: string,
+  signal: AbortSignal
 ) {
   const base = transportUrl.replace(/\/manifest\.json$/, "");
   const response = await outboundFetch(`${base}/stream/${type}/${mediaItemId}.json`, {
@@ -29,14 +31,14 @@ async function fetchAddonStreams(
       Accept: "application/json, text/plain, */*",
     },
     cache: "no-store",
+    signal,
   });
 
   if (!response.ok) {
-    return [];
+    throw new Error("The stream provider could not complete this lookup.");
   }
 
-  const data = (await response.json()) as StremioStreamResponse;
-  return data.streams ?? [];
+  return parseStreamResponse(await response.json());
 }
 
 export async function GET(request: Request) {
@@ -64,14 +66,14 @@ export async function GET(request: Request) {
       const { resolveAddonMediaId } = await import("@/lib/tmdb-discovery");
       sourceId = await resolveAddonMediaId(sourceId, type, request.signal);
     }
-    const streams = await fetchAddonStreams(addon.transportUrl, sourceId, type);
+    const streams = await fetchAddonStreams(addon.transportUrl, sourceId, type, request.signal);
 
     return NextResponse.json({
       streams: streams.map((stream) => ({
         ...stream,
         name: stream.name || addon.manifest.name || "Unknown source",
       })),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error: any) {
     if (error?.message?.includes("Not authenticated")) {
       return NextResponse.json({ streams: [] }, { status: 401 });

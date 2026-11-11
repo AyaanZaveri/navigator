@@ -1,15 +1,12 @@
 import type { MediaItem } from '@/types/stremio';
 import type { MediaToPlay } from '@/lib/atoms';
-import type { PlaybackStreamRequest } from './fetch-playback-streams';
 import { mergePlaybackDetails, playbackDetailsId, projectPlaybackDetails } from './playback-details';
 import { getPlaybackTitles, isMeaningfulEpisodeTitle } from './playback-titles';
 
 /** Data owned by the mounted details page, never a persistent/global response cache. */
 export interface PlaybackPageContext {
   media: MediaItem;
-  streamRequests: Map<string, PlaybackStreamRequest>;
 }
-export const streamRequestKey = (id: string, type: string) => `${type}:${id}`;
 
 export function applyPlaybackContext(request: MediaToPlay, page: PlaybackPageContext | null): MediaToPlay {
     if (!page || request.type !== page.media.type) return request;
@@ -29,15 +26,9 @@ export function applyPlaybackContext(request: MediaToPlay, page: PlaybackPageCon
     }
     const titles = getPlaybackTitles(request, page.media);
     const details = mergePlaybackDetails(projectPlaybackDetails(page.media, titles.season, titles.episodeNumber), request.details);
-    const targetId = request.mediaSourceId || request.id;
-    const pageTargetId = targetId.replace(requestId, pageId);
-    const shared = page.streamRequests.get(streamRequestKey(targetId, request.type))
-        || page.streamRequests.get(streamRequestKey(pageTargetId, request.type));
-    const streamRequest = shared && shared.id !== targetId ? { ...shared, id: targetId } : shared;
     return { ...request, details, detailsLoaded: true,
         showName: request.type === 'series' ? request.showName || page.media.name : request.showName,
         ...(titles.isEpisode && isMeaningfulEpisodeTitle(titles.episodeTitle)
             ? { name: titles.episodeTitle, episodeTitle: titles.episodeTitle } : {}),
-        streamRequest: request.streamRequest || streamRequest,
     };
 }

@@ -46,6 +46,7 @@ import { toast } from "sonner";
 import { getPlaybackTitles, isMeaningfulEpisodeTitle } from "@/lib/media/playback-titles";
 import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { probeStreamPlayability } from "@/lib/media/stream-playability";
+import { useStreamQueries } from "@/components/stream-query-provider";
 import { createPlaybackStreamRequest, fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { installWebStartupWatchdog } from "@/lib/media/web-startup-watchdog";
 import { resolvePlayback, invalidatePlaybackWarmup, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
@@ -83,6 +84,7 @@ const PROGRESS_REPORT_INTERVAL_MS = 30_000;
 const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
+  const streamQueries = useStreamQueries();
   const navigatorShortcut = useNavigatorShortcut();
   const router = useRouter();
   const {
@@ -640,10 +642,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         createStreamRequest: !fallback || !webStreamsRef.current.length
           // Discovery is shared across fallback attempts and uses its own
           // bounded request timeouts; per-load abort only cancels selection/probes.
-          ? (id, type) => createPlaybackStreamRequest(id, type)
+          ? (id, type) => streamQueries ? streamQueries.create(id, type, metadataAbort.signal) : createPlaybackStreamRequest(id, type)
           : undefined,
         fetchStreams: fallback && webStreamsRef.current.length
-          ? async () => webStreamsRef.current : fetchPlaybackStreams,
+          ? async () => webStreamsRef.current : (id, type) => streamQueries
+            ? streamQueries.create(id, type, metadataAbort.signal).promise : fetchPlaybackStreams(id, type),
         getNextEpisodeForSeries: id => loadEpisode(id, 1, 1),
         environment: nativePlayback ? "native" : "web",
         canPlayType: probe ? mime => Boolean(probe.canPlayType(mime)) : undefined,
@@ -709,7 +712,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [nativePlayback, setCurrentMediaWithSource]);
+  }, [nativePlayback, setCurrentMediaWithSource, streamQueries]);
   loadMediaRef.current = loadMedia;
 
   useEffect(() => {
@@ -1035,6 +1038,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                         setVideoReady(false);
                         setPlayerAttempt((attempt) => attempt + 1);
                         invalidatePlaybackWarmup(playbackRequest?.streamRequest);
+                        if (playbackRequest) streamQueries?.invalidate({ id: playbackRequest.mediaSourceId || playbackRequest.id, type: playbackRequest.type });
                         if (playbackRequest) void loadMedia(playbackRequest);
                       }}>Try again</Button>
                     </div>

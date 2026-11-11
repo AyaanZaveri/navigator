@@ -14,6 +14,9 @@ function load(file, dependencies = {}, globals = {}) {
         }
         return dependency;
       }
+      // Legacy fixtures isolate external provider boundaries. Shared query
+      // behavior is exercised with a real QueryClient in test-stream-queries.
+      if (name === '@/components/stream-query-provider') return { useStreamQueries: () => null, StreamQueryProvider: 'stream-queries' };
       // Markup fixtures mock the routing boundary as an anchor. Intent and
       // scheduling behavior is exercised with the real component separately.
       if (name === '@/components/intent-link' && dependencies['next/link']) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useStreamQueries } from "@/components/stream-query-provider";
 import type { MediaItem } from "@/types/stremio";
 import { useAccountAccess } from "@/contexts/account-context";
 import { useSettings } from "@/contexts/settings-context";
@@ -13,6 +14,7 @@ const Context = createContext<{ intent: (_item: MediaItem) => () => void; claim:
 export const useContinueWatchingWarmup = () => useContext(Context);
 
 export function ContinueWatchingWarmup({ items, children }: { items: MediaItem[]; children: ReactNode }) {
+    const queries = useStreamQueries();
     const root = useRef<HTMLDivElement>(null);
     const manager = useRef<Manager | null>(null);
     const { authenticated } = useAccountAccess();
@@ -20,7 +22,7 @@ export function ContinueWatchingWarmup({ items, children }: { items: MediaItem[]
     const playing = useIsPlayerVisible();
     useEffect(() => {
         if (!continueWatchingPrefetch || !authenticated || playing || !root.current) return;
-        const owner = createContinueWatchingWarmup();
+        const owner = createContinueWatchingWarmup(queries?.speculate, undefined, Boolean(queries));
         manager.current = owner;
         const element = root.current;
         const page = element.closest<HTMLElement>("[data-home-page]") || element;
@@ -69,7 +71,7 @@ export function ContinueWatchingWarmup({ items, children }: { items: MediaItem[]
             connection?.removeEventListener("change", visibility);
             owner.dispose(); if (manager.current === owner) manager.current = null;
         };
-    }, [continueWatchingPrefetch, authenticated, playing, items]);
+    }, [continueWatchingPrefetch, authenticated, playing, items, queries]);
     const claim = useCallback<Manager["claim"]>(item => continueWatchingPrefetch ? manager.current?.claim(item) : undefined, [continueWatchingPrefetch]);
     const intent = useCallback((item: MediaItem) => {
         if (!continueWatchingPrefetch) return () => {};

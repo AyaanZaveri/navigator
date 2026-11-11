@@ -9,7 +9,7 @@ const resolve = load('lib/media/resolve-playback.ts', { '@/lib/media/audio-langu
   const candidates = [{ url: 'https://example.test/video.mp4', title: 'English AVC AAC' }];
   const streamRequest = { id: 'tt1442437:6:4', type: 'series', canonicalId: Promise.resolve('tt1442437:6:4'), promise: Promise.resolve(candidates) };
   const page = { media: show, streamRequests: new Map([['series:tt1442437:6:4', streamRequest]]) };
-  const request = { id: show.id, type: 'series', name: 'Episode 4', mediaSourceId: 'tt1442437:6:4', seasonNumber: 6, episodeNumber: 4 };
+  const request = { id: show.id, type: 'series', name: 'Episode 4', mediaSourceId: 'tt1442437:6:4', seasonNumber: 6, episodeNumber: 4, streamRequest };
   const ready = applyPlaybackContext(request, page);
   assert.equal(ready.episodeTitle, "Won’t You Be Our Neighbor", 'Page episode names are available before the player mounts');
   assert.equal(ready.details.logo, show.logo);
@@ -23,7 +23,7 @@ const resolve = load('lib/media/resolve-playback.ts', { '@/lib/media/audio-langu
   assert.equal(applyPlaybackContext({ id: show.id, type: 'series', name: show.name }, page).episodeTitle, 'Pilot', 'Known episode lists avoid a redundant first-episode lookup');
   let fetches = 0;
   const played = await resolve.resolvePlayback(ready, { fetchStreams: async () => { fetches++; return []; }, getNextEpisodeForSeries: async () => { throw Error('Episode is already known'); } }, () => {});
-  assert.equal(fetches, 0, 'Existing page stream requests are consumed without refetching');
+  assert.equal(fetches, 0, 'Explicit shared requests are preserved while page metadata is applied');
   const tmdbPage = { media: { ...show, id: 'tmdb:1421', imdbId: show.id }, streamRequests: new Map([
     ['series:tmdb:1421:6:4', { ...streamRequest, id: 'tmdb:1421:6:4' }],
   ]) };

@@ -15,6 +15,7 @@ export function continueWatchingTarget(item: Item) {
 export function createContinueWatchingWarmup(
     create: typeof createPlaybackStreamRequest = createPlaybackStreamRequest,
     now: () => number = () => performance.now(),
+    retainOnDispose = false,
 ) {
     const entries = new Map<string, { request: PlaybackStreamRequest; controller: AbortController; expires: number; timer: ReturnType<typeof setTimeout>; keep: boolean }>();
     const adopted = new Map<string, PlaybackStreamRequest>();
@@ -65,6 +66,11 @@ export function createContinueWatchingWarmup(
             return entry.request;
         },
         clear,
-        dispose() { active = false; clear(); adopted.clear(); },
+        dispose() {
+            active = false;
+            if (retainOnDispose) { for (const entry of entries.values()) clearTimeout(entry.timer); entries.clear(); }
+            else clear();
+            adopted.clear();
+        },
     };
 }

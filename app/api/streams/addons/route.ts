@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getInstalledAddons } from "@/app/actions/auth";
 import type { StremioAddon } from "@/types/stremio";
+import { createHash } from "node:crypto";
 
 function addonSupportsStream(addon: StremioAddon, type?: string): boolean {
   return addon.manifest.resources.some((resource) => {
@@ -27,7 +28,8 @@ export async function GET(request: Request) {
         name: addon.manifest.name || "Unknown addon",
       }));
 
-    return NextResponse.json({ addons: streamAddons });
+    const revision = createHash("sha256").update(JSON.stringify(addons.map(addon => [addon.transportUrl, addon.manifest]))).digest("hex");
+    return NextResponse.json({ addons: streamAddons, revision }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error: any) {
     if (error?.message?.includes("Not authenticated")) {
       return NextResponse.json({ addons: [] }, { status: 401 });

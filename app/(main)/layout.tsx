@@ -6,24 +6,29 @@ import { LayoutContent } from "@/components/layout-content";
 import { WatchHistoryProvider } from "@/contexts/watch-history-context";
 import { AccountProvider } from "@/components/account-provider";
 
-import { getUser } from "@/app/actions";
+import { getAuthData } from "@/lib/server/auth";
+import { StreamQueryProvider } from "@/components/stream-query-provider";
 
 export default async function MainLayout({
     children,
 }: {
   children: ReactNode;
 }) {
-    const user = await getUser();
+    const session = await getAuthData().catch(() => null);
+    const user = session?.user;
+    const scope = session ? `${session.user._id}:${session.issuedAt}` : "anonymous";
 
     return (
-        <JotaiProvider key={user?._id ?? "anonymous"}>
-            <AccountProvider key={user?._id ?? "anonymous"} authenticated={Boolean(user)}>
-                <FullscreenDetector />
-                <KeyboardShortcuts />
-                <WatchHistoryProvider key={user?._id ?? "anonymous"} enabled={Boolean(user)}>
-                    <LayoutContent email={user?.email ?? ""} userId={user?._id ?? ""}>{children}</LayoutContent>
-                </WatchHistoryProvider>
-            </AccountProvider>
+        <JotaiProvider key={scope}>
+            <StreamQueryProvider key={scope} scope={scope}>
+                <AccountProvider key={user?._id ?? "anonymous"} authenticated={Boolean(user)}>
+                    <FullscreenDetector />
+                    <KeyboardShortcuts />
+                    <WatchHistoryProvider key={user?._id ?? "anonymous"} enabled={Boolean(user)}>
+                        <LayoutContent email={user?.email ?? ""} userId={user?._id ?? ""}>{children}</LayoutContent>
+                    </WatchHistoryProvider>
+                </AccountProvider>
+            </StreamQueryProvider>
         </JotaiProvider>
     );
 }

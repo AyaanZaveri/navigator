@@ -10,7 +10,7 @@ const PageContext = createContext<PlaybackPageContext | null>(null);
 export const usePlaybackPage = () => useContext(PageContext);
 
 export function PlaybackPageProvider({ media, children }: { media: MediaItem; children: ReactNode }) {
-    const page = useMemo<PlaybackPageContext>(() => ({ media, streamRequests: new Map() }), [media]);
+    const page = useMemo<PlaybackPageContext>(() => ({ media }), [media]);
     const setPage = useSetAtom(playbackPageContextAtom);
     useLayoutEffect(() => {
         setPage(page);
