@@ -28,26 +28,15 @@ for (const [input, expected] of [[35,30],[-35,-30],[0.26,0.3],[NaN,0],[Infinity,
 // Exercise the actual player's cue selection with both signs and an unchanged
 // playback time (adjusting the control while paused must update the cue).
 const source = fs.readFileSync('components/global-media-player.tsx', 'utf8');
-const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-let lookup;
-function visit(node) {
- if (ts.isVariableDeclaration(node) && node.name.getText(parsed) === 'findCurrentSubtitle') lookup = node.initializer.arguments[0].getText(parsed);
- ts.forEachChild(node, visit);
-}
-visit(parsed);
-const find = vm.runInNewContext(ts.transpileModule(`(${lookup})`, {
- compilerOptions: { target: ts.ScriptTarget.ES2022 },
-}).outputText, {
- subtitleData: [{ timestamp: 10, endTimestamp: 12, text: 'Hello' }],
- processSubtitleText: text => ({ text, positionTop: false }),
-});
+const { createSubtitleCueIndex } = load('lib/media/subtitle-cue-index.ts');
+const find = createSubtitleCueIndex([{ timestamp: 10, endTimestamp: 12, text: 'Hello' }], text => ({ text, positionTop: false }));
 assert.equal(find(timing.subtitleTime(10,1)), null, 'Positive offset waits longer');
 assert.equal(find(timing.subtitleTime(11,1)).text, 'Hello');
 assert.equal(find(timing.subtitleTime(9,-1)).text, 'Hello', 'Negative offset shows the cue earlier');
 assert.equal(find(timing.subtitleTime(13,0)), null, 'Cue clears after its end');
 assert.equal(find(timing.subtitleTime(9,0)), null);
 assert.equal(find(timing.subtitleTime(9,-1)).text, 'Hello', 'Paused time can select a new cue after adjustment');
-assert.match(source, /\[currentTime, findCurrentSubtitle, subtitleTiming\.seconds\]/);
+assert.match(source, /delay=\{subtitleTiming\.seconds\}/);
 
 
 const { SubtitleTimingPopover } = load('components/subtitle-timing-popover.tsx', {

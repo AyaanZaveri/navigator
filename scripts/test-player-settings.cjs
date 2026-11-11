@@ -211,7 +211,7 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   const global = ts.createSourceFile('global.tsx', fs.readFileSync('components/global-media-player.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let handler, selection;
   function walk(node) {
-    if (ts.isJsxAttribute(node) && node.name.getText(global) === 'onCustomSubtitleChange') handler = node.initializer.expression.getText(global);
+    if (ts.isVariableDeclaration(node) && node.name.getText(global) === 'handleCustomSubtitleChange') handler = node.initializer.arguments[0].getText(global);
     if (ts.isVariableDeclaration(node) && node.name.getText(global) === 'selectSubtitle') selection = node.initializer.arguments[0].getText(global);
     ts.forEachChild(node, walk);
   }

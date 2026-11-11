@@ -39,6 +39,6 @@ assert.equal(text.props['data-subtitle-outline'],'thin');assert.equal(text.props
 assert.equal(text.props['data-player-glass'],undefined);assert.equal(text.props.children,'A bright scene.\nA dark scene.');
 const colored=SubtitleText({weight:'semibold',color:'yellow',children:'A line of text.'});
 assert.equal(colored.props['data-subtitle-weight'],'semibold');assert.equal(colored.props.style['--subtitle-color'],'#ffe45c');
-const source=fs.readFileSync('components/global-media-player.tsx','utf8');const cues=source.slice(source.indexOf('{/* Current subtitle */}'),source.indexOf('{!loading && streamUrl',source.indexOf('{/* Current subtitle */}')));
-assert.match(cues,/<SubtitleText/);assert.doesNotMatch(cues,/data-player-native-glass|backdrop-blur|bg-black/);
+const source=fs.readFileSync('components/player-clock-islands.tsx','utf8');
+assert.match(source, /<SubtitleText/);assert.doesNotMatch(source,/data-player-native-glass|backdrop-blur|bg-black/);
 console.log('PASS: subtitle defaults, saved preferences, invalid-value recovery and sampler-free cue rendering');

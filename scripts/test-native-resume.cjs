@@ -37,7 +37,7 @@ for (const [initialSeek, requested, expected] of [[true, 123.4, []], [false, 123
  const seeks = [], reports = []; let position = 0;
  const media = { duration: 300, get currentTime() { return position; }, set currentTime(value) { position = value; seeks.push(value); }, play: () => Promise.resolve() };
  const context = { exports: {}, videoRef: { current: media }, currentMedia: { resumePositionTicks: requested },
-  desktopBridge: () => ({ capabilities: { initialSeek } }), setDuration() {}, setCurrentTime() {}, setCurrentTimestamp() {}, sendPlaybackUpdate: (...args) => reports.push(args) };
+  desktopBridge: () => ({ capabilities: { initialSeek } }), setDuration() {}, currentTimeRef: { current: 0 }, setCurrentTime() {}, setCurrentTimestamp() {}, sendPlaybackUpdate: (...args) => reports.push(args) };
  vm.runInNewContext(ts.transpileModule(`exports.metadata = ${handler}`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, context);
  context.exports.metadata();
  assert.deepEqual(seeks, expected, 'Native initial seek is one operation; legacy resume and duration clamping still seek');

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import { chapterCues, readEmbeddedChapters, type ChapterMarker } from "@/lib/media/chapters";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 
@@ -30,5 +30,5 @@ export function usePlayerChapters(mediaRef: RefObject<HTMLVideoElement | null>, 
             node?.removeEventListener("emptied", update);
         };
     }, [mediaRef, source, duration]);
-    return chapterCues(result?.source === source ? result.markers : [], duration);
+    return useMemo(() => chapterCues(result?.source === source ? result.markers : [], duration), [result, source, duration]);
 }

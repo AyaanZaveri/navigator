@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useSettings } from "@/contexts/settings-context";
 import { EpisodeContinuation, shouldPrefetchEpisode } from "./episode-continuation";
 import { fetchFollowingEpisode, prepareNextEpisode, warmEpisodeOpening } from "./prefetch-next-episode";
@@ -10,7 +10,8 @@ import type { MediaToPlay } from "@/lib/atoms";
 import type { Episode } from "@/app/actions/tv-shows";
 
 export function useEpisodeContinuation(options: {
-  media: MediaToPlay | null; visible: boolean; native: boolean; time: number; duration: number;
+  media: MediaToPlay | null; visible: boolean; native: boolean; time?: number; duration: number;
+  mediaRef?: RefObject<HTMLVideoElement | null>;
   play(media: MediaToPlay): void; beforeAdvance(ended: boolean): void; finish(): void;
 }) {
   const { playbackPreferences = DEFAULT_PLAYBACK_PREFERENCES } = useSettings();
@@ -48,10 +49,15 @@ export function useEpisodeContinuation(options: {
     if (!playbackPreferences.episodePrefetch && owner.current?.key === key) owner.current.continuation.cancelPrefetch();
   }, [key, playbackPreferences.episodePrefetch]);
   useEffect(() => {
-    if (playbackPreferences.episodePrefetch && shouldPrefetchEpisode(options.time, options.duration) && owner.current?.key === key) {
-      void owner.current.continuation.prefetch();
-    }
-  }, [key, options.time, options.duration, playbackPreferences.episodePrefetch]);
+    const node = options.mediaRef?.current;
+    const update = () => {
+      if (playbackPreferences.episodePrefetch && shouldPrefetchEpisode(node?.currentTime ?? options.time ?? 0, options.duration)
+        && owner.current?.key === key) void owner.current.continuation.prefetch();
+    };
+    update();
+    node?.addEventListener("timeupdate", update);
+    return () => node?.removeEventListener("timeupdate", update);
+  }, [key, options.time, options.duration, options.mediaRef, playbackPreferences.episodePrefetch]);
   const advance = async (automatic = false) => {
     const continuation = owner.current?.key === key ? owner.current.continuation : null;
     if (!continuation?.active) return false;
