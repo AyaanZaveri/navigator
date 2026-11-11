@@ -16,9 +16,15 @@ export async function GET(request: Request) {
   }
   try { await getAuthData(); } catch { return new Response(null, { status: 401, headers }); }
   try {
-    const details = await fetchMediaDetails(id, type, request.signal, { playback: true });
+    if (params.has("metadata")) {
+      const { metadataIdentity } = await import("@/lib/server/metadata-identity");
+      const { revision } = await metadataIdentity();
+      if (params.get("revision") !== revision) return new Response(null, { status: 409, headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
+    }
+    const details = await fetchMediaDetails(id, type, request.signal, { playback: !params.has("metadata") });
     request.signal.throwIfAborted();
-    return Response.json({ details: details ? projectPlaybackDetails(details, season, episode) : null }, { headers });
+    const metadata = params.has("metadata") && details ? (await import("@/lib/media/metadata")).titleEnvelope(details, (await import("@/lib/server/metadata-cache")).serverMetadataCache.fetchedAt(details)) : undefined;
+    return Response.json(params.has("metadata") ? { metadata: metadata || null } : { details: details ? projectPlaybackDetails(details, season, episode) : null }, { headers });
   } catch {
     return new Response(null, { status: 502, headers });
   }

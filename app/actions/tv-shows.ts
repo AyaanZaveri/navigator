@@ -122,6 +122,10 @@ export interface Episode {
   overview?: string;
   thumbnail?: string;
   released?: string;
+  runtime?: string | number;
+  communityRating?: number;
+  ratingSource?: string;
+  voteCount?: number;
   resumePositionTicks?: number;
   progressPercent?: number;
 }
@@ -227,7 +231,19 @@ export async function fetchTVShowDetails(
 
 // ─── Episode Details ─────────────────────────────────────────────
 
-export async function fetchEpisodeDetails(
+export async function fetchEpisodeDetails(seriesId: string, season: number, episode: number, signal?: AbortSignal): Promise<Episode | null> {
+  const { metadataIdentity } = await import("@/lib/server/metadata-identity");
+  const { serverMetadataCache, opaqueMetadataIdentity } = await import("@/lib/server/metadata-cache");
+  const { episodeEnvelope } = await import("@/lib/media/metadata");
+  const { scope, revision } = await metadataIdentity();
+  return serverMetadataCache.read(opaqueMetadataIdentity([scope, revision, "episode", seriesId, season, episode]), async sharedSignal => {
+    const item = await fetchEpisodeDetailsUncached(seriesId, season, episode, sharedSignal);
+    if (item) episodeEnvelope(item, seriesId, Date.now());
+    return item;
+  }, signal);
+}
+
+async function fetchEpisodeDetailsUncached(
   seriesId: string,
   season: number,
   episode: number,
@@ -240,9 +256,11 @@ export async function fetchEpisodeDetails(
     const { getTMDBEpisode } = await import("@/lib/tmdb-discovery");
     const item = await getTMDBEpisode(seriesId, season, episode, signal);
     if (item.name?.trim()) return { id: `${seriesId}:${season}:${episode}`, title: item.name,
-      season, episode, thumbnail: item.thumbnail };
+      season, episode, thumbnail: item.thumbnail, released: item.released, runtime: item.runtime,
+      overview: item.overview, communityRating: item.communityRating, ratingSource: item.ratingSource, voteCount: item.voteCount };
   } catch { signal?.throwIfAborted(); }
   try {
+    if (/^tmdb:/.test(seriesId)) return null;
     const episodes = await fetchEpisodes(seriesId, season, signal);
     return episodes.find((e) => e.episode === episode) || null;
   } catch (error) {

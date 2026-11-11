@@ -5,7 +5,10 @@ async function main() {
     let authenticated = false, addonReads = 0, addonFetches = 0;
     const lookups = [];
     const title = { id: 'tmdb:1423191', type: 'movie', name: 'Resident Evil', description: 'Full synopsis', poster: '/poster', background: '/backdrop', cast: ['Actor'] };
+    const metadataCache = load('lib/server/metadata-cache.ts', { 'server-only': {} }, { Buffer });
     const dependencies = {
+        '@/lib/server/metadata-cache': metadataCache,
+        '@/lib/server/metadata-identity': { metadataIdentity: async () => ({ scope: authenticated ? 'fixture' : 'anonymous', revision: 'fixture' }) },
         '@/lib/server/auth': { getAuthData: async () => { if (!authenticated) throw new Error('Not authenticated'); return { authKey: 'fixture' }; } },
         '@/lib/server/outbound-fetch': { outboundFetch: async () => { addonFetches++; throw new Error('No guest add-on requests'); } },
         '@/lib/artwork': { mediaArtwork: () => ({}), artworkUrl: () => '/artwork' },

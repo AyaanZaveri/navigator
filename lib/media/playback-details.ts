@@ -33,7 +33,7 @@ export function projectPlaybackDetails(item: MediaItem, season?: number, episode
   return mergePlaybackDetails({ id: item.id, type: item.type, name: item.name }, {
     id: item.id, type: item.type, name: item.name, description: item.description,
     imdbId: item.imdbId, tmdbId: item.tmdbId,
-    year: item.year, releaseInfo: item.releaseInfo, imdbRating: item.imdbRating, runtime: item.runtime,
+    year: item.year, releaseInfo: item.releaseInfo, imdbRating: item.imdbRating, communityRating: item.communityRating, ratingSource: item.ratingSource, voteCount: item.voteCount, runtime: item.runtime,
     poster: item.poster, background: item.background, logo: item.logo, cast: item.cast,
     genres: item.genres, director: item.director, writer: item.writer,
     videos: selected ? [selected] : undefined,

@@ -55,7 +55,10 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   controller.abort(); assert.equal(clientRequest.options.signal.aborted, true);
 
   const pending = [];
+  const serverCache = load('lib/server/metadata-cache.ts', { 'server-only': {} }, { Buffer });
   const media = load('app/actions/media.ts', {
+    '@/lib/server/metadata-cache': serverCache,
+    '@/lib/server/metadata-identity': { metadataIdentity: async () => ({ scope: 'fixture', revision: 'fixture' }) },
     '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
     '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
     '@/lib/artwork': artwork, '@/lib/media/playback-details': metadata,

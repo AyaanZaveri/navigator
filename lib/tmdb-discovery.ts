@@ -41,7 +41,7 @@ interface TMDBSeasonRecord {
 }
 interface TMDBEpisodeRecord {
     id: number; name: string; season_number: number; episode_number: number;
-    overview?: string; air_date?: string; still_path?: string | null; vote_average?: number; runtime?: number;
+    overview?: string; air_date?: string; still_path?: string | null; vote_average?: number; vote_count?: number; runtime?: number;
     guest_stars?: { name: string; character?: string }[];
     crew?: { name: string; job?: string }[];
 }
@@ -233,7 +233,8 @@ export async function getTMDBEpisode(seriesId: string, season: number, episode: 
     const data = await request<TMDBEpisodeRecord>(`tv/${tmdbId}/season/${season}/episode/${episode}`, {}, signal);
     return {
         id: `tmdb:${tmdbId}:${season}:${episode}`, seriesId: `tmdb:${tmdbId}`,
-        name: data.name, thumbnail: tmdbImage(data.still_path),
+        name: data.name, thumbnail: tmdbImage(data.still_path), released: data.air_date, overview: data.overview,
+        runtime: data.runtime ? `${data.runtime} min` : undefined, communityRating: data.vote_count ? data.vote_average : undefined, ratingSource: "TMDB", voteCount: data.vote_count,
         seasonNumber: season, episodeNumber: episode,
     };
 }

@@ -233,7 +233,19 @@ export async function fetchTVShows(limit: number = 20): Promise<MediaItem[]> {
 
 // ─── Metadata ────────────────────────────────────────────────────
 
-export async function fetchMediaDetails(
+export async function fetchMediaDetails(mediaItemId: string, type: string = "movie", signal?: AbortSignal, options?: { playback?: boolean }): Promise<MediaItem | null> {
+  const { metadataIdentity } = await import("@/lib/server/metadata-identity");
+  const { serverMetadataCache, opaqueMetadataIdentity } = await import("@/lib/server/metadata-cache");
+  const { titleEnvelope } = await import("@/lib/media/metadata");
+  const { scope, revision } = await metadataIdentity();
+  return serverMetadataCache.read(opaqueMetadataIdentity([scope, revision, "title", mediaItemId, type, Boolean(options?.playback)]), async sharedSignal => {
+    const item = await fetchMediaDetailsUncached(mediaItemId, type, sharedSignal, options);
+    if (item) titleEnvelope(item, Date.now());
+    return item;
+  }, signal);
+}
+
+async function fetchMediaDetailsUncached(
   mediaItemId: string,
   type: string = "movie",
   signal?: AbortSignal,

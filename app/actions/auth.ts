@@ -11,7 +11,7 @@ import type {
 } from "@/types/stremio";
 
 const STREMIO_API = "https://api.strem.io/api";
-const ADDON_COLLECTION_CACHE_TTL_MS = 60_000;
+const ADDON_COLLECTION_CACHE_TTL_MS = 30_000;
 let addonCollectionGeneration = 0;
 
 let addonCollectionCache:

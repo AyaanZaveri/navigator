@@ -4,9 +4,15 @@ const vm = require('node:vm');
 const ts = require('typescript');
 let unavailable = false;
 const calls = [];
+const { load } = require('./test-support/react-hooks.cjs');
+const serverCache = load('lib/server/metadata-cache.ts', { 'server-only': {} }, { Buffer });
+const projections = load('lib/media/metadata.ts');
 const context = { exports: {}, console, AbortSignal,
     fetch: async () => ({ ok: true, json: async () => ({ meta: { videos: [{ id: 'tt1442437:8:16', name: 'Addon episode name', season: 8, episode: 16 }] } }) }),
     require(name) {
+        if (name === '@/lib/server/metadata-cache') return serverCache;
+        if (name === '@/lib/server/metadata-identity') return { metadataIdentity: async () => ({ scope: 'fixture', revision: unavailable ? 'fallback' : 'healthy' }) };
+        if (name === '@/lib/media/metadata') return projections;
         if (name === '@/lib/series-route') return require('./test-support/react-hooks.cjs').load('lib/series-route.ts');
         if (name === "@/lib/server/outbound-fetch") return { outboundFetch: (...args) => context.fetch(...args) };
         if (name === './auth' || name === '@/lib/server/auth') return { getAuthData: async () => ({}), getInstalledAddons: async () => [{ manifest: { resources: ['meta'] }, transportUrl: 'https://addon.test/manifest.json' }] };
