@@ -15,18 +15,20 @@ export function isNavigatorRequestSettled(messages: UIMessage[]): boolean {
 }
 
 /** A generated reply does not confirm a pending or merely requested action. */
+export function navigatorPartComplete(raw: UIMessage["parts"][number]): boolean {
+    const part = record(raw);
+    if (part.type !== "dynamic-tool" && !String(part.type).startsWith("tool-")) return true;
+    const output = record(part.output);
+    if (part.state === "output-error" || part.state === "output-denied" || output.success === false) return false;
+    const name = part.type === "dynamic-tool" ? part.toolName : String(part.type).slice(5);
+    if (!actionToolNames.has(name)) return true;
+    return part.state === "output-available" && output.status !== "requested"
+        && (!output.preparedToolCallId || output.execution === "completed");
+}
+
 export function isNavigatorRequestComplete(messages: UIMessage[]): boolean {
     const turn = messages.slice(messages.findLastIndex(message => message.role === "user") + 1);
-    return turn.some(message => message.role === "assistant") && turn.every(message => message.parts.every(raw => {
-        const part = record(raw);
-        if (part.type !== "dynamic-tool" && !String(part.type).startsWith("tool-")) return true;
-        const output = record(part.output);
-        if (part.state === "output-error" || part.state === "output-denied" || output.success === false) return false;
-        const name = part.type === "dynamic-tool" ? part.toolName : String(part.type).slice(5);
-        if (!actionToolNames.has(name)) return true;
-        return part.state === "output-available" && output.status !== "requested"
-            && (!output.preparedToolCallId || output.execution === "completed");
-    }));
+    return turn.some(message => message.role === "assistant") && turn.every(message => message.parts.every(navigatorPartComplete));
 }
 
 /** Place the duration once, under the last assistant message for each request. */

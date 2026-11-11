@@ -78,7 +78,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     react: { ...focusReact, useState: value => focusHookIndex++ === 0
         ? [focusPhase, value => { completedFocusPhase = value; }]
         : [value, () => {}],
-        useRef: value => ({ current: value }), useCallback: value => value, useEffect: () => {}, useLayoutEffect: () => {} },
+        useMemo: fn => fn(), useRef: value => ({ current: value }), useCallback: value => value, useEffect: () => {}, useLayoutEffect: () => {} },
     'framer-motion': { motion: { div: 'div', section: 'section', span: 'span' }, AnimatePresence: 'div', LayoutGroup: 'div', useReducedMotion: () => focusReducedMotion },
     'border-beam': { BorderBeam: 'div' }, streamdown: { Streamdown: 'div' },
     'next-themes': { useTheme: () => ({ resolvedTheme: 'dark' }) },
@@ -91,6 +91,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     '@/lib/navigator-activity-label': { getNavigatorActivityLabel: () => '', NAVIGATOR_ACTIVITY_VARIANT_COUNT: 1 },
     '@/lib/navigator-beam': { navigatorBeamColors: {} }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
     '@/lib/navigator-timing': timing,
+    '@/lib/navigator-rows': load('lib/navigator-rows.ts', { './navigator-chat': chat, './navigator-timing': timing }),
     '@/lib/navigator-chat': chat,
 });
 const focusTree = NavigatorFocus({ open: true, showLauncher: true, messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: 'Play a show' }] }], input: '', isBusy: false, responseDurations: {} });
@@ -147,6 +148,7 @@ focusPhase = 'open'; focusReducedMotion = true;
 
 function findDuration(node) {
     if (!node || typeof node !== 'object') return;
+    if (node.type?.$$typeof === Symbol.for('react.memo')) return findDuration(node.type.type(node.props));
     if (/^(Done|Finished) in /.test(node.props?.['aria-label'] || '')) return node;
     for (const child of focusReact.Children.toArray(node.props?.children)) {
         const found = findDuration(child); if (found) return found;
@@ -164,6 +166,7 @@ const stoppedFocusTree = NavigatorFocus({ open: true, showLauncher: true,
     messages: chat.markNavigatorRequestStopped([timedUser, timedAnswer]), input: '', isBusy: false,
     responseDurations: { 'timed-answer': 7.123 }, onRetryRequest: id => { retryUserId = id; } });
 function findNode(node, predicate) {
+    if (node?.type?.$$typeof === Symbol.for('react.memo')) return findNode(node.type.type(node.props), predicate);
     if (!node || typeof node !== 'object') return;
     if (predicate(node)) return node;
     for (const child of focusReact.Children.toArray(node.props?.children)) { const found = findNode(child, predicate); if (found) return found; }

@@ -171,6 +171,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
         clearError,
         addToolOutput,
     } = useChat({
+        throttle: 50,
         onToolCall: ({ toolCall }) => {
             if (toolCall.toolName === "playMedia" || toolCall.toolName === "skipToSubtitleContent") preloadPlayer();
         },

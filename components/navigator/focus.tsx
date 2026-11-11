@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  memo,
+  useMemo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -50,8 +52,7 @@ import "./focus.css";
 import floatingSurface from "@/components/arc/floating-surface.module.css";
 import { motionTokens } from "@/components/arc/motion-tokens";
 import { navigatorBeamColors } from "@/lib/navigator-beam";
-import { isNavigatorRequestComplete } from "@/lib/navigator-timing";
-import { navigatorTurnContext } from "@/lib/navigator-chat";
+import { createNavigatorRowDeriver, type NavigatorRow } from "@/lib/navigator-rows";
 
 function ActivityPill({
   label,
@@ -100,6 +101,146 @@ type Props = {
   responseDurations: Record<string, number>;
 };
 
+const NavigatorMessageRow = memo(function NavigatorMessageRow({ row, duration, isBusy, onRetryRequest }: {
+  row: NavigatorRow; duration: number | undefined; isBusy: boolean;
+  onRetryRequest: (_id: string) => void;
+}) {
+  const { message, turn } = row;
+
+  const text = message.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+  const isShortUserMessage =
+    message.role === "user" &&
+    text.length <= 48 &&
+    !text.includes("\n");
+
+  const showCancelled = turn.cancelled && turn.statusMessageId === message.id;
+  const stoppedStatus = showCancelled ? (
+    <div className="mt-2 px-2 text-sm text-muted-foreground" role="status">
+      <p>Stopped — this request is incomplete. Partial results have been kept.</p>
+      <button type="button" className="mt-1 cursor-pointer underline underline-offset-4 disabled:opacity-50" disabled={isBusy} onClick={() => turn.user && onRetryRequest?.(turn.user.id)}>Retry request</button>
+    </div>
+  ) : null;
+  const segments =
+    message.role === "assistant"
+      ? toNavigatorSegments(message.parts, {
+          playbackRequest: isPlaybackRequest(turn.userText),
+          turnParts: turn.parts,
+          cancelled: turn.cancelled,
+        })
+      : [];
+
+  if (message.role === "user") {
+    if (!text) return null;
+    return (
+      <div key={message.id}>
+      <motion.div
+        animate={{ opacity: 1 }}
+        className={`ml-auto w-fit max-w-[80%] bg-primary/10 px-4 py-2 text-primary backdrop-blur-sm ${isShortUserMessage ? "rounded-full" : "rounded-2xl"}`}
+        initial={{ opacity: 0 }}
+        key={message.id}
+      >
+        <p className="break-words whitespace-pre-wrap text-[15px] leading-6">
+          {text}
+        </p>
+      </motion.div>
+      {stoppedStatus}
+      </div>
+    );
+  }
+
+  if (!segments.length && duration === undefined && !showCancelled) return null;
+
+  return (
+    <div className={cn("w-full", row.previousAssistant && "mt-2!")} key={message.id}>
+      {segments.map((segment, index) => {
+        const previous = segments[index - 1];
+        const spacing = !previous
+          ? ""
+          : previous.kind === "trace" && segment.kind === "results"
+            ? ""
+          : previous.kind === "trace" && segment.kind === "trace"
+            ? ""
+          : previous.kind === "results" && segment.kind === "trace"
+            ? "mt-2"
+          : previous.kind === "lookup" || segment.kind === "lookup" ||
+              previous.kind === "trace" || segment.kind === "trace" ||
+              previous.kind === "results" || segment.kind === "results"
+            ? "mt-1"
+          : previous.kind === "text" ||
+              segment.kind === "text"
+            ? "mt-3"
+            : "mt-1";
+        if (segment.kind === "text") {
+          return (
+            <div
+              className={`w-full px-2 ${spacing}`}
+              key={segment.key}
+            >
+              <Streamdown
+                animated={false}
+                className="break-words text-[15px] leading-6 [&>*]:first:mt-0 [&>*]:last:mb-0 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5 [&_p]:my-2 [&_pre]:text-sm [&_table]:text-sm"
+                mode={
+                  segment.streaming
+                    ? "streaming"
+                    : "static"
+                }
+              >
+                {segment.text}
+              </Streamdown>
+            </div>
+          );
+        }
+
+        if (segment.kind === "lookup") {
+          return (
+            <div className={spacing} key={segment.key}>
+              <NavigatorLookup trace={segment.trace} cards={segment.cards} />
+            </div>
+          );
+        }
+
+        if (segment.kind === "trace") {
+          return (
+            <div className={spacing} key={segment.key}>
+              <NavigatorTraceRow
+                trace={segment.trace}
+              />
+            </div>
+          );
+        }
+
+        if (segment.kind === "results") {
+          return (
+            <div className={spacing} key={segment.key}>
+              <NavigatorResultCards
+                {...segment.results}
+              />
+            </div>
+          );
+        }
+
+        return null;
+      })}
+      {stoppedStatus}
+      {!turn.cancelled && duration !== undefined ? (
+        <p
+          className="mt-2 flex items-center gap-1.5 px-2 text-[0.8125rem] font-normal leading-4 text-muted-foreground tabular-nums"
+          aria-label={`${row.complete ? "Done" : "Finished"} in ${Math.max(1, Math.round(duration))} seconds`}
+        >
+          <TimerIcon
+            aria-hidden="true"
+            className="size-3.5"
+          />
+          {row.complete ? "Done" : "Finished"} in {Math.max(1, Math.round(duration))}s
+        </p>
+      ) : null}
+    </div>
+  );
+});
+
 export function NavigatorFocus({
   open,
   showLauncher,
@@ -117,6 +258,11 @@ export function NavigatorFocus({
   error,
   responseDurations,
 }: Props) {
+  const deriveRows = useMemo(() => createNavigatorRowDeriver(), []);
+  const rows = useMemo(() => deriveRows(messages), [deriveRows, messages]);
+  const retryHandler = useRef(onRetryRequest);
+  useLayoutEffect(() => { retryHandler.current = onRetryRequest; }, [onRetryRequest]);
+  const retryRequest = useCallback((id: string) => { retryHandler.current?.(id); }, []);
   const { resolvedTheme } = useTheme();
   const reduceMotion = useReducedMotion();
   const [focusState, setFocusState] = useState<
@@ -422,143 +568,9 @@ export function NavigatorFocus({
                           ease: [0.23, 1, 0.32, 1],
                         }}
                       >
-                        {messages.map((message, messageIndex) => {
-                          const text = message.parts
-                            .filter((part) => part.type === "text")
-                            .map((part) => part.text)
-                            .join("");
-                          const isShortUserMessage =
-                            message.role === "user" &&
-                            text.length <= 48 &&
-                            !text.includes("\n");
-                          const turn = navigatorTurnContext(messages, messageIndex);
-                          const showCancelled = turn.cancelled && turn.statusMessageId === message.id;
-                          const stoppedStatus = showCancelled ? (
-                            <div className="mt-2 px-2 text-sm text-muted-foreground" role="status">
-                              <p>Stopped — this request is incomplete. Partial results have been kept.</p>
-                              <button type="button" className="mt-1 cursor-pointer underline underline-offset-4 disabled:opacity-50" disabled={isBusy} onClick={() => turn.user && onRetryRequest?.(turn.user.id)}>Retry request</button>
-                            </div>
-                          ) : null;
-                          const segments =
-                            message.role === "assistant"
-                              ? toNavigatorSegments(message.parts, {
-                                  playbackRequest: isPlaybackRequest(
-                                messages.slice(0, messageIndex).findLast(candidate => candidate.role === "user")?.parts
-                                      .filter(part => part.type === "text").map(part => part.text).join("") ?? "",
-                                  ),
-                                  turnParts: turn.parts,
-                                  cancelled: turn.cancelled,
-                                })
-                              : [];
-
-                          if (message.role === "user") {
-                            if (!text) return null;
-                            return (
-                              <div key={message.id}>
-                              <motion.div
-                                animate={{ opacity: 1 }}
-                                className={`ml-auto w-fit max-w-[80%] bg-primary/10 px-4 py-2 text-primary backdrop-blur-sm ${isShortUserMessage ? "rounded-full" : "rounded-2xl"}`}
-                                initial={{ opacity: 0 }}
-                                key={message.id}
-                              >
-                                <p className="break-words whitespace-pre-wrap text-[15px] leading-6">
-                                  {text}
-                                </p>
-                              </motion.div>
-                              {stoppedStatus}
-                              </div>
-                            );
-                          }
-
-                          if (!segments.length && responseDurations[message.id] === undefined && !showCancelled) return null;
-
-                          return (
-                            <div className={cn("w-full", messages[messageIndex - 1]?.role === "assistant" && "mt-2!")} key={message.id}>
-                              {segments.map((segment, index) => {
-                                const previous = segments[index - 1];
-                                const spacing = !previous
-                                  ? ""
-                                  : previous.kind === "trace" && segment.kind === "results"
-                                    ? ""
-                                  : previous.kind === "trace" && segment.kind === "trace"
-                                    ? ""
-                                  : previous.kind === "results" && segment.kind === "trace"
-                                    ? "mt-2"
-                                  : previous.kind === "lookup" || segment.kind === "lookup" ||
-                                      previous.kind === "trace" || segment.kind === "trace" ||
-                                      previous.kind === "results" || segment.kind === "results"
-                                    ? "mt-1"
-                                  : previous.kind === "text" ||
-                                      segment.kind === "text"
-                                    ? "mt-3"
-                                    : "mt-1";
-                                if (segment.kind === "text") {
-                                  return (
-                                    <div
-                                      className={`w-full px-2 ${spacing}`}
-                                      key={segment.key}
-                                    >
-                                      <Streamdown
-                                        animated={false}
-                                        className="break-words text-[15px] leading-6 [&>*]:first:mt-0 [&>*]:last:mb-0 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5 [&_p]:my-2 [&_pre]:text-sm [&_table]:text-sm"
-                                        mode={
-                                          segment.streaming
-                                            ? "streaming"
-                                            : "static"
-                                        }
-                                      >
-                                        {segment.text}
-                                      </Streamdown>
-                                    </div>
-                                  );
-                                }
-
-                                if (segment.kind === "lookup") {
-                                  return (
-                                    <div className={spacing} key={segment.key}>
-                                      <NavigatorLookup trace={segment.trace} cards={segment.cards} />
-                                    </div>
-                                  );
-                                }
-
-                                if (segment.kind === "trace") {
-                                  return (
-                                    <div className={spacing} key={segment.key}>
-                                      <NavigatorTraceRow
-                                        trace={segment.trace}
-                                      />
-                                    </div>
-                                  );
-                                }
-
-                                if (segment.kind === "results") {
-                                  return (
-                                    <div className={spacing} key={segment.key}>
-                                      <NavigatorResultCards
-                                        {...segment.results}
-                                      />
-                                    </div>
-                                  );
-                                }
-
-                                return null;
-                              })}
-                              {stoppedStatus}
-                              {!turn.cancelled && responseDurations[message.id] !== undefined ? (
-                                <p
-                                  className="mt-2 flex items-center gap-1.5 px-2 text-[0.8125rem] font-normal leading-4 text-muted-foreground tabular-nums"
-                                  aria-label={`${isNavigatorRequestComplete(messages.slice(0, messageIndex + 1)) ? "Done" : "Finished"} in ${Math.max(1, Math.round(responseDurations[message.id]))} seconds`}
-                                >
-                                  <TimerIcon
-                                    aria-hidden="true"
-                                    className="size-3.5"
-                                  />
-                                  {isNavigatorRequestComplete(messages.slice(0, messageIndex + 1)) ? "Done" : "Finished"} in {Math.max(1, Math.round(responseDurations[message.id]))}s
-                                </p>
-                              ) : null}
-                            </div>
-                          );
-                        })}
+                        {rows.map(row => <NavigatorMessageRow key={row.message.id} row={row}
+                          duration={responseDurations[row.message.id]} isBusy={row.turn.cancelled && isBusy}
+                          onRetryRequest={retryRequest} />)}
                         {showInlineActivity && activityStartedAt ? (
                           <div className="px-2" key="pending-activity">
                             <ActivityPill
