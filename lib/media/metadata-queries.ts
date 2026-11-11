@@ -1,4 +1,4 @@
-import { QueryObserver, queryOptions, type QueryKey } from "@tanstack/react-query";
+import { notifyManager, QueryObserver, queryOptions, type QueryKey } from "@tanstack/react-query";
 import { z } from "zod";
 import type { StreamQueries } from "./stream-queries";
 import type { MediaToPlay } from "@/lib/atoms";
@@ -115,7 +115,10 @@ export function createMetadataQueries(streams: StreamQueries, fetchFn: typeof fe
     return { client, scope, options, configOptions, title, episode, peek, prune,
         observe(media: MediaToPlay, notify: () => void) {
             const held = new Map<string, () => void>();
-            let attaching = false;
+            let attaching = false, active = true;
+            // Hydration can write the cache during a different component's render.
+            // Match useQuery's scheduled external-store notifications.
+            const publish = notifyManager.batchCalls(() => { if (active) notify(); });
             const attach = () => {
                 if (attaching) return;
                 attaching = true;
@@ -131,17 +134,17 @@ export function createMetadataQueries(streams: StreamQueries, fetchFn: typeof fe
                         const key = JSON.stringify(record.queryKey);
                         if (!held.has(key)) {
                             const observer = new QueryObserver(client, { ...record, enabled: false });
-                            held.set(key, observer.subscribe(notify));
+                            held.set(key, observer.subscribe(publish));
                         }
                     }
                 } finally { attaching = false; }
             };
             const unsubscribe = client.getQueryCache().subscribe(event => {
                 if (event.query.queryKey[1] !== scope || attaching) return;
-                attach(); notify();
+                attach(); publish();
             });
             attach();
-            return () => { unsubscribe(); for (const release of held.values()) release(); held.clear(); prune(); };
+            return () => { active = false; unsubscribe(); for (const release of held.values()) release(); held.clear(); prune(); };
         },
         enrich(media: MediaToPlay) { const cached = peek(media); return enrichPlayback(media, cached.title, cached.episode); },
         details: async (media: MediaToPlay, signal?: AbortSignal) => metadataDetails(await title(media, "required", signal)),
