@@ -6,7 +6,7 @@ import { ArtworkImage } from "@/components/artwork-image";
 
 import { preloadPlayer } from "@/lib/preload-tools";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useHomePaletteScene } from "@/components/home-palette-provider";
 import { mediaArtwork, backdropVariantUrl } from "@/lib/artwork";
 import Link from "next/link";
@@ -58,6 +58,11 @@ export function MediaCard({
     ? ([300, 780, 1280] as const).map(width => `${backdropVariantUrl(artwork.background, width)} ${width}w`).join(", ") : undefined;
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
+  const [loadedLogo, setLoadedLogo] = useState<string | null>(null);
+  const attachLogo = useCallback((image: HTMLImageElement | null) => {
+    // Cached logos can finish before React attaches the load listener.
+    if (image?.complete && image.naturalWidth > 0) setLoadedLogo(artwork.logo ?? null);
+  }, [artwork.logo]);
   const [pressed, setPressed] = useState(false);
   const subtitle = continueWatching
     ? item.progressLabel ||
@@ -191,12 +196,14 @@ export function MediaCard({
         ) : null}
 
         {continueWatching && artwork.logo && failedLogo !== artwork.logo ? (
-          <div className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
+          <div data-logo-ready={loadedLogo === artwork.logo ? "" : undefined} className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
             <img
+              ref={attachLogo}
               src={artwork.logo}
               loading="lazy"
               decoding="async"
               fetchPriority="low"
+              onLoad={() => setLoadedLogo(artwork.logo!)}
               onError={() => setFailedLogo(artwork.logo!)}
               alt={`${item.name} logo`}
               className="max-h-[36%] max-w-[78%] w-auto object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]"

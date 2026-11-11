@@ -27,7 +27,11 @@
   opacity: 0;
   transition: opacity 300ms var(--ease-out);
 }
-.frame:has(.artwork[data-artwork-state="ready"]) .wordmark { visibility: visible; opacity: 1; }
+.frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { visibility: visible; opacity: 1; }
+
+@starting-style {
+  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { opacity: 0; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .wordmark { transition-duration: 100ms; }
