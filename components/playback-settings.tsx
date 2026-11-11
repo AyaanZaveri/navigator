@@ -11,11 +11,11 @@ export function PlaybackSettings() {
     <FieldGroup className="min-w-0 gap-6">
       <Field orientation="horizontal">
         <FieldContent>
-          <FieldLabel htmlFor="automatic-web-stream">Automatically find a playable stream</FieldLabel>
-          <FieldDescription id="automatic-web-stream-description">On web, try other streams if playback fails or audio is unsupported.</FieldDescription>
+          <FieldLabel htmlFor="continue-watching-prefetch">Preload Continue Watching</FieldLabel>
+          <FieldDescription id="continue-watching-prefetch-description">Find streams in the background so you can resume sooner.</FieldDescription>
         </FieldContent>
-        <Switch id="automatic-web-stream" aria-describedby="automatic-web-stream-description" checked={playbackPreferences.autoSelectWebStream}
-          onCheckedChange={autoSelectWebStream => updatePlaybackPreferences({ autoSelectWebStream })} />
+        <Switch id="continue-watching-prefetch" aria-describedby="continue-watching-prefetch-description" checked={playbackPreferences.continueWatchingPrefetch}
+          onCheckedChange={continueWatchingPrefetch => updatePlaybackPreferences({ continueWatchingPrefetch })} />
       </Field>
       <Field orientation="horizontal">
         <FieldContent>
@@ -30,6 +30,14 @@ export function PlaybackSettings() {
         </FieldContent>
         <Switch id="episode-prefetch" checked={playbackPreferences.episodePrefetch}
           onCheckedChange={episodePrefetch => updatePlaybackPreferences({ episodePrefetch })} />
+      </Field>
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel htmlFor="automatic-web-stream">Automatically find a playable stream</FieldLabel>
+          <FieldDescription id="automatic-web-stream-description">On web, try other streams if playback fails or audio is unsupported.</FieldDescription>
+        </FieldContent>
+        <Switch id="automatic-web-stream" aria-describedby="automatic-web-stream-description" checked={playbackPreferences.autoSelectWebStream}
+          onCheckedChange={autoSelectWebStream => updatePlaybackPreferences({ autoSelectWebStream })} />
       </Field>
     </FieldGroup>
   </section>;

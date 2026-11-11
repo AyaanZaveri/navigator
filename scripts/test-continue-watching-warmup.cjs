@@ -78,7 +78,7 @@ const resolve = load('lib/media/resolve-playback.ts');
     assert.equal(played.streamUrl, 'https://stream.test/quick.mp4'); assert.equal(fresh, 2);
 
     const host = hooks(), listeners = new Map(), idle = new Map(), warmed = [];
-    let markers = true, imagePending = true, network = true, authenticated = true, playing = false, changes;
+    let markers = true, imagePending = true, network = true, authenticated = true, playing = false, enabled = false, changes;
     const bounds = () => ({ top: 0, bottom: 100, left: 0, right: 100 });
     const page = { querySelectorAll: selector => selector === 'img' ? [{ complete: !imagePending, getBoundingClientRect: bounds }] : markers ? [{ getBoundingClientRect: bounds }] : [],
         addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) };
@@ -87,6 +87,7 @@ const resolve = load('lib/media/resolve-playback.ts');
     const { ContinueWatchingWarmup } = load('components/continue-watching-warmup.tsx', {
         react: host.react, 'react/jsx-runtime': host.jsx,
         '@/contexts/account-context': { useAccountAccess: () => ({ authenticated }) },
+        '@/contexts/settings-context': { useSettings: () => ({ playbackPreferences: { continueWatchingPrefetch: enabled } }) },
         '@/contexts/MediaPlayerContext': { useIsPlayerVisible: () => playing },
         '@/lib/route-prefetch': { routePrefetchAllowed: () => network },
         '@/lib/media/continue-watching-warmup': { continueWatchingTarget: moduleApi.continueWatchingTarget,
@@ -98,6 +99,11 @@ const resolve = load('lib/media/resolve-playback.ts');
     });
     const items = [movie('first'), movie('second')];
     const render = () => { const tree = host.render(ContinueWatchingWarmup, { items, children: null }); tree.props.children.props.ref.current = root; host.flush(); return tree; };
+    const disabled = render();
+    disabled.props.value.intent(movie('disabled'))();
+    assert.equal(disabled.props.value.claim(movie('disabled')), undefined);
+    assert.equal(owners.length, 0, 'Disabled preloading starts no idle, hover or click warmup');
+    enabled = true;
     render(); assert.equal(idle.size, 0, 'Never compete with visible pending catalog rows');
     markers = false; changes(); assert.equal(idle.size, 0, 'Wait for visible images too');
     imagePending = false; listeners.get('load')(); assert.equal(idle.size, 1);
@@ -105,6 +111,11 @@ const resolve = load('lib/media/resolve-playback.ts');
     network = false; listeners.get('visibilitychange')(); network = true;
     playing = true; render(); assert.equal(owners[0].disposed, true);
     playing = false; authenticated = false; render(); assert.equal(owners.length, 1, 'Guests never start discovery');
+    authenticated = true; render(); assert.equal(idle.size, 1);
+    enabled = false; render();
+    assert.equal(owners[1].disposed, true, 'Turning preloading off disposes speculative requests');
+    assert.equal(idle.size, 0, 'Turning preloading off cancels queued idle work');
+    enabled = true; render(); assert.equal(owners.length, 3, 'Preloading can be re-enabled without remounting');
     host.unmount(); await tick();
     console.log('PASS: two-title warmup bound, exact request transfer, cancellation/TTL/account cleanup, fresh failure retry, resume identity and visible-content/idle/network gating');
 })().catch(error => { console.error(error); process.exitCode = 1; });

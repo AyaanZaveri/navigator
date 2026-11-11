@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import type { MediaItem } from "@/types/stremio";
 import { useAccountAccess } from "@/contexts/account-context";
+import { useSettings } from "@/contexts/settings-context";
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import { routePrefetchAllowed } from "@/lib/route-prefetch";
 import { createContinueWatchingWarmup, continueWatchingTarget } from "@/lib/media/continue-watching-warmup";
@@ -15,9 +16,10 @@ export function ContinueWatchingWarmup({ items, children }: { items: MediaItem[]
     const root = useRef<HTMLDivElement>(null);
     const manager = useRef<Manager | null>(null);
     const { authenticated } = useAccountAccess();
+    const { playbackPreferences: { continueWatchingPrefetch } } = useSettings();
     const playing = useIsPlayerVisible();
     useEffect(() => {
-        if (!authenticated || playing || !root.current) return;
+        if (!continueWatchingPrefetch || !authenticated || playing || !root.current) return;
         const owner = createContinueWatchingWarmup();
         manager.current = owner;
         const element = root.current;
@@ -67,13 +69,14 @@ export function ContinueWatchingWarmup({ items, children }: { items: MediaItem[]
             connection?.removeEventListener("change", visibility);
             owner.dispose(); if (manager.current === owner) manager.current = null;
         };
-    }, [authenticated, playing, items]);
-    const claim = useCallback<Manager["claim"]>(item => manager.current?.claim(item), []);
+    }, [continueWatchingPrefetch, authenticated, playing, items]);
+    const claim = useCallback<Manager["claim"]>(item => continueWatchingPrefetch ? manager.current?.claim(item) : undefined, [continueWatchingPrefetch]);
     const intent = useCallback((item: MediaItem) => {
+        if (!continueWatchingPrefetch) return () => {};
         const owner = manager.current;
         const timer = setTimeout(() => { if (routePrefetchAllowed()) owner?.warm(item); }, 120);
         return () => { clearTimeout(timer); owner?.release(item); };
-    }, []);
+    }, [continueWatchingPrefetch]);
     const value = useMemo(() => ({ intent, claim }), [intent, claim]);
     return <Context.Provider value={value}><div ref={root}>{children}</div></Context.Provider>;
 }
