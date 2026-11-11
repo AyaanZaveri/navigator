@@ -9,6 +9,7 @@ const playback = [];
 const routes = [];
 const palettes = [];
 let finePointer = true;
+let resumeWarmup = null;
 class TestNode {}
 class TestElement extends TestNode { matches(selector) { return selector === ':focus-visible'; } }
 const routeContext = { exports: {} };
@@ -19,6 +20,7 @@ const context = { exports: {}, Element: TestElement, Node: TestNode, window: { m
     if (name === '@/components/artwork-image') return { ArtworkImage: 'img' };
     if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
     if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
+    if (name === '@/components/continue-watching-warmup') return { useContinueWatchingWarmup: () => resumeWarmup };
     if (name === '@/components/home-palette-provider') return { useHomePaletteScene: () => ({
         hover: (...args) => palettes.push(['hover', ...args]), focus: (...args) => palettes.push(['focus', ...args]),
         leave: (...args) => palettes.push(['leave', ...args]), release() {},
@@ -98,6 +100,11 @@ function findButton(node) {
     assert.equal(playback[1], true);
     assert.equal(routes.length, 0, 'Card Play cannot switch the page before the player covers it');
     assert.equal(playback[0].detailsPath, '/movie/tt123', 'The player receives the return destination');
+    const shared = { id: 'resume', promise: Promise.resolve([]) };
+    resumeWarmup = { claim: () => shared, intent: () => () => {} };
+    await findButton(render(true)).props.onClick({ preventDefault() {}, stopPropagation() {} });
+    assert.equal(playback.at(-2).streamRequest, shared, 'Continue Watching Play hands the existing discovery request to playback');
+    resumeWarmup = null;
     for (const continueWatching of [false, true]) {
         stateIndex = 0;
         const card = context.exports.MediaCard({ continueWatching, item: { id: 'tt-show', name: 'Show', type: 'series', seasonNumber: 2, episodeNumber: 3, mediaSourceId: 'tt-show:2:3', resumePositionTicks: 42 } });

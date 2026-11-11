@@ -16,6 +16,7 @@ import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { buildEpisodePath } from "@/lib/series-route";
 import styles from "./media-card.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
+import { useContinueWatchingWarmup } from "@/components/continue-watching-warmup";
 
 export function MediaCard({
   item,
@@ -56,6 +57,14 @@ export function MediaCard({
     linkHref = `/movie/${item.id}`;
   }
 
+  const warmup = useContinueWatchingWarmup();
+  const cancelWarmup = useRef<(() => void) | null>(null);
+  const warmOnIntent = () => {
+    if (!continueWatching) return;
+    cancelWarmup.current?.();
+    cancelWarmup.current = warmup?.intent(item) ?? null;
+  };
+  useEffect(() => () => { cancelWarmup.current?.(); }, [item.id, item.mediaSourceId]);
   const artwork = mediaArtwork(item.seriesId || item.id, item.type);
   // Search already supplies an exact TMDB poster. Reusing it avoids another
   // metadata request per card and preserves posters in the title's own language.
@@ -97,6 +106,7 @@ export function MediaCard({
         type: item.type,
         resumePositionTicks: item.resumePositionTicks,
         streamUrl: item.streamUrl,
+        streamRequest: continueWatching ? warmup?.claim(item) : undefined,
         mediaSourceId: item.mediaSourceId,
         seriesId: item.type === "series" ? item.seriesId || item.id : undefined,
         showName: item.type === "series" ? item.showName || item.name : undefined,
@@ -117,16 +127,19 @@ export function MediaCard({
       data-continue-watching={continueWatching || undefined}
       onPointerEnter={event => {
         if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+        warmOnIntent();
         homeScene?.hover(paletteOwner.current, {
           primary: continueWatching ? artwork.background : artwork.poster,
           fallback: continueWatching ? artwork.poster : artwork.background,
         });
       }}
-      onPointerLeave={() => homeScene?.leave(paletteOwner.current)}
+      onPointerLeave={() => { homeScene?.leave(paletteOwner.current); cancelWarmup.current?.(); }}
+      onBlurCapture={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) cancelWarmup.current?.(); }}
       onFocusCapture={event => {
         // Pointer clicks focus links too; only keyboard focus selects instantly.
         if (!(event.target instanceof Element) || !event.target.matches(":focus-visible")) return;
         if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+        warmOnIntent();
         homeScene?.focus(paletteOwner.current, {
           primary: continueWatching ? artwork.background : artwork.poster,
           fallback: continueWatching ? artwork.poster : artwork.background,

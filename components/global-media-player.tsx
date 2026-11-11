@@ -49,7 +49,7 @@ import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { probeStreamPlayability } from "@/lib/media/stream-playability";
 import { createPlaybackStreamRequest, fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { installWebStartupWatchdog } from "@/lib/media/web-startup-watchdog";
-import { resolvePlayback, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
+import { resolvePlayback, invalidatePlaybackWarmup, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
 import type { MediaToPlay } from "@/lib/atoms";
 import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
@@ -1034,6 +1034,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                         setPlaybackError(null);
                         setVideoReady(false);
                         setPlayerAttempt((attempt) => attempt + 1);
+                        invalidatePlaybackWarmup(playbackRequest?.streamRequest);
                         if (playbackRequest) void loadMedia(playbackRequest);
                       }}>Try again</Button>
                     </div>

@@ -4,6 +4,8 @@ import { fetchPlaybackId } from './fetch-playback-id';
 export type StreamWithAddon = StremioStream & { addonId: string; addonName: string; addonIndex?: number };
 export interface PlaybackStreamSnapshot { streams: StreamWithAddon[]; pending: number; total: number; complete: boolean; settledPrefix?: number }
 export interface PlaybackStreamRequest {
+    speculative?: boolean;
+    cancel?: () => void;
     id: string;
     type: string;
     canonicalId: Promise<string>;

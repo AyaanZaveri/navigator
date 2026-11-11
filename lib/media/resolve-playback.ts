@@ -330,7 +330,49 @@ function selectNativeStream(source: PlaybackStreamRequest, dependencies: Playbac
 }
 
 /** Prefer the requested audio language; retain add-on order within language tiers unless web compatibility selection is enabled. */
+const invalidatedWarmups = new WeakSet<object>();
+const warmupLeases = new WeakMap<object, { count: number }>();
+export function invalidatePlaybackWarmup(request: PlaybackStreamRequest | undefined) {
+    if (request?.speculative) { invalidatedWarmups.add(request); request.cancel?.(); }
+}
 export async function resolvePlayback(
+    request: MediaToPlay,
+    dependencies: PlaybackDependencies,
+    onPhase: (_phase: PlaybackPhase) => void,
+    onTargetReady?: (_media: MediaToPlay) => void,
+): Promise<MediaToPlay> {
+    const candidate = request.streamRequest?.speculative ? request.streamRequest : undefined;
+    const warmup = candidate && !invalidatedWarmups.has(candidate) ? candidate : undefined;
+    if (candidate && !warmup) request = { ...request, streamRequest: undefined };
+    if (dependencies.signal?.aborted) {
+        if (warmup) queueMicrotask(() => { if (!warmupLeases.get(warmup)?.count) warmup.cancel?.(); });
+        dependencies.signal.throwIfAborted();
+    }
+    if (warmup && dependencies.signal && warmup.cancel) {
+        const signal = dependencies.signal;
+        const lease = warmupLeases.get(warmup) ?? { count: 0 };
+        warmupLeases.set(warmup, lease); lease.count++;
+        let active = true;
+        const release = (aborted = false) => {
+            if (!active) return;
+            active = false; lease.count--; signal.removeEventListener("abort", abort);
+            // Strict Mode cleanup/setup and immediate playback handoffs can
+            // rejoin the same unfinished request before this microtask runs.
+            if (aborted) queueMicrotask(() => { if (!lease.count) warmup.cancel?.(); });
+        };
+        const abort = () => release(true);
+        signal.addEventListener("abort", abort, { once: true });
+        void warmup.promise.then(() => release(), () => release());
+    }
+    try { return await resolvePlaybackAttempt(request, dependencies, onPhase, onTargetReady); }
+    catch (error) {
+        if (!warmup || dependencies.signal?.aborted || request.streamUrl) throw error;
+        invalidatePlaybackWarmup(warmup);
+        return resolvePlaybackAttempt({ ...request, streamRequest: undefined }, dependencies, onPhase, onTargetReady);
+    }
+}
+
+async function resolvePlaybackAttempt(
     request: MediaToPlay,
     dependencies: PlaybackDependencies,
     onPhase: (_phase: PlaybackPhase) => void,

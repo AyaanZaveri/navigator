@@ -20,6 +20,7 @@ function load(file, dependencies = {}, globals = {}) {
         const link = dependencies['next/link'];
         return { IntentLink: link.default ?? link };
       }
+      if (name === '@/components/continue-watching-warmup' && dependencies['@/components/home-palette-provider']) return { useContinueWatchingWarmup: () => null, ContinueWatchingWarmup: 'warmup' };
       // Existing behavioral fixtures mock the previous auth module; preserve that boundary after its server-only split.
       if (name === '@/lib/server/auth') {
         const fixture = dependencies['@/app/actions/auth'] || dependencies['./auth'];

@@ -28,6 +28,7 @@ async function run() {
             if (name === 'next/navigation') return { useRouter: () => ({ push() {} }) };
             if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({}) };
             if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
+            if (name === '@/components/continue-watching-warmup') return { useContinueWatchingWarmup: () => null };
             if (name === '@/components/home-palette-provider') return { useHomePaletteScene: () => null };
             if (name === '@/lib/media/series-season') return {};
             if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: image, background: image }), episodeThumbnailUrl: value => value, backdropVariantUrl: value => value };

@@ -5,6 +5,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
+import { ContinueWatchingWarmup } from "@/components/continue-watching-warmup";
 import { MediaSection } from "@/components/media-section";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -117,18 +118,20 @@ async function ContinueWatchingSection({
   return (
     <>
       {artwork && <HomeInitialPalette primary={artwork.background} fallback={artwork.poster} />}
-      <MediaSection
-        sectionName="Continue Watching"
-        mediaItems={continueWatchingItems}
-        continueWatching
-        cardSubtitles={continueWatchingItems.map((item) =>
-          item.type === "movie" && !item.year && !item.releaseInfo ? (
-            <Suspense key={item.id} fallback={null}>
-              <ResumeMovieYear id={item.id} />
-            </Suspense>
-          ) : undefined
-        )}
-      />
+      <ContinueWatchingWarmup items={continueWatchingItems}>
+        <MediaSection
+          sectionName="Continue Watching"
+          mediaItems={continueWatchingItems}
+          continueWatching
+          cardSubtitles={continueWatchingItems.map((item) =>
+            item.type === "movie" && !item.year && !item.releaseInfo ? (
+              <Suspense key={item.id} fallback={null}>
+                <ResumeMovieYear id={item.id} />
+              </Suspense>
+            ) : undefined
+          )}
+        />
+      </ContinueWatchingWarmup>
     </>
   );
 }
@@ -240,14 +243,14 @@ export default async function Home() {
   return (
     <AuthErrorHandler>
       <HomePaletteProvider>
-        <div className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
+        <div data-home-page className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
           <HomeGradientBackground />
 
           {continueWatchingPromise && <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
             <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />
           </Suspense>}
 
-          <Suspense fallback={<HomeCatalogsFallback />}>
+          <Suspense fallback={<div data-home-initial-pending><HomeCatalogsFallback /></div>}>
             {catalogEntriesPromise ? <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} /> : <DiscoverySections />}
           </Suspense>
         </div>
