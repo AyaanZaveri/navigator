@@ -27,8 +27,8 @@
     "test:touch-scrubbing": "node scripts/test-touch-scrubbing.cjs && node scripts/test-seek-time.cjs && node scripts/test-surface-scrub.cjs",
     "test:resume": "node scripts/test-resume-items.cjs",
     "test:watch-history": "node scripts/test-watch-history.cjs && node scripts/test-watch-toggle-optimistic.cjs && node scripts/test-watch-history-batching.cjs",
-    "test:performance": "node scripts/test-logo-sampling.cjs && node scripts/test-home-logo-canvas.cjs && node scripts/test-watch-history-batching.cjs && node scripts/test-route-prefetch.cjs && node scripts/test-player-clock-work.cjs && node scripts/test-continue-watching-warmup.cjs && node scripts/test-home-row-streaming.cjs && node scripts/test-stream-queries.cjs && node scripts/test-navigator-render-work.cjs",
-    "test:continue-watching": "node scripts/test-continue-watching-warmup.cjs",
+    "test:performance": "node scripts/test-logo-sampling.cjs && node scripts/test-home-logo-canvas.cjs && node scripts/test-watch-history-batching.cjs && node scripts/test-route-prefetch.cjs && node scripts/test-player-clock-work.cjs && node scripts/test-continue-watching-warmup.cjs && node scripts/test-home-row-streaming.cjs && node scripts/test-stream-queries.cjs && node scripts/test-navigator-render-work.cjs && node scripts/test-continue-watching-scheduler.cjs",
+    "test:continue-watching": "node scripts/test-continue-watching-warmup.cjs && node scripts/test-continue-watching-scheduler.cjs && node scripts/test-continue-watching-navigation.cjs",
     "test:image-layout": "node scripts/test-image-layout.cjs",
     "test:webkit-previews": "node scripts/test-webkit-previews.cjs",
     "test:web-player": "node scripts/test-player-initial-focus.cjs && node scripts/test-player-control-activity.cjs && node scripts/test-range-previews.cjs && node scripts/test-stream-metadata.cjs && node scripts/test-seek-preview-source.cjs && node scripts/test-player-glass-theme.cjs && node scripts/test-browser-player-glass.cjs && node scripts/test-previews.cjs && node scripts/test-browser-preview-recovery.cjs && node scripts/test-player-glass.cjs && node scripts/test-web-playback-recovery.cjs",
@@ -48,7 +48,7 @@
     "cloudflare:deploy": "npm run cloudflare:build && opennextjs-cloudflare deploy",
     "cloudflare:types": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "test:security": "node scripts/test-security.cjs && node scripts/test-desktop-auth.cjs && node scripts/test-session-client.cjs",
-    "test:stream-queries": "node scripts/test-stream-queries.cjs"
+    "test:stream-queries": "node scripts/test-stream-queries.cjs && node scripts/test-continue-watching-navigation.cjs"
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^3.0.84",

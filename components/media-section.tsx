@@ -76,6 +76,7 @@ export function MediaSection({
             {mediaItems.map((item, index) => (
               <div
                 key={`${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
+                data-continue-watching-index={continueWatching ? index : undefined}
                 className="flex-shrink-0"
               >
                 <MediaCard

@@ -17,38 +17,51 @@ export function createContinueWatchingWarmup(
     now: () => number = () => performance.now(),
     retainOnDispose = false,
 ) {
-    const entries = new Map<string, { request: PlaybackStreamRequest; controller: AbortController; expires: number; timer: ReturnType<typeof setTimeout>; keep: boolean }>();
+    const entries = new Map<string, { request: PlaybackStreamRequest; controller: AbortController; expires: number; timer: ReturnType<typeof setTimeout>; keep: boolean; pending: boolean; cancelUnclaimed?: () => void }>();
     const adopted = new Map<string, PlaybackStreamRequest>();
     let active = true;
-    const drop = (key: string) => {
+    const drop = (key: string, cancelUnclaimed = false) => {
         const entry = entries.get(key);
         if (!entry) return;
         entries.delete(key); clearTimeout(entry.timer); entry.controller.abort();
+        if (cancelUnclaimed) entry.cancelUnclaimed?.();
     };
     const prune = () => { for (const [key, entry] of entries) if (entry.expires <= now()) drop(key); };
-    const clear = () => { for (const key of entries.keys()) drop(key); };
+    const clear = () => { for (const key of entries.keys()) drop(key, true); };
     return {
         warm(item: Item, keep = false) {
             const target = continueWatchingTarget(item);
             if (!active || !target) return;
             prune();
             const existing = entries.get(target.key);
-            if (existing) { existing.keep ||= keep; return; }
-            if (entries.size >= 2) drop(entries.keys().next().value!);
+            if (existing) { existing.keep ||= keep; return existing.request; }
+            const pending = [...entries].filter(([, entry]) => entry.pending);
+            if (pending.length >= 2) drop(pending[0][0], true);
+            if (entries.size >= 4) {
+                const settled = [...entries].find(([, entry]) => !entry.pending);
+                if (settled) drop(settled[0]);
+            }
             const controller = new AbortController();
             const request = create(target.id, target.type, controller.signal);
+            const cancelUnclaimed = request.cancel;
             request.speculative = true;
             request.cancel = () => controller.abort();
-            const entry = { request, controller, expires: now() + 30_000, keep,
+            const entry = { request, controller, expires: now() + 30_000, keep, pending: true, cancelUnclaimed,
                 timer: setTimeout(() => drop(target.key), 30_000) };
             entries.set(target.key, entry);
             void request.promise.then(streams => {
+                entry.pending = false;
                 if (!streams.length && entries.get(target.key) === entry) drop(target.key);
             }).catch(() => { if (entries.get(target.key) === entry) drop(target.key); });
+            return request;
         },
         release(item: Item) {
             const target = continueWatchingTarget(item);
             if (target && !entries.get(target.key)?.keep) drop(target.key);
+        },
+        cancel(item: Item) {
+            const target = continueWatchingTarget(item);
+            if (target) drop(target.key, true);
         },
         claim(item: Item) {
             if (!active) return undefined;

@@ -77,12 +77,16 @@ const resolve = load('lib/media/resolve-playback.ts');
     await firstPlay; const played = await replay;
     assert.equal(played.streamUrl, 'https://stream.test/quick.mp4'); assert.equal(fresh, 2);
 
-    const host = hooks(), listeners = new Map(), idle = new Map(), warmed = [];
-    let markers = true, imagePending = true, network = true, authenticated = true, playing = false, enabled = false, changes;
-    const bounds = () => ({ top: 0, bottom: 100, left: 0, right: 100 });
+    const host = hooks(), listeners = new Map(), idle = new Map(), warmed = [], warming = [];
+    let markers = true, imagePending = true, network = true, authenticated = true, playing = false, enabled = false, changes, offset = 0;
+    const bounds = () => ({ top: 0, bottom: 100, left: 0, right: 800, width: 800, height: 100 });
     const page = { querySelectorAll: selector => selector === 'img' ? [{ complete: !imagePending, getBoundingClientRect: bounds }] : markers ? [{ getBoundingClientRect: bounds }] : [],
         addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) };
-    const root = { closest: () => page, getBoundingClientRect: bounds };
+    const viewport = { getBoundingClientRect: bounds, addEventListener: (name, fn) => listeners.set('viewport:' + name, fn), removeEventListener: name => listeners.delete('viewport:' + name) };
+    const cards = Array.from({ length: 6 }, (_, i) => ({ dataset: { continueWatchingIndex: String(i) }, getBoundingClientRect: () => ({
+        top: 0, bottom: 100, left: i * 200 - offset, right: i * 200 + 200 - offset, width: 200, height: 100,
+    }) }));
+    const root = { closest: () => page, getBoundingClientRect: bounds, querySelector: () => viewport, querySelectorAll: () => cards };
     const owners = [];
     const { ContinueWatchingWarmup } = load('components/continue-watching-warmup.tsx', {
         react: host.react, 'react/jsx-runtime': host.jsx,
@@ -91,13 +95,14 @@ const resolve = load('lib/media/resolve-playback.ts');
         '@/contexts/MediaPlayerContext': { useIsPlayerVisible: () => playing },
         '@/lib/route-prefetch': { routePrefetchAllowed: () => network },
         '@/lib/media/continue-watching-warmup': { continueWatchingTarget: moduleApi.continueWatchingTarget,
-            createContinueWatchingWarmup() { const owner = { disposed: false, warm: item => warmed.push(item.id), clear() {}, claim() {}, dispose() { this.disposed = true; } }; owners.push(owner); return owner; } },
-    }, { window: { innerWidth: 1000, innerHeight: 800, requestIdleCallback: fn => { const id = ++timerId; idle.set(id, fn); return id; }, cancelIdleCallback: id => idle.delete(id) },
+            createContinueWatchingWarmup() { const owner = { disposed: false, warm: item => { warmed.push(item.id); const work = deferred(); warming.push(work); return { promise: work.promise }; }, cancel() {}, clear() {}, claim() {}, dispose() { this.disposed = true; } }; owners.push(owner); return owner; } },
+    }, { window: { innerWidth: 1000, innerHeight: 800, requestIdleCallback: fn => { const id = ++timerId; idle.set(id, fn); return id; }, cancelIdleCallback: id => idle.delete(id),
+        addEventListener: (name, fn) => listeners.set('window:' + name, fn), removeEventListener: name => listeners.delete('window:' + name) },
         navigator: {}, document: { addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) },
         MutationObserver: class { constructor(fn) { changes = fn; } observe() {} disconnect() {} },
         IntersectionObserver: class { observe() {} disconnect() {} },
     });
-    const items = [movie('first'), movie('second')];
+    const items = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'].map(movie);
     const render = () => { const tree = host.render(ContinueWatchingWarmup, { items, children: null }); tree.props.children.props.ref.current = root; host.flush(); return tree; };
     const disabled = render();
     disabled.props.value.intent(movie('disabled'))();
@@ -107,7 +112,14 @@ const resolve = load('lib/media/resolve-playback.ts');
     render(); assert.equal(idle.size, 0, 'Never compete with visible pending catalog rows');
     markers = false; changes(); assert.equal(idle.size, 0, 'Wait for visible images too');
     imagePending = false; listeners.get('load')(); assert.equal(idle.size, 1);
-    const run = [...idle.values()][0]; idle.clear(); run(); assert.deepEqual(warmed, ['first'], 'Only the most recent eligible item warms automatically');
+    const runIdle = () => { const work = [...idle.values()]; idle.clear(); work.forEach(run => run()); };
+    runIdle(); assert.deepEqual(warmed, ['first', 'second'], 'Only two visible candidates start together');
+    warming[0].resolve([]); warming[1].resolve([]); await tick();
+    assert.deepEqual(warmed, ['first', 'second', 'third', 'fourth'], 'The next two visible candidates use freed slots');
+    warming[2].resolve([]); warming[3].resolve([]); await tick();
+    changes(); runIdle(); assert.equal(warmed.length, 4, 'Offscreen cards are excluded');
+    offset = 400; listeners.get('viewport:scroll')(); runIdle();
+    assert.deepEqual(warmed.slice(4), ['fifth', 'sixth'], 'Horizontal scrolling makes newly visible cards eligible');
     network = false; listeners.get('visibilitychange')(); network = true;
     playing = true; render(); assert.equal(owners[0].disposed, true);
     playing = false; authenticated = false; render(); assert.equal(owners.length, 1, 'Guests never start discovery');
@@ -117,5 +129,5 @@ const resolve = load('lib/media/resolve-playback.ts');
     assert.equal(idle.size, 0, 'Turning preloading off cancels queued idle work');
     enabled = true; render(); assert.equal(owners.length, 3, 'Preloading can be re-enabled without remounting');
     host.unmount(); await tick();
-    console.log('PASS: two-title warmup bound, exact request transfer, cancellation/TTL/account cleanup, fresh failure retry, resume identity and visible-content/idle/network gating');
+    console.log('PASS: two concurrent warmups, four visible candidates, scrolling, exact request transfer, TTL/account cleanup and idle/network/preference gating');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -63,7 +63,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
         const streams = unused.filter(query => query.queryKey[2] === "streams");
         const groups = new Map<string, typeof streams>();
         for (const query of streams) {
-            if (query.state.status === "error" || !Array.isArray(query.state.data) || !query.state.data.length) {
+            if (query.state.status === "error" || !Array.isArray(query.state.data)) {
                 if (query.state.fetchStatus !== "fetching") client.removeQueries({ queryKey: query.queryKey, exact: true });
                 continue;
             }
@@ -238,7 +238,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
         let entry = aliases.get(keyFor(target));
         if (entry?.completed && (entry.dead || !entry.keys.length || entry.keys.some(key => {
             const state = client.getQueryState<StreamWithAddon[]>(key);
-            return !state?.data?.length || state.isInvalidated || Date.now() - state.dataUpdatedAt >= 30_000;
+            return !state || !Array.isArray(state.data) || state.isInvalidated || Date.now() - state.dataUpdatedAt >= 30_000;
         }))) entry = undefined;
         if (!entry || entry.dead) {
             if (purpose === "speculative") {
