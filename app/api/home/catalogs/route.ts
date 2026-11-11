@@ -50,6 +50,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ sections: [] });
     }
 
+    request.signal.throwIfAborted();
+    if (request.headers.get("Accept")?.includes("application/x-ndjson")) {
+      const controller = new AbortController();
+      const signal = AbortSignal.any([request.signal, controller.signal]);
+      let closed = false;
+      const body = new ReadableStream<Uint8Array>({
+        start(stream) {
+          const encoder = new TextEncoder();
+          void Promise.all(validatedEntries.map(async entry => {
+            let result;
+            try { result = { status: "ready", section: await loadCatalogSection(entry, signal) }; }
+            catch { result = { status: "error" }; }
+            if (!signal.aborted && !closed) stream.enqueue(encoder.encode(JSON.stringify({ key: entry.key, result }) + "\n"));
+          })).then(() => { if (!closed) { closed = true; stream.close(); } });
+        },
+        cancel() { closed = true; controller.abort(); },
+      });
+      return new Response(body, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "private, no-store" } });
+    }
+
     const loadedSections = await Promise.all(
       validatedEntries.map((entry) => loadCatalogSection(entry, request.signal))
     );

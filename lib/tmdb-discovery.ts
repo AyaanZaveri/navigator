@@ -124,7 +124,7 @@ function titleResult(item: TMDBTitleRecord, type: TMDBMediaType) {
  * Provider discovery is TMDB popularity within a regional catalog, not the
  * provider's own viewing chart. Keep that distinction in the section labels.
  */
-export async function getTMDBHomeSections(): Promise<{ sections: HomeCatalogSection[]; region: string }> {
+export function getTMDBHomeRows(only?: ReadonlySet<string>, signal?: AbortSignal) {
     const configuredRegion = process.env.TMDB_WATCH_REGION?.trim().toUpperCase();
     const region = configuredRegion && /^[A-Z]{2}$/.test(configuredRegion) ? configuredRegion : "US";
     const feeds: { key: string; name: string; path: string; type: TMDBMediaType; params?: Params }[] = [
@@ -137,16 +137,30 @@ export async function getTMDBHomeSections(): Promise<{ sections: HomeCatalogSect
         { key: "top-rated-movies", name: "Top Rated Movies", path: "movie/top_rated", type: "movie" },
         { key: "top-rated-series", name: "Top Rated TV Shows", path: "tv/top_rated", type: "series" },
     ];
-    const results = await Promise.allSettled(feeds.map(async feed => {
-        const data = await request<TMDBPage<TMDBTitleRecord>>(feed.path, { include_adult: false, ...feed.params });
-        return {
-            key: `tmdb-${feed.key}`, sectionName: feed.name,
-            mediaItems: data.results.filter(item => !item.adult && Number.isSafeInteger(item.id) && item.id > 0)
-                .slice(0, 20).map(item => titleResult(item, feed.type)),
-        } satisfies HomeCatalogSection;
+    const rows = feeds.filter(feed => !only || only.has(`tmdb-${feed.key}`)).map(feed => ({
+        key: `tmdb-${feed.key}`, sectionName: feed.name,
+        retry: { feed: `tmdb-${feed.key}` },
+        result: (async (): Promise<import("./home-catalogs").HomeCatalogResult> => {
+            try {
+                const data = await request<TMDBPage<TMDBTitleRecord>>(feed.path, { include_adult: false, ...feed.params }, signal);
+                return { status: "ready", section: {
+                    key: `tmdb-${feed.key}`, sectionName: feed.name,
+                    mediaItems: data.results.filter(item => !item.adult && Number.isSafeInteger(item.id) && item.id > 0)
+                        .slice(0, 20).map(item => titleResult(item, feed.type)),
+                } };
+            } catch { return { status: "error" }; }
+        })(),
     }));
-    const sections = results.flatMap(result => result.status === "fulfilled" && result.value.mediaItems.length ? [result.value] : []);
-    if (!sections.length && results.some(result => result.status === "rejected")) throw new Error("Home discovery is unavailable.");
+    return { rows, region };
+}
+
+/** Compatibility aggregate for non-streaming consumers. Home renders each
+ * stable row promise independently instead of awaiting this whole set. */
+export async function getTMDBHomeSections(): Promise<{ sections: HomeCatalogSection[]; region: string }> {
+    const { rows, region } = getTMDBHomeRows();
+    const results = await Promise.all(rows.map(row => row.result));
+    const sections = results.flatMap(result => result.status === "ready" && result.section?.mediaItems.length ? [result.section] : []);
+    if (!sections.length && results.some(result => result.status === "error")) throw new Error("Home discovery is unavailable.");
     return { sections, region };
 }
 

@@ -4,6 +4,8 @@ Baseline: `3abf7dd`, including optimistic web-search (`a7a1d11`) and subtitle-se
 
 Follow-up: P01–P03 have been implemented in source with deterministic regression checks. See [implementation notes and documentation](performance-first-three-implementation.md) for scope, validation and remaining runtime checks. The findings/inventory below retain their original audit baseline.
 
+Further follow-up: P04/P05/P07 and bounded Continue Watching discovery are implemented. See [playback and home implementation notes](performance-playback-home-implementation.md), including unfinished-request reuse on quick Play and validation limits.
+
 ## What would make the largest difference
 
 Prioritize less competing work and earlier useful results before adding more speculative requests. The strongest paths are: stop idle header pixel sampling; remove the watched-status metadata waterfall; budget full-route prefetching; reduce player clock/context fan-out; and reduce repeated chat rendering. Home rows should become usable independently of the slowest provider.

@@ -1,8 +1,6 @@
 import { fetchCatalogItems, fetchResumeItems, fetchResumeMovieYear } from "@/app/actions/media";
 import { getInstalledAddons, getUser } from "@/app/actions/auth";
-import { getTMDBHomeSections } from "@/lib/tmdb-discovery";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Button } from "@/components/ui/button";
+import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { ContinueWatchingWarmup } from "@/components/continue-watching-warmup";
@@ -12,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
 import { HomeInitialPalette, HomePaletteProvider } from "@/components/home-palette-provider";
 import { mediaArtwork } from "@/lib/artwork";
-import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
+import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { MediaItem, StremioAddonCatalog } from "@/types/stremio";
 import { Suspense } from "react";
@@ -198,11 +196,17 @@ async function CatalogSectionsBootstrap({
 
   const initialEntries = catalogEntries.slice(0, INITIAL_CATALOG_COUNT);
   const remainingEntries = catalogEntries.slice(INITIAL_CATALOG_COUNT);
-  const initialSections = await loadCatalogSections(initialEntries);
+  const initialRows: InitialHomeCatalog[] = initialEntries.map(entry => ({
+    key: entry.key, sectionName: entry.sectionName,
+    retry: { catalog: entry },
+    result: loadCatalogSections([entry]).then(sections => ({ status: "ready" as const, section: sections[0] ?? null }))
+      .catch(() => ({ status: "error" as const })),
+  }));
 
   return (
     <HomeCatalogSectionsLazy
-      initialSections={initialSections}
+      initialSections={[]}
+      initialRows={initialRows}
       remainingEntries={remainingEntries}
       batchSize={CATALOG_BATCH_SIZE}
     />
@@ -210,27 +214,12 @@ async function CatalogSectionsBootstrap({
 }
 
 async function DiscoverySections() {
-  let result: Awaited<ReturnType<typeof getTMDBHomeSections>> | undefined;
-  try { result = await getTMDBHomeSections(); } catch { /* Show a recoverable empty state instead of a blank home. */ }
-  if (!result?.sections.length) {
-    return <Empty className="relative z-10 min-h-80">
-      <EmptyHeader>
-        <EmptyTitle>Discovery is unavailable</EmptyTitle>
-        <EmptyDescription>We couldn’t load movies and TV shows right now. Please try again in a moment.</EmptyDescription>
-      </EmptyHeader>
-      {/* A full reload retries the server feeds even when the URL is unchanged. */}
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <Button asChild variant="outline"><a href="/">Try again</a></Button>
-    </Empty>;
-  }
-  const first = result.sections[0].mediaItems[0];
-  const artwork = mediaArtwork(first.id, first.type);
+  const { rows, region } = getTMDBHomeRows();
   return <>
-    <HomeInitialPalette primary={artwork.poster} fallback={artwork.background} />
-    <HomeCatalogSectionsLazy initialSections={result.sections} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
+    <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
     <p className="relative z-10 py-4 text-xs text-muted-foreground">
       Movie and TV data by <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline underline-offset-4">TMDB</a>.
-      {" "}Streaming availability by <a href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({result.region}).
+      {" "}Streaming availability by <a href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({region}).
     </p>
   </>;
 }

@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { MediaSection } from "@/components/media-section";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import type { HomeCatalogEntry, HomeCatalogSection } from "@/lib/home-catalogs";
+import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
+import { HomeInitialPalette } from "@/components/home-palette-provider";
+import { mediaArtwork } from "@/lib/artwork";
+import { readHomeCatalogRows, retryInitialHomeCatalog } from "@/lib/home-catalog-stream";
 
 function PosterCardSkeleton() {
   return (
@@ -41,8 +44,35 @@ function HomeSectionSkeleton() {
 
 interface HomeCatalogSectionsLazyProps {
   initialSections: HomeCatalogSection[];
+  initialRows?: InitialHomeCatalog[];
   remainingEntries: HomeCatalogEntry[];
   batchSize: number;
+}
+
+function InitialCatalogRow({ row }: { row: InitialHomeCatalog }) {
+  const [retry, setRetry] = useState<{ owner: InitialHomeCatalog["result"]; result: InitialHomeCatalog["result"] } | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => () => controller.current?.abort(), [row.result]);
+  const result = use(retry?.owner === row.result ? retry.result : row.result);
+  if (result.status === "error") return <section className="relative z-10 mb-8">
+    <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h3>
+    <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
+    <Button variant="outline" disabled={!row.retry} onClick={() => {
+      controller.current?.abort();
+      controller.current = new AbortController();
+      setRetry({ owner: row.result, result: retryInitialHomeCatalog(row, controller.current.signal) });
+    }}>Retry</Button>
+  </section>;
+  const section = result.section;
+  const first = section?.mediaItems[0];
+  const artwork = first ? mediaArtwork(first.id, first.type) : null;
+  return section?.mediaItems.length ? <>
+    {artwork && <HomeInitialPalette primary={artwork.poster} fallback={artwork.background} />}
+    <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
+  </> : <section className="relative z-10 mb-8">
+    <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h3>
+    <p className="text-sm text-muted-foreground">No titles available in this catalog.</p>
+  </section>;
 }
 
 type CatalogState =
@@ -53,15 +83,16 @@ type CatalogState =
 // Reserve the same minimum space for a skeleton, loaded row, or empty catalog.
 const CATALOG_ROW_HEIGHT = 360;
 
-export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, batchSize }: HomeCatalogSectionsLazyProps) {
+export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainingEntries, batchSize }: HomeCatalogSectionsLazyProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState<number | null>(null);
   const [catalogs, setCatalogs] = useState<Map<string, CatalogState>>(() => new Map());
   const requestRef = useRef<{ controller: AbortController; keys: string[] } | null>(null);
-  const initialCount = initialSections.length;
+  const [requestVersion, setRequestVersion] = useState(0);
+  const initialCount = initialRows?.length ?? initialSections.length;
   const getItemKey = useCallback((index: number) => index < initialCount
-    ? initialSections[index].key : remainingEntries[index - initialCount].key,
-  [initialCount, initialSections, remainingEntries]);
+    ? (initialRows?.[index] ?? initialSections[index]).key : remainingEntries[index - initialCount].key,
+  [initialCount, initialSections, initialRows, remainingEntries]);
 
   const virtualizer = useVirtualizer({
     count: initialCount + remainingEntries.length,
@@ -99,10 +130,25 @@ export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, bat
     });
     try {
       const response = await fetch("/api/home/catalogs", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
         body: JSON.stringify({ entries }), signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+      if (response.headers?.get("Content-Type")?.includes("application/x-ndjson")) {
+        const received = new Set<string>();
+        await readHomeCatalogRows(response, row => {
+          if (controller.signal.aborted || !keys.includes(row.key)) return;
+          received.add(row.key);
+          request.keys = request.keys.filter(key => key !== row.key);
+          setCatalogs(previous => new Map(previous).set(row.key, row.result));
+        }, controller.signal);
+        if (!controller.signal.aborted) setCatalogs(previous => {
+          const next = new Map(previous);
+          keys.filter(key => !received.has(key)).forEach(key => next.set(key, { status: "error" }));
+          return next;
+        });
+        return;
+      }
       const data = await response.json() as { sections?: HomeCatalogSection[] };
       if (controller.signal.aborted) return;
       const sections = new Map((Array.isArray(data.sections) ? data.sections : []).map(section => [section.key, section]));
@@ -116,11 +162,14 @@ export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, bat
       console.error("Failed to load home catalogs:", error);
       setCatalogs(previous => {
         const next = new Map(previous);
-        keys.forEach(key => next.set(key, { status: "error" }));
+        keys.forEach(key => { if (next.get(key)?.status === "loading") next.set(key, { status: "error" }); });
         return next;
       });
     } finally {
-      if (requestRef.current === request) requestRef.current = null;
+      if (requestRef.current === request) {
+        requestRef.current = null;
+        if (!controller.signal.aborted) setRequestVersion(value => value + 1);
+      }
     }
   }, []);
 
@@ -135,7 +184,7 @@ export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, bat
     if (scrollMargin === null) return;
     const wanted = new Set(wantedEntries.map(entry => entry.key));
     const pending = requestRef.current;
-    if (pending && !pending.keys.some(key => wanted.has(key))) {
+    if (pending && pending.keys.length > 0 && !pending.keys.some(key => wanted.has(key))) {
       // A fast flick can jump past whole groups. Cancel obsolete work and load
       // the landing viewport, rather than downloading every catalog on the way.
       pending.controller.abort();
@@ -149,7 +198,7 @@ export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, bat
     if (requestRef.current) return;
     const missing = wantedEntries.filter(entry => !catalogs.has(entry.key));
     void loadEntries(missing.slice(0, Math.max(1, Math.min(batchSize, 6))));
-  }, [wantedEntries, catalogs, batchSize, loadEntries, scrollMargin]);
+  }, [wantedEntries, catalogs, batchSize, loadEntries, scrollMargin, requestVersion]);
 
   useEffect(() => () => requestRef.current?.controller.abort(), []);
 
@@ -164,7 +213,9 @@ export function HomeCatalogSectionsLazy({ initialSections, remainingEntries, bat
             className="absolute left-0 top-0 w-full flow-root"
             aria-busy={entry && (!state || state.status === "loading") ? true : undefined}
             style={{ minHeight: CATALOG_ROW_HEIGHT, transform: `translateY(${row.start - (scrollMargin ?? 0)}px)` }}>
-            {section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
+            {initialRows?.[row.index] ? <Suspense fallback={<div data-home-initial-pending><HomeSectionSkeleton /></div>}>
+              <InitialCatalogRow row={initialRows[row.index]} />
+            </Suspense> : section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
               : state?.status === "error" ? <section className="relative z-10 mb-8">
                 <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h3>
                 <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>

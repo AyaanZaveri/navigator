@@ -57,6 +57,15 @@ async function main() {
     assert.equal((await discovery.getTMDBHomeSections()).sections.length, 3, 'A failed feed does not hide successful feeds');
     fail = true;
     await assert.rejects(discovery.getTMDBHomeSections(), /unavailable/);
+    fail = false; partial = false; requests.length = 0;
+    const { GET: retryFeed } = load('app/api/discovery/home/route.ts', {
+        '@/lib/tmdb-discovery': discovery,
+    }, { URL, Response });
+    assert.equal((await retryFeed(new Request('https://app.test/api/discovery/home?feed=unknown'))).status, 404);
+    assert.equal(requests.length, 0, 'Unknown feed IDs never start upstream requests');
+    const retried = await retryFeed(new Request('https://app.test/api/discovery/home?feed=tmdb-trending-movies'));
+    assert.equal(retried.status, 200); assert.equal(requests.length, 1, 'Retry fetches only the failed feed');
+    assert.equal((await retried.json()).status, 'ready');
 
     let signedIn = false, resumeCalls = 0, addonCalls = 0;
     const components = Object.fromEntries([
@@ -75,7 +84,7 @@ async function main() {
             getInstalledAddons: async () => { addonCalls++; return []; },
         },
         '@/app/actions/media': { fetchResumeItems: async () => { resumeCalls++; return []; } },
-        '@/lib/tmdb-discovery': { getTMDBHomeSections: async () => result },
+        '@/lib/tmdb-discovery': { getTMDBHomeRows: () => ({ region: result.region, rows: result.sections.map(section => ({ key: section.key, sectionName: section.sectionName, result: Promise.resolve({ status: 'ready', section }) })) }) },
     }, { URLSearchParams });
     const guest = await Home();
     assert.equal(resumeCalls, 0); assert.equal(addonCalls, 0);

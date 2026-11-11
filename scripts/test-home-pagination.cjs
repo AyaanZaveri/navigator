@@ -25,7 +25,7 @@ function harness(count = 100) {
     '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'LoadingPlaceholder' },
     '@/components/ui/skeleton': { Skeleton: 'Skeleton' }, '@/components/ui/button': { Button: 'button' },
   }, {
-    AbortController, AbortSignal, console: { error() {} },
+    AbortController, AbortSignal, TextDecoder, console: { error() {} },
     ResizeObserver: class { observe() {} disconnect() {} },
     fetch: (url, init) => new Promise(resolve => requests.push({ url, init, entries: JSON.parse(init.body).entries, resolve })),
   });
@@ -44,6 +44,13 @@ function harness(count = 100) {
     async settle() { for (let i = 0; i < 45; i++) { if (rendered !== h.updates || viewportChanged) render(); await Promise.resolve(); } },
     jump(index) { root.scrollTop = prefix + index * 360; viewportChanged = true; },
     answer(index, status = 200, sections = []) { requests[index].resolve(Response.json({ sections }, { status })); },
+    stream(index) {
+      let controller, cancelled = false;
+      const body = new ReadableStream({ start(value) { controller = value; }, cancel() { cancelled = true; } });
+      requests[index].resolve(new Response(body, { headers: { 'Content-Type': 'application/x-ndjson' } }));
+      return { row(key, section) { controller.enqueue(new TextEncoder().encode(JSON.stringify({ key, result: { status: 'ready', section } }) + '\n')); },
+        fail() { controller.error(Error('stream interrupted')); }, get cancelled() { return cancelled; } };
+    },
     retry() { nodes(tree, node => node.type === 'button')[0].props.onClick(); },
     get rowCount() { return nodes(tree, node => node.props?.['data-index'] !== undefined).length; },
     get height() { return tree.props.style.height; },
@@ -106,6 +113,28 @@ function harness(count = 100) {
   assert.equal(failed.requests[1].entries[0].key, '0');
   failed.answer(1); await failed.settle(); failed.h.unmount();
 
+  const progressive = harness(2); await progressive.settle();
+  const chunks = progressive.stream(0);
+  chunks.row('0', { key: '0', sectionName: 'First ready', mediaItems: [] }); await progressive.settle();
+  assert.ok(progressive.sections.includes('First ready'), 'Publish a ready lazy row before its batch completes');
+  chunks.fail(); await progressive.settle();
+  assert.ok(progressive.sections.includes('First ready'), 'Later stream errors preserve ready rows');
+  assert.equal(progressive.buttons.length, 1, 'Only the unfinished row becomes an error');
+  progressive.retry(); await progressive.settle();
+  assert.deepEqual(progressive.requests[1].entries.map(entry => entry.key), ['1']);
+  progressive.h.unmount();
+
+  const streamedFlick = harness(); await streamedFlick.settle();
+  const held = streamedFlick.stream(0);
+  held.row('0', { key: '0', sectionName: 'Retained row', mediaItems: [] }); await streamedFlick.settle();
+  streamedFlick.jump(70); await streamedFlick.settle();
+  assert.equal(streamedFlick.requests[0].init.signal.aborted, true);
+  assert.equal(held.cancelled, true, 'Flick cancellation reaches the streaming reader');
+  assert.deepEqual(streamedFlick.requests[1].entries.map(entry => entry.key), ['70', '71']);
+  streamedFlick.jump(0); await streamedFlick.settle();
+  assert.ok(streamedFlick.sections.includes('Retained row'), 'Returning to a streamed ready row reuses it');
+  streamedFlick.h.unmount();
+
   // The client cancellation must reach the add-on fetch, not just stop rendering.
   let providerSignal;
   const { POST } = load('app/api/home/catalogs/route.ts', {
@@ -117,7 +146,7 @@ function harness(count = 100) {
   const controller = new AbortController(); controller.abort();
   const response = await POST(new Request('https://navigator.test/api/home/catalogs', { method: 'POST', signal: controller.signal,
     body: JSON.stringify({ entries: [{ key: 'test', sectionName: 'Test', catalogType: 'movie', catalogId: 'test', addonTransportUrl: 'https://addon.test/manifest.json' }] }) }));
-  assert.equal(providerSignal.aborted, true);
+  assert.equal(providerSignal, undefined, 'Already aborted batches never start provider work');
   assert.equal(response.status, 499);
 
   // Check real React + TanStack SSR too: the existing first rows cannot vanish

@@ -16,3 +16,11 @@ export interface HomeCatalogSection {
   sectionName: string;
   mediaItems: MediaItem[];
 }
+
+export type HomeCatalogResult = { status: "ready"; section: HomeCatalogSection | null } | { status: "error" };
+export interface InitialHomeCatalog {
+  key: string;
+  sectionName: string;
+  result: Promise<HomeCatalogResult>;
+  retry?: { catalog: HomeCatalogEntry } | { feed: string };
+}
