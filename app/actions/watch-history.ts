@@ -8,8 +8,9 @@ import { watchHistoryKey, type WatchHistoryItem, type WatchHistoryRequest, type 
 /** One datastore call serves a batch of cards. Metadata is only needed for
  * series that already have encoded episode history. Never infer whole-show completion. */
 export async function fetchWatchedItems(requests: WatchHistoryRequest[]): Promise<Record<string, WatchHistoryItem> | null> {
-    const selected = requests.slice(0, 100).filter(item => typeof item.id === "string" && item.id.length > 0 && item.id.length < 500
+    const valid = requests.slice(0, 100).filter(item => typeof item.id === "string" && item.id.length > 0 && item.id.length < 500
         && (item.type === "movie" || item.type === "series"));
+    const selected = [...new Map(valid.map(item => [watchHistoryKey(item), item])).values()];
     if (!selected.length) return {};
     try {
         const { authKey } = await getAuthData();
@@ -21,12 +22,15 @@ export async function fetchWatchedItems(requests: WatchHistoryRequest[]): Promis
         if (!response.ok) return null;
         const data = await response.json();
         if (!Array.isArray(data?.result)) return null;
-        const items = data.result;
+        const items = new Map<string, (typeof data.result)[number]>();
+        for (const item of data.result) {
+            const key = `${item.type}:${item._id || item.id}`;
+            if (!items.has(key)) items.set(key, item);
+        }
         const result: Record<string, WatchHistoryItem> = {};
-        // Bound metadata fan-out rather than fetching every show's metadata at once.
-        for (const request of selected) {
-            const item = items.find((entry: { _id?: string; id?: string; type?: string }) =>
-                (entry._id || entry.id) === request.id && entry.type === request.type);
+        let next = 0;
+        async function decode(request: WatchHistoryRequest) {
+            const item = items.get(watchHistoryKey(request));
             const state = item?.state;
             const watched = new Set<string>();
             if (request.type === "series" && state) {
@@ -44,6 +48,13 @@ export async function fetchWatchedItems(requests: WatchHistoryRequest[]): Promis
                 watchedEpisodeIds: [...watched],
             };
         }
+        // Each TMDB title can already fan out across four seasons. Two title
+        // workers avoid serial title waterfalls without multiplying that budget
+        // by every visible card. The shared cursor keeps a slow title from
+        // blocking other workers; duplicate cards are decoded just once.
+        await Promise.all(Array.from({ length: Math.min(2, selected.length) }, async () => {
+            while (next < selected.length) await decode(selected[next++]);
+        }));
         return result;
     } catch { return null; }
 }

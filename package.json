@@ -26,7 +26,7 @@
     "test:runtime": "node scripts/test-runtime-format.cjs",
     "test:touch-scrubbing": "node scripts/test-touch-scrubbing.cjs && node scripts/test-seek-time.cjs && node scripts/test-surface-scrub.cjs",
     "test:resume": "node scripts/test-resume-items.cjs",
-    "test:watch-history": "node scripts/test-watch-history.cjs && node scripts/test-watch-toggle-optimistic.cjs",
+    "test:watch-history": "node scripts/test-watch-history.cjs && node scripts/test-watch-toggle-optimistic.cjs && node scripts/test-watch-history-batching.cjs",
     "test:image-layout": "node scripts/test-image-layout.cjs",
     "test:webkit-previews": "node scripts/test-webkit-previews.cjs",
     "test:web-player": "node scripts/test-player-initial-focus.cjs && node scripts/test-player-control-activity.cjs && node scripts/test-range-previews.cjs && node scripts/test-stream-metadata.cjs && node scripts/test-seek-preview-source.cjs && node scripts/test-player-glass-theme.cjs && node scripts/test-browser-player-glass.cjs && node scripts/test-previews.cjs && node scripts/test-browser-preview-recovery.cjs && node scripts/test-player-glass.cjs && node scripts/test-web-playback-recovery.cjs",
