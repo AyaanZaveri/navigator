@@ -537,9 +537,9 @@ It plays the HTTP(S) stream URLs Navigator already obtains from addons.
 The macOS window uses Tao's transparent titlebar, hidden title and full-size
 content view, keeping the native traffic lights in the app header. Blank header
 space starts a native window drag through the origin-checked bridge; links,
-inputs and menus keep their normal mouse behavior. The header and player back
-button reserve space for the traffic lights, and restore the normal inset in
-fullscreen. macOS resets the standard scrollbar properties to `auto` so WebKit
+inputs and menus keep their normal mouse behavior. The header reserves space
+for the traffic lights; the player back button sits below them at the left
+gutter. Both restore the normal inset in fullscreen. macOS resets the standard scrollbar properties to `auto` so WebKit
 can apply the same 6px scrollbar and transparent track used by the site.
 
 - [Tao macOS window extensions](https://docs.rs/tao/0.37.2/tao/platform/macos/trait.WindowBuilderExtMacOS.html):

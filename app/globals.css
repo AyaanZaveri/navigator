@@ -32,15 +32,22 @@ html[data-native-platform="windows"] [data-slot="media-player-controls"] {
    AppKit hides them in fullscreen, where the usual page gutter is restored. */
 html[data-native-platform="macos"] {
   --window-controls-inset: 88px;
+  --player-back-top: 3.5rem;
   --app-header-navigation-padding: 1.25rem;
   --app-header-height: 5.25rem;
 }
-html[data-native-platform="macos"][data-desktop-fullscreen="true"] { --window-controls-inset: 0px; }
+html[data-native-platform="macos"][data-desktop-fullscreen="true"] {
+  --window-controls-inset: 0px;
+  --player-back-top: 1rem;
+}
 @media (width < 48rem) {
   html[data-native-engine="exoplayer"] { --app-header-navigation-padding: .5rem; }
 }
 html[data-native-platform="macos"] [data-player-close] {
-  left: max(1rem, var(--window-controls-inset));
+  /* Keep player navigation below the native traffic lights, including while
+     the player chunk or stream is loading. Fullscreen restores the top gutter. */
+  left: 1rem;
+  top: var(--player-back-top);
 }
 
 /* Non-auto standard scrollbar properties override the WebKit pseudo-elements.
