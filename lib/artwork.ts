@@ -89,3 +89,19 @@ export function episodeThumbnailUrl(
   if (thumbnail?.startsWith("https://image.tmdb.org/t/p/")) return thumbnail;
   return artworkUrl(showId, "series", "still", season, episode);
 }
+
+/** Same episode image, separate browser-cache entry for a larger display. */
+export function episodeHeroStillUrl(source: string | undefined): string | undefined {
+  if (!source) return undefined;
+  if (/^https:\/\/image\.tmdb\.org\/t\/p\/(?:w\d+|original)\/[\w.-]+\.(?:jpg|jpeg|png|webp)$/i.test(source)) {
+    return source.replace(/\/t\/p\/[^/]+\//, "/t/p/w1280/");
+  }
+  if (source.startsWith("/api/artwork?")) {
+    const params = new URLSearchParams(source.slice(source.indexOf("?") + 1));
+    if (params.get("kind") === "still") {
+      params.set("size", "1280");
+      return `/api/artwork?${params}`;
+    }
+  }
+  return source;
+}

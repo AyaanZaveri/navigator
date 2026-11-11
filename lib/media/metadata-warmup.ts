@@ -1,3 +1,4 @@
+import { episodeHeroStillUrl } from "@/lib/artwork";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { MetadataQueries } from "./metadata-queries";
 import { metadataTarget } from "./metadata";
@@ -42,7 +43,7 @@ export function createMetadataWarmup(queries: MetadataQueries) {
         const cached = queries.peek(media);
         const logo = cached.title?.data.artwork.logo;
         images.add(logo);
-        images.add(cached.episode?.data.still);
+        images.add(episodeHeroStillUrl(cached.episode?.data.still));
         if (intent) images.add(cached.title?.data.artwork.backdrop);
     };
     const pump = () => {

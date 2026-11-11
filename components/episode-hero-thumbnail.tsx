@@ -1,5 +1,7 @@
 "use client";
 
+import { ProgressiveEpisodeStill } from "@/components/progressive-episode-still";
+import { episodeHeroStillUrl } from "@/lib/artwork";
 import { ArtworkImage } from "@/components/artwork-image";
 
 import { useMemo, useState } from "react";
@@ -44,6 +46,11 @@ export function EpisodeHeroThumbnail({
         {formattedReleaseDate ? `on ${formattedReleaseDate}` : "soon"}.
       </div>
     );
+  }
+
+  const hero = episodeHeroStillUrl(thumbnail);
+  if (hero && thumbnail && hero !== thumbnail) {
+    return <ProgressiveEpisodeStill key={`${thumbnail}|${hero}`} preview={thumbnail} source={hero} title={title} />;
   }
 
   return (

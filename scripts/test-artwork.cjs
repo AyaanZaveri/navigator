@@ -159,6 +159,10 @@ async function run() {
   for (const query of ['id=unknown&type=movie&kind=poster', 'id=tt123&type=movie&kind=invalid', 'id=tt123&type=series&kind=still&v=1&season=-1&episode=2']) {
     assert.equal((await GET(new Request(`https://navigator.test/api/artwork?${query}`))).status, 400);
   }
+  const highStill = await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=series&kind=still&season=1&episode=5&size=1280'));
+  assert.equal(highStill.headers.get('location'), 'https://image.tmdb.org/t/p/w1280/poster.jpg');
+  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&size=1280'))).status, 400);
+  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=series&kind=still&season=1&episode=5&size=huge'))).status, 400);
   const missing = load('app/api/artwork/route.ts', {
     require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => undefined },
   });
@@ -197,7 +201,7 @@ async function run() {
   const { renderToStaticMarkup } = require('react-dom/server');
   const { EpisodeHeroThumbnail } = load('components/episode-hero-thumbnail.tsx', {
     React,
-    require: name => name === '@/components/artwork-image' ? { ArtworkImage: props => React.createElement('img', props) } : name === 'react' ? {
+    require: name => name === '@/lib/artwork' ? urls : name === '@/components/artwork-image' ? { ArtworkImage: props => React.createElement('img', props) } : name === 'react' ? {
       useMemo: fn => fn(),
       useState: () => ['/failed-episode.jpg', () => {}],
     } : {},

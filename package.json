@@ -14,7 +14,7 @@
     "test:episode-skeleton": "node scripts/test-episode-skeleton.cjs",
     "test:settings": "node scripts/test-settings-navigation.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-episode-discovery.cjs && node scripts/test-browser-connection-credentials.cjs && node scripts/test-openai-models.cjs && node scripts/test-optimistic-web-search.cjs",
     "test:openai-models": "node scripts/test-openai-models.cjs",
-    "test:artwork-loading": "node scripts/test-artwork-loading.cjs",
+    "test:artwork-loading": "node scripts/test-artwork-loading.cjs && node scripts/test-episode-hero-resolution.cjs",
     "test:carousel-artwork": "node scripts/test-carousel-artwork.cjs",
     "test:player-settings": "node scripts/test-player-settings.cjs && node scripts/test-subtitle-appearance.cjs && node scripts/test-subtitle-timing.cjs && node scripts/test-player-subtitles.cjs && node scripts/test-native-readiness.cjs && node scripts/test-playback-preferences.cjs && node scripts/test-audio-language.cjs && node scripts/test-player-clock-work.cjs",
     "test:search": "node scripts/test-search-stream.cjs && node scripts/test-tmdb-search-page.cjs && node scripts/test-tmdb-playback-id.cjs && node scripts/test-tmdb-discovery.cjs",

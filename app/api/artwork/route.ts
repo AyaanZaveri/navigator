@@ -1,4 +1,4 @@
-import { artworkUrl, type ArtworkKind } from "@/lib/artwork";
+import { episodeHeroStillUrl, artworkUrl, type ArtworkKind } from "@/lib/artwork";
 import { getTMDBArtwork } from "@/lib/tmdb-artwork";
 
 export async function GET(request: Request) {
@@ -7,9 +7,11 @@ export async function GET(request: Request) {
     const type = params.get("type");
     const kind = params.get("kind") as ArtworkKind;
     const width = params.get("width");
+    const size = params.get("size");
     const season = params.has("season") ? Number(params.get("season")) : undefined;
     const episode = params.has("episode") ? Number(params.get("episode")) : undefined;
     if ((type !== "movie" && type !== "series")
+    || (size !== null && (kind !== "still" || size !== "1280"))
     || (width !== null && (kind !== "backdrop" || !["300", "780", "1280"].includes(width)))
     || !["poster", "backdrop", "logo", "still"].includes(kind)
     || !artworkUrl(id, type, kind, season, episode)) {
@@ -17,7 +19,7 @@ export async function GET(request: Request) {
     }
     const original = await getTMDBArtwork(id, type, kind, season, episode);
     if (!original) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
-    const image = width && /^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(original)
+    const image = size === "1280" ? episodeHeroStillUrl(original)! : width && /^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(original)
         ? original.replace(/\/t\/p\/[^/]+\//, `/t/p/w${width}/`) : original;
     if (params.get("sample") === "1") {
     // Returning image bytes keeps the canvas origin-clean even when the CDN
