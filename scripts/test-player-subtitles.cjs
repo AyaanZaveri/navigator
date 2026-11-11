@@ -49,6 +49,10 @@ const count=native.calls.length;select('embedded:999');select('external:999');as
 let prevented=false;
 find(native.tree,'DropdownMenuItem')[0].props.onSelect({preventDefault(){prevented=true}});assert.ok(prevented);assert.equal(native.opened,1);
 native.tree.props.onOpenChange(false);assert.equal(native.closed,1);
+native.props.requestedSrc=native.props.tracks[0].src;
+assert.equal(find(native.render(),'DropdownMenuRadioGroup')[0].props.value,'external:0','Requested track is selected during download');
+assert.equal(find(native.render(),'DropdownMenuRadioItem').find(n=>n.props.value==='external:0').props['aria-busy'],true);
+native.props.requestedSrc=null;
 native.props.tracks[1].active=true;
 assert.equal(find(native.render(),'DropdownMenuRadioGroup')[0].props.value,'external:1');
 native.controller.tracks=[];native.events.get('emptied')();
@@ -56,7 +60,7 @@ assert.equal(find(native.render(),'DropdownMenuRadioItem').filter(n=>n.props.val
 native.host.unmount();assert.equal(native.events.size,0);
 const web=mount(false), choose=find(web.tree,'DropdownMenuRadioGroup')[0].props.onValueChange;
 choose('embedded:1');assert.equal(web.textTracks[1].mode,'showing');
-choose('external:0');assert.equal(web.textTracks[1].mode,'disabled');
+choose('external:0');assert.equal(web.textTracks[1].mode,'showing','Keep applied embedded captions until the external file is ready');
 choose('off');assert.equal(web.textTracks[1].mode,'disabled');
 assert.equal(web.textTracks[0].mode,'hidden','Subtitle selection must preserve chapter/metadata tracks');
 assert.ok(!find(web.tree,'DropdownMenuRadioItem').some(n=>n.props.value==='embedded:0'),'Metadata tracks must never become caption choices');

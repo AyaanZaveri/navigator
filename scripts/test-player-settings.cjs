@@ -220,9 +220,9 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   const env = { exports: {}, subtitleTracks: tracks, nativePlayback: false, videoRef: { current: null },
     subtitleManualOverride: { current: false }, subtitleDefaultApplied: { current: false },
     subtitleSelectionRequest: { current: 0 }, loadGenerationRef: { current: 1 },
-    setFetchingSubtitles() {}, setSubtitleData() {}, setCurrentSubtitle() {},
+    setFetchingSubtitles() {}, setRequestedSubtitleSrc() {}, setSubtitleData() {}, setCurrentSubtitle() {}, toast: { error() {} },
     subtitleLoaderRef: { current: { file: async src => { fetched = src; return { success: true, content: 'subtitle' }; } } },
-    parseSubtitleTextContent: () => [], setSubtitleTracks: update => { nextTracks = update(tracks); },
+    parseSubtitleTextContent: () => [{ timestamp: 0, text: 'subtitle' }], setSubtitleTracks: update => { nextTracks = update(tracks); },
   };
   vm.runInNewContext(ts.transpileModule(`exports.selection = ${selection}; exports.handler = ${handler};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, env);
   env.selectSubtitle = env.exports.selection;

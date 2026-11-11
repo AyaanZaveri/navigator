@@ -70,30 +70,41 @@ assert.ok(selection && defaultsEffect);
 const compile = (text, globals) => vm.runInNewContext(ts.transpileModule(`(${text})`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, globals);
 const browserCaption = { kind: "subtitles", mode: "showing" };
 let activeTracks = tracks.map(track => ({ ...track, active: false })), data = [], fetching = false;
-const pending = [];
+const pending = [], failures = [];
+let requested = null;
 const selectionRequest = { current: 0 }, generation = { current: 1 };
 const selectSubtitle = compile(selection, {
   nativePlayback: false, videoRef: { current: { textTracks: [browserCaption] } }, subtitleSelectionRequest: selectionRequest, loadGenerationRef: generation,
   setSubtitleData: value => { data = value; }, setCurrentSubtitle() {}, setSubtitleTracks: update => { activeTracks = update(activeTracks); },
+  setRequestedSubtitleSrc: value => { requested = value; }, toast: { error: message => failures.push(message) },
   setFetchingSubtitles: value => { fetching = value; }, subtitleLoaderRef: { current: { file: src => new Promise((resolve, reject) => pending.push({ src, resolve, reject })) } },
   parseSubtitleTextContent: text => [text],
 });
 (async () => {
   const first = selectSubtitle(tracks[2]);
-  assert.equal(browserCaption.mode, 'disabled', 'Downloaded captions disable in-stream captions to avoid duplicate text');
+  assert.equal(browserCaption.mode, 'showing', 'Keep current captions until the requested download is usable');
+  assert.equal(requested, tracks[2].src);
   const second = selectSubtitle(tracks[1]);
   pending[1].resolve({ success: true, content: 'French cue' }); await second;
+  assert.equal(browserCaption.mode, 'disabled', 'Successful downloads disable embedded captions');
+  assert.equal(requested, null);
   pending[0].resolve({ success: true, content: 'Old English cue' }); await first;
   assert.deepEqual(plain(data), ['French cue']);
   assert.equal(activeTracks.find(track => track.active).src, 'fr-normal');
+  const replacement = selectSubtitle(tracks[2]);
+  pending[2].reject(Error('offline')); await replacement;
+  assert.deepEqual(plain(data), ['French cue'], 'Failure retains the previously applied captions');
+  assert.equal(activeTracks.find(track => track.active).src, 'fr-normal');
+  assert.equal(failures.length, 1);
+  assert.equal(requested, null);
   const late = selectSubtitle(tracks[2]);
   await selectSubtitle(null);
-  pending[2].resolve({ success: true, content: 'Must stay off' }); await late;
+  pending[3].resolve({ success: true, content: 'Must stay off' }); await late;
   assert.equal(data.length, 0); assert.equal(fetching, false); assert.ok(activeTracks.every(track => !track.active));
   const obsolete = selectSubtitle(tracks[2]); generation.current++;
-  pending[3].resolve({ success: true, content: 'Previous episode' }); await obsolete;
+  pending[4].resolve({ success: true, content: 'Previous episode' }); await obsolete;
   assert.equal(data.length, 0, 'Previous-episode subtitle results cannot attach to a new video');
-  const failure = selectSubtitle(tracks[2]); pending[4].reject(Error('offline')); await failure;
+  const failure = selectSubtitle(tracks[2]); pending[5].reject(Error('offline')); await failure;
   assert.equal(fetching, false, 'Network failures release the subtitle loader');
 
   function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser, ready = 2 } = {}) {

@@ -24,11 +24,12 @@ export interface ExternalSubtitleTrack {
 
 interface EmbeddedSubtitle { id: string; language?: string; label?: string; selected: boolean }
 
-export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, onTrackChange, timing }: {
+export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requestedSrc, onTrackChange, timing }: {
   mediaRef: RefObject<HTMLVideoElement | null>;
   sourceKey: string;
   native: boolean;
   tracks: ExternalSubtitleTrack[];
+  requestedSrc?: string | null;
   onTrackChange(track: ExternalSubtitleTrack | null): void;
   timing: SubtitleTimingAction;
 }) {
@@ -59,17 +60,15 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, onTrackCh
   const embedded = trackOptions(snapshot.tracks).map(option => ({ ...option, value: `embedded:${snapshot.tracks[Number(option.value)].id}` }));
   const external = trackOptions(tracks).map(option => ({ ...option, value: `external:${option.value}` }));
   const activeExternal = tracks.findIndex(track => track.active);
+  const requestedExternal = tracks.findIndex(track => track.src === requestedSrc);
   const activeEmbedded = snapshot.tracks.find(track => track.selected);
-  const value = activeExternal >= 0 ? `external:${activeExternal}` : activeEmbedded ? `embedded:${activeEmbedded.id}` : "off";
+  const value = requestedExternal >= 0 ? `external:${requestedExternal}` : activeExternal >= 0 ? `external:${activeExternal}` : activeEmbedded ? `embedded:${activeEmbedded.id}` : "off";
   const select = (next: string) => {
     const [kind, id] = next.split(":");
     if (kind === "embedded" && !snapshot.tracks.some(track => track.id === id)) return;
     if (kind === "external") {
       const track = tracks[Number(id)];
       if (!track) return;
-      if (!native) Array.from(mediaRef.current?.textTracks ?? []).forEach(track => {
-        if (track.kind === "subtitles" || track.kind === "captions") track.mode = "disabled";
-      });
       onTrackChange(track);
     } else {
       // Also cancels an external subtitle download that is still in flight.
@@ -94,7 +93,10 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, onTrackCh
             {embedded.length > 0 && <><DropdownMenuSeparator /><DropdownMenuLabel className={styles.heading}>Embedded</DropdownMenuLabel>
               {embedded.map(({ label, ...option }) => <DropdownMenuRadioItem key={option.value} {...option}>{label}</DropdownMenuRadioItem>)}</>}
             {external.length > 0 && <><DropdownMenuSeparator /><DropdownMenuLabel className={styles.heading}>External</DropdownMenuLabel>
-              {external.map(({ label, ...option }) => <DropdownMenuRadioItem key={option.value} {...option}>{label}</DropdownMenuRadioItem>)}</>}
+              {external.map(({ label, ...option }) => <DropdownMenuRadioItem key={option.value} {...option}
+                aria-busy={option.value === `external:${requestedExternal}` || undefined}>
+                {label}{option.value === `external:${requestedExternal}` && <span className={styles.summary}>Loading…</span>}
+              </DropdownMenuRadioItem>)}</>}
           </DropdownMenuRadioGroup>
           {!embedded.length && !external.length && <p className={styles.empty}>No subtitle tracks available.</p>}
         </ScrollArea>
