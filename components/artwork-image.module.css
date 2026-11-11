@@ -1,8 +1,27 @@
-/* Visible from the server's first paint, including for offscreen lazy images.
-   Keep it static so loading dozens of cards adds no continuous animation work. */
+.image {
+  background-color: var(--accent);
+}
+
+/* The containing card keeps its skeleton surface while pixels load. */
 .pending {
   background-color: var(--accent);
   color: transparent;
+  opacity: 0;
+}
+
+/* A finite reveal also works for cache hits that finish before first paint.
+   It leaves hover transforms/transitions owned by the card untouched. */
+.reveal {
+  animation: artwork-reveal 300ms var(--ease-out) backwards;
+}
+
+@keyframes artwork-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation-duration: 100ms; }
 }
 
 .fallback {

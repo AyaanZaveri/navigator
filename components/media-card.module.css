@@ -22,8 +22,16 @@
 }
 
 /* Don't float a decoded logo over artwork that is still downloading. */
-.wordmark { visibility: hidden; }
-.frame:has(.artwork[data-artwork-state="ready"]) .wordmark { visibility: visible; }
+.wordmark {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 300ms var(--ease-out);
+}
+.frame:has(.artwork[data-artwork-state="ready"]) .wordmark { visibility: visible; opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark { transition-duration: 100ms; }
+}
 
 .playOverlay {
   pointer-events: none;

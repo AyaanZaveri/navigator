@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React from "react";
+import { ArtworkImage } from "./artwork-image";
 import { Film, Tv, Star, Calendar } from "lucide-react";
 import { Badge } from "./ui/badge";
 
@@ -21,8 +22,6 @@ export function SearchSuggestionItem({
   item,
   onClick,
 }: SearchSuggestionItemProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-
   return (
     <div
       onClick={onClick}
@@ -31,15 +30,12 @@ export function SearchSuggestionItem({
       {/* Image */}
       <div className="aspect-[2/3] h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
         {item.poster ? (
-          <img
+          <ArtworkImage
             draggable={false}
             src={item.poster}
             alt={item.name}
-            className="w-full h-full object-cover transition-opacity duration-300"
-            onLoad={() => setImageLoaded(true)}
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
+            className="w-full h-full object-cover"
+            fallbackText=""
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">

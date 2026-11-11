@@ -23,7 +23,7 @@ const imageDependencies = {
   react: React,
   'react/jsx-runtime': require('react/jsx-runtime'),
   '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
-  './artwork-image.module.css': { pending: 'pending', fallback: 'fallback' },
+  './artwork-image.module.css': { image: 'image', reveal: 'reveal', pending: 'pending', fallback: 'fallback' },
 };
 const artwork = load('components/artwork-image.tsx', imageDependencies);
 dependencies['@/components/artwork-image'] = artwork;
@@ -39,7 +39,7 @@ console.log('PASS: card artwork reserves an opaque loading surface before image 
 const h = hooks();
 const { ArtworkImage } = load('components/artwork-image.tsx', {
   ...imageDependencies, react: { ...React, ...h.react }, 'react/jsx-runtime': h.jsx,
-});
+}, { window: { innerHeight: 800, innerWidth: 1200 } });
 let loaded = 0;
 const props = { src: '/first.jpg', alt: 'Poster', width: 144, height: 216, onLoad() { loaded++; } };
 let image = h.render(ArtworkImage, props);
@@ -53,6 +53,7 @@ assert.equal(loaded, 1);
 image = h.render(ArtworkImage, props);
 assert.equal(image.props['data-artwork-state'], 'ready', 'Reveal immediately on load, with no timeout or decode wait');
 assert.doesNotMatch(image.props.className, /pending/);
+assert.match(image.props.className, /reveal/, 'Loaded images fade over their reserved surface');
 const next = { ...props, src: '/second.jpg' };
 image = h.render(ArtworkImage, next);
 assert.equal(image.props['data-artwork-state'], 'loading', 'A reused card must show a skeleton for its new URL');
@@ -70,6 +71,11 @@ image.props.ref({ complete: true, naturalWidth: 500 });
 h.flush();
 image = h.render(ArtworkImage, cached);
 assert.equal(image.props['data-artwork-state'], 'ready', 'Recover a cache load that completed before hydration');
+image = h.render(ArtworkImage, { ...props, src: '/offscreen.jpg' });
+image.props.onLoad({ currentTarget: { getBoundingClientRect: () => ({ top: 900, bottom: 1100, left: 0, right: 200 }) } });
+image = h.render(ArtworkImage, { ...props, src: '/offscreen.jpg' });
+assert.equal(image.props['data-artwork-state'], 'ready');
+assert.doesNotMatch(image.props.className, /reveal/, 'Offscreen loads do not spend frames on an unseen fade');
 const cachedFailure = { ...props, src: '/cached-failure.jpg' };
 image = h.render(ArtworkImage, cachedFailure);
 image.props.ref({ complete: true, naturalWidth: 0 });
@@ -84,5 +90,7 @@ h.unmount();
 const css = require('postcss').parse(require('node:fs').readFileSync('components/artwork-image.module.css', 'utf8'));
 const pending = css.nodes.find(node => node.selector === '.pending');
 assert.ok(pending.nodes.some(node => node.prop === 'background-color' && node.value === 'var(--accent)'), 'Pending images must paint an opaque themed skeleton');
-assert.ok(!pending.nodes.some(node => ['opacity', 'visibility', 'display', 'animation'].includes(node.prop)), 'Do not hide progressive pixels or animate every offscreen card');
+assert.ok(pending.nodes.some(node => node.prop === 'opacity' && node.value === '0'), 'Hold pixels until load, then fade them in');
+assert.ok(css.nodes.some(node => node.selector === '.reveal' && node.nodes.some(decl => decl.prop === 'animation' && /300ms/.test(decl.value))), 'Use a finite 300ms reveal');
+assert.ok(css.nodes.some(node => node.type === 'atrule' && node.params === '(prefers-reduced-motion: reduce)'), 'Keep the reveal gentle with reduced motion');
 console.log('PASS: source changes, stale events, immediate load, pre-hydration cache hits, failures and missing images.');
