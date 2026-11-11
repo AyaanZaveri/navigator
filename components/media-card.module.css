@@ -21,6 +21,14 @@
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--shadow-artwork);
 }
 
+.card[data-continue-watching] .frame {
+  border-color: color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+:global(html:not(.dark)) .card[data-continue-watching] .frame {
+  border-color: color-mix(in srgb, var(--artwork-edge) 65%, transparent);
+}
+
 /* Don't float a decoded logo over artwork that is still downloading. */
 .wordmark {
   visibility: hidden;
