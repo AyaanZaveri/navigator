@@ -1,17 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWatchStatus } from "@/contexts/watch-history-context";
-import { setWatchedStatus } from "@/app/actions/watch-history";
-import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 import type { MediaToPlay } from "@/lib/atoms";
 
 export function WatchToggleButton({ media }: { media: MediaToPlay }) {
     const id = media.seriesId || media.id;
-    const { watched, known, update } = useWatchStatus(id, media.type, media.mediaSourceId);
+    const { watched, known, toggle } = useWatchStatus(id, media.type, media.mediaSourceId);
+    const intent = useRef(0);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const label = watched ? "Mark as unwatched" : "Mark as watched";
@@ -28,24 +27,19 @@ export function WatchToggleButton({ media }: { media: MediaToPlay }) {
                         aria-label={label}
                         aria-pressed={watched}
                         aria-busy={saving || !known || undefined}
-                        disabled={saving || !known}
+                        disabled={!known}
                         onClick={async () => {
                             if (media.type !== "movie" && media.type !== "series") return;
+                            const request = ++intent.current;
                             setSaving(true);
                             setError(null);
+                            let saved = false;
                             try {
-                                const result = await setWatchedStatus({
-                                    id, type: media.type, name: media.showName || media.name,
-                                    videoId: media.mediaSourceId, watched: !watched,
-                                });
-                                if (!result) throw new Error("Watch status update failed");
-                                update(result);
-                                window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id } }));
-                            } catch {
-                                setError("Couldn't update watch status. Try again.");
-                            } finally {
-                                setSaving(false);
-                            }
+                                saved = await toggle(media.showName || media.name);
+                            } catch { /* The shared queue restores the last confirmed state. */ }
+                            if (request !== intent.current) return;
+                            setSaving(false);
+                            if (!saved) setError("Couldn't update watch status. Try again.");
                         }}
                     >
                         <Check aria-hidden="true" strokeWidth={2.5} className="size-4" />

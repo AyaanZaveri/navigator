@@ -145,47 +145,7 @@ async function run() {
     watched = false;
     assert.equal(renderToStaticMarkup(React.createElement(WatchedIndicator, { id: 'movie', type: 'movie' })), '');
 
-    let toggleWatched = false, known = true, fail = false, stateIndex = 0;
-    const toggleSlots = [];
-    const toggleEvents = new EventTarget();
-    const requests = [];
-    const { WatchToggleButton } = load('components/media-page/watch-toggle-button.tsx', {
-        window: toggleEvents, CustomEvent,
-        require: name => {
-            if (name === 'react') return { useState(initial) {
-                const i = stateIndex++;
-                if (!(i in toggleSlots)) toggleSlots[i] = initial;
-                return [toggleSlots[i], value => { toggleSlots[i] = value; }];
-            } };
-            if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
-            if (name === '@/contexts/watch-history-context') return { useWatchStatus: () => ({ watched: toggleWatched, known,
-                update: item => { toggleWatched = item.watchedEpisodeIds.includes('show:1:1'); } }) };
-            if (name === '@/app/actions/watch-history') return { setWatchedStatus: async input => {
-                requests.push(input);
-                return fail ? null : { movieWatched: false, watchedEpisodeIds: input.watched ? ['show:1:1'] : [] };
-            } };
-            if (name === '@/lib/watch-history') return common;
-            return new Proxy({}, { get: (_, key) => key });
-        },
-    });
-    const toggle = () => { stateIndex = 0; return WatchToggleButton({ media: { id: 'show', type: 'series', showName: 'Show', name: 'Episode', mediaSourceId: 'show:1:1' } }); };
-    const toggleButton = () => toggle().props.children[0].props.children[0].props.children;
-    assert.equal(toggleButton().props.variant, 'secondary');
-    assert.equal(toggleButton().props.size, 'icon-lg');
-    assert.equal(toggleButton().props['aria-label'], 'Mark as watched');
-    await toggleButton().props.onClick();
-    assert.equal(requests.at(-1).videoId, 'show:1:1');
-    assert.equal(toggleButton().props.variant, 'default', 'Watched state uses the primary color');
-    assert.equal(toggleButton().props['aria-pressed'], true);
-    assert.equal(toggleButton().props['aria-label'], 'Mark as unwatched');
-    await toggleButton().props.onClick();
-    assert.equal(toggleButton().props.variant, 'secondary');
-    fail = true;
-    await toggleButton().props.onClick();
-    assert.equal(toggleButton().props['aria-pressed'], false, 'Failed writes cannot flip the displayed status');
-    assert.equal(toggle().props.children[1].props.role, 'alert');
-    known = false;
-    assert.equal(toggleButton().props.disabled, true, 'Wait for known state rather than guessing the toggle direction');
+    // Optimistic button/queue behavior is covered in test-watch-toggle-optimistic.cjs.
 
     // Exercise the shared provider: duplicate thumbnails share one lookup and
     // slow responses cannot overwrite newer history after playback completes.

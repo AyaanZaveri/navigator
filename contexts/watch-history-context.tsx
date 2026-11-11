@@ -1,20 +1,24 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { fetchWatchedItems } from "@/app/actions/watch-history";
-import { WATCH_HISTORY_CHANGED, watchHistoryKey, type WatchHistoryItem, type WatchHistoryRequest } from "@/lib/watch-history";
+import { fetchWatchedItems, setWatchedStatus } from "@/app/actions/watch-history";
+import { WATCH_HISTORY_CHANGED, watchHistoryKey, type WatchHistoryItem, type WatchHistoryRequest, type WatchStatusInput } from "@/lib/watch-history";
+import { createWatchStatusQueue } from "@/lib/watch-status-queue";
 
 interface WatchHistoryContextValue {
     items: Record<string, WatchHistoryItem>;
     subscribe: (_request: WatchHistoryRequest) => () => void;
     update: (_request: WatchHistoryRequest, _item: WatchHistoryItem) => void;
+    toggle: (_input: Omit<WatchStatusInput, "watched">) => Promise<boolean>;
 }
 
-const WatchHistoryContext = createContext<WatchHistoryContextValue>({ items: {}, subscribe: () => () => {}, update: () => {} });
+const WatchHistoryContext = createContext<WatchHistoryContextValue>({ items: {}, subscribe: () => () => {}, update: () => {}, toggle: async () => false });
 
 /** Account-scoped and shared across cards; never one API request per thumbnail. */
 export function WatchHistoryProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
     const [items, setItems] = useState<Record<string, WatchHistoryItem>>({});
+    const currentItems = useRef<Record<string, WatchHistoryItem>>({});
+    const mutations = useRef<ReturnType<typeof createWatchStatusQueue> | null>(null);
     const cached = useRef(new Set<string>());
     const active = useRef(new Map<string, { request: WatchHistoryRequest; count: number }>());
     const pending = useRef(new Map<string, WatchHistoryRequest>());
@@ -25,12 +29,13 @@ export function WatchHistoryProvider({ children, enabled = true }: { children: R
     const enqueue = useCallback((request: WatchHistoryRequest) => {
         if (!enabled) return;
         const key = watchHistoryKey(request);
+        if (mutations.current?.isPending(key)) return;
         versions.current.set(key, (versions.current.get(key) || 0) + 1);
         pending.current.set(key, request);
         if (timer.current !== null) return;
         timer.current = setTimeout(() => {
             timer.current = null;
-            const batch = [...pending.current.values()];
+            const batch = [...pending.current.values()].filter(item => !mutations.current?.isPending(watchHistoryKey(item)));
             pending.current.clear();
             const current = generation.current.value;
             for (let index = 0; index < batch.length; index += 100) {
@@ -40,8 +45,9 @@ export function WatchHistoryProvider({ children, enabled = true }: { children: R
                     if (current !== generation.current.value) return;
                     if (result) {
                         const fresh = Object.fromEntries(Object.entries(result)
-                            .filter(([key]) => versions.current.get(key) === sentVersions.get(key)));
-                        setItems(previous => ({ ...previous, ...fresh }));
+                            .filter(([key]) => versions.current.get(key) === sentVersions.get(key) && !mutations.current?.isPending(key)));
+                        currentItems.current = { ...currentItems.current, ...fresh };
+                        setItems(currentItems.current);
                     }
                     else chunk.forEach(item => cached.current.delete(watchHistoryKey(item)));
                 }).catch(() => { chunk.forEach(item => cached.current.delete(watchHistoryKey(item))); });
@@ -98,14 +104,32 @@ export function WatchHistoryProvider({ children, enabled = true }: { children: R
         const key = watchHistoryKey(request);
         versions.current.set(key, (versions.current.get(key) || 0) + 1);
         cached.current.add(key);
-        setItems(previous => ({ ...previous, [key]: item }));
+        currentItems.current = { ...currentItems.current, [key]: item };
+        setItems(currentItems.current);
     }, []);
 
-    return <WatchHistoryContext.Provider value={{ items, subscribe, update }}>{children}</WatchHistoryContext.Provider>;
+    useEffect(() => {
+        if (!enabled) return;
+        const queue = createWatchStatusQueue({
+            read: request => currentItems.current[watchHistoryKey(request)],
+            update,
+            save: setWatchedStatus,
+            settled: request => window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: request.id } })),
+        });
+        mutations.current = queue;
+        return () => {
+            queue.dispose();
+            if (mutations.current === queue) mutations.current = null;
+        };
+    }, [enabled, update]);
+
+    const toggle = useCallback((input: Omit<WatchStatusInput, "watched">) => mutations.current?.toggle(input) ?? Promise.resolve(false), []);
+
+    return <WatchHistoryContext.Provider value={{ items, subscribe, update, toggle }}>{children}</WatchHistoryContext.Provider>;
 }
 
 export function useWatchStatus(id: string, type: string, videoId?: string) {
-    const { items, subscribe, update } = useContext(WatchHistoryContext);
+    const { items, subscribe, update, toggle } = useContext(WatchHistoryContext);
     useEffect(() => {
         if (type !== "movie" && !(type === "series" && videoId)) return;
         return subscribe({ id, type: type as "movie" | "series" });
@@ -113,7 +137,10 @@ export function useWatchStatus(id: string, type: string, videoId?: string) {
     const state = items[`${type}:${id}`];
     const watched = type === "movie" ? Boolean(state?.movieWatched)
         : Boolean(videoId && state?.watchedEpisodeIds.includes(videoId));
-    return { watched, known: Boolean(state), update: (item: WatchHistoryItem) => {
+    return { watched, known: Boolean(state), toggle: (name: string) => {
+        if (type !== "movie" && type !== "series") return Promise.resolve(false);
+        return toggle({ id, type, videoId, name });
+    }, update: (item: WatchHistoryItem) => {
         if (type === "movie" || type === "series") update({ id, type }, item);
     } };
 }
