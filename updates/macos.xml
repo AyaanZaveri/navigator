@@ -3,5 +3,13 @@
   <channel>
     <title>Navigator for macOS</title>
     <language>en</language>
+    <item>
+      <title>Navigator 0.5.3</title>
+      <description>Update Navigator, then reopen it with your existing sign-in and settings.</description>
+      <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.3/Navigator-0.5.3-macos-arm64.zip"
+        sparkle:version="0.5.3" sparkle:shortVersionString="0.5.3"
+        sparkle:edSignature="O5juzdlVxuMWwHkyI9VgGNK7DhZMyNFPySW9ND8D9wYFO6OqtZ6yamFS4GLlBu7kP5SvSjno6/fVXyYixdWZBg==" length="95019929" type="application/octet-stream" />
+    </item>
   </channel>
 </rss>
