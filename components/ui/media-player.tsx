@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
   DropdownMenuGroup, DropdownMenuLabel, DropdownMenuOptions,
@@ -3206,33 +3207,15 @@ function MediaPlayerTooltip(props: MediaPlayerTooltipProps) {
       <TooltipContent
         container={context.portalContainer}
         sideOffset={tooltipSideOffset}
-        className="flex items-center gap-2 border bg-accent px-2 py-1 font-medium text-foreground data-[side=top]:mb-3.5 dark:bg-zinc-900 [&>span]:hidden"
+        className="flex items-center gap-2 border px-2 py-1 data-[side=top]:mb-3.5 [&>span]:hidden"
       >
         <p>{tooltip}</p>
-        {Array.isArray(shortcut) ? (
-          <div className="flex items-center gap-1">
-            {shortcut.map((shortcutKey) => (
-              <kbd
-                key={shortcutKey}
-                className="select-none rounded border bg-secondary px-1.5 py-0.5 font-mono text-[11.2px] text-foreground shadow-xs"
-              >
-                <abbr title={shortcutKey} className="no-underline">
-                  {shortcutKey}
-                </abbr>
-              </kbd>
+        {shortcut && (
+          <KbdGroup>
+            {(Array.isArray(shortcut) ? shortcut : [shortcut]).map((key) => (
+              <Kbd key={key}>{key}</Kbd>
             ))}
-          </div>
-        ) : (
-          shortcut && (
-            <kbd
-              key={shortcut}
-              className="select-none rounded border bg-secondary px-1.5 py-px font-mono text-[11.2px] text-foreground shadow-xs"
-            >
-              <abbr title={shortcut} className="no-underline">
-                {shortcut}
-              </abbr>
-            </kbd>
-          )
+          </KbdGroup>
         )}
       </TooltipContent>
     </Tooltip>

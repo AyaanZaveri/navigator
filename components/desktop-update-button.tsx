@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { desktopBridge, type UpdateStatus } from "@/lib/desktop/bridge";
+import styles from "./app-header.module.css";
 
 /** Keep updates reachable before sign-in as well as from Settings → About. */
 export function DesktopUpdateButton() {
@@ -16,9 +17,9 @@ export function DesktopUpdateButton() {
         bridge.send({ type: "update-status" });
         return unsubscribe;
     }, []);
-    if (!status?.available) return null;
-    return <Button asChild variant="ghost" size="icon">
-        <Link href="/settings/about" aria-label="App updates" title="App updates">
+    if (!status?.available || status.state !== "available") return null;
+    return <Button asChild variant="outline" size="icon" className={`size-11 ${styles.signIn}`}>
+        <Link href="/settings/about" aria-label="Update available" title="Update available">
             <Download aria-hidden="true" />
         </Link>
     </Button>;

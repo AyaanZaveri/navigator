@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigatorShortcut } from "@/hooks/use-navigator-shortcut";
+import { PlayerNavigatorButton } from "@/components/player-navigator-button";
 import {
   MediaPlayer,
   MediaPlayerControls,
@@ -61,7 +61,7 @@ import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
 import { DesktopTracks } from "@/components/desktop/tracks";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
-import { ArrowLeft, RotateCcw, RotateCw, Ship, Loader2 } from "lucide-react";
+import { ArrowLeft, RotateCcw, RotateCw, Loader2 } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   reportPlaybackStart,
@@ -86,7 +86,6 @@ const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const streamQueries = useStreamQueries();
   const metadataQueries = streamQueries?.metadata;
-  const navigatorShortcut = useNavigatorShortcut();
   const router = useRouter();
   const {
     isPlayerVisible,
@@ -1156,18 +1155,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               <MediaPlayerTime />
             </div>
             <div className="flex items-center gap-2">
-              {onToggleAIAsk && (
-                <MediaPlayerTooltip tooltip="Navigator" shortcut={navigatorShortcut}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-white/20"
-                    onClick={onToggleAIAsk}
-                  >
-                    <Ship className="h-4 w-4" />
-                  </Button>
-                </MediaPlayerTooltip>
-              )}
+              {onToggleAIAsk && <PlayerNavigatorButton onToggle={onToggleAIAsk} />}
 
               {nativePlayback && <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />}
               <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}

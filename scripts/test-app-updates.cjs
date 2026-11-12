@@ -41,13 +41,21 @@ const { DesktopUpdateButton } = load('components/desktop-update-button.tsx', {
     react: header.react, 'react/jsx-runtime': header.jsx,
     'next/link': 'Link', 'lucide-react': { Download: 'Download' }, '@/components/ui/button': { Button: 'Button' },
     '@/lib/desktop/bridge': { desktopBridge: () => bridge },
+    './app-header.module.css': { signIn: 'sign-in-material' },
 });
 header.render(DesktopUpdateButton); header.flush();
-listener({ type: 'update-status', version: '0.3.6', available: true, automatic: true, state: 'idle' });
-let headerTree = header.render(DesktopUpdateButton);
-assert.equal(headerTree.props.children.props['aria-label'], 'App updates', 'Guest header action has an accessible name');
-assert.equal(headerTree.props.children.props.href, '/settings/about', 'Guest users can reach version and update preferences');
-listener({ type: 'update-status', version: '0.3.6', available: false, automatic: true, state: 'idle' });
+for (const state of ['idle', 'checking', 'current', 'error']) {
+    listener({ type: 'update-status', version: '0.5.0', available: true, automatic: true, state });
+    assert.equal(header.render(DesktopUpdateButton), null, `No header update action in ${state} state`);
+}
+listener({ type: 'update-status', version: '0.5.0', available: true, automatic: true, state: 'available' });
+const headerTree = header.render(DesktopUpdateButton);
+assert.equal(headerTree.props.children.props['aria-label'], 'Update available');
+assert.equal(headerTree.props.children.props.href, '/settings/about', 'Guest users can reach the offered update');
+assert.equal(headerTree.props.variant, 'outline', 'Use the sign-in button material');
+assert.match(headerTree.props.className, /size-11/, 'Match the 44px search bar height and width');
+assert.match(headerTree.props.className, /sign-in-material/);
+listener({ type: 'update-status', version: '0.5.0', available: false, automatic: true, state: 'available' });
 assert.equal(header.render(DesktopUpdateButton), null, 'Portable apps do not show an inoperative update action');
 header.unmount();
-console.log('PASS: Windows update action is reachable before sign-in and hidden for portable apps.');
+console.log('PASS: header update action appears only for an offered update, uses the sign-in material and stays hidden for portable apps.');
