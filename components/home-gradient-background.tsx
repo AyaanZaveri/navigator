@@ -15,7 +15,7 @@ const subscribe = () => () => {};
 const EMPTY: HomePaletteSnapshot = { colors: null, duration: 0 };
 const getEmpty = () => EMPTY;
 
-export function HomeGradientBackground({ dotOpacity = 0.85 }: { dotOpacity?: number }) {
+export function HomeGradientBackground({ dotOpacity = 0.85, visible = true }: { dotOpacity?: number; visible?: boolean }) {
     const { resolvedTheme } = useTheme();
     const light = resolvedTheme !== "dark";
     const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
@@ -26,7 +26,7 @@ export function HomeGradientBackground({ dotOpacity = 0.85 }: { dotOpacity?: num
     if (isPlayerVisible) return null;
 
     return (
-        <div aria-hidden="true" data-home-gradient="" className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>
+        <div aria-hidden="true" hidden={!visible} data-home-gradient="" className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>
             {/* CSS supplies both themes before hydration and during GPU loss. */}
             {hydrated && (
                 <div className={`${styles.animation} absolute inset-0`}>

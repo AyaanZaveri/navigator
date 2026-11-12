@@ -106,6 +106,8 @@ for (const pathname of ['/', '/movie/tt0816692', '/series/tt1442437/6/4']) {
     '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
     '@/lib/desktop/bridge': { desktopBridge: () => null },
     '@/components/aurora-provider': { AuroraProvider: 'provider', PersistentAuroraBackground: 'aurora' },
+    '@/components/home-palette-provider': { HomePaletteProvider: 'home-palette' },
+    '@/components/home-gradient-background': { HomeGradientBackground: 'home-gradient' },
     '@/components/ui/scroll-area': { ScrollAreaRoot: 'scroll-root', ScrollAreaViewport: 'scroll-viewport', ScrollBar: 'scrollbar' },
     './layout-content.module.css': {},
   });

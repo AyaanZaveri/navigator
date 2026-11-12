@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { createHomePaletteScene, type HomeArtwork, type HomePaletteScene } from "@/lib/home-palette";
 import { loadHomePalette } from "@/lib/aurora-palette-loader";
 
@@ -8,6 +9,10 @@ const HomePaletteContext = createContext<HomePaletteScene | null>(null);
 
 export function HomePaletteProvider({ children }: { children: ReactNode }) {
     const [scene] = useState(() => createHomePaletteScene(loadHomePalette));
+    const pathname = usePathname();
+    // Reset page intent before the new page registers its initial artwork.
+    // Keep the snapshot and the layout-owned canvas across the navigation.
+    useLayoutEffect(() => { scene.navigate(); }, [scene, pathname]);
     useEffect(() => { scene.start(); return () => scene.stop(); }, [scene]);
     return <HomePaletteContext.Provider value={scene}>{children}</HomePaletteContext.Provider>;
 }
