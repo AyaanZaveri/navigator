@@ -26,7 +26,7 @@ SHIP_WIDTH = GEOMETRY['ship']['w'] + GEOMETRY['paths'][0]['strokeWeight']
 ANDROID_MARK_DP = 48
 ANDROID_SHIFT_Y_DP = -1.5
 DENSITIES = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
-ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
+ICO_SIZES = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 128, 256]
 SRGB_PROFILE = ImageCms.ImageCmsProfile(ImageCms.createProfile('sRGB')).tobytes()
 
 
@@ -128,6 +128,47 @@ def generate_android():
         shutil.copyfile(RES / f'drawable/{name}.xml', OUT / f'android/{name}.xml')
 
 
+def windows_artwork(small=False):
+    # Reuse the dimensional macOS tile, with 40px of transparent space around
+    # its 824px body. Omit the two exterior shadows so the silhouette stays crisp.
+    root = deepcopy(BASE)
+    root.set('viewBox', '64 64 896 896')
+    for child in root:
+        if child.tag.endswith('g'):
+            child.attrib.pop('filter', None)
+    if small:
+        # At <=32px, grain and inner shadows obscure the thin boat strokes.
+        # Use the same geometry with a larger, clean mark on the original tile.
+        masked = root.find(f'.//{{{SVG_NS}}}g[@mask]')
+        boat = next(child for child in masked if child.find(f'{{{SVG_NS}}}path') is not None)
+        index = list(masked).index(boat)
+        masked.remove(boat)
+        definitions, mark = transformed_ship(560)
+        root.find(f'{{{SVG_NS}}}defs').extend(ET.fromstring(f'<defs xmlns="{SVG_NS}">{definitions}</defs>'))
+        masked.insert(index, ET.fromstring(f'<g xmlns="{SVG_NS}">{mark}</g>'))
+        clean_filters(root)
+    return element_text(root)
+
+
+def generate_windows():
+    write(OUT / 'windows/navigator.svg', windows_artwork())
+    write(OUT / 'windows/navigator-small.svg', windows_artwork(small=True))
+    render(OUT / 'windows/navigator.svg', OUT / 'windows/navigator-1024.png', 1024)
+    pngs = []
+    for size in ICO_SIZES:
+        target = OUT / f'windows/png/navigator-{size}.png'
+        source = 'navigator-small.svg' if size <= 32 else 'navigator.svg'
+        render(OUT / 'windows' / source, target, size)
+        pngs.append(target.read_bytes())
+    # Every ICO entry is rendered at its exact display size, including fractional DPI.
+    offset = 6 + 16 * len(ICO_SIZES)
+    entries = []
+    for size, data in zip(ICO_SIZES, pngs):
+        entries.append(struct.pack('<BBBBHHII', 0 if size == 256 else size, 0 if size == 256 else size, 0, 0, 1, 32, len(data), offset))
+        offset += len(data)
+    (OUT / 'windows/Navigator.ico').write_bytes(struct.pack('<HHH', 0, 1, len(pngs)) + b''.join(entries) + b''.join(pngs))
+
+
 def generate():
     # Modern Apple sources: opaque, square background and crisp transparent mark.
     bg_defs = deepcopy(DEFS)
@@ -172,23 +213,7 @@ def generate():
 
     generate_android()
 
-    # Windows: unplated silhouette with a dark keyline for light backgrounds.
-    definitions, mark = transformed_ship(832, outline=True)
-    windows_svg = svg(mark, definitions)
-    write(OUT / 'windows/navigator.svg', windows_svg)
-    render(OUT / 'windows/navigator.svg', OUT / 'windows/navigator-1024.png', 1024)
-    pngs = []
-    for size in ICO_SIZES:
-        target = OUT / f'windows/png/navigator-{size}.png'
-        render(OUT / 'windows/navigator.svg', target, size)
-        pngs.append(target.read_bytes())
-    # Assemble an ICO with an independently rendered PNG for every exact size.
-    offset = 6 + 16 * len(ICO_SIZES)
-    entries = []
-    for size, data in zip(ICO_SIZES, pngs):
-        entries.append(struct.pack('<BBBBHHII', 0 if size == 256 else size, 0 if size == 256 else size, 0, 0, 1, 32, len(data), offset))
-        offset += len(data)
-    (OUT / 'windows/Navigator.ico').write_bytes(struct.pack('<HHH', 0, 1, len(pngs)) + b''.join(entries) + b''.join(pngs))
+    generate_windows()
     print('Generated macOS, Android, Windows and iOS icon assets in assets/icons/.')
 
 
@@ -196,7 +221,14 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--android-only', action='store_true', help='Regenerate only Android resources')
-    if parser.parse_args().android_only:
+    parser.add_argument('--windows-only', action='store_true', help='Regenerate only Windows resources')
+    args = parser.parse_args()
+    if args.android_only and args.windows_only:
+        parser.error('Choose only one platform-only option')
+    if args.windows_only:
+        generate_windows()
+        print('Generated Windows icon resources.')
+    elif args.android_only:
         generate_android()
         print('Generated Android icon resources.')
     else:

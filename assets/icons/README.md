@@ -12,11 +12,13 @@ The ship in the original Figma master was enlarged **28%**, retaining the macOS 
 | Modern Apple icons | `macos/layers/`, `ios/layers/` | Full-bleed, unmasked 1024px background and transparent SVG/PNG foreground for Icon Composer. These are source layers, not a compiled `.icon` document. |
 | iOS | `ios/AppIcon.appiconset`, `ios/navigator-1024.png` | Ready for an Xcode asset catalog. The web app's `app/apple-icon.png` is also updated. There is no native iOS project in this repository. |
 | Android | `android/foreground.svg`, `android/background.svg`, vector XML and `android/play-store-512.png` | Production resources are under `android/app/src/main/res/`; the common manifest applies to every APK variant. |
-| Windows | `windows/Navigator.ico`, `windows/navigator.svg`, `windows/png/` | Multi-resolution Win32 handoff; not embedded into the Windows executable by this icon-design change. |
+| Windows | `windows/Navigator.ico`, `windows/navigator.svg`, `windows/navigator-small.svg`, `windows/png/` | The native resource compiler embeds the ICO. Windows packaging also uses it for the installer, Start shortcut and installed-app entry. |
 
 Android uses a **108dp** adaptive canvas, with a **48dp** rendered foreground mark horizontally centered and shifted **1.5dp upward** for optical balance within the safe area. API 26+ receives foreground/background adaptive layers; API 33+ also gets a monochrome layer. API 24–25 receive density-specific legacy normal/round PNGs. No white plate, outer shadow or pre-rounded tile is baked into the adaptive layers. The splash screen uses a separate 288dp vector canvas with a 144dp ship, retaining the upward optical balance. `android/splash/` includes the 1152px mark export and portrait/landscape design previews.
 
-Windows uses an unplated ship with a dark teal edge for contrast on light backgrounds. The ICO contains independently rendered **16, 20, 24, 32, 40, 48, 64, 96, 128 and 256px** PNG entries.
+Windows uses the macOS master's rounded dark teal tile, dimensional boat and soft background lighting. It has no dark boat outline or exterior drop shadow. A tighter canvas leaves 40 source pixels around the 824px tile. At 32px and below, a slightly larger boat with clean gradient strokes replaces fine grain and inner shadows for legibility. Transparent corners remain outside the tile. The ICO contains independently rendered **16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 128 and 256px** PNG entries for common Windows display scales.
+
+`windows/preview.png` compares the previous icon and the new exports on light and dark backgrounds. This is an asset preview, not a Windows screenshot. Windows shell appearance must still be checked after a native rebuild.
 
 Apple modern master PNGs are **opaque RGB 1024×1024**, with no rounded mask. The compatibility macOS `.icns` intentionally retains the legacy mask, transparent canvas inset and shadow used by this app's existing packaging.
 
@@ -37,6 +39,8 @@ Requires Python with Pillow, `rsvg-convert`, and Apple's `iconutil` for `.icns` 
 python3 scripts/generate-app-icons.py
 python3 scripts/test-app-icons.py
 ```
+
+To update only Windows assets, use `python3 scripts/generate-app-icons.py --windows-only`.
 
 The vector geometry and compatibility SVG were exported from the updated Figma file through MCP. The generator also updates the Android resources and the existing macOS/iOS image entry points. It does not build an app, APK, or executable. Installed apps and previously built APKs retain their old resources until rebuilt and reinstalled.
 
