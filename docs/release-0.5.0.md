@@ -1,20 +1,43 @@
-# Navigator 0.5.0 — Windows
+# Navigator 0.5.0
 
-0.5.0 is a feature release after 0.4.1. In-app updates introduce a new desktop capability; the accompanying metadata, discovery and rendering improvements are broader than a patch release. 1.0 remains a separate product-stability milestone.
+Navigator 0.5.0 is available for Windows and macOS. This release adds in-app updates on Windows and improves browsing, artwork, and playback.
 
-## Included changes
+### New features and improvements
 
-- Windows in-app updates: header shortcut, Settings → About, automatic/manual checks, Ed25519-verified downloads and user-controlled installation/restart. The installer verifies a staged copy before replacing a recognized Navigator installation, preserves prior installations on preparation failure and refuses unrelated folders or interrupted staging/backup directories.
-- Shared title and episode metadata readers/cache, earlier detail preloading, batched notifications, more accurate provider release years and sharper progressively loaded episode stills.
-- Continue Watching background warmup and its per-device setting; visible-card/intent prefetch, shared stream requests and reuse of already-resolved playback metadata.
-- Independent home-row streaming, faster and batched watch-history reads, optimistic watched/web-search toggles, more responsive subtitle choices, less player-clock/header/logo work and lighter Navigator rendering.
-- Search presentation, artwork loading, alert-dialog material, add-on removal and small interface refinements committed since 0.4.1.
-- All shipped 0.4.1 native playback/media-byte preview caching, buffer ranges, cancellation, library pins and installation-readiness fixes are retained. Integration also consumes late shared-discovery errors after an already-cancelled playback caller exits.
+- **Windows updates:** Check for updates from the header or **Settings → About**. You can enable automatic checks and install updates through Navigator.
+- **Continue Watching:** Navigator prepares titles in the background to help playback start sooner. You can control this feature in Settings.
+- **Title details:** Navigator loads and reuses movie and episode details to reduce loading time.
+- **Home and search:** Home rows load separately. Search navigation and result changes respond faster.
+- **Episode artwork:** Episode backgrounds load sharper images when available.
+- **Metadata:** Release years, series year ranges, and missing provider details are handled more accurately.
+- **Controls:** Watched status changes appear immediately. Subtitle selection responds faster. Add-on removal gives clearer feedback.
 
-## Source scope
+This release also includes the native playback and preview cache improvements from 0.4.1.
 
-The release integrates main through `6d60313`, the separate `release-0.4.1` history, and the Windows updater originally committed as `1ee2bfc`. This avoids rebuilding older main without the native features already shipped in 0.4.x. Version metadata is 0.5.0 in npm and Cargo manifests/locks. Windows compilation and packaging run only on the Zenbook; macOS/iOS/Android packages are not part of this release request.
+### Windows installation
 
-Existing 0.4.1 installations need one manual bootstrap installation to obtain the updater. Future Windows update packages are verified using the embedded public key; Windows Authenticode publisher signing remains unconfigured. The GitHub update feed is published only after its exact referenced installer has been uploaded and verified.
+Requires **Windows 11 on an x64 PC**.
 
-Build validation and artifact digests are recorded after packaging. No new video performance, HDR or blur claim is made by this release.
+Install 0.5.0 with the Windows installer to enable in-app updates. Future releases can then be installed through Navigator.
+
+The installer sets up WebView2 if needed. Portable ZIP copies require manual updates.
+
+The installer does not have a publisher signature. In-app updates use cryptographic signatures to verify downloads.
+
+### macOS installation
+
+Requires **Apple Silicon and macOS 13.5 or later**.
+
+Open the DMG and drag Navigator into Applications. A ZIP download is also available.
+
+This build uses an ad hoc signature and is not notarized by Apple. macOS may require approval before you can open it.
+
+macOS updates require manual installation.
+
+Your existing sign-in and settings are preserved on both platforms.
+
+### Checks completed
+
+Both builds passed production builds, package checks, and native playback and preview tests.
+
+Interactive playback and HDR output were not tested on macOS for this release.

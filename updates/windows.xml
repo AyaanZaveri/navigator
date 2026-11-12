@@ -2,7 +2,13 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>Navigator for Windows</title>
-    <description>Signed stable releases for Windows x64.</description>
     <language>en</language>
+    <item>
+      <title>Navigator 0.5.0</title>
+      <description>Update Navigator, then reopen it with your existing sign-in and settings.</description>
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.0/Navigator-0.5.0-windows-x64-setup.exe" sparkle:version="0.5.0" sparkle:shortVersionString="0.5.0"
+        sparkle:os="windows" sparkle:installerArguments="/S /UPDATE" sparkle:edSignature="pKutR/a1ZYQ9d+ADBPQ35UGwxCR3icXDGwO5f/aMpaUsCePjDvtcBQB2PcRpn5PIw0o4io8mk+iWh+MHX+iAAw=="
+        length="83321596" type="application/octet-stream" />
+    </item>
   </channel>
 </rss>
