@@ -128,6 +128,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
         return release;
     };
     const invalidate = (target?: Target) => {
+        if (!target) { client.removeQueries({ queryKey: ["subtitles", scope] }); }
         if (target) {
             const base = target.id.replace(/:\d+:\d+$/, "");
             const id = (peekIdentity(base, target.type) || base) + target.id.slice(base.length);

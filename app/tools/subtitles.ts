@@ -13,13 +13,9 @@ import { matchedSubtitle, sceneSubtitles, sceneSubtitleCandidates } from "@/lib/
 import type { SceneProgress } from "@/lib/navigator-scene-progress";
 import { verifiedSceneEvidence, type SceneRequestContext } from "@/lib/navigator-scene-context";
 import { createEpisodeTools } from "./episodes";
-
-interface ParsedSubtitleEntry {
-  timestamp: number;
-  endTimestamp?: number;
-  timestampFormatted: string;
-  text: string;
-}
+import { parseSubtitleTextContent, type ParsedSubtitleEntry } from "@/lib/media/subtitle-content";
+import { snapshotSubtitles, isCurrentSubtitleTarget, type SubtitleSnapshot } from "@/lib/media/subtitle-snapshot";
+import { navigatorSubtitleRank } from "@/lib/media/subtitle-preference";
 
 interface SubtitleLoadResult {
   success: boolean;
@@ -33,7 +29,6 @@ interface SubtitleLoadResult {
 }
 
 const DEFAULT_SUBTITLE_INDEX = 0;
-const ENGLISH_TRACK_MIN_SCORE = 60;
 const STOP_WORDS = new Set([
     "the",
     "a",
@@ -68,64 +63,6 @@ const timestampExtractionSchema = z.object({
     candidate: z.number().int().nullable().describe("One-based index of a matching subtitle, or null if there is no convincing match"),
     confidence: z.enum(["high", "low", "none"]),
 });
-
-function parseSubtitleTimestamp(value: string): number | null {
-    const normalized = value.trim().replace(",", ".");
-    const parts = normalized.split(":");
-    if (parts.length < 2 || parts.length > 3) return null;
-
-    const secondsPart = Number(parts[parts.length - 1]);
-    const minutesPart = Number(parts[parts.length - 2]);
-    const hoursPart = parts.length === 3 ? Number(parts[0]) : 0;
-
-    if (
-        !Number.isFinite(secondsPart) ||
-    !Number.isFinite(minutesPart) ||
-    !Number.isFinite(hoursPart)
-    ) {
-        return null;
-    }
-
-    return hoursPart * 3600 + minutesPart * 60 + secondsPart;
-}
-
-function parseSubtitleTextContent(rawContent: string): ParsedSubtitleEntry[] {
-    const normalized = rawContent.replace(/^\uFEFF/, "").replace(/\r/g, "");
-    const blocks = normalized
-        .split(/\n{2,}/)
-        .map((block) => block.trim())
-        .filter(Boolean);
-
-    const parsed: ParsedSubtitleEntry[] = [];
-
-    for (const block of blocks) {
-        const lines = block.split("\n").map((line) => line.trimEnd());
-        if (lines.length < 2) continue;
-
-        const timingIndex = lines.findIndex((line) => line.includes("-->"));
-        if (timingIndex === -1) continue;
-
-        const timing = lines[timingIndex];
-        const textLines = lines.slice(timingIndex + 1).filter(Boolean);
-        if (textLines.length === 0) continue;
-
-        const [startRaw, endRaw] = timing.split("-->").map((part) => part.trim());
-        if (!startRaw || !endRaw) continue;
-
-        const start = parseSubtitleTimestamp(startRaw);
-        const end = parseSubtitleTimestamp(endRaw.split(" ")[0] || endRaw);
-        if (start === null) continue;
-
-        parsed.push({
-            timestamp: start,
-            endTimestamp: end ?? undefined,
-            timestampFormatted: startRaw,
-            text: textLines.join("\n"),
-        });
-    }
-
-    return parsed;
-}
 
 function tokenizeQuery(query: string): string[] {
     return query
@@ -204,50 +141,18 @@ function selectRelevantSubtitles(
     return sampled;
 }
 
-function scoreEnglishTrack(track: {
-    id?: string;
-    label?: string;
-    language?: string;
-}): number {
-    const language = track.language?.trim().toLowerCase();
-    // A release filename containing "eng" must not outrank an explicit English language tag.
-    if (language && /^(en(?:[-_][a-z]+)?|eng|english)$/.test(language)) return 200;
-    const hasEnglishToken = (value?: string) => /(?:^|[^a-z])(english|eng|en)(?:$|[^a-z])/.test(value?.toLowerCase() || "");
-    if (hasEnglishToken(track.label)) return 100;
-    if (hasEnglishToken(track.id)) return ENGLISH_TRACK_MIN_SCORE;
-    return 0;
+function pickPreferredSubtitleTrackIndex(tracks: Parameters<typeof navigatorSubtitleRank>[0][], subtitleIndex: number): number {
+    if (!tracks.length) return 0;
+    const ranked = tracks.map((track, index) => ({ index, score: navigatorSubtitleRank(track) }))
+        .sort((a, b) => b.score - a.score);
+    return ranked[0].score >= 100 ? ranked[0].index : Math.max(0, Math.min(Math.floor(subtitleIndex), tracks.length - 1));
 }
 
-function pickPreferredSubtitleTrackIndex(
-    tracks: Array<{
-    id?: string;
-    label?: string;
-    language?: string;
-  }>,
-    subtitleIndex: number
-): number {
-    let bestEnglishIndex = -1;
-    let bestEnglishScore = -1;
-
-    for (const [index, track] of tracks.entries()) {
-        const score = scoreEnglishTrack(track);
-        if (score > bestEnglishScore) {
-            bestEnglishScore = score;
-            bestEnglishIndex = index;
-        }
-    }
-
-    if (bestEnglishIndex >= 0 && bestEnglishScore >= ENGLISH_TRACK_MIN_SCORE) {
-        return bestEnglishIndex;
-    }
-
-    return Math.max(0, Math.min(Math.floor(subtitleIndex), tracks.length - 1));
-}
-
-async function loadParsedSubtitles(
+export async function loadParsedSubtitles(
     currentMedia: CurrentMediaWithSource | null,
     subtitleIndex: number,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    snapshot?: SubtitleSnapshot
 ): Promise<SubtitleLoadResult> {
     if (!currentMedia || !currentMedia.id) {
         return {
@@ -261,9 +166,14 @@ async function loadParsedSubtitles(
     const mediaType = currentMedia.type || "movie";
     const streamSourceId = currentMedia.mediaSourceId || currentMedia.id;
     abortSignal?.throwIfAborted();
-    // Discover subtitles with the current account and release hints on every request.
+    // Authenticate even for client-supplied reference text. Never treat it as episode proof.
+
     const { user: { _id: userId } } = await getAuthData();
     if (!userId) return { success: false, subtitles: [], error: "Not authenticated" };
+    const reused = snapshotSubtitles(snapshot, currentMedia);
+    if (reused?.length) return { success: true, subtitles: reused,
+        selectedTrackLabel: snapshot!.track.label, selectedTrackLanguage: snapshot!.track.language,
+        selectedTrackFilename: snapshot!.track.filename, selectedTrackProvider: snapshot!.track.provider };
     const tracks = await getSubtitleTracks(streamSourceId, mediaType, {
         filename: currentMedia.subtitleFilename,
         videoSize: currentMedia.subtitleVideoSize,
@@ -278,8 +188,8 @@ async function loadParsedSubtitles(
     const seen = new Set([preferred.src]);
     const alternatives = tracks.map((track, index) => ({ track, index }))
         .filter(({ track, index }) => index !== preferredIndex
-            && (scoreEnglishTrack(preferred) < ENGLISH_TRACK_MIN_SCORE || scoreEnglishTrack(track) >= ENGLISH_TRACK_MIN_SCORE))
-        .sort((a, b) => scoreEnglishTrack(b.track) - scoreEnglishTrack(a.track))
+            && (navigatorSubtitleRank(preferred) < 100 || navigatorSubtitleRank(track) >= 100))
+        .sort((a, b) => navigatorSubtitleRank(b.track) - navigatorSubtitleRank(a.track))
         .filter(({ track }) => { if (seen.has(track.src)) return false; seen.add(track.src); return true; })
         .slice(0, 3);
     const download = async (index: number): Promise<SubtitleLoadResult> => {
@@ -381,7 +291,8 @@ export const skipToSubtitleContent = (
     currentMedia: CurrentMediaWithSource | null,
     analysisModel?: LanguageModel,
     requestSignal?: AbortSignal,
-    sceneContext?: SceneRequestContext
+    sceneContext?: SceneRequestContext,
+    currentSubtitles?: SubtitleSnapshot
 ) =>
     tool({
         description:
@@ -496,7 +407,10 @@ export const skipToSubtitleContent = (
                     seasonNumber = episode.seasonNumber;
                     episodeNumber = episode.episodeNumber;
                 }
-                let playback = hasTarget ? await playMedia.execute!({ mediaId: mediaId!, mediaName: mediaName!, mediaType: mediaType!, seasonNumber, episodeNumber }, options) : null;
+                const alreadyPlaying = hasTarget && isCurrentSubtitleTarget(currentMedia, {
+                    id: mediaId!, type: mediaType === "Movie" ? "movie" : "series", seasonNumber, episodeNumber,
+                });
+                let playback = hasTarget && !alreadyPlaying ? await playMedia.execute!({ mediaId: mediaId!, mediaName: mediaName!, mediaType: mediaType!, seasonNumber, episodeNumber }, options) : null;
                 if (playback && Symbol.asyncIterator in playback) throw new Error("Expected a single prepared playback target");
                 if (playback && !playback.success) return playback;
                 // Reuse an already-playing copy instead of opening/fetching the same movie again.
@@ -513,7 +427,7 @@ export const skipToSubtitleContent = (
                         seriesId: playback ? playback.seriesId : currentMedia?.seriesId, seriesName: playback ? playback.showName : currentMedia?.showName,
                         seasonNumber: targetMedia.seasonNumber, episodeNumber: targetMedia.episodeNumber } : undefined });
                 report({ stage: "subtitles", state: "running", detail: targetMedia?.name });
-                const subtitleResult = await loadParsedSubtitles(targetMedia, subtitleIndex, abortSignal);
+                const subtitleResult = await loadParsedSubtitles(targetMedia, subtitleIndex, abortSignal, currentSubtitles);
                 timings.loadSubtitlesMs = Date.now() - loadStartedAt;
 
                 if (!subtitleResult.success) {
@@ -645,7 +559,8 @@ export const createExplainScene = (
     currentMedia: CurrentMediaWithSource | null,
     analysisModel?: LanguageModel,
     abortSignal?: AbortSignal,
-    playbackTimestamp = 0
+    playbackTimestamp = 0,
+    currentSubtitles?: SubtitleSnapshot
 ) =>
     tool({
         description:
@@ -687,7 +602,7 @@ export const createExplainScene = (
             });
 
             try {
-                const subtitleResult = await loadParsedSubtitles(currentMedia, subtitleIndex, abortSignal);
+                const subtitleResult = await loadParsedSubtitles(currentMedia, subtitleIndex, abortSignal, currentSubtitles);
 
                 if (!subtitleResult.success) {
                     return {
@@ -764,7 +679,8 @@ export const createAnalyzeMedia = (
     currentMedia: CurrentMediaWithSource | null,
     analysisModel?: LanguageModel,
     abortSignal?: AbortSignal,
-    playbackTimestamp = 0
+    playbackTimestamp = 0,
+    currentSubtitles?: SubtitleSnapshot
 ) =>
     tool({
         description:
@@ -791,7 +707,7 @@ export const createAnalyzeMedia = (
             });
 
             try {
-                const subtitleResult = await loadParsedSubtitles(currentMedia, subtitleIndex, abortSignal);
+                const subtitleResult = await loadParsedSubtitles(currentMedia, subtitleIndex, abortSignal, currentSubtitles);
 
                 if (!subtitleResult.success) {
                     return {

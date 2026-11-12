@@ -6,19 +6,21 @@ import { createStreamQueries, type StreamQueries } from "@/lib/media/stream-quer
 
 import { createMetadataWarmup } from "@/lib/media/metadata-warmup";
 import { createMetadataQueries, type MetadataQueries } from "@/lib/media/metadata-queries";
+import { createSubtitleQueries, type SubtitleQueries } from "@/lib/media/subtitle-queries";
 
-const Context = createContext<(StreamQueries & { metadata: MetadataQueries; warmer: ReturnType<typeof createMetadataWarmup> }) | null>(null);
+const Context = createContext<(StreamQueries & { metadata: MetadataQueries; subtitles: SubtitleQueries; warmer: ReturnType<typeof createMetadataWarmup> }) | null>(null);
 export const useStreamQueries = () => useContext(Context);
 export const useMetadataWarmup = () => useContext(Context)?.warmer;
 export const useMetadataQueries = () => useContext(Context)?.metadata;
+export const useSubtitleQueries = () => useContext(Context)?.subtitles;
 
 export function StreamQueryProvider({ scope, children }: { scope: string; children: ReactNode }) {
-    const [queries] = useState(() => { const streams = createStreamQueries(scope); const metadata = createMetadataQueries(streams); return { ...streams, metadata, warmer: createMetadataWarmup(metadata) }; });
+    const [queries] = useState(() => { const streams = createStreamQueries(scope); const metadata = createMetadataQueries(streams); return { ...streams, metadata, subtitles: createSubtitleQueries(streams.client, scope), warmer: createMetadataWarmup(metadata) }; });
     const lifecycle = useRef(0);
     useEffect(() => {
         const owner = lifecycle;
         const epoch = ++owner.current;
-        return () => { queueMicrotask(() => { if (epoch === owner.current) { queries.warmer.dispose(); queries.metadata.dispose(); queries.clear(); } }); };
+        return () => { queueMicrotask(() => { if (epoch === owner.current) { queries.warmer.dispose(); queries.metadata.dispose(); queries.subtitles.dispose(); queries.clear(); } }); };
     }, [queries]);
     return <QueryClientProvider client={queries.client}><Context.Provider value={queries}>{children}</Context.Provider></QueryClientProvider>;
 }

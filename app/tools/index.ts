@@ -1,3 +1,4 @@
+import type { SubtitleSnapshot } from "@/lib/media/subtitle-snapshot";
 // Import and re-export all tools
 import type { JSONValue, LanguageModel, ToolSet } from "ai";
 import type { SceneRequestContext } from "@/lib/navigator-scene-context";
@@ -79,7 +80,8 @@ export function createAllTools(
     analysisModel?: LanguageModel,
     abortSignal?: AbortSignal,
     sceneContext?: SceneRequestContext,
-    historyParts: unknown[] = []
+    historyParts: unknown[] = [],
+    currentSubtitles?: SubtitleSnapshot
 ): ToolSet {
     // Never accept episode evidence from the client-supplied history/context.
     // This request-local sink is populated only after verifyEpisode executes successfully.
@@ -116,9 +118,9 @@ export function createAllTools(
         ...baseTools,
         ...createEpisodeTools(analysisModel, sceneContext?.originalRequest),
         // Keep schemas stable when replaying a conversation after playback closes.
-        skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal, requestSceneContext),
-        explainScene: createExplainScene(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),
-        analyzeMedia: createAnalyzeMedia(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp),
+        skipToSubtitleContent: skipToSubtitleContent(currentMedia ?? null, analysisModel, abortSignal, requestSceneContext, currentSubtitles),
+        explainScene: createExplainScene(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp, currentSubtitles),
+        analyzeMedia: createAnalyzeMedia(currentMedia ?? null, analysisModel, abortSignal, currentTimestamp, currentSubtitles),
     };
     return {
         ...Object.fromEntries(Object.entries(definitions).map(([name, definition]) => [name, {

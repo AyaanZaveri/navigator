@@ -79,6 +79,7 @@ export async function getSubtitleTracks(
     src: string;
     default?: boolean;
     forced?: boolean;
+    sdh?: boolean;
   }>
 > {
   try {
@@ -127,6 +128,7 @@ export async function getSubtitleTracks(
       src: string;
       default?: boolean;
       forced?: boolean;
+      sdh?: boolean;
     }> = [];
 
     const groups = await Promise.all(subtitleAddons.map(async (addon) => {
@@ -163,6 +165,7 @@ export async function getSubtitleTracks(
               src: sub.url,
               default: false,
               forced: typeof sub.forced === "boolean" ? sub.forced : undefined,
+              sdh: [sub.sdh, sub.hearingImpaired, sub.hearing_impaired].some(value => value === true),
             });
           }
         }

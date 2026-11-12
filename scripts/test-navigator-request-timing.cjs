@@ -46,6 +46,7 @@ const { default: AIAsk } = load('components/navigator/ai-ask.tsx', {
     '@/lib/navigator-playback-ack': ack,
     '@/lib/navigator-timing': timing,
     '@/lib/atoms': {},
+    '@/components/stream-query-provider': { useStreamQueries: () => null },
     '@/contexts/settings-context': { useSettings: () => ({}) },
     '@/contexts/MediaPlayerContext': { useMediaPlayer: () => ({ playMedia() { playbackCalls++; }, isPlayerVisible: true, skipToTimestamp() {} }) },
     '@/lib/preload-tools': { preloadPlayer() {} },
