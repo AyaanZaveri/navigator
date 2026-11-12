@@ -43,6 +43,7 @@ async function fetchAddonStreams(
 
 export async function GET(request: Request) {
   try {
+    request.signal.throwIfAborted();
     const { searchParams } = new URL(request.url);
     const mediaItemId = searchParams.get("mediaItemId");
     const type = searchParams.get("type") ?? "movie";
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
       const { resolveAddonMediaId } = await import("@/lib/tmdb-discovery");
       sourceId = await resolveAddonMediaId(sourceId, type, request.signal);
     }
+    request.signal.throwIfAborted();
     const streams = await fetchAddonStreams(addon.transportUrl, sourceId, type, request.signal);
 
     return NextResponse.json({
@@ -75,6 +77,8 @@ export async function GET(request: Request) {
       })),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error: any) {
+    // The client has gone away; stop owned I/O without logging an upstream fault.
+    if (request.signal.aborted) return new Response(null, { status: 499 });
     if (error?.message?.includes("Not authenticated")) {
       return NextResponse.json({ streams: [] }, { status: 401 });
     }

@@ -150,6 +150,8 @@ impl Kind {
 
 #[derive(Debug)]
 pub enum Event {
+    /// An mpv notification the app does not subscribe to semantically.
+    Unhandled,
     Shutdown,
     Log {
         prefix: String,
@@ -344,7 +346,7 @@ impl Mpv {
         self.check(unsafe { (self.api.request_log_messages)(self.handle, l.as_ptr()) })
     }
 
-    /// Only one thread may wait for events. `None` means the timeout passed.
+    /// Only one thread may wait for events. `None` means timeout or explicit wakeup.
     pub fn wait_event(&self, timeout: f64, json: impl Fn(u64) -> bool) -> Option<Event> {
         // SAFETY: the event stays valid until the next wait_event on this thread.
         let ev = unsafe { &*(self.api.wait_event)(self.handle, timeout) };
@@ -414,7 +416,7 @@ impl Mpv {
                 }
             }
             0 => return None,
-            _ => return self.wait_event(0.0, json),
+            _ => Event::Unhandled,
         })
     }
 

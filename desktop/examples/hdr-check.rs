@@ -2,6 +2,12 @@
 //! No backend, WebView, account, or saved Navigator profile is used.
 #![allow(dead_code)]
 #[cfg(target_os = "macos")]
+#[path = "../src/media_cache.rs"]
+mod media_cache;
+#[cfg(target_os = "macos")]
+#[path = "../src/frame_schedule.rs"]
+mod frame_schedule;
+#[cfg(target_os = "macos")]
 #[path = "../src/hdr.rs"]
 mod hdr;
 #[cfg(target_os = "macos")]

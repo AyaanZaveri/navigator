@@ -87,7 +87,7 @@ export function desktopBridge(): DesktopBridge | undefined {
 /** Fixed, URL-free stages; older native builds receive no new commands. */
 export function recordDesktopStage(stage: ClientStage) {
   const bridge = desktopBridge();
-  if (bridge?.platform !== "windows" || !bridge.capabilities?.timings) return;
+  if (!bridge || !["windows", "macos"].includes(bridge.platform) || !bridge.capabilities?.timings) return;
   try { bridge.send({ type: "client-stage", stage }); } catch { /* Diagnostics never block playback. */ }
 }
 

@@ -6,6 +6,9 @@ mod hdr;
 #[cfg(any(windows, test))]
 mod glass;
 mod mpv;
+mod media_cache;
+#[cfg(any(target_os = "macos", test))]
+mod frame_schedule;
 mod platform;
 mod player;
 mod protocol;

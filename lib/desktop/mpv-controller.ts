@@ -4,7 +4,7 @@ import type { DesktopBridge, NativeMessage, NativeState, NativeTrack } from "./b
 
 function ranges(end: number, cached?: { start: number; end: number }[]): TimeRanges {
   const values = cached === undefined ? (Number.isFinite(end) && end > 0 ? [{ start: 0, end }] : [])
-    : cached.filter(range => Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > Math.max(0, range.start))
+    : cached.filter(range => range && Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > Math.max(0, range.start))
       .map(range => ({ start: Math.max(0, range.start), end: range.end })).sort((a, b) => a.start - b.start);
   const merged: typeof values = [];
   for (const range of values) {
@@ -64,7 +64,7 @@ export class MpvController extends EventTarget {
   }
   private rememberPreview(position: number, src: string, range?: { start: number; end: number } | null) {
     if (range && range.start === position && Number.isFinite(range.end) && range.end > position) this.previewRanges.set(position, range.end);
-    if (this.previewFrames.get(position) === src) return;
+    if (this.previewFrames.get(position) === src) { this.previewFrames.delete(position); this.previewFrames.set(position, src); return; }
     this.previewFrames.delete(position);
     this.previewFrames.set(position, src);
     while (this.previewFrames.size > 256) {
@@ -300,7 +300,7 @@ export class MpvController extends EventTarget {
           else if (this.ready) this.fire("canplay");
         }
         if (previous.width !== this.state.width || previous.height !== this.state.height) this.fire("resize");
-        if (previous.buffered !== this.state.buffered) this.fire("progress");
+        if (previous.buffered !== this.state.buffered || previous.bufferedRanges !== this.state.bufferedRanges) this.fire("progress");
         if (this.ready && !this.state.paused && !this.state.buffering && !this.state.seeking &&
             (confirmingPlay || previous.paused || previous.buffering || previous.seeking)) this.fire("playing");
         break;

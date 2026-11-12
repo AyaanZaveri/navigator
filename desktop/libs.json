@@ -1,12 +1,24 @@
 {
-  "release": "20261029-fe27405",
+  "release": "20261108-19b1008",
   "macos": {
-    "aarch64": { "file": "libs-macos-arm64.zip", "sha256": "f5561ee0cd46cdfc3fd360e5b8b948e122a084d52fbcc1fd8c584139dc09784c" },
-    "x86_64": { "file": "libs-macos-x86_64.zip", "sha256": "43c60109c98c1460bff5b55cf0e1c10f73523f32207e74ea303c9a27cc04b57a" }
+    "aarch64": {
+      "file": "libs-macos-arm64.zip",
+      "sha256": "493364be1183e63a7e6df2bc945c0b69f60917b9bc75456c8f11ed420b8f50e2"
+    },
+    "x86_64": {
+      "file": "libs-macos-x86_64.zip",
+      "sha256": "826210a8511727472b58b3ed5e4d6e0aed0e818c05d273203ab10c7a9e2dc14b"
+    }
   },
   "windows": {
-    "aarch64": { "file": "libs-windows-aarch64.zip", "sha256": "62262d6063ef9f03546af1426fc75cdbb365d32b2bfc6cd0658cd543e6e69714" },
-    "x86_64": { "file": "libs-windows-x86_64.zip", "sha256": "8fde7793489274517d86fbd900c0aa407dfb1040f74b88779ca1f4e6ca5a29c9" }
+    "aarch64": {
+      "file": "libs-windows-aarch64.zip",
+      "sha256": "fb5cf72b29a2de1393be08b7dc94541e3138f648d36951eacd9bcd3fe0ad8f8e"
+    },
+    "x86_64": {
+      "file": "libs-windows-x86_64.zip",
+      "sha256": "95a016105b8a8e2a451fb3c51fce5182ce28f24b50dd86055edcea2388fd14ec"
+    }
   },
   "vulkan": {
     "version": "1.4.363.0",
