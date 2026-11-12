@@ -15,8 +15,9 @@ InstallDirRegKey HKCU "Software\Navigator Desktop" "InstallDir"
 RequestExecutionLevel user
 ; Private builds favor quick packaging/extraction over a smaller download.
 SetCompressor /SOLID zlib
-Icon "${APP_ICON}"
-UninstallIcon "${APP_ICON}"
+; Modern UI applies its own Icon commands when pages are inserted.
+!define MUI_ICON "${APP_ICON}"
+!define MUI_UNICON "${APP_ICON}"
 VIProductVersion "${APP_VERSION}.0"
 VIAddVersionKey "ProductName" "Navigator"
 VIAddVersionKey "FileDescription" "Navigator Windows installer"
