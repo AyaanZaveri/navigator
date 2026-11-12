@@ -8,6 +8,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
 import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, readNavigatorHistory, record, markNavigatorRequestStopped } from "@/lib/navigator-chat";
 import { acknowledgePlayback, type ActionOutcome } from "@/lib/navigator-playback-ack";
+import { useStreamQueries } from "@/components/stream-query-provider";
+import type { SubtitleSnapshot } from "@/lib/media/subtitle-snapshot";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { useTheme } from "next-themes";
 import { isAIAskOpenAtom, currentTimestampAtom } from "@/lib/atoms";
@@ -18,6 +20,8 @@ import { isNavigatorRequestSettled, navigatorResponseDurations } from "@/lib/nav
 
 const AIAsk = ({ userId }: { userId: string }) => {
     const playbackStore = useStore();
+    const subtitleQueries = useStreamQueries()?.subtitles;
+    const subtitleSnapshotRef = useRef<Promise<SubtitleSnapshot | undefined> | undefined>(undefined);
     const [isAskOpen, setIsAskOpen] = useAtom(isAIAskOpenAtom);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [input, setInput] = useState("");
@@ -32,7 +36,11 @@ const AIAsk = ({ userId }: { userId: string }) => {
     const [loadedHistoryKey, setLoadedHistoryKey] = useState<string | null>(null);
     const historyKey = userId ? `navigator-chat-v2:${userId}` : null;
     const pathname = usePathname();
-    const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat", body: () => requestBodyRef.current }), []);
+    const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat", body: async () => {
+        const body = requestBodyRef.current;
+        const currentSubtitles = await subtitleSnapshotRef.current?.catch(() => undefined);
+        return { ...body, currentSubtitles };
+    } }), []);
     const taskStartTimeRef = useRef<number | null>(null);
     const playbackHandoffTimeRef = useRef<number | null>(null);
     const activeTaskUserMessageIdRef = useRef<string | null>(null);
@@ -344,6 +352,10 @@ const AIAsk = ({ userId }: { userId: string }) => {
     const prepareRequest = () => {
         actionAbortRef.current = new AbortController();
         continuationCountRef.current = 0;
+        subtitleSnapshotRef.current = subtitleQueries?.snapshot(isPlayerVisible ? currentMediaWithSource : null,
+            AbortSignal.any([actionAbortRef.current.signal, AbortSignal.timeout(15_000)]));
+        // Handle an early cancellation before the transport starts awaiting it.
+        void subtitleSnapshotRef.current?.catch(() => undefined);
         const opencodeSessionId = opencodeSessionIdRef.current ?? crypto.randomUUID();
         opencodeSessionIdRef.current = opencodeSessionId;
         requestBodyRef.current = {

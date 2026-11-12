@@ -5,7 +5,7 @@ import json
 import math
 import struct
 import xml.etree.ElementTree as ET
-from PIL import Image
+from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parent.parent
 ICONS = ROOT / 'assets/icons'
@@ -72,11 +72,22 @@ for override in (ROOT / 'android/app/src').glob('*/AndroidManifest.xml'):
         assert other.attrib.get(ANDROID + 'icon', '@mipmap/ic_launcher') == '@mipmap/ic_launcher'
         assert other.attrib.get(ANDROID + 'roundIcon', '@mipmap/ic_launcher_round') == '@mipmap/ic_launcher_round'
 
-sizes = {16, 20, 24, 32, 40, 48, 64, 96, 128, 256}
+sizes = {16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 128, 256}
 ico = Image.open(ICONS / 'windows/Navigator.ico')
 assert ico.ico.sizes() == {(size, size) for size in sizes}
 for size in sizes:
-    assert ico.ico.getimage((size, size)).size == (size, size)
+    frame = ico.ico.getimage((size, size)).convert('RGBA')
+    png_path = ICONS / f'windows/png/navigator-{size}.png'
+    check_png(png_path, size, mode='RGBA')
+    with Image.open(png_path) as png:
+        assert ImageChops.difference(frame, png.convert('RGBA')).getbbox(alpha_only=False) is None, size
+    # Preserve the rounded transparent exterior and an opaque dark tile behind
+    # the boat. The former standalone outline cannot satisfy these checks.
+    assert frame.getpixel((0, 0))[3] == 0, size
+    r, g, b, a = frame.getpixel((max(1, size // 8), size // 2))
+    assert a == 255 and r < 80 and g < 180 and b < 180, (size, r, g, b, a)
+    bounds = frame.getchannel('A').point(lambda a: 255 if a >= 250 else 0).getbbox()
+    assert bounds and bounds[2] - bounds[0] >= size * 0.8, (size, bounds)
 
 icns = (ICONS / 'macos/Navigator.icns').read_bytes()
 assert icns[:4] == b'icns' and struct.unpack('>I', icns[4:8])[0] == len(icns)

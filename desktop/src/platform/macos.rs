@@ -4,8 +4,9 @@
 #![allow(deprecated)]
 mod hdr;
 use crate::mpv::Mpv;
+use crate::frame_schedule::{Draw, FrameSchedule, UpdateGate};
 use crate::render::RenderContext;
-use dispatch2::DispatchQueue;
+use dispatch2::{DispatchQueue, DispatchTime};
 pub use hdr::update as update_hdr;
 use objc2::rc::Retained;
 use objc2::{
@@ -173,6 +174,8 @@ pub struct LayerIvars {
     drawn: Cell<bool>,
     skipped: Cell<u32>,
     held: Cell<Held>,
+    updates: Arc<UpdateGate>,
+    schedule: RefCell<FrameSchedule>,
 }
 
 /// How long video draws held the main thread, over a window of time.
@@ -308,6 +311,8 @@ impl VideoLayer {
             drawn: Cell::new(false),
             skipped: Cell::new(0),
             held: Cell::new(Held::new()),
+            updates: Arc::default(),
+            schedule: RefCell::default(),
         });
         // SAFETY: NSObject's init, on a freshly allocated instance.
         let layer: Retained<Self> = unsafe { msg_send![super(this), init] };
@@ -337,10 +342,14 @@ impl VideoLayer {
             ivars.depth,
         ) {
             Ok(mut render) => {
-                render.on_update(|| {
-                    DispatchQueue::main().exec_async(|| {
+                let updates = ivars.updates.clone();
+                render.on_update(move || {
+                    if !updates.queue() { return; }
+                    let updates = updates.clone();
+                    DispatchQueue::main().exec_async(move || {
+                        updates.begin();
                         if let Some(layer) = LAYER.with(|l| l.borrow().clone()) {
-                            layer.update_video();
+                            if Arc::ptr_eq(&updates, &layer.ivars().updates) { layer.update_video(); }
                         }
                     });
                 });
@@ -364,6 +373,24 @@ impl VideoLayer {
             if !r.update() {
                 return;
             }
+            // The render API leaves this frame pending until it is rendered.
+            // Dispatch its future deadline rather than waiting on the UI thread;
+            // render() still retains mpv's timing guard when the deadline arrives.
+            match ivars.schedule.borrow_mut().request(Instant::now(), r.next_frame_in()) {
+                Draw::Now => {}
+                Draw::Pending => return,
+                Draw::Later { ticket, wait } => {
+                    let updates = ivars.updates.clone();
+                    let _ = DispatchQueue::main().after(DispatchTime::try_from(wait).expect("Wait capped to one second"), move || {
+                        if let Some(layer) = LAYER.with(|l| l.borrow().clone()) {
+                            if !Arc::ptr_eq(&updates, &layer.ivars().updates) { return; }
+                            let due = layer.ivars().schedule.borrow_mut().take(ticket);
+                            if due { layer.update_video(); }
+                        }
+                    });
+                    return;
+                }
+            }
         }
         ivars.drawn.set(false);
         self.display();
@@ -384,6 +411,7 @@ impl VideoLayer {
 
     fn stop(&self) {
         let ivars = self.ivars();
+        ivars.schedule.borrow_mut().cancel();
         let _lock = ContextLock::new(ivars.context);
         ivars.render.borrow_mut().take();
     }

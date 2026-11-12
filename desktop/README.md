@@ -11,7 +11,9 @@ from a reviewed source snapshot at `C:\Users\amanz\Code\navigator`. Do not
 use GitHub Actions or Blacksmith for Windows builds. GitHub may host source and
 private installer releases. Packaging produces `Navigator-<version>-windows-x64-setup.exe`
 and `Navigator-<version>-windows-x64-portable.zip`. Builds target Intel/AMD
-Windows 11 PCs and remain unsigned private builds with manual upgrades.
+Windows 11 PCs. Windows code signing is not yet configured. Installed copies
+support signed in-app updates; see [Windows updates](../docs/windows-updates.md)
+for the bootstrap installation, signed feed and release procedure.
 
 The installer runs per user, adds a Start menu shortcut and uninstall entry,
 and installs Microsoft Edge WebView2 Evergreen if missing. The downloaded
@@ -274,7 +276,7 @@ Before accepting a private build on physical Windows hardware, check:
   before making HDR claims.
 
 ARM64 release artifacts, OS media controls,
-public signing, Store distribution and automatic updates remain later milestones.
+public signing and Store distribution remain later milestones.
 
 The renderer is adapted from AIOStreams; see [THIRD-PARTY.md](THIRD-PARTY.md)
 for exact provenance and the AGPL license.
@@ -529,7 +531,7 @@ Cocoa window option. A related [upstream SDR gamma report](https://github.com/mp
 concerns Windows HDR mode; its configuration is not applied to our Windows backend.
 
 This version does not include AIOStreams' custom Metal/AVFoundation outputs or
-Dolby Vision output, native PiP, automatic updates, or torrent resolution.
+Dolby Vision output, native PiP, macOS automatic updates, or torrent resolution.
 It plays the HTTP(S) stream URLs Navigator already obtains from addons.
 
 ## Documentation consulted

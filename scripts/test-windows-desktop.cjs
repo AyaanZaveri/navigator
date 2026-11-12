@@ -19,7 +19,7 @@ function load(file, extra = {}) {
         window: { navigatorDesktop: { protocol: 1, platform, capabilities: { timings }, send: message => sent.push(message) } },
       });
       recordDesktopStage("play-requested");
-      assert.equal(sent.length, platform === "windows" && timings ? 1 : 0, "Diagnostics must be opt-in and must not send new commands to older native builds");
+      assert.equal(sent.length, ["windows", "macos"].includes(platform) && timings ? 1 : 0, "Diagnostics must be opt-in and must not send new commands to older native builds");
       if (sent.length) assert.equal(sent[0].type, "client-stage");
     }
   }

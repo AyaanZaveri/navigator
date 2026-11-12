@@ -1,11 +1,12 @@
 import { preferredSubtitleTrack } from "./subtitle-preference";
+import type { ParsedSubtitleEntry } from "./subtitle-content";
 
 export type PlaybackSubtitleTrack = {
     id?: string; filename?: string; provider?: string; kind: string; label: string;
-    language: string; src: string; default?: boolean; forced?: boolean;
+    language: string; src: string; default?: boolean; forced?: boolean; sdh?: boolean;
 };
 export type SubtitleHints = { filename?: string; videoSize?: number; episodeTitle?: string };
-export type SubtitleFile = { success: boolean; content: string; error?: string };
+export type SubtitleFile = { success: boolean; content: string; cues?: ParsedSubtitleEntry[]; error?: string };
 
 export async function fetchPlaybackSubtitles(id: string, type: string, hints: SubtitleHints, signal: AbortSignal): Promise<PlaybackSubtitleTrack[]> {
     const params = new URLSearchParams({ id, type });
@@ -29,8 +30,10 @@ export class PlaybackSubtitles {
     private catalogs = new Map<string, Promise<PlaybackSubtitleTrack[]>>();
     private files = new Map<string, Promise<SubtitleFile>>();
     constructor(private signal: AbortSignal,
-        private tracks = fetchPlaybackSubtitles, private content = fetchPlaybackSubtitleFile) {}
+        private tracks = fetchPlaybackSubtitles, private content = fetchPlaybackSubtitleFile,
+        private shared = false) {}
     discover(id: string, type: string, hints: SubtitleHints = {}) {
+        if (this.shared) return this.tracks(id, type, hints, this.signal);
         const key = JSON.stringify([id, type, hints.filename || "", hints.videoSize || 0, hints.episodeTitle || ""]);
         let pending = this.catalogs.get(key);
         if (!pending) {
@@ -40,6 +43,7 @@ export class PlaybackSubtitles {
         return pending;
     }
     file(src: string) {
+        if (this.shared) return this.content(src, this.signal);
         let pending = this.files.get(src);
         if (!pending) {
             pending = this.content(src, this.signal).then(result => {

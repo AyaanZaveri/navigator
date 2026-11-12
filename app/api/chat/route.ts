@@ -1,3 +1,4 @@
+import { subtitleSnapshotSchema } from "@/lib/media/subtitle-snapshot";
 import { providerFetch, outboundUrl, outboundFetch, OutboundRequestError } from "@/lib/server/outbound-fetch";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -36,6 +37,11 @@ type OpenRouterReasoningEffort =
 type CerebrasReasoningEffort = "default" | "low" | "medium" | "high";
 
 const contextSchema = z.object({
+    // Invalid/oversized or old snapshots fall back to normal authenticated discovery.
+    currentSubtitles: z.preprocess(value => {
+        const parsed = subtitleSnapshotSchema.safeParse(value);
+        return parsed.success ? parsed.data : undefined;
+    }, subtitleSnapshotSchema.optional()),
     analysisModel: z.string().max(200).optional(),
     pathname: z.string().max(2000).optional(),
     currentTimestamp: z.number().finite().nonnegative().optional(),
@@ -276,7 +282,7 @@ export async function POST(req: Request) {
         const model = selectModel();
         const analysisModel = context.analysisModel?.trim() ? selectModel(context.analysisModel.trim()) : model;
 
-        let tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal);
+        let tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, undefined, [], context.currentSubtitles);
         let validatedMessages;
         try {
             validatedMessages = await validateUIMessages({ messages, tools });
@@ -287,7 +293,7 @@ export async function POST(req: Request) {
             return new Response("Invalid message role", { status: 400 });
         }
         // Bind validated, uncompacted user context outside the model-controlled tool schema.
-        tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, sceneRequestContext(validatedMessages), validatedMessages.filter(message => message.role === "assistant").flatMap(message => message.parts));
+        tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, sceneRequestContext(validatedMessages), validatedMessages.filter(message => message.role === "assistant").flatMap(message => message.parts), context.currentSubtitles);
         // Retain the old handoff schema for saved chats, without advertising it to models.
         const { completeAction: _legacyAction, findEpisodeByTitle: _legacyEpisodes, ...generationTools } = tools;
         const compactedMessages = compactNavigatorMessages(validatedMessages);

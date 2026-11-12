@@ -6,6 +6,9 @@ mod hdr;
 #[cfg(any(windows, test))]
 mod glass;
 mod mpv;
+mod media_cache;
+#[cfg(any(target_os = "macos", test))]
+mod frame_schedule;
 mod platform;
 mod player;
 mod protocol;
@@ -15,11 +18,17 @@ mod server;
 mod startup_log;
 #[cfg(target_os = "macos")]
 mod tao_shell;
+#[cfg(target_os = "macos")]
+mod macos_updater;
 mod thumbnails;
 #[cfg(any(windows, test))]
 mod window_state;
 #[cfg(windows)]
 mod windows_install;
+#[cfg(windows)]
+mod windows_updater;
+#[cfg(any(windows, test))]
+mod windows_hdr;
 #[cfg(windows)]
 mod windows_process;
 #[cfg(windows)]
@@ -55,6 +64,7 @@ impl App {
         let mut args = std::env::args().skip(1);
         let mut url = None;
         let mut resources = None;
+        let mut profile = None;
         let mut library = std::env::var_os("NAVIGATOR_LIBMPV").map(PathBuf::from);
         let mut port: u16 = 37371;
         let mut devtools = cfg!(debug_assertions);
@@ -62,6 +72,7 @@ impl App {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--url" => url = Some(args.next().ok_or("--url needs a value")?),
+                "--profile" => profile = Some(PathBuf::from(args.next().ok_or("--profile needs a path")?)),
                 "--resources" => {
                     resources = Some(PathBuf::from(
                         args.next().ok_or("--resources needs a path")?,
@@ -81,7 +92,7 @@ impl App {
                 "--smoke-test" => smoke = true,
                 "--help" | "-h" => {
                     println!(
-                        "Navigator Desktop\n  --url http://localhost:3000  Use an existing Next server\n  --resources PATH           Packaged server/runtime/lib folder\n  --libmpv PATH              Override the native library\n  --port PORT                Packaged server port (default 37371)\n  --devtools                 Enable web inspector\n  --smoke-test               Check compositing with generated color bars"
+                        "Navigator Desktop\n  --url http://localhost:3000  Use an existing Next server\n  --resources PATH           Packaged server/runtime/lib folder\n  --libmpv PATH              Override the native library\n  --port PORT                Packaged server port (default 37371)\n  --profile PATH             Separate profile for native QA\n  --devtools                 Enable web inspector\n  --smoke-test               Check compositing with generated color bars"
                     );
                     std::process::exit(0);
                 }
@@ -91,9 +102,10 @@ impl App {
         if port == 0 {
             return Err("Use a stable nonzero port so sign-ins keep their origin".into());
         }
-        let data = dirs::data_local_dir()
-            .ok_or("No local data directory")?
-            .join("Navigator Desktop");
+        let data = match profile {
+            Some(path) => path,
+            None => dirs::data_local_dir().ok_or("No local data directory")?.join("Navigator Desktop"),
+        };
         #[cfg(windows)]
         let data = if smoke { data.join("smoke") } else { data };
         std::fs::create_dir_all(&data).map_err(|e| e.to_string())?;
@@ -218,13 +230,19 @@ impl App {
         surface: &platform::VideoSurface,
         emit: impl Fn(Value) + Send + Sync + 'static,
     ) -> Result<player::Player, String> {
-        self.start_player_options(platform::mpv_options(surface), emit)
+        self.start_player_options(platform::mpv_options(surface), emit, |gamma, primaries| {
+            #[cfg(target_os = "macos")]
+            platform::update_hdr(gamma, primaries);
+            #[cfg(not(target_os = "macos"))]
+            let _ = (gamma, primaries);
+        })
     }
 
     fn start_player_options(
         &self,
         mut options: Vec<(&'static str, String)>,
         emit: impl Fn(Value) + Send + Sync + 'static,
+        colour: impl Fn(Option<String>, Option<String>) + Send + 'static,
     ) -> Result<player::Player, String> {
         if self.smoke {
             options.push(("loop-file", "inf".into()));
@@ -269,12 +287,7 @@ impl App {
         for (name, value) in [("access-references", "no"), ("load-unsafe-playlists", "no")] {
             mpv.set_property(name, value)?;
         }
-        player::Player::start(mpv, emit, |gamma, primaries| {
-            #[cfg(target_os = "macos")]
-            platform::update_hdr(gamma, primaries);
-            #[cfg(not(target_os = "macos"))]
-            let _ = (gamma, primaries);
-        })
+        player::Player::start(mpv, emit, colour)
     }
 }
 

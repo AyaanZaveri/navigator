@@ -113,16 +113,17 @@ async function testController(platform) {
     assert.throws(() => media.buffered.start(1), { name: "IndexSizeError" });
     media.currentTime = 45;
     assert.equal(sent.at(-1).position, 45);
+    assert.equal(media.currentTime, 45, "Relative keys can read the requested seek before native acknowledgement");
     const count = sent.length;
     media.currentTime = -1;
     media.currentTime = Number.NaN;
     media.volume = Number.POSITIVE_INFINITY;
     assert.equal(sent.length, count, "Invalid numbers must never reach the native boundary");
-    receive({ type: "state", session: first, state: { ...state, buffering: true } });
+    receive({ type: "state", session: first, state: { ...state, position: 45, buffering: true } });
     assert.ok(media.readyState < 3, "Buffering must drive the existing loading indicator");
     let playing = 0;
     media.addEventListener("playing", () => playing++);
-    receive({ type: "state", session: first, state });
+    receive({ type: "state", session: first, state: { ...state, position: 45 } });
     assert.equal(playing, 1, "Recovery from buffering must notify Media Chrome that playback resumed");
     receive({ type: "loading", session: first });
     receive({ type: "state", session: first, state: { ...state, position: 65, paused: true } });
@@ -254,6 +255,7 @@ function testAskPlayback() {
 
 Promise.all([testController("android"), testController("ios")]).then(() => {
     testBridge();
+    require("./test-desktop-drag.cjs");
     testAskPlayback();
     console.log("Desktop playback adapter and bridge tests passed.");
 }).catch((error) => { console.error(error); process.exitCode = 1; });

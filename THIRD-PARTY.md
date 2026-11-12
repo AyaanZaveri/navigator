@@ -31,3 +31,9 @@ upstream LICENSE. npm dependencies retain their own licenses: packaging collects
 license and notice files from the installed dependencies alongside the app's
 license and this inventory. Distribute the exact corresponding source snapshot
 with binary releases; a binary package is not a substitute for source.
+
+## Simple Icons GitHub mark
+
+The GitHub mark in the app-update section comes from Simple Icons, licensed
+under CC0 1.0: https://github.com/simple-icons/simple-icons
+GitHub's name and logo remain trademarks of their respective owner.

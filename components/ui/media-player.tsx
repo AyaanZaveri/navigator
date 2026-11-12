@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
   DropdownMenuGroup, DropdownMenuLabel, DropdownMenuOptions,
@@ -59,6 +60,7 @@ import type { SkipSegment } from "@/lib/media/skip-segments";
 import { SeekPreview } from "@/components/seek-preview";
 import { PreviewImage } from "@/components/preview-image";
 import { attachTouchScrubbing } from "@/lib/media/touch-scrubbing";
+import { createKeyboardScrubber } from "@/lib/media/keyboard-scrubbing";
 import { playerControlSelector, playerControlsActive } from "@/lib/media/control-activity";
 
 const ROOT_NAME = "MediaPlayer";
@@ -104,7 +106,7 @@ interface StoreState {
   controlsVisible: boolean;
   dragging: boolean;
   seekPreviewTime: number | null;
-  seekMode: "bar" | "surface" | null;
+  seekMode: "bar" | "surface" | "keyboard" | null;
   menuOpen: boolean;
   volumeIndicatorVisible: boolean;
 }
@@ -171,6 +173,7 @@ function useStoreSelector<U>(selector: (state: StoreState) => U): U {
 }
 
 interface MediaPlayerContextValue {
+  keyboardScrubber: ReturnType<typeof createKeyboardScrubber>;
   subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   mediaId: string;
   labelId: string;
@@ -323,6 +326,48 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   );
 
   const store = useStoreContext(ROOT_NAME);
+  const [keyboardMotion] = React.useState(() => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)"));
+  const keyboardDispatchRef = React.useRef(dispatch);
+  React.useLayoutEffect(() => { keyboardDispatchRef.current = dispatch; }, [dispatch]);
+  const [keyboardScrubber] = React.useState(() => createKeyboardScrubber({
+    media: () => mediaRef.current,
+    seek: time => {
+      store.setState("seekPreviewTime", null);
+      keyboardDispatchRef.current({ type: MediaActionTypes.MEDIA_SEEK_REQUEST, detail: time });
+    },
+    pause: () => keyboardDispatchRef.current({ type: MediaActionTypes.MEDIA_PAUSE_REQUEST }),
+    play: () => keyboardDispatchRef.current({ type: MediaActionTypes.MEDIA_PLAY_REQUEST }),
+    preview: time => {
+      store.setState("seekMode", time === null ? null : "keyboard");
+      store.setState("seekPreviewTime", time);
+      store.setState("dragging", time !== null);
+    },
+    reducedMotion: () => keyboardMotion?.matches ?? false,
+  }));
+
+  React.useEffect(() => {
+    const release = (event: KeyboardEvent) => keyboardScrubber.release(event.key.toLowerCase());
+    const cancel = () => keyboardScrubber.cancel();
+    const visibility = () => { if (document.hidden) cancel(); };
+    const interrupt = (event: KeyboardEvent) => {
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Shift"].includes(event.key) || event.metaKey || event.ctrlKey || event.altKey) cancel();
+    };
+    document.addEventListener("keyup", release);
+    document.addEventListener("keydown", interrupt, true);
+    document.addEventListener("pointerdown", cancel, true);
+    document.addEventListener("focusin", cancel);
+    document.addEventListener("visibilitychange", visibility);
+    globalThis.addEventListener?.("blur", cancel);
+    return () => {
+      document.removeEventListener("keyup", release);
+      document.removeEventListener("keydown", interrupt, true);
+      document.removeEventListener("pointerdown", cancel, true);
+      document.removeEventListener("focusin", cancel);
+      document.removeEventListener("visibilitychange", visibility);
+      globalThis.removeEventListener?.("blur", cancel);
+      keyboardScrubber.dispose();
+    };
+  }, [keyboardScrubber]);
 
   const controlsVisible = useStoreSelector((state) => state.controlsVisible);
 
@@ -588,13 +633,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
             isVideo ||
             (mediaElement instanceof HTMLAudioElement && event.shiftKey)
           ) {
-            throttledDispatch({
-              type: MediaActionTypes.MEDIA_SEEK_REQUEST,
-              detail: Math.min(
-                mediaElement.duration,
-                mediaElement.currentTime + SEEK_STEP_SHORT
-              ),
-            });
+            keyboardScrubber.press("arrowright", event.repeat);
           }
           break;
 
@@ -604,10 +643,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
             isVideo ||
             (mediaElement instanceof HTMLAudioElement && event.shiftKey)
           ) {
-            throttledDispatch({
-              type: MediaActionTypes.MEDIA_SEEK_REQUEST,
-              detail: Math.max(0, mediaElement.currentTime - SEEK_STEP_SHORT),
-            });
+            keyboardScrubber.press("arrowleft", event.repeat);
           }
           break;
 
@@ -778,6 +814,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     },
     [
       throttledDispatch,
+      dispatch,
+      keyboardScrubber,
       rootImplProps.onKeyDown,
       onVolumeIndicatorTrigger,
       onPipError,
@@ -868,6 +906,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
   const contextValue = React.useMemo<MediaPlayerContextValue>(
     () => ({
+      keyboardScrubber,
       mediaId,
       labelId,
       descriptionId,
@@ -887,6 +926,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       subtitleTiming,
     }),
     [
+      keyboardScrubber,
       mediaId,
       labelId,
       descriptionId,
@@ -1667,7 +1707,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   );
 
   const seekMode = useStoreSelector((state) => state.seekMode);
+  const keyboardPreviewTime = useStoreSelector((state) => state.seekPreviewTime);
+  const keyboardScrubbing = seekMode === "keyboard";
   const seekRef = React.useRef<HTMLDivElement>(null);
+  const keyboardRangeRef = React.useRef<HTMLSpanElement>(null);
   const tooltipRef = React.useRef<HTMLDivElement>(null);
   const justCommittedRef = React.useRef<boolean>(false);
   const touchScrubbingRef = React.useRef(false);
@@ -1701,7 +1744,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
 
   const timeCache = React.useRef<Map<number, string>>(new Map());
 
-  const displayValue = seekState.pendingSeekTime ?? mediaCurrentTime;
+  // Use the same transient target as the clock, including keyboard holds.
+  // A prior pointer commit must not leave this slider on a stale local value.
+  const displayValue = keyboardPreviewTime ?? mediaCurrentTime;
+  if (keyboardScrubbing && keyboardPreviewTime !== null) hoverTimeRef.current = keyboardPreviewTime;
 
   const isDisabled = disabled || context.disabled;
   const tooltipDisabled =
@@ -1888,6 +1934,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   }, [seekableEnd]);
 
   React.useEffect(() => {
+    if (keyboardScrubbing || keyboardPreviewTime === null) {
+      if (seekState.pendingSeekTime !== null) setSeekState(prev => ({ ...prev, pendingSeekTime: null }));
+      return;
+    }
     if (!touchScrubbingRef.current && seekState.pendingSeekTime !== null) {
       const diff = Math.abs(mediaCurrentTime - seekState.pendingSeekTime);
       if (diff < 0.5) {
@@ -1895,7 +1945,66 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         store.setState("seekPreviewTime", null);
       }
     }
-  }, [mediaCurrentTime, seekState.pendingSeekTime, seekMode, store]);
+  }, [mediaCurrentTime, seekState.pendingSeekTime, keyboardScrubbing, keyboardPreviewTime, store]);
+
+  // The bar tracks every display frame through transforms. React and preview
+  // decoders receive bounded updates independently of the display refresh rate.
+  React.useEffect(() => {
+    const timeline = seekRef.current;
+    if (!timeline || !context.keyboardScrubber) return;
+    let rect = timeline.getBoundingClientRect();
+    let width = rect.width, tooltipWidth = SEEK_TOOLTIP_WIDTH_FALLBACK;
+    let minX = SEEK_COLLISION_PADDING, maxX = window.innerWidth - SEEK_COLLISION_PADDING;
+    let restoreTooltip: { left: string; transform: string } | null = null;
+    const measure = () => {
+      rect = timeline.getBoundingClientRect(); width = rect.width;
+      tooltipWidth = tooltipRef.current?.offsetWidth || SEEK_TOOLTIP_WIDTH_FALLBACK;
+      const collision = onCollisionDataUpdate();
+      minX = SEEK_COLLISION_PADDING; maxX = window.innerWidth - SEEK_COLLISION_PADDING;
+      for (const boundary of collision.boundaries) {
+        const bounds = boundary.getBoundingClientRect();
+        minX = Math.max(minX, bounds.left + collision.padding.left);
+        maxX = Math.min(maxX, bounds.right - collision.padding.right);
+      }
+    };
+    const restore = () => {
+      timeline.removeAttribute("data-keyboard-scrubbing");
+      if (restoreTooltip && tooltipRef.current) {
+        tooltipRef.current.style.left = restoreTooltip.left;
+        tooltipRef.current.style.transform = restoreTooltip.transform;
+      }
+      restoreTooltip = null;
+    };
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      measure();
+    });
+    resize?.observe(timeline);
+    if (tooltipRef.current) resize?.observe(tooltipRef.current);
+    const unsubscribe = context.keyboardScrubber.subscribe(position => {
+      if (position === null) { restore(); return; }
+      if (!timeline.hasAttribute("data-keyboard-scrubbing")) measure();
+      const fraction = Math.max(0, Math.min(1, (position - seekableStart) / (seekableEnd - seekableStart)));
+      if (keyboardRangeRef.current) keyboardRangeRef.current.style.transform = `scaleX(${fraction})`;
+      const tooltip = tooltipRef.current;
+      if (tooltip) {
+        restoreTooltip ??= { left: tooltip.style.left, transform: tooltip.style.transform };
+        const x = Math.max(minX + tooltipWidth / 2, Math.min(maxX - tooltipWidth / 2, rect.left + fraction * width));
+        tooltip.style.setProperty(SEEK_TOOLTIP_X, `${x}px`);
+        tooltip.style.setProperty(SEEK_TOOLTIP_Y, `${rect.top}px`);
+        tooltip.style.left = "0px";
+        tooltip.style.transform = `translateX(${x - tooltipWidth / 2}px) translateY(calc(-100% - ${currentTooltipSideOffset}px))`;
+      }
+      timeline.setAttribute("data-keyboard-scrubbing", "");
+    });
+    return () => { unsubscribe(); resize?.disconnect(); restore(); };
+  }, [context.keyboardScrubber, seekableStart, seekableEnd, currentTooltipSideOffset, onCollisionDataUpdate]);
+
+  React.useLayoutEffect(() => {
+    if (!keyboardScrubbing || keyboardPreviewTime === null || !seekRef.current) return;
+    const rect = seekRef.current.getBoundingClientRect();
+    onTooltipPositionUpdate(rect.left + (keyboardPreviewTime - seekableStart) / (seekableEnd - seekableStart) * rect.width);
+    onPreviewUpdate(keyboardPreviewTime);
+  }, [keyboardScrubbing, keyboardPreviewTime, seekableStart, seekableEnd, onTooltipPositionUpdate, onPreviewUpdate]);
 
   React.useEffect(() => {
     if (!seekState.isHovering || tooltipDisabled) return;
@@ -2121,6 +2230,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const onSeek = React.useCallback(
     (value: number[]) => {
       const time = value[0] ?? 0;
+      store.setState("seekMode", "bar");
       store.setState("seekPreviewTime", time);
 
       setSeekState((prev) => ({ ...prev, pendingSeekTime: time }));
@@ -2348,6 +2458,24 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           className
         )}
         value={[displayValue]}
+        onKeyDown={(event) => {
+          seekProps.onKeyDown?.(event);
+          if (event.defaultPrevented || isDisabled || event.metaKey || event.ctrlKey || event.altKey || event.nativeEvent.isComposing || event.keyCode === 229) return;
+          const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1
+            : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0;
+          if (!direction) return;
+          // Pointer precision is 0.01s. Keyboard transport uses five seconds,
+          // even when the thumb still owns focus after a pointer seek.
+          event.preventDefault();
+          if (context.keyboardScrubber) {
+            context.keyboardScrubber.press(event.key.toLowerCase(), event.repeat);
+            return;
+          }
+          const current = context.mediaRef.current?.currentTime ?? displayValue;
+          if (!Number.isFinite(current) || seekableEnd <= seekableStart) return;
+          const time = Math.min(seekableEnd, Math.max(seekableStart, current + direction * SEEK_STEP_SHORT));
+          onSeekCommit([time]);
+        }}
         onValueChange={onSeek}
         onValueCommit={onSeekCommit}
         onPointerEnter={onPointerEnter}
@@ -2364,6 +2492,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             }}
           />
           <SliderPrimitive.Range data-slot="media-player-seek-range" className="absolute h-full rounded-full bg-white will-change-[width]" />
+          <span ref={keyboardRangeRef} aria-hidden="true" data-slot="media-player-keyboard-range" className="pointer-events-none absolute inset-0 origin-left rounded-full bg-white" />
           {seekState.isHovering && seekableEnd > 0 && (
             <div
               data-slot="media-player-seek-hover-range"
@@ -2376,13 +2505,14 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           <PlayerSkipTimeline segments={skipSegments} start={seekableStart} end={seekableEnd} />
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb
+          data-slot="media-player-seek-thumb"
           aria-label="Playback position"
-          className="block size-3 rounded-full bg-white opacity-0 outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+          className="block size-3 bg-transparent opacity-0 outline-none"
         />
       </SliderPrimitive.Root>
       {!withoutTooltip &&
         !context.withoutTooltip &&
-        (seekState.isHovering || previewFrames) &&
+        (seekState.isHovering || keyboardScrubbing || previewFrames) &&
         seekableEnd > 0 && (
           <MediaPlayerPortal>
             <div
@@ -2390,7 +2520,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
               data-slot="media-player-seek-tooltip"
               data-player-glass=""
               data-seek-mode={seekMode ?? undefined}
-              aria-hidden={!seekState.isHovering || tooltipDisabled}
+              aria-hidden={!(seekState.isHovering || keyboardScrubbing) || tooltipDisabled}
               className="dark pointer-events-none z-[var(--layer-tooltip)] rounded-xl shadow-sm [backface-visibility:hidden] [contain:layout_style] [transition:opacity_150ms_ease-in-out]"
               style={{
                 "--seek-tooltip-side-offset": `${currentTooltipSideOffset}px`,
@@ -2398,7 +2528,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                 left: `var(${SEEK_TOOLTIP_X}, 0rem)`,
                 top: `var(${SEEK_TOOLTIP_Y}, 0rem)`,
                 transform: `translateX(-50%) translateY(calc(-100% - ${currentTooltipSideOffset}px))`,
-                opacity: !tooltipDisabled && seekState.isHovering && seekState.hasInitialPosition ? 1 : 0,
+                opacity: !tooltipDisabled && (seekState.isHovering || keyboardScrubbing) && seekState.hasInitialPosition ? 1 : 0,
               } as React.CSSProperties}
             >
               <div
@@ -2409,7 +2539,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   !thumbnail && !previewFrames && currentChapterCue && "px-3 py-1.5"
                 )}
               >
-                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} source={previewSource} time={touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={seekState.isHovering && !tooltipDisabled} deferWhileMoving={seekMode === "surface"} />}
+                {previewFrames && !thumbnail?.src && <SeekPreview media={context.mediaRef.current} source={previewSource} time={keyboardScrubbing || touchScrubbingRef.current ? hoverTimeRef.current : mediaPreviewTime ?? hoverTimeRef.current} duration={seekableEnd} active={(seekState.isHovering || keyboardScrubbing) && !tooltipDisabled} deferWhileMoving={seekMode === "surface"} />}
                 {thumbnail?.src && (
                   <div
                     data-slot="media-player-seek-thumbnail"
@@ -3206,33 +3336,15 @@ function MediaPlayerTooltip(props: MediaPlayerTooltipProps) {
       <TooltipContent
         container={context.portalContainer}
         sideOffset={tooltipSideOffset}
-        className="flex items-center gap-2 border bg-accent px-2 py-1 font-medium text-foreground data-[side=top]:mb-3.5 dark:bg-zinc-900 [&>span]:hidden"
+        className="flex items-center gap-2 border px-2 py-1 data-[side=top]:mb-3.5 [&>span]:hidden"
       >
         <p>{tooltip}</p>
-        {Array.isArray(shortcut) ? (
-          <div className="flex items-center gap-1">
-            {shortcut.map((shortcutKey) => (
-              <kbd
-                key={shortcutKey}
-                className="select-none rounded border bg-secondary px-1.5 py-0.5 font-mono text-[11.2px] text-foreground shadow-xs"
-              >
-                <abbr title={shortcutKey} className="no-underline">
-                  {shortcutKey}
-                </abbr>
-              </kbd>
+        {shortcut && (
+          <KbdGroup>
+            {(Array.isArray(shortcut) ? shortcut : [shortcut]).map((key) => (
+              <Kbd key={key}>{key}</Kbd>
             ))}
-          </div>
-        ) : (
-          shortcut && (
-            <kbd
-              key={shortcut}
-              className="select-none rounded border bg-secondary px-1.5 py-px font-mono text-[11.2px] text-foreground shadow-xs"
-            >
-              <abbr title={shortcut} className="no-underline">
-                {shortcut}
-              </abbr>
-            </kbd>
-          )
+          </KbdGroup>
         )}
       </TooltipContent>
     </Tooltip>

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { writeFile, copyFile, access } from "node:fs/promises";
+import { writeFile, readFile, copyFile, access } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,7 +44,7 @@ export async function packageWindows(output, version) {
     if (await access(path).then(() => true, () => false)) throw new Error(`Output already exists: ${path}`);
   }
   await copyFile(join(root, "assets/icons/windows/Navigator.ico"), join(output, "Navigator.ico"));
-  await writeFile(join(output, "WINDOWS-README.txt"), `Navigator ${version} — Windows x64 release\r\n\r\nExtract the entire ZIP before opening navigator-desktop.exe.\r\nWindows 11 and Microsoft Edge WebView2 Evergreen Runtime are required.\r\nUse the setup.exe installer to install/repair a missing runtime automatically.\r\nSign-in and settings live in %LOCALAPPDATA%\\Navigator Desktop.\r\nStartup timings are in startup.jsonl in that folder.\r\nThis build is unsigned; public signing and automatic updates are not included.\r\n`);
+  await writeFile(join(output, "WINDOWS-README.txt"), `Navigator ${version} — Windows x64 release\r\n\r\nExtract the entire ZIP before opening navigator-desktop.exe.\r\nWindows 11 and Microsoft Edge WebView2 Evergreen Runtime are required.\r\nUse the setup.exe installer to install/repair a missing runtime automatically.\r\nSign-in and settings live in %LOCALAPPDATA%\\Navigator Desktop.\r\nStartup timings are in startup.jsonl in that folder.\r\nThis build is unsigned; Windows code signing is not yet configured. Installed copies support signed in-app updates; portable copies do not auto-install updates.\r\n`);
   await createWindowsZip(output, `${stem}-portable.zip`);
   const bootstrapper = join(dirname(output), "MicrosoftEdgeWebview2Setup.exe");
   const response = await fetch("https://go.microsoft.com/fwlink/p/?LinkId=2124703", { signal: AbortSignal.timeout(120000) });
@@ -59,5 +59,16 @@ if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notm
     `/DBOOTSTRAPPER=${bootstrapper}`, `/DAPP_ICON=${join(output, "Navigator.ico")}`,
     join(root, "desktop/windows/installer.nsi"),
   ]);
-  return { installer: `${stem}-setup.exe`, portable: `${stem}-portable.zip` };
+  let appcast;
+  const signingKey = process.env.NAVIGATOR_UPDATE_SIGNING_KEY;
+  const releaseTag = process.env.NAVIGATOR_RELEASE_TAG;
+  if (signingKey || releaseTag) {
+    if (!signingKey || !releaseTag) throw new Error("Both NAVIGATOR_UPDATE_SIGNING_KEY and NAVIGATOR_RELEASE_TAG are required to sign the Windows update feed");
+    const { makeWindowsFeed } = await import("./windows-update-feed.mjs");
+    appcast = `${stem}-appcast.xml`;
+    await writeFile(appcast, makeWindowsFeed({ version, tag: releaseTag,
+      filename: `Navigator-${version}-windows-x64-setup.exe`, bytes: await readFile(`${stem}-setup.exe`),
+      privateKey: await readFile(signingKey), publicKey: await readFile(join(root, "desktop/windows/update-public-key.txt"), "utf8") }));
+  }
+  return { appcast, installer: `${stem}-setup.exe`, portable: `${stem}-portable.zip` };
 }

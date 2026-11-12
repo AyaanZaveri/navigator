@@ -181,6 +181,10 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
   clip-path: inset(1.5px 0 round 9999px);
   transition: clip-path 100ms var(--ease-out);
 }
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-track"],
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-buffered"],
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-range"],
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-hover-range"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-track"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-buffered"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-range"],
@@ -251,4 +255,15 @@ html[data-native-platform="macos"] [data-player-shell] [data-slot="media-player-
 html[data-native-platform="windows"] [data-player-shell] [data-slot="media-player-controls"] {
   padding-left: var(--player-content-left);
   padding-right: var(--player-content-right);
+}
+
+/* Continuous keyboard scrubbing writes only transforms at display cadence. */
+[data-slot="media-player-keyboard-range"] { display: none; }
+[data-keyboard-scrubbing] [data-slot="media-player-keyboard-range"] { display: block; }
+[data-keyboard-scrubbing] [data-slot="media-player-seek-range"],
+[data-keyboard-scrubbing] [data-slot="media-player-seek-thumb"] { opacity: 0 !important; }
+[data-slot="media-player-seek"]:has([data-slot="media-player-seek-thumb"]:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 9999px;
 }

@@ -285,47 +285,50 @@ function selectFastWebStream(
     });
 }
 
-function rankNativeStreams(streams: StremioStream[], preferredAudioLanguage: string, excluded?: ReadonlySet<string>) {
+function rankNativeStreams(streams: StremioStream[], preferredAudioLanguage: string, excluded?: ReadonlySet<string>, preferences = new WeakMap<StremioStream, number>()) {
     const seen = new Set<string>();
-    return streams.filter(stream => {
+    const candidates = streams.filter(stream => {
         const url = stream.url || stream.externalUrl || "";
         if (!/^https?:\/\//i.test(url) || seen.has(url) || excluded?.has(url)) return false;
         seen.add(url);
         return true;
-    }).sort((a, b) => streamLanguagePreference(b, preferredAudioLanguage) - streamLanguagePreference(a, preferredAudioLanguage));
+    });
+    for (const stream of candidates) if (!preferences.has(stream)) preferences.set(stream, streamLanguagePreference(stream, preferredAudioLanguage));
+    return candidates.sort((a, b) => preferences.get(b)! - preferences.get(a)!);
 }
 
 /** Commit early only when no pending add-on can change the existing winner. */
 function selectNativeStream(source: PlaybackStreamRequest, dependencies: PlaybackDependencies, language: string): Promise<StremioStream> {
     return new Promise((resolve, reject) => {
         let finished = false;
+        const preferences = new WeakMap<StremioStream, number>();
         let unsubscribe = () => {};
         const cleanup = () => { unsubscribe(); dependencies.signal?.removeEventListener("abort", abort); };
         const fail = (error: unknown) => { if (!finished) { finished = true; cleanup(); reject(error); } };
         const abort = () => fail(dependencies.signal?.reason || new Error("Playback cancelled"));
         const update = (snapshot: PlaybackStreamSnapshot) => {
             if (finished) return;
-            const candidates = rankNativeStreams(snapshot.streams, language, dependencies.excludeUrls);
+            const candidates = rankNativeStreams(snapshot.streams, language, dependencies.excludeUrls, preferences);
             dependencies.onCandidates?.(candidates);
             const best = candidates[0] as (StremioStream & { addonIndex?: number }) | undefined;
             const index = best?.addonIndex;
             const prefix = snapshot.settledPrefix;
             // Rank 2 is the maximum language tier. Only settled earlier add-ons
             // may beat it on ordering; legacy snapshots wait for completion.
-            const stable = best && streamLanguagePreference(best, language) === 2
+            const stable = best && preferences.get(best) === 2
                 && typeof index === "number" && Number.isInteger(index) && index >= 0
                 && typeof prefix === "number" && Number.isInteger(prefix) && prefix <= snapshot.total && index < prefix;
             if (!snapshot.complete && !stable) return;
             if (!best) { fail(new Error("No playable streams found. Try another title or check your add-ons.")); return; }
             finished = true; cleanup(); resolve(best);
         };
+        // Discovery remains shared after early selection; consume its eventual
+        // rejection without letting it override an already playing source.
+        source.promise.then(streams => update({ ...source.snapshot, streams, complete: true }), fail);
         if (dependencies.signal?.aborted) { abort(); return; }
         dependencies.signal?.addEventListener("abort", abort, { once: true });
         unsubscribe = source.subscribe(update);
         if (finished) unsubscribe(); // subscribe may synchronously publish a cache hit.
-        // Discovery remains shared after early selection; consume its eventual
-        // rejection without letting it override an already playing source.
-        source.promise.then(streams => update({ ...source.snapshot, streams, complete: true }), fail);
     });
 }
 
@@ -347,6 +350,8 @@ export async function resolvePlayback(
     const warmup = candidate && !invalidatedWarmups.has(candidate) ? candidate : undefined;
     if (request.streamRequest && invalidatedWarmups.has(request.streamRequest)) request = { ...request, streamRequest: undefined };
     if (dependencies.signal?.aborted) {
+        // A shared lookup may settle after this caller has already cancelled.
+        void request.streamRequest?.promise.catch(() => {});
         if (warmup) queueMicrotask(() => { if (!warmupLeases.get(warmup)?.count) warmup.cancel?.(); });
         dependencies.signal.throwIfAborted();
     }

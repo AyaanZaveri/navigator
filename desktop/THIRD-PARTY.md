@@ -59,3 +59,21 @@ The new Windows renderer (`src/platform/windows_video.rs`) is Navigator code. It
 uses the public libmpv D3D11 API added in upstream PR 17764; the upstream render
 example and flutter-webview-windows texture bridge were studied as references.
 No code from those example repositories is included in the new renderer.
+
+## Windows update framework
+
+Installed Windows builds bundle [WinSparkle 0.9.4](https://github.com/vslavik/winsparkle/releases/tag/v0.9.4),
+under the MIT license. `scripts/fetch-winsparkle.mjs` verifies the pinned
+archive and x64 DLL SHA256 values before packaging. The upstream `COPYING`
+and `COPYING.expat` notices are included under `resources/licenses/WinSparkle`.
+Navigator's Rust C-ABI adapter is newly written; no updater is bundled on other
+platforms by this integration.
+
+## Sparkle 2.10.1
+
+macOS packages include the official Sparkle framework for signed app updates.
+Source and license: https://github.com/sparkle-project/Sparkle/tree/2.10.1
+The package includes its MIT-style license and third-party notices at
+`Contents/Resources/licenses/Sparkle.txt`. The framework's original nested
+signatures and symlinks are retained. The pinned SDK hashes are in
+`scripts/fetch-sparkle.mjs`.

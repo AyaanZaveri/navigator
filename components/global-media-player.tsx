@@ -12,6 +12,8 @@ import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
 import { usePlayerChapters } from "@/components/use-player-chapters";
 import type { SkipSegment } from "@/lib/media/skip-segments";
 import { ClockedSkipSegments, PlayerSubtitleLayer, PlayerEndTime } from "@/components/player-clock-islands";
+import { parseSubtitleTextContent } from "@/lib/media/subtitle-content";
+import { subtitleMediaKey } from "@/lib/media/subtitle-snapshot";
 import { createSubtitleCueIndex } from "@/lib/media/subtitle-cue-index";
 import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
 import { PlayerNextEpisode } from "@/components/player-next-episode";
@@ -23,7 +25,7 @@ import { useRouter } from "next/navigation";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigatorShortcut } from "@/hooks/use-navigator-shortcut";
+import { PlayerNavigatorButton } from "@/components/player-navigator-button";
 import {
   MediaPlayer,
   MediaPlayerControls,
@@ -61,7 +63,7 @@ import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
 import { DesktopTracks } from "@/components/desktop/tracks";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
-import { ArrowLeft, RotateCcw, RotateCw, Ship, Loader2 } from "lucide-react";
+import { ArrowLeft, RotateCcw, RotateCw, Loader2 } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   reportPlaybackStart,
@@ -86,7 +88,7 @@ const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const streamQueries = useStreamQueries();
   const metadataQueries = streamQueries?.metadata;
-  const navigatorShortcut = useNavigatorShortcut();
+  const subtitleQueries = streamQueries?.subtitles;
   const router = useRouter();
   const {
     isPlayerVisible,
@@ -168,6 +170,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       text: string;
     }>
   >([]);
+
+  const subtitleCatalogOwner = useRef<MediaToPlay | null>(null);
+  useEffect(() => {
+    if (!currentMedia || !isPlayerVisible || !subtitleQueries || subtitleCatalogOwner.current !== playbackRequest) return;
+    return subtitleQueries.publish(currentMedia, subtitleTracks,
+      subtitleTracks.find(track => track.active)?.src, subtitleTiming.seconds, subtitleData);
+  }, [currentMedia, playbackRequest, isPlayerVisible, subtitleQueries, subtitleTracks, subtitleTiming.seconds, subtitleData]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const loadGenerationRef = useRef(0);
@@ -458,71 +467,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return { text: processedText, positionTop: shouldPositionTop };
   }, []);
 
-  const parseSubtitleTimestamp = useCallback((value: string) => {
-    const normalized = value.trim().replace(",", ".");
-    const parts = normalized.split(":");
-    if (parts.length < 2 || parts.length > 3) return null;
-
-    const secondsPart = Number(parts[parts.length - 1]);
-    const minutesPart = Number(parts[parts.length - 2]);
-    const hoursPart = parts.length === 3 ? Number(parts[0]) : 0;
-    if (
-      !Number.isFinite(secondsPart) ||
-      !Number.isFinite(minutesPart) ||
-      !Number.isFinite(hoursPart)
-    ) {
-      return null;
-    }
-
-    return hoursPart * 3600 + minutesPart * 60 + secondsPart;
-  }, []);
-
-  const parseSubtitleTextContent = useCallback(
-    (rawContent: string) => {
-      const normalized = rawContent.replace(/^\uFEFF/, "").replace(/\r/g, "");
-      const blocks = normalized
-        .split(/\n{2,}/)
-        .map((block) => block.trim())
-        .filter(Boolean);
-
-      const parsed: Array<{
-        timestamp: number;
-        endTimestamp?: number;
-        timestampFormatted: string;
-        text: string;
-      }> = [];
-
-      for (const block of blocks) {
-        const lines = block.split("\n").map((line) => line.trimEnd());
-        if (lines.length < 2) continue;
-
-        const timingIndex = lines.findIndex((line) => line.includes("-->"));
-        if (timingIndex === -1) continue;
-
-        const timing = lines[timingIndex];
-        const textLines = lines.slice(timingIndex + 1).filter(Boolean);
-        if (textLines.length === 0) continue;
-
-        const [startRaw, endRaw] = timing.split("-->").map((part) => part.trim());
-        if (!startRaw || !endRaw) continue;
-
-        const start = parseSubtitleTimestamp(startRaw);
-        const end = parseSubtitleTimestamp(endRaw.split(" ")[0] || endRaw);
-        if (start === null) continue;
-
-        parsed.push({
-          timestamp: start,
-          endTimestamp: end ?? undefined,
-          timestampFormatted: startRaw,
-          text: textLines.join("\n"),
-        });
-      }
-
-      return parsed;
-    },
-    [parseSubtitleTimestamp]
-  );
-
   const findCurrentSubtitle = useMemo(() => createSubtitleCueIndex(subtitleData, processSubtitleText), [subtitleData, processSubtitleText]);
 
   const loadMedia = useCallback(async (request: MediaToPlay, fallback = false) => {
@@ -539,7 +483,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
     metadataAbortRef.current = metadataAbort;
-    const subtitleLoader = new PlaybackSubtitles(metadataAbort.signal);
+    const subtitleLoader = new PlaybackSubtitles(metadataAbort.signal, subtitleQueries?.discover,
+      subtitleQueries ? (src, signal) => subtitleQueries.file(src, signal, subtitleMediaKey(activeMedia)) : undefined, Boolean(subtitleQueries));
     subtitleLoaderRef.current = subtitleLoader;
     playbackStartRef.current = null;
     confirmWebPlaybackRef.current = null;
@@ -560,6 +505,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setMediaDetails(initialDetails);
     setSubtitleTracks([]);
     setSubtitleData([]);
+    subtitleCatalogOwner.current = null;
 
     setPlaybackPhase(request.streamUrl ? "loading-stream" : "fetching-streams");
 
@@ -704,6 +650,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       }).then(tracks => {
         if (isCurrent()) {
           preloadSubtitle(tracks);
+          subtitleCatalogOwner.current = activePlaybackRequestRef.current || request;
           setSubtitleTracks(tracks.map(track => ({ ...track, active: false })));
           setSubtitleOptionsReady(true);
         }
@@ -721,7 +668,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [nativePlayback, setCurrentMediaWithSource, streamQueries, metadataQueries]);
+  }, [nativePlayback, setCurrentMediaWithSource, streamQueries, metadataQueries, subtitleQueries]);
   loadMediaRef.current = loadMedia;
 
   useEffect(() => {
@@ -795,7 +742,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const result = await subtitleLoaderRef.current?.file(track.src);
       if (!isCurrent()) return;
       if (!result?.success) throw new Error("Subtitle download failed");
-      const cues = parseSubtitleTextContent(result.content);
+      const cues = result.cues || parseSubtitleTextContent(result.content);
       if (!cues.length) throw new Error("No subtitle cues found");
       disableEmbedded();
       setSubtitleData(cues);
@@ -1156,18 +1103,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               <MediaPlayerTime />
             </div>
             <div className="flex items-center gap-2">
-              {onToggleAIAsk && (
-                <MediaPlayerTooltip tooltip="Navigator" shortcut={navigatorShortcut}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-white/20"
-                    onClick={onToggleAIAsk}
-                  >
-                    <Ship className="h-4 w-4" />
-                  </Button>
-                </MediaPlayerTooltip>
-              )}
+              {onToggleAIAsk && <PlayerNavigatorButton onToggle={onToggleAIAsk} />}
 
               {nativePlayback && <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />}
               <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}

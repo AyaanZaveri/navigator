@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import { generateKeyPairSync, createPublicKey, verify } from "node:crypto";
+import { makeWindowsFeed } from "./windows-update-feed.mjs";
+const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+const bytes = Buffer.from("signed installer fixture");
+const options = { version: "0.3.7", tag: "windows-v0.3.7", filename: "Navigator-0.3.7-windows-x64-setup.exe", bytes,
+    privateKey: privateKey.export({ type: "pkcs8", format: "pem" }), publicKey: publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("base64") };
+const feed = makeWindowsFeed(options);
+const signature = Buffer.from(feed.match(/sparkle:edSignature="([^"]+)"/)[1], "base64");
+assert.equal(verify(null, bytes, createPublicKey(options.privateKey), signature), true);
+assert.equal(verify(null, Buffer.from("tampered installer fixture"), publicKey, signature), false);
+assert.match(feed, /sparkle:installerArguments="\/S \/UPDATE"/);
+assert.match(feed, /releases\/download\/windows-v0.3.7\/Navigator-0.3.7-windows-x64-setup.exe/);
+assert.match(feed, /sparkle:version="0.3.7"/);
+assert.throws(() => makeWindowsFeed({ ...options, publicKey: Buffer.alloc(32).toString("base64") }), /does not match/);
+for (const version of ["v0.3.7", "0.3.7-beta", "../bad"]) assert.throws(() => makeWindowsFeed({ ...options, version }), /Invalid/);
+assert.throws(() => makeWindowsFeed({ ...options, filename: "../evil.exe" }), /Invalid/);
+console.log("PASS: Windows feed signatures, tamper rejection, signing-key pinning, platform asset and installer arguments.");

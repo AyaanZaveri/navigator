@@ -12,6 +12,7 @@ import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import { SearchBar } from "@/components/search-component";
 import { Button } from "@/components/ui/button";
 import { UserMenu, type ThemePreference } from "@/components/arc/user-menu/user-menu";
+import { DesktopUpdateButton } from "@/components/desktop-update-button";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import styles from "./app-header.module.css";
 import { ProgressiveBlur } from "@/components/motion-primitives/progressive-blur";
@@ -107,7 +108,8 @@ export function AppHeader({ email }: { email: string; overlay?: boolean }) {
                         <SearchBar />
                     </Suspense>
                 </div>
-                <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center`}>
+                <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center gap-3`}>
+                    <DesktopUpdateButton />
                     {authenticated ? <ProfileMenu email={email} /> : (
                         <Button variant="outline" className={`${styles.signIn} max-sm:size-11 max-sm:p-0 max-sm:has-[>svg]:px-0`} onClick={requestSignIn} aria-label="Sign in">
                             <LogIn data-icon="inline-start" aria-hidden="true" />

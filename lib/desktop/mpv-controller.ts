@@ -4,7 +4,7 @@ import type { DesktopBridge, NativeMessage, NativeState, NativeTrack } from "./b
 
 function ranges(end: number, cached?: { start: number; end: number }[]): TimeRanges {
   const values = cached === undefined ? (Number.isFinite(end) && end > 0 ? [{ start: 0, end }] : [])
-    : cached.filter(range => Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > Math.max(0, range.start))
+    : cached.filter(range => range && Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > Math.max(0, range.start))
       .map(range => ({ start: Math.max(0, range.start), end: range.end })).sort((a, b) => a.start - b.start);
   const merged: typeof values = [];
   for (const range of values) {
@@ -37,7 +37,7 @@ export class MpvController extends EventTarget {
   private finished = false;
   private pending = new Map<"position" | "paused" | "volume" | "muted" | "rate", { value: number | boolean; until: number }>();
   private optimistic(key: "position" | "paused" | "volume" | "muted" | "rate", value: number | boolean) {
-    if (this.bridge.platform !== "windows") return;
+    if (key !== "position" && this.bridge.platform !== "windows") return;
     this.pending.set(key, { value, until: Date.now() + (key === "position" ? 2000 : 1000) });
     this.state = { ...this.state, [key]: value };
   }
@@ -64,7 +64,7 @@ export class MpvController extends EventTarget {
   }
   private rememberPreview(position: number, src: string, range?: { start: number; end: number } | null) {
     if (range && range.start === position && Number.isFinite(range.end) && range.end > position) this.previewRanges.set(position, range.end);
-    if (this.previewFrames.get(position) === src) return;
+    if (this.previewFrames.get(position) === src) { this.previewFrames.delete(position); this.previewFrames.set(position, src); return; }
     this.previewFrames.delete(position);
     this.previewFrames.set(position, src);
     while (this.previewFrames.size > 256) {
@@ -93,11 +93,11 @@ export class MpvController extends EventTarget {
   get currentTime() { return this.state.position; }
   set currentTime(position: number) {
     if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return;
-    if (this.bridge.platform === "windows") {
-      this.optimistic("position", position);
-      this.state.seeking = true;
-      this.fire("seeking", "timeupdate");
-    }
+    // Relative keys must build on the last requested seek while the native
+    // decoder is still reporting the old position, on every platform.
+    this.optimistic("position", position);
+    this.state.seeking = true;
+    this.fire("seeking", "timeupdate");
     this.bridge.send({ type: "seek", session: this.session, position });
   }
   get duration() { return this.loaded ? this.state.duration : Number.NaN; }
@@ -300,7 +300,7 @@ export class MpvController extends EventTarget {
           else if (this.ready) this.fire("canplay");
         }
         if (previous.width !== this.state.width || previous.height !== this.state.height) this.fire("resize");
-        if (previous.buffered !== this.state.buffered) this.fire("progress");
+        if (previous.buffered !== this.state.buffered || previous.bufferedRanges !== this.state.bufferedRanges) this.fire("progress");
         if (this.ready && !this.state.paused && !this.state.buffering && !this.state.seeking &&
             (confirmingPlay || previous.paused || previous.buffering || previous.seeking)) this.fire("playing");
         break;

@@ -1,7 +1,7 @@
 use crate::mpv::{Event, Kind, Mpv};
 use crate::protocol::{Command, TrackKind};
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread::JoinHandle;
@@ -52,12 +52,40 @@ fn video_colour(mpv: &Mpv) -> (Option<String>, Option<String>) {
     (text("video-params/gamma"), text("video-params/primaries"))
 }
 
+/// Every sender wakes the native event wait, including direct IPC/smoke senders.
+#[derive(Clone)]
+pub struct PlayerRequests {
+    sender: mpsc::Sender<Command>,
+    mpv: Arc<Mpv>,
+}
+impl PlayerRequests {
+    pub fn send(&self, command: Command) -> Result<(), mpsc::SendError<Command>> {
+        let result = self.sender.send(command);
+        if result.is_ok() { self.mpv.wakeup(); }
+        result
+    }
+}
+
+fn event_wait(dirty: bool, elapsed: Duration, batch: usize) -> f64 {
+    if batch == 32 { return 0.0; } // More queued commands may outlive a coalesced wakeup.
+    if dirty {
+        let remaining = Duration::from_millis(250).saturating_sub(elapsed);
+        // Windows may truncate fractional milliseconds in the native wait.
+        // Round up with one guard millisecond: native timers can return
+        // just before the deadline. State delivery remains within 2 ms of it.
+        if remaining.is_zero() { 0.0 } else { ((remaining.as_secs_f64() * 1000.0).ceil() + 1.0) / 1000.0 }
+    }
+    else { -1.0 } // mpv events, requests and shutdown explicitly wake this wait.
+}
+
 /// All blocking client calls run here, away from the render API's UI thread.
 pub struct Player {
     pub mpv: Arc<Mpv>,
-    requests: mpsc::Sender<Command>,
+    requests: PlayerRequests,
     quit: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
+    #[cfg(test)]
+    idle_wakes: Arc<std::sync::atomic::AtomicU64>,
     #[cfg(windows)]
     glass: crate::glass::Sampler,
 }
@@ -75,13 +103,18 @@ impl Player {
             mpv.observe(name, *kind, id as u64)?;
         }
         mpv.request_log_messages("warn")?;
-        let (requests, inbox) = mpsc::channel();
+        let (sender, inbox) = mpsc::channel();
+        let requests = PlayerRequests { sender, mpv: mpv.clone() };
         let quit = Arc::new(AtomicBool::new(false));
         #[cfg(windows)]
         let glass = crate::glass::Sampler::start(emit.clone(), quit.clone())?;
         #[cfg(windows)]
         let glass_control = glass.control.clone();
         let (client, stopped) = (mpv.clone(), quit.clone());
+        #[cfg(test)]
+        let idle_wakes = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        #[cfg(test)]
+        let worker_idle_wakes = idle_wakes.clone();
         let worker = std::thread::Builder::new().name("navigator-mpv".into()).spawn(move || {
             let mut session = String::new();
             let mut desired = String::new();
@@ -90,28 +123,47 @@ impl Player {
             let mut last_colour = (None, None);
             let mut previews: Option<crate::thumbnails::Previews> = None;
             let mut preview_source = None;
+            let mut media_source: Option<crate::media_cache::MediaSource> = None;
+            let mut retired_media = Vec::new();
+            let mut direct_source: Option<(String, String, BTreeMap<String, String>, f64)> = None;
             let mut pending_preview = None;
+            let mut load_started = None;
+            let mut first_ready_logged = false;
             let mut state = json!({"position":0.0,"duration":0.0,"paused":true,"volume":1.0,"muted":false,"rate":1.0,"buffering":false,"seeking":false,"buffered":0.0,"bufferedRanges":[],"width":0,"height":0});
             let mut dirty = false;
             let mut last = Instant::now();
             while !stopped.load(Ordering::Relaxed) {
+                let mut batch = 0;
                 for command in inbox.try_iter().take(32) {
+                    batch += 1;
                     let target = match &command {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
                         | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
-                        Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => continue,
+                        Command::UpdateStatus {} | Command::UpdateCheck {} | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
                     let target = target.clone();
                     let result = match command {
                         Command::Load { session: next, url, headers, start_position } => {
+                            load_started = Some(Instant::now());
+                            first_ready_logged = false;
+                            log::debug!("playback load received");
                             desired = next.clone();
                             #[cfg(windows)]
                             glass_control.source(next.clone());
                             previews = None;
                             pending_preview = None;
-                            preview_source = Some((next.clone(), url.clone(), headers.clone()));
+                            // Each load gets a new random local source; credentials and bytes
+                            // are never shared across titles/accounts or exposed to the page.
+                            // Keep the previous reader alive until mpv has stopped that
+                            // file; closing it before loadfile can truncate a packet.
+                            if let Some(previous) = media_source.take() { retired_media.push(previous); }
+                            media_source = crate::media_cache::MediaSource::new(&url, &headers);
+                            let playback_url = media_source.as_ref().map_or_else(|| url.clone(), |source| source.playback_url());
+                            let preview_url = media_source.as_ref().map_or_else(|| url.clone(), |source| source.preview_url());
+                            let preview_headers = if media_source.is_some() { BTreeMap::new() } else { headers.clone() };
+                            preview_source = Some((next.clone(), preview_url, preview_headers));
                             // mpv's %length% syntax quotes commas and arbitrary header values.
                             let fields = headers.iter().map(|(name, value)| {
                                 let field = format!("{name}: {value}");
@@ -126,11 +178,15 @@ impl Player {
                             } else {
                                 "start=none".into()
                             };
-                            let result = client.set_property("http-header-fields", &fields)
+                            direct_source = media_source.as_ref().map(|_| (url.clone(), fields.clone(), headers.clone(), start_position));
+                            // Credentials/Origin belong on the upstream request, not the
+                            // private loopback endpoint. The source already owns them.
+                            let native_fields = if media_source.is_some() { "" } else { &fields };
+                            let result = client.set_property("http-header-fields", native_fields)
                                 .and_then(|_| client.set_property("pause", "no"))
                                 .and_then(|_| client.set_property("sub-visibility", "no"))
                                 .and_then(|_| client.set_property("sid", "no"))
-                                .and_then(|_| client.command(&["loadfile", &url, "replace", "-1", &options]));
+                                .and_then(|_| client.command(&["loadfile", &playback_url, "replace", "-1", &options]));
                             if result.is_ok() {
                                 if let Some(id) = client.get_property("playlist/0/id", Kind::Double).and_then(|v| v.as_f64()) {
                                     entries.insert(id as i64, next);
@@ -159,7 +215,10 @@ impl Player {
                         Command::Stop { .. } => {
                             #[cfg(windows)]
                             glass_control.source(String::new());
-                            desired.clear(); previews = None; preview_source = None; pending_preview = None; client.command(&["stop"]) },
+                            let result = client.command(&["stop"]);
+                            desired.clear(); previews = None; preview_source = None; pending_preview = None;
+                            if let Some(previous) = media_source.take() { retired_media.push(previous); }
+                            direct_source = None; result },
                         Command::Glass { session, active } => {
                             #[cfg(windows)]
                             glass_control.demand(&session, active);
@@ -172,11 +231,14 @@ impl Player {
                             else { pending_preview = position.map(|at| (request, at)); }
                             Ok(())
                         },
-                        Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => unreachable!(),
+                        Command::UpdateStatus {} | Command::UpdateCheck {} | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => unreachable!(),
                     };
                     if let Err(message) = result { emit(json!({"type":"error","session":target,"message":message})); }
                 }
-                let event = client.wait_event(0.02, |id| PROPERTIES.get(id as usize).is_some_and(|(_, k)| *k == Kind::Json));
+                let wait = event_wait(dirty && !session.is_empty(), last.elapsed(), batch);
+                let event = client.wait_event(wait, |id| PROPERTIES.get(id as usize).is_some_and(|(_, k)| *k == Kind::Json));
+                #[cfg(test)]
+                if event.is_none() { worker_idle_wakes.fetch_add(1, Ordering::Relaxed); }
                 if matches!(&event, Some(Event::FileLoaded)) || matches!(&event, Some(Event::Property { name, .. }) if matches!(name.as_str(), "video-params/gamma" | "video-params/primaries")) {
                     // Read both together, including when a property becomes unavailable.
                     // Never synchronously query mpv from the main/render thread.
@@ -190,6 +252,7 @@ impl Player {
                     Some(Event::StartFile { playlist_id }) => {
                         playing_id = playlist_id;
                         session = entries.remove(&playlist_id).unwrap_or_default();
+                        if session == desired { retired_media.clear(); }
                         state["position"] = json!(0.0); state["duration"] = json!(0.0); state["buffered"] = json!(0.0);
                         state["bufferedRanges"] = json!([]);
                         emit(json!({"type":"subtitle","session":session,"text":""}));
@@ -197,6 +260,9 @@ impl Player {
                         emit(json!({"type":"loading","session":session}));
                     }
                     Some(Event::FileLoaded) => {
+                        if session == desired {
+                            if let Some(started) = load_started { log::debug!("playback metadata ready after {} ms", started.elapsed().as_millis()); }
+                        }
                         // Publish the complete track snapshot before loadedmetadata so an
                         // external subtitle default cannot win a delayed embedded-track event.
                         if let Ok(tracks) = sync_subtitle_visibility(&client) {
@@ -212,6 +278,14 @@ impl Player {
                         emit(json!({"type":"loaded","session":session}));
                     }
                     Some(Event::PlaybackRestart) => {
+                        if session == desired && !first_ready_logged {
+                            first_ready_logged = true;
+                            if log::log_enabled!(log::Level::Debug) {
+                                let hwdec = client.get_property("hwdec-current", Kind::String).unwrap_or(json!("unknown"));
+                                let codec = client.get_property("video-codec", Kind::String).unwrap_or(json!("unknown"));
+                                log::debug!("playback first-ready after {} ms; hwdec={hwdec}; codec={codec}", load_started.map_or(0, |started| started.elapsed().as_millis()));
+                            }
+                        }
                         #[cfg(windows)]
                         glass_control.invalidate();
                         state["seeking"] = json!(false);
@@ -231,6 +305,23 @@ impl Player {
                     Some(Event::Seek) => { state["seeking"] = json!(true); dirty = true; }
                     Some(Event::EndFile { playlist_id, reason, error }) => {
                         if playlist_id != playing_id { entries.remove(&playlist_id); continue; }
+                        if desired.is_empty() { retired_media.clear(); }
+                        // A provider/TLS/proxy incompatibility must not prevent playback.
+                        // Retry once on the original source, retaining resume and pause.
+                        if reason == "error" && session == desired && media_source.is_some() {
+                            media_source = None;
+                            if let Some((url, fields, headers, initial)) = direct_source.take() {
+                                previews = None;
+                                preview_source = Some((session.clone(), url.clone(), headers));
+                                let at = state["position"].as_f64().filter(|at| at.is_finite() && *at > 0.0).unwrap_or(initial);
+                                let options = if at > 0.0 { format!("start=+{at},hr-seek=yes") } else { "start=none".into() };
+                                if client.set_property("http-header-fields", &fields).and_then(|_| client.command(&["loadfile", &url, "replace", "-1", &options])).is_ok() {
+                                    if let Some(id) = client.get_property("playlist/0/id", Kind::Double).and_then(|v| v.as_f64()) { entries.insert(id as i64, session.clone()); }
+                                    continue;
+                                }
+                            }
+                        }
+                        if session == desired { media_source = None; direct_source = None; }
                         #[cfg(windows)]
                         glass_control.demand(&session, false);
                         if previews.as_ref().is_some_and(|p| p.session() == session) { previews = None; }
@@ -296,6 +387,8 @@ impl Player {
             requests,
             quit,
             worker: Some(worker),
+            #[cfg(test)]
+            idle_wakes,
             #[cfg(windows)]
             glass,
         })
@@ -303,9 +396,8 @@ impl Player {
 
     pub fn send(&self, command: Command) {
         let _ = self.requests.send(command);
-        self.mpv.wakeup();
     }
-    pub fn sender(&self) -> mpsc::Sender<Command> {
+    pub fn sender(&self) -> PlayerRequests {
         self.requests.clone()
     }
     pub fn begin_shutdown(&self) {
@@ -338,6 +430,15 @@ impl Player {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn event_wait_preserves_flush_and_burst_deadlines() {
+        assert_eq!(event_wait(false, Duration::ZERO, 0), -1.0);
+        assert_eq!(event_wait(true, Duration::from_millis(50), 0), 0.201);
+        assert_eq!(event_wait(true, Duration::from_secs(1), 0), 0.0);
+        assert_eq!(event_wait(true, Duration::from_micros(249_900), 0), 0.002);
+        assert_eq!(event_wait(false, Duration::ZERO, 32), 0.0);
+    }
 
     fn wait_for(inbox: &mpsc::Receiver<Value>, predicate: impl Fn(&Value) -> bool) -> Value {
         let until = Instant::now() + Duration::from_secs(8);
@@ -424,8 +525,26 @@ mod tests {
             position: 1.0,
         });
         wait_for(&inbox, |v| {
-            v["type"] == "state" && v["state"]["position"].as_f64().unwrap_or(0.0) >= 0.9
+            v["type"] == "state" && (v["state"]["position"].as_f64().unwrap_or(0.0) - 1.0).abs() < 0.1
         });
+        // The position observation can precede the pending 250 ms state flush.
+        // Require quiescence first; a continuously polling worker still fails.
+        let settle_deadline = Instant::now() + Duration::from_secs(3);
+        let mut quiet_since = Instant::now();
+        let mut observed = player.idle_wakes.load(Ordering::Relaxed);
+        let settling_started = observed;
+        while quiet_since.elapsed() < Duration::from_millis(300) {
+            std::thread::sleep(Duration::from_millis(20));
+            let now = player.idle_wakes.load(Ordering::Relaxed);
+            if now != observed { observed = now; quiet_since = Instant::now(); }
+            assert!(Instant::now() < settle_deadline, "Paused worker never became idle after seek");
+        }
+        println!("Post-seek settling wakeups: {}", observed - settling_started);
+        let before = player.idle_wakes.load(Ordering::Relaxed);
+        std::thread::sleep(Duration::from_millis(220));
+        let idle_wakes = player.idle_wakes.load(Ordering::Relaxed) - before;
+        println!("Paused event-loop wakeups over 220 ms: {idle_wakes}");
+        assert!(idle_wakes <= 1, "Paused worker woke {idle_wakes} times without an event or command");
         // Both loads can reach mpv before either START_FILE is drained.
         player.send(load("second", 1.5));
         player.send(load("third", 0.0));
@@ -437,14 +556,18 @@ mod tests {
             v["type"] == "ready" && v["session"] == "third"
         });
         assert!(ready_position.get() < 0.5, "A zero-start replacement must not inherit the previous file's start option");
-        player.send(Command::Volume {
+        let requests = player.sender();
+        for step in 0..80 {
+            requests.send(Command::Volume { session: "third".into(), volume: step as f64 / 100.0 }).unwrap();
+        }
+        requests.send(Command::Volume {
             session: "third".into(),
-            volume: 0.42,
-        });
+            volume: 0.427,
+        }).unwrap();
         wait_for(&inbox, |v| {
             v["type"] == "state"
                 && v["session"] == "third"
-                && (v["state"]["volume"].as_f64().unwrap_or(0.0) - 0.42).abs() < 0.001
+                && (v["state"]["volume"].as_f64().unwrap_or(0.0) - 0.427).abs() < 0.001
         });
         player.send(Command::Stop {
             session: "third".into(),
@@ -480,6 +603,55 @@ mod tests {
         assert!(mpv.get_property("time-pos", Kind::Double).unwrap().as_f64().unwrap() >= 3.19, "Preview decoding cannot seek the playing decoder");
         player.begin_shutdown();
         player.join();
+    }
+
+    #[test]
+    #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_VIDEO; local HTTP fixture"]
+    fn headless_shared_playback_bytes_generate_new_previews_without_refetch() {
+        let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        aiostreams_thumbs::library_dirs(vec![library.parent().unwrap().to_path_buf()]);
+        let data = std::fs::read(std::env::var("NAVIGATOR_TEST_VIDEO").unwrap()).unwrap();
+        let size = data.len();
+        let origin = crate::media_cache::tests::Origin::new(data);
+        origin.mode.store(5, Ordering::SeqCst);
+        let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
+        let (send, inbox) = mpsc::channel();
+        let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
+        player.send(Command::Load { session: "shared".into(), url: origin.url.clone(), headers: BTreeMap::from([("Authorization".into(), "Bearer private-fixture".into()), ("Origin".into(), "https://provider.example".into())]), start_position: 3.2 });
+        player.send(Command::Pause { session: "shared".into() });
+        wait_for(&inbox, |v| v["type"] == "ready" && v["session"] == "shared");
+        player.send(Command::Thumbnail { session: "shared".into(), request: 1, position: Some(0.5) });
+        let first = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == 1);
+        assert!(first["src"].as_str().is_some_and(|src| src.starts_with("data:image/jpeg;base64,")));
+        player.send(Command::Thumbnail { session: "shared".into(), request: 2, position: Some(4.5) });
+        let second = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == 2);
+        assert!(second["src"].as_str().is_some_and(|src| src.starts_with("data:image/jpeg;base64,")));
+        assert_ne!(second["position"], first["position"], "Exercise a new keyframe, not JPEG reuse");
+        println!("Shared cache: {} origin requests, {} bytes for {} byte video", origin.requests.load(Ordering::SeqCst), origin.transferred.load(Ordering::SeqCst), size);
+        assert_eq!(origin.transferred.load(Ordering::SeqCst), size as u64, "Playback, indexing and two NEW preview frames must share a single download");
+        assert!(mpv.get_property("time-pos", Kind::Double).unwrap().as_f64().unwrap() >= 3.19);
+        player.begin_shutdown(); player.join();
+    }
+
+    #[test]
+    #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_VIDEO; local HTTP fixture"]
+    fn headless_shared_source_failure_falls_back_once_at_resume_position() {
+        let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        let origin = crate::media_cache::tests::Origin::new(std::fs::read(std::env::var("NAVIGATOR_TEST_VIDEO").unwrap()).unwrap());
+        origin.mode.store(3, Ordering::SeqCst);
+        let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
+        let (send, inbox) = mpsc::channel();
+        let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
+        player.send(Command::Load { session: "fallback".into(), url: origin.url.clone(), headers: BTreeMap::new(), start_position: 3.2 });
+        player.send(Command::Pause { session: "fallback".into() });
+        wait_for(&inbox, |v| {
+            assert_ne!(v["type"], "error", "A recoverable local-source failure must not escape to the UI: {v}");
+            v["type"] == "ready" && v["session"] == "fallback"
+        });
+        assert!(mpv.get_property("time-pos", Kind::Double).unwrap().as_f64().unwrap() >= 3.19);
+        assert_eq!(mpv.get_property("pause", Kind::Flag), Some(json!(true)));
+        assert_eq!(mpv.get_property("path", Kind::String).and_then(|value| value.as_str().map(str::to_owned)), Some(origin.url.clone()));
+        player.begin_shutdown(); player.join();
     }
 
     #[test]

@@ -216,6 +216,7 @@ impl VideoSurface {
 
     pub fn renderer(&self) -> Arc<super::windows_video::Host> { self.renderer.clone() }
     pub fn visible(&self, visible: bool) { self.renderer.visible(visible); }
+    pub fn refresh_display(&self) { self.renderer.refresh_display(); }
 
     pub fn shutdown(&self) { self.renderer.shutdown(); }
     pub fn begin_shutdown(&self) { self.renderer.begin_shutdown(); }
@@ -242,15 +243,24 @@ pub fn mpv_options(_video: &VideoSurface) -> Vec<(&'static str, String)> {
         ("video-timing-offset", "0".into()),
         ("hwdec", "auto-safe".into()),
         ("tone-mapping", "bt.2390".into()),
+        ("target-prim", "bt.709".into()),
+        ("target-trc", "srgb".into()),
+        ("target-peak", "auto".into()),
+        ("icc-profile", "".into()),
+        ("video-output-levels", "full".into()),
     ]
 }
 
 thread_local! {
+    static DISPLAY_CHANGED: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
     static CHROME_FULLSCREEN_ACTION: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
     static CHROME_CONTROLS_VISIBLE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
     static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
+}
+pub fn on_display_change(listener: impl Fn() + 'static) {
+    DISPLAY_CHANGED.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
 }
 pub fn on_chrome_fullscreen(listener: impl Fn() + 'static) {
     CHROME_FULLSCREEN_ACTION.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
@@ -370,6 +380,9 @@ unsafe extern "system" fn chrome_proc(
             RemoveWindowSubclass(hwnd, Some(chrome_proc), id);
         }
         if hwnd == root as HWND {
+            if matches!(msg, WM_DISPLAYCHANGE | WM_SETTINGCHANGE) {
+                DISPLAY_CHANGED.with(|value| { if let Some(listener) = &*value.borrow() { listener(); } });
+            }
             // Let Windows track the native button press/release, then redirect
             // only a mouse action on this caption button to app fullscreen.
             // System-menu, Snap-layout and titlebar maximize actions stay native.

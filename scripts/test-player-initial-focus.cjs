@@ -2,7 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-const { hooks } = require('./test-support/react-hooks.cjs');
+const { hooks, load } = require('./test-support/react-hooks.cjs');
+const { createKeyboardScrubber } = load('lib/media/keyboard-scrubbing.ts', {}, { performance });
 
 // Run the actual root, committing refs before effects, as React does.
 const source = fs.readFileSync('components/ui/media-player.tsx', 'utf8');
@@ -21,7 +22,7 @@ function mount(props) {
   const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false };
   const store = { setState(key, value) { state[key] = value; } };
   const context = { exports: {}, document, HTMLVideoElement: Video, Element: class {},
-    React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
+    createKeyboardScrubber, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs,
     useMediaFullscreenRef: () => null,
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),

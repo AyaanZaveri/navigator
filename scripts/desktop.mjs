@@ -73,6 +73,15 @@ try {
         await cp(join(root, "licenses"), join(resources, "licenses"), { recursive: true });
         await collectThirdPartyNotices(join(root, "node_modules"), join(resources, "licenses", "npm"));
         if (mac) {
+            const { fetchSparkle } = await import("./fetch-sparkle.mjs");
+            const sparkle = await fetchSparkle();
+            await mkdir(join(bundle, "Frameworks"), { recursive: true });
+            await cp(join(sparkle, "Sparkle.framework"), join(bundle, "Frameworks", "Sparkle.framework"), {
+                recursive: true, dereference: false, verbatimSymlinks: true,
+            });
+            await cp(join(sparkle, "LICENSE"), join(resources, "licenses", "Sparkle.txt"));
+            const updateKey = (await readFile(join(desktop, "macos", "update-public-key.txt"), "utf8")).trim();
+            if (!/^[A-Za-z0-9+/]{43}=$/.test(updateKey)) throw new Error("Invalid macOS update public key");
             await run("sh", [join(root, "scripts", "generate-macos-icon.sh")]);
             await cp(join(root, "build", "icon.icns"), join(resources, "Navigator.icns"));
             await writeFile(join(bundle, "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
@@ -87,16 +96,40 @@ try {
 <key>CFBundleVersion</key><string>${version}</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>LSMinimumSystemVersion</key><string>13.5</string>
+<key>SUFeedURL</key><string>https://raw.githubusercontent.com/AyaanZaveri/navigator/main/updates/macos.xml</string>
+<key>SUPublicEDKey</key><string>${updateKey}</string>
+<key>SUEnableAutomaticChecks</key><true/>
+<key>SUAutomaticallyUpdate</key><false/>
+<key>SUAllowsAutomaticUpdates</key><false/>
+<key>SUSendProfileInfo</key><false/>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/><key>NSAllowsArbitraryLoadsInWebContent</key><true/></dict>
 </dict></plist>`);
             await chmod(join(bin, nativeName), 0o755);
             // Development bundle. Developer ID signing/notarization is a separate release step.
-            await run("codesign", ["--force", "--deep", "--sign", "-", join(output, "Navigator.app")]);
+            // Leave Sparkle's signed nested helpers intact; sign only our app.
+            await run("codesign", ["--force", "--sign", "-", join(output, "Navigator.app")]);
+            await run("codesign", ["--verify", "--deep", "--strict", join(output, "Navigator.app")]);
+            const archive = join(root, "dist", `Navigator-${version}-macos-arm64.zip`);
+            if (process.arch !== "arm64") throw new Error("The macOS release currently targets Apple Silicon");
+            if (await exists(archive)) throw new Error(`Output already exists: ${archive}`);
+            await run("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", join(output, "Navigator.app"), archive]);
+            if (process.env.NAVIGATOR_RELEASE_TAG) {
+                const { signMacOSArchive } = await import("./macos-update-feed.mjs");
+                const feed = join(root, "dist", `Navigator-${version}-macos-arm64-appcast.xml`);
+                await signMacOSArchive(archive, version, process.env.NAVIGATOR_RELEASE_TAG, feed);
+                console.log(`Signed macOS appcast: ${feed}`);
+            }
+            console.log(`macOS update archive: ${archive}`);
         }
         if (process.platform === "win32") {
+            const { fetchWinSparkle } = await import("./fetch-winsparkle.mjs");
+            const winsparkle = await fetchWinSparkle();
+            await cp(join(winsparkle, "WinSparkle.dll"), join(resources, "lib", "WinSparkle.dll"));
+            await cp(winsparkle, join(resources, "licenses", "WinSparkle"), { recursive: true, filter: source => !source.endsWith(".dll") });
             await cp(join(desktop, "windows", "prepare.cjs"), join(resources, "prepare.cjs"));
             await writeInstallManifest(resources);
             const artifacts = await packageWindows(output, version);
+            if (artifacts.appcast) console.log(`Signed Windows appcast: ${artifacts.appcast}`);
             console.log(`Windows installer: ${artifacts.installer}\nPortable ZIP: ${artifacts.portable}`);
         }
         console.log(`Packaged desktop app: ${output}`);

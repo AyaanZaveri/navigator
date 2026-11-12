@@ -65,7 +65,7 @@ async function main() {
     assert.equal((await auth.getAuthData()).authKey, 'login-private-key');
     const proxy = load('proxy.ts', { 'next/server': { NextResponse: { next: () => ({ status: 200 }), redirect: url => ({ status: 307, url }) } }, '@/lib/server/session': session }, globals).proxy;
     const page = (pathname, value) => ({ nextUrl: new URL(pathname, 'https://navigator.example'), cookies: { get: () => value ? { value } : undefined } });
-    for (const path of ['/settings', '/addons', '/library/private', '/movie/tt123.json', '/series/tmdb:20/extra']) {
+    for (const path of ['/settings', '/settings/connections', '/settings/playback', '/settings/about/private', '/addons', '/library/private', '/movie/tt123.json', '/series/tmdb:20/extra']) {
         const response = await proxy(page(path, '{}'));
         assert.equal(response.url.pathname, '/');
         assert.equal(response.url.searchParams.get('signIn'), '1');
@@ -73,6 +73,7 @@ async function main() {
     for (const path of ['/', '/search', '/movie/tmdb:123', '/movie/tmdb%3A123', '/series/tmdb:20', '/series/tmdb%3A20/0/1']) {
         assert.equal((await proxy(page(path))).status, 200, `${path} is public discovery`);
     }
+    assert.equal((await proxy(page('/settings/about'))).status, 200, 'Version and desktop update controls are reachable before sign-in');
     assert.equal((await proxy(page('/settings', token))).status, 200);
     assert.equal((await proxy(page('/login', token))).url.pathname, '/');
     assert.equal((await proxy(page('/login'))).status, 200);

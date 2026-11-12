@@ -11,6 +11,8 @@ use wry::{NewWindowResponse, Rect, WebContext, WebViewBuilder};
 
 enum UserEvent {
     Emit(Value),
+    Update(crate::macos_updater::Event),
+    UpdateCommand(protocol::Command),
     Fullscreen(bool),
     WindowControlsVisible(bool),
     DragWindow,
@@ -81,6 +83,9 @@ pub fn run(mut app: App) -> Result<(), String> {
                 return;
             }
             match protocol::parse(request.body()) {
+                Ok(protocol::Command::ClientStage { stage }) => {
+                    log::debug!("playback client stage {}", stage.label());
+                }
                 Ok(protocol::Command::Fullscreen { value }) => {
                     let _ = ipc_proxy.send_event(UserEvent::Fullscreen(value));
                 }
@@ -89,6 +94,13 @@ pub fn run(mut app: App) -> Result<(), String> {
                 }
                 Ok(protocol::Command::WindowDrag {}) => {
                     let _ = ipc_proxy.send_event(UserEvent::DragWindow);
+                }
+                Ok(
+                    command @ (protocol::Command::UpdateStatus {}
+                    | protocol::Command::UpdateCheck {}
+                    | protocol::Command::UpdateAutomatic { .. }),
+                ) => {
+                    let _ = ipc_proxy.send_event(UserEvent::UpdateCommand(command));
                 }
                 Ok(command) => {
                     let _ = requests.send(command);
@@ -143,6 +155,33 @@ pub fn run(mut app: App) -> Result<(), String> {
     };
     let webview = builder.build_as_child(&window).map_err(|e| e.to_string())?;
     surface.resize(window.inner_size().width, window.inner_size().height);
+    let update_settings = app.data.join("update-checks.json");
+    let mut automatic_updates = std::fs::read(&update_settings)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<bool>(&bytes).ok())
+        .unwrap_or(true);
+    let update_proxy = proxy.clone();
+    let updater_result = if !app.smoke && app._server.is_some() {
+        Some(crate::macos_updater::Updater::start(
+            automatic_updates,
+            move |event| {
+                let _ = update_proxy.send_event(UserEvent::Update(event));
+            },
+        ))
+    } else {
+        None
+    };
+    let mut update_message = updater_result
+        .as_ref()
+        .and_then(|result| result.as_ref().err())
+        .cloned();
+    let updater = updater_result.and_then(Result::ok);
+    let mut update_state = if update_message.is_some() {
+        "error"
+    } else {
+        "idle"
+    };
+    let mut installing = false;
     let mut closing = false;
     let mut fullscreen = false;
     let mut window_controls_visible = true;
@@ -153,27 +192,64 @@ pub fn run(mut app: App) -> Result<(), String> {
             drop(app._server.take());
             return;
         }
+        // Sparkle now owns termination. Do not resize or refresh a video
+        // surface that was released before the installation handoff.
+        if installing {
+            *flow = ControlFlow::Wait;
+            return;
+        }
         // Own the backend for exactly as long as the native event loop.
         let _server = &app._server;
         let _instance = &app._instance;
         #[cfg(target_os = "macos")]
         let _menu = &menu;
-        *flow = if closing {
+        *flow = if closing && !installing {
             ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16))
         } else {
             ControlFlow::Wait
         };
-        if closing && player.finished() {
+        if closing && !installing && player.finished() {
             surface.shutdown();
             player.join();
             drop(app._server.take());
             if let Some(path) = &smoke_path {
                 let _ = std::fs::remove_file(path);
             }
+            if updater.as_ref().is_some_and(|updater| updater.finish_install()) {
+                installing = true;
+                *flow = ControlFlow::Wait;
+                return;
+            }
             *flow = ControlFlow::Exit;
             return;
         }
         match event {
+            Event::UserEvent(UserEvent::Update(event)) => {
+                use crate::macos_updater::Event as UpdateEvent;
+                match event {
+                    UpdateEvent::Available => { update_state = "available"; update_message = None; }
+                    UpdateEvent::Current => { update_state = "current"; update_message = None; }
+                    UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
+                    UpdateEvent::Finished => { if update_state == "checking" { update_state = "idle"; } }
+                    UpdateEvent::Install => { closing = true; player.begin_shutdown(); }
+                }
+                let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
+            }
+            Event::UserEvent(UserEvent::UpdateCommand(command)) if !closing => {
+                if let Some(updater) = &updater {
+                    match command {
+                        protocol::Command::UpdateCheck {} => { update_state = "checking"; update_message = None; updater.check(); }
+                        protocol::Command::UpdateAutomatic { enabled } => {
+                            match std::fs::write(&update_settings, if enabled { "true" } else { "false" }) {
+                                Ok(()) => { automatic_updates = enabled; updater.automatic(enabled); }
+                                Err(_) => { update_state = "error"; update_message = Some("Couldn’t save update preferences.".into()); }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
+            }
             Event::UserEvent(UserEvent::Emit(value)) => {
                 let _ = webview.evaluate_script(&receive(&value));
             }

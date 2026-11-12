@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Navigator for macOS</title>
+    <language>en</language>
+    <item>
+      <title>Navigator 0.5.4</title>
+      <description>Update Navigator, then reopen it with your existing sign-in and settings.</description>
+      <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.4/Navigator-0.5.4-macos-arm64.zip"
+        sparkle:version="0.5.4" sparkle:shortVersionString="0.5.4"
+        sparkle:edSignature="pRSUR8+mD+tsOp4ctnVBKqTnxkHVytPGdKn6d5fGwEZLutF9elqPhQUoOSTpeQzJHcxipuK2YXYS5zuLAtZRDQ==" length="94954125" type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>
