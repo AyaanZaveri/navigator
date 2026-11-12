@@ -55,7 +55,7 @@ for (const paused of [false, true]) {
 }
 const reduced = fixture({ reduced: true }); reduced.scrub.press('arrowright'); reduced.run(1300); reduced.scrub.release('arrowright');
 assert.ok(reduced.paints.length <= 13, 'Reduced motion uses bounded stepped feedback');
-assert.ok(Math.abs(reduced.seeks.at(-1) - 33) < 1e-8, 'Reduced motion keeps the same seek distance and final position');
+assert.ok(Math.abs(reduced.seeks.at(-1) - 53) < 1e-8, 'Reduced motion keeps the same seek distance and final position');
 for (const [start, key, expected] of [[118, 'arrowright', 120], [12, 'arrowleft', 10]]) {
     const f = fixture({ start, rangeStart: 10 }); f.scrub.press(key); f.run(1500); f.scrub.release(key);
     assert.equal(f.seeks.at(-1), expected, 'Targets stay inside the actual seekable range');
@@ -70,5 +70,5 @@ for (const action of ['cancel', 'dispose', 'source']) {
     f.scrub.press('arrowright', true); assert.equal(f.seeks.length, 1, 'Stray repeat events cannot restart a cancelled hold');
 }
 const stall = fixture(); stall.scrub.press('arrowright'); stall.run(300); stall.step(10000);
-assert.ok(stall.paints.at(-1) <= 15.001, 'A stalled frame cannot jump the target by minutes'); stall.scrub.dispose();
+assert.ok(stall.paints.at(-1) <= 17.001, 'A stalled frame cannot jump the target by minutes'); stall.scrub.dispose();
 console.log('PASS: tap/hold threshold, linear display-frame scrubbing, bounded previews, one release seek, pause restoration, reversal, bounds, reduced motion and cancellation.');

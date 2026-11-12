@@ -1711,7 +1711,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const keyboardScrubbing = seekMode === "keyboard";
   const seekRef = React.useRef<HTMLDivElement>(null);
   const keyboardRangeRef = React.useRef<HTMLSpanElement>(null);
-  const keyboardThumbRef = React.useRef<HTMLSpanElement>(null);
   const tooltipRef = React.useRef<HTMLDivElement>(null);
   const justCommittedRef = React.useRef<boolean>(false);
   const touchScrubbingRef = React.useRef(false);
@@ -1986,7 +1985,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       if (!timeline.hasAttribute("data-keyboard-scrubbing")) measure();
       const fraction = Math.max(0, Math.min(1, (position - seekableStart) / (seekableEnd - seekableStart)));
       if (keyboardRangeRef.current) keyboardRangeRef.current.style.transform = `scaleX(${fraction})`;
-      if (keyboardThumbRef.current) keyboardThumbRef.current.style.transform = `translate(${fraction * width - 6}px, -50%)`;
       const tooltip = tooltipRef.current;
       if (tooltip) {
         restoreTooltip ??= { left: tooltip.style.left, transform: tooltip.style.transform };
@@ -2232,6 +2230,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const onSeek = React.useCallback(
     (value: number[]) => {
       const time = value[0] ?? 0;
+      store.setState("seekMode", "bar");
       store.setState("seekPreviewTime", time);
 
       setSeekState((prev) => ({ ...prev, pendingSeekTime: time }));
@@ -2508,9 +2507,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         <SliderPrimitive.Thumb
           data-slot="media-player-seek-thumb"
           aria-label="Playback position"
-          className="block size-3 rounded-full bg-white opacity-0 outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+          className="block size-3 bg-transparent opacity-0 outline-none"
         />
-        <span ref={keyboardThumbRef} aria-hidden="true" data-slot="media-player-keyboard-thumb" className="pointer-events-none absolute top-1/2 left-0 size-3 rounded-full bg-white" />
       </SliderPrimitive.Root>
       {!withoutTooltip &&
         !context.withoutTooltip &&

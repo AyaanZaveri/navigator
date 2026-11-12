@@ -1,7 +1,7 @@
 /** Tap seeks immediately. Holding previews a continuous target and seeks once
  * on release. Decoder work never follows the display's frame rate. */
 export const KEYBOARD_HOLD_MS = 300;
-export const KEYBOARD_SCRUB_RATE = 20;
+export const KEYBOARD_SCRUB_RATE = 40;
 const PREVIEW_INTERVAL_MS = 100;
 interface Media {
     currentTime: number;

@@ -181,6 +181,10 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
   clip-path: inset(1.5px 0 round 9999px);
   transition: clip-path 100ms var(--ease-out);
 }
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-track"],
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-buffered"],
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-range"],
+[data-scrub-mode="keyboard"] [data-slot="media-player-seek-hover-range"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-track"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-buffered"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-range"],
@@ -254,13 +258,12 @@ html[data-native-platform="windows"] [data-player-shell] [data-slot="media-playe
 }
 
 /* Continuous keyboard scrubbing writes only transforms at display cadence. */
-[data-slot="media-player-keyboard-range"],
-[data-slot="media-player-keyboard-thumb"] { display: none; }
-[data-keyboard-scrubbing] [data-slot="media-player-keyboard-range"],
-[data-keyboard-scrubbing] [data-slot="media-player-keyboard-thumb"] { display: block; }
+[data-slot="media-player-keyboard-range"] { display: none; }
+[data-keyboard-scrubbing] [data-slot="media-player-keyboard-range"] { display: block; }
 [data-keyboard-scrubbing] [data-slot="media-player-seek-range"],
 [data-keyboard-scrubbing] [data-slot="media-player-seek-thumb"] { opacity: 0 !important; }
-[data-keyboard-scrubbing]:has(:focus-visible) [data-slot="media-player-keyboard-thumb"] {
+[data-slot="media-player-seek"]:has([data-slot="media-player-seek-thumb"]:focus-visible) {
   outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline-offset: 4px;
+  border-radius: 9999px;
 }
