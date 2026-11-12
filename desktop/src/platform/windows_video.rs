@@ -4,6 +4,7 @@ use crate::{
     glass::{Control, Ticket},
     mpv::Mpv,
     render::RenderContext,
+    windows_hdr::{self, Output, Transition},
 };
 use std::{
     sync::{Arc, Condvar, Mutex, mpsc},
@@ -30,6 +31,9 @@ struct State {
     visible: bool,
     wake: bool,
     stop: bool,
+    source_hdr: bool,
+    display_dirty: bool,
+    output_reply: Option<(u64, Result<(), String>)>,
 }
 pub struct Host {
     hwnd: usize,
@@ -46,6 +50,8 @@ impl Host {
                     visible: true,
                     wake: true,
                     stop: false,
+                    display_dirty: true,
+                    ..Default::default()
                 }),
                 Condvar::new(),
             )),
@@ -65,6 +71,21 @@ impl Host {
             s.wake = true;
             self.state.1.notify_one();
         }
+    }
+    pub fn source_color(&self, gamma: Option<String>, primaries: Option<String>) {
+        let hdr = windows_hdr::hdr_source(gamma.as_deref(), primaries.as_deref());
+        let mut state = self.state.0.lock().unwrap();
+        if state.source_hdr != hdr {
+            state.source_hdr = hdr;
+            state.wake = true;
+            self.state.1.notify_one();
+        }
+    }
+    pub fn refresh_display(&self) {
+        let mut state = self.state.0.lock().unwrap();
+        state.display_dirty = true;
+        state.wake = true;
+        self.state.1.notify_one();
     }
     pub fn start(
         &self,
@@ -123,6 +144,130 @@ impl Host {
         if let Some(worker) = self.worker.lock().unwrap().take() {
             let _ = worker.join();
         }
+    }
+}
+
+// Keep blocking client property calls off both the UI and render threads.
+// The render loop continues consuming mpv callbacks during each transaction,
+// but holds presentation until every output property has been acknowledged.
+struct OutputWorker {
+    requests: Option<mpsc::Sender<(u64, Output)>>,
+    worker: Option<JoinHandle<()>>,
+}
+impl OutputWorker {
+    fn new(mpv: Arc<Mpv>, state: Arc<(Mutex<State>, Condvar)>) -> WinResult<Self> {
+        let (sender, receiver) = mpsc::channel::<(u64, Output)>();
+        let worker = std::thread::Builder::new()
+            .name("navigator-hdr-config".into())
+            .spawn(move || {
+                while let Ok((generation, output)) = receiver.recv() {
+                    let result = output.options().into_iter().try_for_each(|(name, value)| {
+                        mpv.set_property(name, &value)
+                            .map_err(|error| format!("{name}: {error}"))
+                    });
+                    let mut state_value = state.0.lock().unwrap();
+                    state_value.output_reply = Some((generation, result));
+                    state_value.wake = true;
+                    state.1.notify_one();
+                }
+            })
+            .map_err(|error| native_error(error.to_string()))?;
+        Ok(Self {
+            requests: Some(sender),
+            worker: Some(worker),
+        })
+    }
+    fn request(&self, request: (u64, Output)) -> WinResult<()> {
+        self.requests
+            .as_ref()
+            .unwrap()
+            .send(request)
+            .map_err(|error| native_error(error.to_string()))
+    }
+}
+impl Drop for OutputWorker {
+    fn drop(&mut self) {
+        self.requests.take();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+fn native_error(message: String) -> windows::core::Error {
+    windows::core::Error::new(windows::Win32::Foundation::E_FAIL, message)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct DisplayColor {
+    hdr: bool,
+    peak: f32,
+}
+
+unsafe fn display_color(hwnd: usize) -> WinResult<DisplayColor> {
+    // Fresh enumeration avoids stale DXGI output descriptions after an HDR
+    // setting change. Match the video window, including on hybrid-GPU laptops.
+    unsafe {
+        let monitor = windows_sys::Win32::Graphics::Gdi::MonitorFromWindow(
+            hwnd as _,
+            windows_sys::Win32::Graphics::Gdi::MONITOR_DEFAULTTONEAREST,
+        );
+        let factory: IDXGIFactory1 = CreateDXGIFactory1()?;
+        let mut adapter_index = 0;
+        loop {
+            let adapter = match factory.EnumAdapters1(adapter_index) {
+                Ok(adapter) => adapter,
+                Err(error) if error.code() == DXGI_ERROR_NOT_FOUND => break,
+                Err(error) => return Err(error),
+            };
+            adapter_index += 1;
+            let mut output_index = 0;
+            loop {
+                let output = match adapter.EnumOutputs(output_index) {
+                    Ok(output) => output,
+                    Err(error) if error.code() == DXGI_ERROR_NOT_FOUND => break,
+                    Err(error) => return Err(error),
+                };
+                output_index += 1;
+                if output.GetDesc()?.Monitor.0 != monitor {
+                    continue;
+                }
+                let output: IDXGIOutput6 = output.cast()?;
+                let desc = output.GetDesc1()?;
+                return Ok(DisplayColor {
+                    hdr: desc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020,
+                    peak: desc.MaxLuminance,
+                });
+            }
+        }
+        Ok(DisplayColor::default())
+    }
+}
+
+fn output_format(output: Output) -> DXGI_FORMAT {
+    if output.hdr() {
+        DXGI_FORMAT_R10G10B10A2_UNORM
+    } else {
+        DXGI_FORMAT_B8G8R8A8_UNORM
+    }
+}
+unsafe fn signal_output(swap: &IDXGISwapChain1, output: Output) -> WinResult<()> {
+    unsafe {
+        let swap: IDXGISwapChain3 = swap.cast()?;
+        let color = if output.hdr() {
+            DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020
+        } else {
+            DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+        };
+        if swap.CheckColorSpaceSupport(color)?
+            & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT.0 as u32
+            == 0
+        {
+            return Err(native_error(format!(
+                "Unsupported DXGI output color space {color:?}"
+            )));
+        }
+        swap.SetColorSpace1(color)
     }
 }
 impl Drop for Host {
@@ -220,7 +365,7 @@ impl GlassGpu {
                 (size.0 as f64 * scale).round().max(1.0) as u32,
                 (size.1 as f64 * scale).round().max(1.0) as u32,
             );
-            let source = "Texture2D image:register(t0);SamplerState linearClamp:register(s0);struct V{float4 position:SV_Position;float2 uv:TEXCOORD0;};V vs(uint id:SV_VertexID){V o;o.uv=float2((id<<1)&2,id&2);o.position=float4(o.uv*float2(2,-2)+float2(-1,1),0,1);return o;}cbuffer SampleSize:register(b0){float4 footprint;}float4 ps(V input):SV_Target{float4 sum=0;[unroll]for(int y=0;y<2;y++){[unroll]for(int x=0;x<2;x++){sum+=image.SampleLevel(linearClamp,input.uv+(float2(x,y)*.50-.250)*footprint.xy,0);}}return (sum/4).bgra;}";
+            let source = include_str!("windows_hdr_sample.hlsl");
             let vs = compile(source, c"vs", c"vs_4_0")?;
             let ps = compile(source, c"ps", c"ps_4_0")?;
             let mut vertex = None;
@@ -373,6 +518,7 @@ impl GlassGpu {
         context: &ID3D11DeviceContext,
         source: &ID3D11Texture2D,
         ticket: Ticket,
+        hdr: bool,
     ) -> WinResult<bool> {
         unsafe {
             let Some(slot) = self.slots.iter_mut().find(|s| s.pending.is_none()) else {
@@ -394,7 +540,7 @@ impl GlassGpu {
             let footprint = [
                 1.0f32 / self.size.0 as f32,
                 1.0f32 / self.size.1 as f32,
-                0.0,
+                if hdr { 1.0 } else { 0.0 },
                 0.0,
             ];
             context.UpdateSubresource(&self.footprint, 0, None, footprint.as_ptr().cast(), 0, 0);
@@ -466,6 +612,10 @@ unsafe fn run(
             HWND(hwnd as *mut _),
             DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER,
         )?;
+        signal_output(&swap, Output::Sdr)?;
+        // Declared before RenderContext so unwinding frees the render API first.
+        // A client call waiting for the renderer must never block its destruction.
+        let configuration = OutputWorker::new(mpv.clone(), state.clone())?;
         let mut render = match RenderContext::new_d3d11(mpv, device.as_raw()) {
             Ok(r) => r,
             Err(e) => {
@@ -483,6 +633,12 @@ unsafe fn run(
         let mut last_texture = None;
         let mut last_ticket = None;
         let mut was_visible = true;
+        let mut display = DisplayColor::default();
+        let mut hdr_failed = false;
+        let mut transition = Transition::sdr();
+        let mut applied = Output::Sdr;
+        let mut surface_dirty = false;
+        let mut redraw = false;
         let mut frames = 0u64;
         let mut materials = 0u64;
         let mut report = Instant::now();
@@ -502,9 +658,41 @@ unsafe fn run(
                     break;
                 }
                 s.wake = false;
-                (s.size, s.visible)
+                (
+                    s.size,
+                    s.visible,
+                    s.source_hdr,
+                    std::mem::take(&mut s.display_dirty),
+                    s.output_reply.take(),
+                )
             };
-            let (requested, visible) = requested;
+            let (requested, visible, source_hdr, display_dirty, reply) = requested;
+            if display_dirty {
+                display = display_color(hwnd).unwrap_or_else(|error| {
+                    log::warn!("HDR display query failed; using SDR: {error}");
+                    DisplayColor::default()
+                });
+                hdr_failed = false;
+                log::info!(
+                    "Windows display: HDR={} peak={} nits",
+                    display.hdr,
+                    display.peak
+                );
+            }
+            if let Some((generation, result)) = reply {
+                if let Some(output) = transition.finish(generation, result.is_ok()) {
+                    if let Err(error) = result {
+                        if !output.hdr() {
+                            return Err(native_error(format!(
+                                "SDR output restoration failed: {error}"
+                            )));
+                        }
+                        log::warn!("HDR properties rejected; restoring SDR: {error}");
+                        hdr_failed = true;
+                    }
+                    redraw = true;
+                }
+            }
             gpu.collect(&context, &glass);
             let new_frame = render.update();
             if !visible || requested.0 == 0 || requested.1 == 0 {
@@ -514,22 +702,54 @@ unsafe fn run(
                 was_visible = false;
                 continue;
             }
+            let wanted = windows_hdr::choose(source_hdr, display.hdr && !hdr_failed, display.peak);
+            if let Some(request) = transition.request(wanted) {
+                configuration.request(request)?;
+            }
+            if !transition.ready(wanted) {
+                // Consume render callbacks to unblock the core's property work.
+                // Do not present pixels encoded for an intermediate configuration.
+                if new_frame {
+                    let texture: ID3D11Texture2D = swap.GetBuffer(0)?;
+                    context.ClearState();
+                    render.draw_d3d11(texture.as_raw()).map_err(native_error)?;
+                }
+                continue;
+            }
             let resized = requested != size;
-            if resized {
+            let output_changed = wanted != applied;
+            if resized || surface_dirty || wanted.hdr() != applied.hdr() {
                 context.ClearState();
                 last_texture.take();
-                swap.ResizeBuffers(
-                    2,
-                    requested.0,
-                    requested.1,
-                    DXGI_FORMAT_B8G8R8A8_UNORM,
-                    DXGI_SWAP_CHAIN_FLAG(0),
-                )?;
+                let change = swap
+                    .ResizeBuffers(
+                        2,
+                        requested.0,
+                        requested.1,
+                        output_format(wanted),
+                        DXGI_SWAP_CHAIN_FLAG(0),
+                    )
+                    .and_then(|()| signal_output(&swap, wanted));
+                if let Err(error) = change {
+                    if !wanted.hdr() {
+                        return Err(error);
+                    }
+                    log::warn!("HDR swap chain rejected; restoring SDR: {error}");
+                    hdr_failed = true;
+                    surface_dirty = true;
+                    let mut s = state.0.lock().unwrap();
+                    s.wake = true;
+                    state.1.notify_one();
+                    continue;
+                }
                 size = requested;
+                surface_dirty = false;
+                redraw = true;
                 gpu.resize(&device, size)?;
                 last_ticket = None;
             }
-            if new_frame || resized || !was_visible {
+            applied = wanted;
+            if new_frame || redraw || output_changed || !was_visible {
                 let texture: ID3D11Texture2D = swap.GetBuffer(0)?;
                 context.ClearState();
                 render.draw_d3d11(texture.as_raw()).map_err(|e| {
@@ -538,7 +758,7 @@ unsafe fn run(
                 frames += 1;
                 let ticket = glass.ticket();
                 if let Some(ticket) = ticket {
-                    if gpu.capture(&device, &context, &texture, ticket.clone())? {
+                    if gpu.capture(&device, &context, &texture, ticket.clone(), applied.hdr())? {
                         last_ticket = Some(ticket);
                         materials += 1;
                     }
@@ -547,11 +767,18 @@ unsafe fn run(
                 // completed slot, and never stalls the video waiting for it.
                 swap.Present(0, DXGI_PRESENT(0)).ok()?;
                 render.report_swap();
+                if output_changed {
+                    log::info!(
+                        "Windows video output: {applied:?}, format={:?}, source_hdr={source_hdr}",
+                        output_format(applied)
+                    );
+                }
+                redraw = false;
                 last_texture = Some(texture);
             } else if let Some(ticket) = glass.ticket() {
                 if last_ticket.as_ref() != Some(&ticket) {
                     if let Some(texture) = &last_texture {
-                        if gpu.capture(&device, &context, texture, ticket.clone())? {
+                        if gpu.capture(&device, &context, texture, ticket.clone(), applied.hdr())? {
                             last_ticket = Some(ticket);
                             materials += 1;
                             context.Flush();

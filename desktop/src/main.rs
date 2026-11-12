@@ -25,6 +25,8 @@ mod window_state;
 mod windows_install;
 #[cfg(windows)]
 mod windows_updater;
+#[cfg(any(windows, test))]
+mod windows_hdr;
 #[cfg(windows)]
 mod windows_process;
 #[cfg(windows)]
@@ -226,13 +228,19 @@ impl App {
         surface: &platform::VideoSurface,
         emit: impl Fn(Value) + Send + Sync + 'static,
     ) -> Result<player::Player, String> {
-        self.start_player_options(platform::mpv_options(surface), emit)
+        self.start_player_options(platform::mpv_options(surface), emit, |gamma, primaries| {
+            #[cfg(target_os = "macos")]
+            platform::update_hdr(gamma, primaries);
+            #[cfg(not(target_os = "macos"))]
+            let _ = (gamma, primaries);
+        })
     }
 
     fn start_player_options(
         &self,
         mut options: Vec<(&'static str, String)>,
         emit: impl Fn(Value) + Send + Sync + 'static,
+        colour: impl Fn(Option<String>, Option<String>) + Send + 'static,
     ) -> Result<player::Player, String> {
         if self.smoke {
             options.push(("loop-file", "inf".into()));
@@ -277,12 +285,7 @@ impl App {
         for (name, value) in [("access-references", "no"), ("load-unsafe-playlists", "no")] {
             mpv.set_property(name, value)?;
         }
-        player::Player::start(mpv, emit, |gamma, primaries| {
-            #[cfg(target_os = "macos")]
-            platform::update_hdr(gamma, primaries);
-            #[cfg(not(target_os = "macos"))]
-            let _ = (gamma, primaries);
-        })
+        player::Player::start(mpv, emit, colour)
     }
 }
 

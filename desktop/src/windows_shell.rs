@@ -374,6 +374,8 @@ pub fn run(app: App) -> Result<(), String> {
     let glass_output = latest_glass.clone();
     let options = platform::mpv_options(&surface);
     let renderer = surface.renderer();
+    let display_renderer = renderer.clone();
+    platform::on_display_change(move || display_renderer.refresh_display());
     let render_error = proxy.clone();
     let boot_log = log.clone();
     let backend_proxy = proxy.clone();
@@ -399,6 +401,7 @@ pub fn run(app: App) -> Result<(), String> {
                     None
                 };
                 record(&boot_log, started, "player-starting");
+                let color_renderer = renderer.clone();
                 let mut player = match app.start_player_options(options, move |value| {
                     if value["type"] == "glass-frame" {
                         let notify = glass_output.lock().unwrap().replace(value).is_none();
@@ -406,7 +409,7 @@ pub fn run(app: App) -> Result<(), String> {
                     } else {
                         let _ = emit_proxy.send_event(UserEvent::Emit(value));
                     }
-                }) {
+                }, move |gamma, primaries| color_renderer.source_color(gamma, primaries)) {
                     Ok(player) => player,
                     Err(error) => {
                         if let Some(path) = &smoke {
@@ -665,6 +668,7 @@ pub fn run(app: App) -> Result<(), String> {
             }
             Event::WindowEvent { event: WindowEvent::Moved(_), .. } => {
                 // Moving a window doesn't resize either GPU surface.
+                surface.refresh_display();
                 remember_placement(&window, &mut normal);
             }
             _ => {}
