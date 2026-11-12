@@ -350,6 +350,8 @@ export async function resolvePlayback(
     const warmup = candidate && !invalidatedWarmups.has(candidate) ? candidate : undefined;
     if (request.streamRequest && invalidatedWarmups.has(request.streamRequest)) request = { ...request, streamRequest: undefined };
     if (dependencies.signal?.aborted) {
+        // A shared lookup may settle after this caller has already cancelled.
+        void request.streamRequest?.promise.catch(() => {});
         if (warmup) queueMicrotask(() => { if (!warmupLeases.get(warmup)?.count) warmup.cancel?.(); });
         dependencies.signal.throwIfAborted();
     }
