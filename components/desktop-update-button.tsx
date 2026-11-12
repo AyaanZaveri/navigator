@@ -12,7 +12,7 @@ export function DesktopUpdateButton() {
     const [status, setStatus] = useState<UpdateStatus | null>(null);
     useEffect(() => {
         const bridge = desktopBridge();
-        if (bridge?.platform !== "windows" || !bridge.capabilities?.updates) return;
+        if (!bridge?.capabilities?.updates) return;
         const unsubscribe = bridge.subscribe(message => { if (message.type === "update-status") setStatus(message); });
         bridge.send({ type: "update-status" });
         return unsubscribe;

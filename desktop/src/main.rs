@@ -18,6 +18,8 @@ mod server;
 mod startup_log;
 #[cfg(target_os = "macos")]
 mod tao_shell;
+#[cfg(target_os = "macos")]
+mod macos_updater;
 mod thumbnails;
 #[cfg(any(windows, test))]
 mod window_state;
