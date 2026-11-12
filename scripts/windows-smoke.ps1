@@ -201,8 +201,13 @@ try {
   $client = New-Object NavigatorSmokeWindow+Rect
   [void][NavigatorSmokeWindow]::GetClientRect($handle, [ref]$client)
   $scale = [NavigatorSmokeWindow]::GetDpiForWindow($handle) / 96.0
+  # Read the shipping caption geometry instead of probing an old 46-DIP layout.
+  $chromeSource = Get-Content (Join-Path $PSScriptRoot '../desktop/src/platform/windows.rs') -Raw
+  $buttonWidth = [double]([regex]::Match($chromeSource, 'CAPTION_BUTTON_WIDTH: f64 = ([\d.]+)').Groups[1].Value)
+  $captionHeight = [double]([regex]::Match($chromeSource, 'CAPTION_HEIGHT: f64 = ([\d.]+)').Groups[1].Value)
+  if ($buttonWidth -le 0 -or $captionHeight -le 0) { throw 'Native caption geometry is unavailable' }
   $point = New-Object NavigatorSmokeWindow+Point
-  $point.X = $client.Right - [int](69 * $scale); $point.Y = [int](16 * $scale)
+  $point.X = $client.Right - [int](1.5 * $buttonWidth * $scale); $point.Y = [int](0.5 * $captionHeight * $scale)
   [void][NavigatorSmokeWindow]::ClientToScreen($handle, [ref]$point)
   $coordinates = (($point.Y -band 0xffff) -shl 16) -bor ($point.X -band 0xffff)
   $hit = [NavigatorSmokeWindow]::SendMessage($handle, 0x0084, [IntPtr]::Zero, [IntPtr]$coordinates).ToInt64()

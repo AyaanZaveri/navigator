@@ -527,7 +527,19 @@ mod tests {
         wait_for(&inbox, |v| {
             v["type"] == "state" && (v["state"]["position"].as_f64().unwrap_or(0.0) - 1.0).abs() < 0.1
         });
-        std::thread::sleep(Duration::from_millis(100));
+        // The position observation can precede the pending 250 ms state flush.
+        // Require quiescence first; a continuously polling worker still fails.
+        let settle_deadline = Instant::now() + Duration::from_secs(3);
+        let mut quiet_since = Instant::now();
+        let mut observed = player.idle_wakes.load(Ordering::Relaxed);
+        let settling_started = observed;
+        while quiet_since.elapsed() < Duration::from_millis(300) {
+            std::thread::sleep(Duration::from_millis(20));
+            let now = player.idle_wakes.load(Ordering::Relaxed);
+            if now != observed { observed = now; quiet_since = Instant::now(); }
+            assert!(Instant::now() < settle_deadline, "Paused worker never became idle after seek");
+        }
+        println!("Post-seek settling wakeups: {}", observed - settling_started);
         let before = player.idle_wakes.load(Ordering::Relaxed);
         std::thread::sleep(Duration::from_millis(220));
         let idle_wakes = player.idle_wakes.load(Ordering::Relaxed) - before;
