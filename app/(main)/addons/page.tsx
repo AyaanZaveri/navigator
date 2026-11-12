@@ -1,6 +1,5 @@
 import { getInstalledAddons } from "@/app/actions/auth";
 import { AddonsList } from "@/components/addons-list";
-import { HomeGradientBackground } from "@/components/home-gradient-background";
 import { toAddonListItem } from "@/lib/addons";
 import { addonKey } from "@/lib/addon-management";
 
@@ -11,7 +10,6 @@ export default async function AddonsPage() {
 
     return (
         <div className="relative px-[var(--page-gutter)] py-6">
-            <HomeGradientBackground />
             <div className="relative z-10 flex w-full min-w-0 flex-col gap-6 pb-10">
                 <header className="flex flex-col gap-2">
                     <h1 className="font-poppins text-3xl font-medium tracking-tight">Addons</h1>

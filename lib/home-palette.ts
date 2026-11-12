@@ -70,6 +70,12 @@ export function createHomePaletteScene(
     return {
         subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
         getSnapshot: () => snapshot,
+        navigate() {
+            epoch++; selection++;
+            interacted = false; initial = null; owner = null; hoverOwner = null;
+            clock.clear(hoverTimer); clock.clear(initialTimer);
+            hoverTimer = initialTimer = undefined;
+        },
         start() { active = true; opened = clock.now(); epoch++; opening(); },
         stop() {
             active = false; epoch++; selection++;

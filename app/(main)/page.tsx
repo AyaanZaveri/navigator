@@ -7,8 +7,7 @@ import { ContinueWatchingWarmup } from "@/components/continue-watching-warmup";
 import { MediaSection } from "@/components/media-section";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HomeGradientBackground } from "@/components/home-gradient-background";
-import { HomeInitialPalette, HomePaletteProvider } from "@/components/home-palette-provider";
+import { HomeInitialPalette } from "@/components/home-palette-provider";
 import { mediaArtwork } from "@/lib/artwork";
 import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
@@ -231,19 +230,15 @@ export default async function Home() {
 
   return (
     <AuthErrorHandler>
-      <HomePaletteProvider>
-        <div data-home-page className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
-          <HomeGradientBackground />
+      <div data-home-page className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
+        {continueWatchingPromise && <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
+          <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />
+        </Suspense>}
 
-          {continueWatchingPromise && <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
-            <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />
-          </Suspense>}
-
-          <Suspense fallback={<div data-home-initial-pending><HomeCatalogsFallback /></div>}>
-            {catalogEntriesPromise ? <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} /> : <DiscoverySections />}
-          </Suspense>
-        </div>
-      </HomePaletteProvider>
+        <Suspense fallback={<div data-home-initial-pending><HomeCatalogsFallback /></div>}>
+          {catalogEntriesPromise ? <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} /> : <DiscoverySections />}
+        </Suspense>
+      </div>
     </AuthErrorHandler>
   );
 }

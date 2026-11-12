@@ -1,6 +1,4 @@
 import { searchTMDBMedia } from "@/lib/tmdb-discovery";
-import { HomeGradientBackground } from "@/components/home-gradient-background";
-import { HomePaletteProvider } from "@/components/home-palette-provider";
 import { SearchResultsView } from "@/components/search-results-view";
 import { SearchSectionLoading } from "@/components/search-section-loading";
 import { SearchIcon } from "lucide-react";
@@ -48,8 +46,7 @@ export default async function Search({ searchParams }: {
     const number = Number(first(params.page));
     const page = Number.isSafeInteger(number) && number > 0 ? Math.min(500, number) : 1;
     return (
-        <HomePaletteProvider><div className={styles.page}>
-            <HomeGradientBackground />
+        <div className={styles.page}>
             <div className={styles.content}>
                 <SearchPageHeading query={query.length > 300 ? "" : query} />
                 {query.length > 300 ? <p role="alert">Enter up to 300 characters.</p> : query ? (
@@ -64,6 +61,6 @@ export default async function Search({ searchParams }: {
                     </EmptyHeader><Button asChild variant="secondary"><Link href="/">Browse titles</Link></Button></Empty>
                 )}
             </div>
-        </div></HomePaletteProvider>
+        </div>
     );
 }

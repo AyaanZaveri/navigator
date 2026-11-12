@@ -5,7 +5,6 @@ import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Select } from "@/components/arc/select/select";
-import { HomeGradientBackground } from "@/components/home-gradient-background";
 import { SETTINGS_CATEGORIES, settingsCategoryFromPath } from "@/lib/settings-navigation";
 import { motionTokens } from "@/components/arc/lib/motion-tokens";
 import styles from "@/app/(main)/settings/settings.module.css";
@@ -31,7 +30,6 @@ export function SettingsShell({ children }: { children: ReactNode }) {
     }, [pathname, category.label]);
 
     return <div className={styles.page}>
-        <HomeGradientBackground />
         <div className={`${styles.content} ${styles.workspace}`}>
             <aside className={styles.sidebar}>
                 <nav aria-label="Settings"
