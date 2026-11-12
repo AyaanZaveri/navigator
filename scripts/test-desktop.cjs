@@ -254,6 +254,7 @@ function testAskPlayback() {
 
 Promise.all([testController("android"), testController("ios")]).then(() => {
     testBridge();
+    require("./test-desktop-drag.cjs");
     testAskPlayback();
     console.log("Desktop playback adapter and bridge tests passed.");
 }).catch((error) => { console.error(error); process.exitCode = 1; });

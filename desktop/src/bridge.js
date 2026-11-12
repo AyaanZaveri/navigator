@@ -86,12 +86,12 @@
   }
   document.addEventListener("DOMContentLoaded", mark, { once: true });
   if (platform === "macos" || platform === "windows") {
-    // Only blank header space drags. Inputs, links, menus and player gestures
+    // Only blank header space drags. Controls, suggestions and handled gestures
     // retain their normal mouse behavior; synthetic events cannot move windows.
     document.addEventListener("mousedown", (event) => {
-      if (!event.isTrusted || event.button !== 0 || fullscreen) return;
+      if (!event.isTrusted || event.defaultPrevented || event.button !== 0 || fullscreen) return;
       const target = event.target;
-      if (!target?.closest || target.closest('a, button, input, textarea, select, [role="button"], [role="menu"], [contenteditable], [data-no-window-drag]')) return;
+      if (!target?.closest || target.closest('a, button, input, textarea, select, [role="button"], [role="menu"], [role="listbox"], [role="option"], [contenteditable], [data-no-window-drag]')) return;
       if (!target.closest("[data-window-drag-region]") && event.clientY >= 20) return;
       event.preventDefault();
       window.navigatorDesktop.send({ type: "window-drag" });

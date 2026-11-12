@@ -1,0 +1,61 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+
+// Minimal ancestor matching for the bridge's tag and attribute selectors.
+function element(tag, attributes = {}, parent = null) {
+  return { parent, closest(selectors) {
+    for (let node = this; node; node = node.parent) {
+      if (selectors.split(',').some(selector => {
+        selector = selector.trim();
+        const attr = /^\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(selector);
+        return attr ? Object.hasOwn(node.attributes, attr[1]) && (attr[2] === undefined || node.attributes[attr[1]] === attr[2]) : node.tag === selector;
+      })) return node;
+    }
+    return null;
+  }, tag, attributes };
+}
+
+const source = fs.readFileSync('desktop/src/bridge.js', 'utf8');
+for (const platform of ['windows', 'macos']) {
+  const sent = [], handlers = new Map();
+  const window = { ipc: { postMessage: message => sent.push(JSON.parse(message)) }, addEventListener() {} };
+  window.top = window;
+  const document = { documentElement: { dataset: {}, style: { setProperty() {} } }, addEventListener: (type, callback) => handlers.set(type, callback) };
+  vm.runInNewContext(source.replace('__PROTOCOL__', '1').replace('__ORIGIN__', JSON.stringify('http://localhost:3000')).replace('__PLATFORM__', JSON.stringify(platform)),
+    { window, document, location: { origin: 'http://localhost:3000' }, console });
+  const header = element('header', { 'data-window-drag-region': '' });
+  const listbox = element('div', { role: 'listbox' }, header);
+  const option = element('div', { role: 'option' }, listbox);
+  const poster = element('img', {}, element('span', {}, option));
+  function press(target, options = {}) {
+    const event = { target, isTrusted: true, button: 0, clientY: 140, defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; }, ...options };
+    handlers.get('mousedown')(event);
+    return event;
+  }
+  // Search rows prevent mousedown's focus change before it bubbles to document.
+  press(poster, { defaultPrevented: true });
+  assert.equal(sent.length, 0, `${platform}: clicking a search result must not start a native drag after the row preserves input focus`);
+  for (const target of [option, poster, listbox]) {
+    const event = press(target);
+    assert.equal(sent.length, 0, `${platform}: search rows, artwork and listbox space must not drag`);
+    assert.equal(event.defaultPrevented, false, 'The bridge must leave suggestion input alone');
+  }
+  for (const [tag, attributes] of [['button', {}], ['input', {}], ['a', {}], ['div', { role: 'menu' }], ['div', { 'data-no-window-drag': '' }]]) {
+    press(element('span', {}, element(tag, attributes, header)));
+  }
+  press(element('canvas', {}, header), { defaultPrevented: true });
+  press(header, { isTrusted: false });
+  press(header, { button: 2 });
+  press(element('main'), { clientY: 100 });
+  assert.equal(sent.length, 0, `${platform}: controls and consumed, synthetic or non-header input must not drag`);
+  assert.equal(press(header).defaultPrevented, true);
+  assert.equal(sent.at(-1).type, 'window-drag', 'Blank header space must still drag');
+  press(element('div'), { clientY: 10 });
+  assert.equal(sent.length, 2, 'Blank top-edge space must still drag');
+  window.__navigatorDesktopReceive({ type: 'fullscreen', value: true });
+  press(header);
+  assert.equal(sent.length, 2, 'Fullscreen must disable window dragging');
+  console.log(`PASS: ${platform} search suggestion pointer input, nested artwork, interactive controls and native drag guards`);
+}
