@@ -75,7 +75,14 @@ export function createHomePaletteScene(
             active = false; epoch++; selection++;
             clock.clear(hoverTimer); clock.clear(initialTimer); hoverTimer = initialTimer = undefined;
         },
-        registerInitial(source: HomeArtwork) {
+        registerInitial(source: HomeArtwork, resetInteraction = false) {
+            // A new search result set takes priority over the previous set's
+            // hover/focus requests, while retaining its colors during loading.
+            if (resetInteraction) {
+                interacted = false; owner = null; hoverOwner = null; selection++;
+                clock.clear(hoverTimer); hoverTimer = undefined;
+                clock.clear(initialTimer); initialTimer = undefined;
+            }
             const registration = { source };
             initial = registration; opening();
             return () => { if (initial === registration) { initial = null; clock.clear(initialTimer); } };
