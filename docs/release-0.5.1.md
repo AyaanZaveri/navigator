@@ -4,7 +4,7 @@ Navigator 0.5.1 improves Windows HDR output and makes the player controls more c
 
 ### New features and improvements
 
-- **Windows HDR output:** HDR video now uses 10-bit HDR10 output on HDR-enabled displays. SDR video keeps SDR output. Navigator adjusts the output when the source or display changes.
+- **Windows HDR output:** HDR video now uses 10-bit HDR10 output instead of the previous 8-bit SDR output on displays with HDR enabled. SDR video keeps SDR output. Navigator adjusts the output when the source or display changes.
 - **New Windows icon:** The updated icon is included in the app, installer, Start menu shortcut and installed-app entry. Small icon sizes are clearer at common display scales.
 - **Navigator player button:** The button is square and matches the other player controls. Click it again to close the panel.
 - **Keyboard hints:** Player tooltips show clearer shortcut keys on Windows and macOS.

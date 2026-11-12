@@ -4,11 +4,11 @@
     <title>Navigator for Windows</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.5.0</title>
+      <title>Navigator 0.5.1</title>
       <description>Update Navigator, then reopen it with your existing sign-in and settings.</description>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.0/Navigator-0.5.0-windows-x64-setup.exe" sparkle:version="0.5.0" sparkle:shortVersionString="0.5.0"
-        sparkle:os="windows" sparkle:installerArguments="/S /UPDATE" sparkle:edSignature="pKutR/a1ZYQ9d+ADBPQ35UGwxCR3icXDGwO5f/aMpaUsCePjDvtcBQB2PcRpn5PIw0o4io8mk+iWh+MHX+iAAw=="
-        length="83321596" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.1/Navigator-0.5.1-windows-x64-setup.exe" sparkle:version="0.5.1" sparkle:shortVersionString="0.5.1"
+        sparkle:os="windows" sparkle:installerArguments="/S /UPDATE" sparkle:edSignature="Zp2K6J3+l6QY+gRIDiuO9gxYuxb2bUrkSLNPRKuiVXI4odw7oe0S4tr93Ncc1gAgb9yzGq94TrnIk5GF3ItUBA=="
+        length="83900985" type="application/octet-stream" />
     </item>
   </channel>
 </rss>
