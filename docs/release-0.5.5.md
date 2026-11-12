@@ -28,3 +28,6 @@ The update uses the existing Navigator profile for sign-in and settings.
 
 This build uses an ad hoc signature and is not notarized by Apple. macOS may require approval before you can open it. In-app updates use cryptographic signatures to verify downloads.
 
+### Checks completed
+
+Infinite search loading, filter caches, retry behavior, keyboard seeking and scrubbing, desktop adapters, and update-signature regression checks passed. TypeScript, native tests, frontend and native production builds, packaged app versions, archive integrity, and signed update files were verified on both platforms.
