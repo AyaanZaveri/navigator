@@ -19,9 +19,8 @@ export function searchMediaFilter(value?: string): SearchMediaFilter {
     return value === "movie" || value === "series" ? value : "all";
 }
 
-export function searchPageUrl(query: string, filter: SearchMediaFilter = "all", page = 1) {
+export function searchPageUrl(query: string, filter: SearchMediaFilter = "all") {
     const params = new URLSearchParams({ q: query });
     if (filter !== "all") params.set("type", filter);
-    if (page > 1) params.set("page", String(page));
     return `/search?${params}`;
 }

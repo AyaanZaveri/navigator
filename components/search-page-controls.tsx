@@ -9,19 +9,17 @@ import styles from "./search-page.module.css";
 
 export function SearchPageHeading({ query }: { query: string }) {
     const params = useSearchParams();
-    const heading = useRef<HTMLHeadingElement>(null);
-    // A filter is a local view change. Keep keyboard focus on its control.
-    const key = `${query}:${params.get("page") || "1"}`;
     const filter = params.get("type") || "all";
-    const previous = useRef({ key, query, filter });
+    const heading = useRef<HTMLHeadingElement>(null);
+    const previous = useRef({ query, filter });
     useLayoutEffect(() => {
         document.title = query ? `Search: ${query.slice(0, 100)} · Navigator` : "Search · Navigator";
-        if (previous.current.key !== key && (previous.current.query !== query || previous.current.filter === filter)) {
+        if (previous.current.query !== query || previous.current.filter !== filter) {
             document.querySelector<HTMLElement>("[data-page-scroll]")?.scrollTo({ top: 0, behavior: "instant" });
-            heading.current?.focus({ preventScroll: true });
+            if (previous.current.query !== query) heading.current?.focus({ preventScroll: true });
         }
-        previous.current = { key, query, filter };
-    }, [key, query, filter]);
+        previous.current = { query, filter };
+    }, [query, filter]);
     return <header className={styles.heading}>
         <h1 ref={heading} tabIndex={-1} className={styles.title}>
             {query ? <>Results for “{query}”</> : "Find your next watch"}

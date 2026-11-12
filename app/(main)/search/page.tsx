@@ -14,28 +14,24 @@ function first(value: string | string[] | undefined) {
     return (Array.isArray(value) ? value[0] : value)?.trim() || "";
 }
 
-async function SearchResults({ query, page }: { query: string; page: number }) {
-    let pageSets: SearchResultSet[] | undefined;
+async function SearchResults({ query }: { query: string }) {
+    let initialResults: SearchResultSet | undefined;
     let failure = "TMDB search is unavailable. Please try again.";
     try {
-        // Preload each native ranking once. First pages are also included for
-        // direct links to later pages, so every segment can reset locally.
-        pageSets = await Promise.all((page === 1 ? [1] : [1, page]).map(async number => {
-            const [movie, series, all] = await Promise.all([
-                searchTMDBMedia(query, undefined, "movie", number),
-                searchTMDBMedia(query, undefined, "series", number),
-                searchTMDBMedia(query, undefined, undefined, number),
-            ]);
-            return { page: number, movie, series, all };
-        }));
+        const [movie, series, all] = await Promise.all([
+            searchTMDBMedia(query, undefined, "movie", 1),
+            searchTMDBMedia(query, undefined, "series", 1),
+            searchTMDBMedia(query, undefined, undefined, 1),
+        ]);
+        initialResults = { page: 1, movie, series, all };
     } catch (error) {
         if (error instanceof Error && error.message) failure = error.message;
     }
-    if (!pageSets) return <Empty role="alert" className={styles.empty}>
+    if (!initialResults) return <Empty role="alert" className={styles.empty}>
         <EmptyHeader><EmptyTitle>Search couldn’t load</EmptyTitle><EmptyDescription>{failure}</EmptyDescription></EmptyHeader>
         <div className={styles.emptyActions}><SearchRetryButton /><Button asChild variant="outline"><Link href="/settings/connections">Connection settings</Link></Button></div>
     </Empty>;
-    return <SearchResultsView key={query} query={query} initialPage={page} pageSets={pageSets} />;
+    return <SearchResultsView key={query} query={query} initialResults={initialResults} />;
 }
 
 export default async function Search({ searchParams }: {
@@ -43,15 +39,13 @@ export default async function Search({ searchParams }: {
 }) {
     const params = await searchParams;
     const query = first(params.q);
-    const number = Number(first(params.page));
-    const page = Number.isSafeInteger(number) && number > 0 ? Math.min(500, number) : 1;
     return (
         <div className={styles.page}>
             <div className={styles.content}>
                 <SearchPageHeading query={query.length > 300 ? "" : query} />
                 {query.length > 300 ? <p role="alert">Enter up to 300 characters.</p> : query ? (
                     <Suspense key={query} fallback={<SearchSectionLoading />}>
-                        <SearchResults query={query} page={page} />
+                        <SearchResults query={query} />
                     </Suspense>
                 ) : (
                     <Empty className={styles.empty}><EmptyHeader>

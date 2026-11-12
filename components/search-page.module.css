@@ -13,7 +13,6 @@
 .toolbar { display: flex; min-width: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3) var(--space-6); }
 .filters { --text-muted: var(--muted-foreground); max-width: 100%; }
 .filters :global(button:focus-visible) { outline: 2px solid var(--foreground); outline-offset: 1px; }
-.summary { margin: 0; color: var(--muted-foreground); font-size: var(--text-sm); line-height: 1.5; font-variant-numeric: tabular-nums; }
 .badge { color: var(--muted-foreground); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 
 /* Match home poster density while filling available width, including 320px. */
@@ -29,11 +28,12 @@
 }
 .grid > li { min-width: 0; }
 .grid[hidden], .grid > li[hidden] { display: none; }
-.pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); padding-block-start: var(--space-2); }
-.pageActions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .empty { min-height: 18rem; }
 .emptyActions { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--space-2); }
 
 @media (min-width: 64rem) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
 }
+
+.loadStatus { display: flex; min-height: 3rem; flex-direction: column; align-items: center; gap: var(--space-3); color: var(--muted-foreground); font-size: var(--text-sm); }
+.loadStatus p { margin: 0; }
