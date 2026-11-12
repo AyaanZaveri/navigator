@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SearchIcon } from "lucide-react";
 import { MediaCard } from "@/components/media-card";
+import { HomeInitialPalette } from "@/components/home-palette-provider";
+import { mediaArtwork } from "@/lib/artwork";
 import { SearchTypeFilters } from "@/components/search-page-controls";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -24,6 +26,8 @@ export function SearchResultsView({ query, initialPage, pageSets }: {
     const set = pageSets.find(candidate => candidate.page === requestedPage)
         ?? pageSets.find(candidate => candidate.page === initialPage)!;
     const source = set[filter];
+    const firstResult = source.results[0];
+    const firstArtwork = firstResult ? mediaArtwork(firstResult.id, firstResult.type) : undefined;
     const page = set.page;
     const totalPages = Math.min(500, source.totalPages);
     const total = filter === "all" ? set.movie.totalResults + set.series.totalResults : source.totalResults;
@@ -46,6 +50,11 @@ export function SearchResultsView({ query, initialPage, pageSets }: {
     };
 
     return <div className={styles.results}>
+        <HomeInitialPalette
+            primary={firstResult?.poster || firstArtwork?.poster}
+            fallback={firstResult?.background || firstArtwork?.background}
+            resetInteraction
+        />
         <div className={styles.toolbar}>
             <SearchTypeFilters value={filter} movies={set.movie.totalResults} shows={set.series.totalResults} onValueChange={changeType} />
         </div>

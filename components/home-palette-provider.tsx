@@ -15,8 +15,8 @@ export function HomePaletteProvider({ children }: { children: ReactNode }) {
 export function useHomePaletteScene() { return useContext(HomePaletteContext); }
 
 /** The server streams this with Continue Watching; no extra metadata request. */
-export function HomeInitialPalette({ primary, fallback }: HomeArtwork) {
+export function HomeInitialPalette({ primary, fallback, resetInteraction = false }: HomeArtwork & { resetInteraction?: boolean }) {
     const scene = useHomePaletteScene();
-    useEffect(() => scene?.registerInitial({ primary, fallback }), [scene, primary, fallback]);
+    useEffect(() => scene?.registerInitial({ primary, fallback }, resetInteraction), [scene, primary, fallback, resetInteraction]);
     return null;
 }

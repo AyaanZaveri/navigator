@@ -105,6 +105,30 @@ async function replay() {
     assert.equal(f.scene.getSnapshot().colors, blue, 'Strict Mode replay only accepts the current registration');
     f.scene.stop();
 }
+async function resultChanges() {
+    const f = fixture(), hovered = Symbol('previous-result');
+    f.scene.start();
+    f.scene.registerInitial({ primary: 'all-first-poster' }, true);
+    f.requests.at(-1).resolve(red); await tick(); f.advance(1500);
+    assert.equal(f.scene.getSnapshot().colors, red);
+    f.scene.focus(hovered, { primary: 'old-focused-poster' });
+    const stale = f.requests.at(-1);
+    f.scene.hover(hovered, { primary: 'old-hovered-poster' });
+    const cleanup = f.scene.registerInitial({ primary: 'tv-first-poster' }, true);
+    assert.equal(f.requests.at(-1).primary, 'tv-first-poster');
+    assert.equal(f.scene.getSnapshot().colors, red, 'Keep previous colors while the new poster loads');
+    f.requests.at(-1).resolve(blue); await tick(); f.advance(1600);
+    stale.resolve(red); await tick(); f.advance(5000);
+    assert.equal(f.scene.getSnapshot().colors, blue, 'Old focus and queued hover cannot override a new result set');
+    assert.equal(f.scene.getSnapshot().duration, 1200);
+    cleanup();
+    f.scene.registerInitial({}, true); await tick(); f.advance(6000);
+    assert.equal(f.scene.getSnapshot().colors, blue, 'Empty results retain the previous palette');
+    const dispose = f.scene.registerInitial({ primary: 'movies-first-poster' }, true);
+    dispose(); f.requests.at(-1).resolve(red); await tick(); f.advance(7000);
+    assert.equal(f.scene.getSnapshot().colors, blue, 'Removed results cannot publish late colors');
+    f.scene.stop();
+}
 function transitions() {
     const initial = new Float32Array(rgbToLab([1, 0, 0]));
     const target = new Float32Array(rgbToLab([0, 0, 1]));
@@ -130,6 +154,6 @@ function transitions() {
     }
 }
 (async () => {
-    await browserTimers(); await startup(); await interaction(); await replay(); transitions();
+    await browserTimers(); await startup(); await interaction(); await replay(); await resultChanges(); transitions();
     console.log('PASS: emerald hold, streamed startup, empty history, hover intent/exit, focus, stale-result ownership, removal/replay cleanup and interruptible OKLab transitions.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
