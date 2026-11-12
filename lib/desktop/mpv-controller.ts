@@ -37,7 +37,7 @@ export class MpvController extends EventTarget {
   private finished = false;
   private pending = new Map<"position" | "paused" | "volume" | "muted" | "rate", { value: number | boolean; until: number }>();
   private optimistic(key: "position" | "paused" | "volume" | "muted" | "rate", value: number | boolean) {
-    if (this.bridge.platform !== "windows") return;
+    if (key !== "position" && this.bridge.platform !== "windows") return;
     this.pending.set(key, { value, until: Date.now() + (key === "position" ? 2000 : 1000) });
     this.state = { ...this.state, [key]: value };
   }
@@ -93,11 +93,11 @@ export class MpvController extends EventTarget {
   get currentTime() { return this.state.position; }
   set currentTime(position: number) {
     if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return;
-    if (this.bridge.platform === "windows") {
-      this.optimistic("position", position);
-      this.state.seeking = true;
-      this.fire("seeking", "timeupdate");
-    }
+    // Relative keys must build on the last requested seek while the native
+    // decoder is still reporting the old position, on every platform.
+    this.optimistic("position", position);
+    this.state.seeking = true;
+    this.fire("seeking", "timeupdate");
     this.bridge.send({ type: "seek", session: this.session, position });
   }
   get duration() { return this.loaded ? this.state.duration : Number.NaN; }

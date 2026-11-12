@@ -252,3 +252,15 @@ html[data-native-platform="windows"] [data-player-shell] [data-slot="media-playe
   padding-left: var(--player-content-left);
   padding-right: var(--player-content-right);
 }
+
+/* Continuous keyboard scrubbing writes only transforms at display cadence. */
+[data-slot="media-player-keyboard-range"],
+[data-slot="media-player-keyboard-thumb"] { display: none; }
+[data-keyboard-scrubbing] [data-slot="media-player-keyboard-range"],
+[data-keyboard-scrubbing] [data-slot="media-player-keyboard-thumb"] { display: block; }
+[data-keyboard-scrubbing] [data-slot="media-player-seek-range"],
+[data-keyboard-scrubbing] [data-slot="media-player-seek-thumb"] { opacity: 0 !important; }
+[data-keyboard-scrubbing]:has(:focus-visible) [data-slot="media-player-keyboard-thumb"] {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

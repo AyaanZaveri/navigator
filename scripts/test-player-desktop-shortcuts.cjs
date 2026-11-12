@@ -2,14 +2,15 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-const { hooks } = require('./test-support/react-hooks.cjs');
+const { hooks, load } = require('./test-support/react-hooks.cjs');
+const { createKeyboardScrubber } = load('lib/media/keyboard-scrubbing.ts', {}, { performance });
 const source = process.argv.includes('--baseline')
   ? require('node:child_process').execFileSync('git', ['show', 'HEAD:components/ui/media-player.tsx'], { encoding: 'utf8' })
   : fs.readFileSync('components/ui/media-player.tsx', 'utf8');
 const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const implementation = parsed.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'MediaPlayerRootImpl');
 
-function mount({ native = true, autoFocus = true } = {}) {
+function mount({ native = true, autoFocus = true, scrubClock } = {}) {
   const host = hooks(), listeners = new Map(), sent = [], timers = new Map();
   let timerId = 0;
   class Element {
@@ -36,10 +37,14 @@ function mount({ native = true, autoFocus = true } = {}) {
   const store = { setState(key, value) { state[key] = value; }, getState: () => state };
   const actions = Object.fromEntries(['SEEK', 'VOLUME', 'MUTE', 'UNMUTE', 'PLAY', 'PAUSE'].map(key => [`MEDIA_${key}_REQUEST`, key]));
   const context = { exports: {}, document, Element, Node: Element, HTMLVideoElement: Video,
-    React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
+    createKeyboardScrubber: options => createKeyboardScrubber(options, scrubClock), React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs, useMediaFullscreenRef: () => null,
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),
-    useDirection: () => 'ltr', useMediaDispatch: () => action => sent.push(action),
+    useDirection: () => 'ltr', useMediaDispatch: () => action => {
+      sent.push(action);
+      // Media Chrome applies seek requests to the media element synchronously.
+      if (action.type === actions.MEDIA_SEEK_REQUEST) media.currentTime = action.detail;
+    },
     useStoreContext: () => store, useStoreSelector: selector => selector(state),
     useMediaSelector: selector => selector({ mediaPaused: false }), desktopBridge: () => native ? { platform: 'windows' } : null,
     setMacOSWindowControlsVisible() {}, playerControlsActive: () => false,
@@ -50,7 +55,7 @@ function mount({ native = true, autoFocus = true } = {}) {
   vm.runInNewContext(ts.transpileModule(`${implementation.getText(parsed)}\nexports.Root = MediaPlayerRootImpl;`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, jsxImportSource: 'test' },
   }).outputText.replace(/require\("test\/jsx-runtime"\)/g, '({ jsx, jsxs })'), context);
-  const tree = host.render(context.exports.Root, { autoFocus, autoHide: true });
+  let tree = host.render(context.exports.Root, { autoFocus, autoHide: true });
   tree.props.children.props.ref(root);
   tree.props.value.mediaRef.current = media;
   host.flush();
@@ -60,13 +65,24 @@ function mount({ native = true, autoFocus = true } = {}) {
     const event = { key, target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...extra };
     if (target === root) tree.props.children.props.onKeyDown(event);
     for (const listener of listeners.get('keydown') ?? []) listener(event);
+    if (!extra.hold) release(key);
     return event;
   }
-  return { key, sent, state, root, Element, document, listeners, unmount: host.unmount };
+  function release(key) { for (const listener of listeners.get('keyup') ?? []) listener({ key }); }
+  return { key, release, sent, state, root, media, Element, document, listeners, unmount: host.unmount,
+    rerender() { tree = host.render(context.exports.Root, { autoFocus, autoHide: true }); host.flush(); return tree.props.value.keyboardScrubber; },
+    get scrubber() { return tree.props.value.keyboardScrubber; } };
 }
 const p = mount();
 p.key('ArrowRight');
 assert.equal(p.sent.at(-1)?.detail, 35, 'Desktop seeks without a prior click on the player');
+for (const target of [40, 45, 50]) {
+  p.key('ArrowRight');
+  assert.equal(p.sent.at(-1)?.detail, target, 'Repeated arrows must accumulate immediately without a trailing throttle');
+}
+p.media.currentTime = 80;
+p.key('ArrowRight'); assert.equal(p.sent.at(-1).detail, 85, 'Read the live media time after a pointer scrub');
+p.key('ArrowLeft'); assert.equal(p.sent.at(-1).detail, 80, 'Direction reversal must not leave a delayed forward seek');
 assert.equal(p.state.controlsVisible, true, 'Seeking may reveal transport controls');
 p.state.controlsVisible = false;
 p.key('ArrowUp');
@@ -102,3 +118,29 @@ for (const options of [{ native: false }, { autoFocus: false }]) {
   embedded.unmount();
 }
 console.log('PASS: desktop app-focused shortcuts, interactive UI exclusions, quiet volume feedback, exactly-once handling and cleanup.');
+let now = 0, id = 0;
+const scrubTimers = new Map(), frames = new Map();
+const hold = mount({ scrubClock: {
+  now: () => now, set(fn, ms) { scrubTimers.set(++id, { fn, at: now + ms }); return id; }, clear(id) { scrubTimers.delete(id); },
+  frame(fn) { frames.set(++id, fn); return id; }, cancelFrame(id) { frames.delete(id); },
+} });
+function advance(ms) {
+  now += ms;
+  for (const [key, timer] of [...scrubTimers]) if (timer.at <= now) { scrubTimers.delete(key); timer.fn(); }
+  const work = [...frames]; frames.clear(); work.forEach(([, fn]) => fn());
+}
+hold.key('ArrowRight', undefined, { hold: true }); advance(300);
+assert.equal(hold.state.seekMode, 'keyboard');
+const controller = hold.scrubber;
+assert.equal(hold.rerender(), controller, 'Store updates and Media Chrome dispatch callback changes must not replace the active scrubber');
+advance(100);
+assert.equal(hold.state.seekPreviewTime, 37);
+assert.equal(hold.sent.filter(action => action.type === 'SEEK').length, 1, 'A hold previews without seeking every frame');
+hold.release('ArrowRight');
+assert.equal(hold.sent.filter(action => action.type === 'SEEK').at(-1).detail, 37);
+assert.equal(hold.sent.at(-1).type, 'PLAY');
+assert.equal(hold.state.seekMode, null);
+hold.unmount(); assert.equal(frames.size + scrubTimers.size, 0);
+console.log('PASS: mounted player hold lifecycle survives React updates and commits once on global key release.');
+require('./test-keyboard-seeking.cjs');
+require('./test-keyboard-scrubbing.cjs');
