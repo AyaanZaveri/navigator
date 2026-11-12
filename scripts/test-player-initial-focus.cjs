@@ -55,7 +55,7 @@ const player = mount({ autoFocus: true });
 assert.equal(player.document.activeElement, player.root, 'Opening the player focuses it before the video loads');
 player.render({ autoFocus: true }, true);
 player.key('ArrowRight');
-assert.equal(player.dispatched.at(-1)?.detail, 35, 'ArrowRight seeks immediately without a click');
+assert.equal(player.dispatched.at(-1)?.detail, 40, 'ArrowRight seeks immediately without a click');
 const input = {};
 player.document.activeElement = input;
 player.render({ autoFocus: true }, true);

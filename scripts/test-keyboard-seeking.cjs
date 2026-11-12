@@ -10,7 +10,7 @@ const media = { currentTime: 8 };
 const state = { seekMode: null, menuOpen: false, dragging: false, seekPreviewTime: null };
 const mediaState = { mediaCurrentTime: 8, mediaSeekable: [0, 120] };
 const context = { exports: {}, React: h.react, jsx: h.jsx.jsx, jsxs: h.jsx.jsxs,
-    SEEK_NAME: 'Seek', SEEK_STEP_SHORT: 5, SEEK_STEP_LONG: 10,
+    SEEK_NAME: 'Seek', KEYBOARD_SEEK_STEP: 10, SEEK_STEP_LONG: 10,
     SEEK_COLLISION_PADDING: 10, SEEK_TOOLTIP_WIDTH_FALLBACK: 240, SEEK_HOVER_PERCENT: '--hover', SEEK_TOOLTIP_X: '--x', SEEK_TOOLTIP_Y: '--y',
     useMediaPlayerContext: () => ({ mediaRef: { current: media }, rootRef: { current: null }, chapters: [], keyboardScrubber: context.keyboardInstance }),
     useStoreContext: () => ({ getState: () => state, setState(key, value) { state[key] = value; } }),
@@ -32,13 +32,13 @@ function key(name, extra = {}) {
     bar.props.onKeyDown(event);
     return event;
 }
-for (const time of [13, 18, 23]) {
+for (const time of [18, 28, 38]) {
     assert.equal(key('ArrowRight').defaultPrevented, true, 'Prevent the slider and parent from also seeking');
-    assert.equal(media.currentTime, time, 'Held arrows advance by five seconds even before React rerenders');
+    assert.equal(media.currentTime, time, 'Held arrows advance by ten seconds even before React rerenders');
 }
 bar.props.onValueCommit([80]);
 assert.equal(key('ArrowRight').defaultPrevented, true);
-assert.equal(media.currentTime, 85, 'After clicking the scrubber, seek from the new position rather than its stale render');
+assert.equal(media.currentTime, 90, 'After clicking the scrubber, seek from the new position rather than its stale render');
 key('ArrowLeft'); assert.equal(media.currentTime, 80);
 media.currentTime = 119; key('ArrowRight'); assert.equal(media.currentTime, 120);
 media.currentTime = 2; key('ArrowLeft'); assert.equal(media.currentTime, 0);
@@ -72,9 +72,9 @@ visualHost.flush();
 context.keyboardInstance.press('arrowright'); now = 300; begin();
 const measuredAtStart = measurements, rendersAtStart = visualHost.updates;
 now = 350; frame();
-assert.equal(fill.props.ref.current.style.transform, `scaleX(${15 / 120})`);
+assert.ok(Math.abs(Number(/scaleX\((.*)\)/.exec(fill.props.ref.current.style.transform)[1]) - 21.0375 / 120) < 1e-12);
 now = 400; frame();
-assert.equal(fill.props.ref.current.style.transform, `scaleX(${17 / 120})`);
+assert.ok(Math.abs(Number(/scaleX\((.*)\)/.exec(fill.props.ref.current.style.transform)[1]) - 24.15 / 120) < 1e-12);
 assert.equal(measurements, measuredAtStart, 'Display frames must not measure layout');
 assert.equal(visualHost.updates, rendersAtStart, 'Display frames must not schedule React state updates');
 context.keyboardInstance.release('arrowright');
@@ -101,4 +101,4 @@ for (const platform of ['macos', 'windows', 'android', 'ios']) {
     assert.equal(controller.currentTime, 86, `${platform}: live playback resumes after acknowledgement`);
     controller.dispose();
 }
-console.log('PASS: focused timeline five-second keys, repeat accumulation, scrub then seek, bounds, keyboard ownership and native pending seek acknowledgement.');
+console.log('PASS: focused timeline ten-second keys, repeat accumulation, scrub then seek, bounds, keyboard ownership and native pending seek acknowledgement.');

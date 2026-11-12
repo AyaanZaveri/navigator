@@ -60,7 +60,7 @@ import type { SkipSegment } from "@/lib/media/skip-segments";
 import { SeekPreview } from "@/components/seek-preview";
 import { PreviewImage } from "@/components/preview-image";
 import { attachTouchScrubbing } from "@/lib/media/touch-scrubbing";
-import { createKeyboardScrubber } from "@/lib/media/keyboard-scrubbing";
+import { createKeyboardScrubber, KEYBOARD_SEEK_STEP } from "@/lib/media/keyboard-scrubbing";
 import { playerControlSelector, playerControlsActive } from "@/lib/media/control-activity";
 
 const ROOT_NAME = "MediaPlayer";
@@ -72,7 +72,6 @@ const PLAYBACK_SPEED_NAME = "MediaPlayerPlaybackSpeed";
 const FLOATING_MENU_SIDE_OFFSET = 10;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-const SEEK_STEP_SHORT = 5;
 const SEEK_STEP_LONG = 10;
 const SEEK_COLLISION_PADDING = 10;
 const SEEK_TOOLTIP_WIDTH_FALLBACK = 240;
@@ -1516,7 +1515,7 @@ interface MediaPlayerSeekBackwardProps
 
 function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
   const {
-    seconds = SEEK_STEP_SHORT,
+    seconds = KEYBOARD_SEEK_STEP,
     asChild,
     children,
     className,
@@ -1577,7 +1576,7 @@ interface MediaPlayerSeekForwardProps
 
 function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
   const {
-    seconds = SEEK_STEP_LONG,
+    seconds = KEYBOARD_SEEK_STEP,
     asChild,
     children,
     className,
@@ -2464,7 +2463,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1
             : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0;
           if (!direction) return;
-          // Pointer precision is 0.01s. Keyboard transport uses five seconds,
+          // Pointer precision is 0.01s. Keyboard transport uses ten seconds,
           // even when the thumb still owns focus after a pointer seek.
           event.preventDefault();
           if (context.keyboardScrubber) {
@@ -2473,7 +2472,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           }
           const current = context.mediaRef.current?.currentTime ?? displayValue;
           if (!Number.isFinite(current) || seekableEnd <= seekableStart) return;
-          const time = Math.min(seekableEnd, Math.max(seekableStart, current + direction * SEEK_STEP_SHORT));
+          const time = Math.min(seekableEnd, Math.max(seekableStart, current + direction * KEYBOARD_SEEK_STEP));
           onSeekCommit([time]);
         }}
         onValueChange={onSeek}

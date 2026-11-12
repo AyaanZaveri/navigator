@@ -75,13 +75,13 @@ function mount({ native = true, autoFocus = true, scrubClock } = {}) {
 }
 const p = mount();
 p.key('ArrowRight');
-assert.equal(p.sent.at(-1)?.detail, 35, 'Desktop seeks without a prior click on the player');
-for (const target of [40, 45, 50]) {
+assert.equal(p.sent.at(-1)?.detail, 40, 'Desktop seeks without a prior click on the player');
+for (const target of [50, 60, 70]) {
   p.key('ArrowRight');
   assert.equal(p.sent.at(-1)?.detail, target, 'Repeated arrows must accumulate immediately without a trailing throttle');
 }
 p.media.currentTime = 80;
-p.key('ArrowRight'); assert.equal(p.sent.at(-1).detail, 85, 'Read the live media time after a pointer scrub');
+p.key('ArrowRight'); assert.equal(p.sent.at(-1).detail, 90, 'Read the live media time after a pointer scrub');
 p.key('ArrowLeft'); assert.equal(p.sent.at(-1).detail, 80, 'Direction reversal must not leave a delayed forward seek');
 assert.equal(p.state.controlsVisible, true, 'Seeking may reveal transport controls');
 p.state.controlsVisible = false;
@@ -134,11 +134,18 @@ assert.equal(hold.state.seekMode, 'keyboard');
 const controller = hold.scrubber;
 assert.equal(hold.rerender(), controller, 'Store updates and Media Chrome dispatch callback changes must not replace the active scrubber');
 advance(100);
-assert.equal(hold.state.seekPreviewTime, 39);
+assert.ok(Math.abs(hold.state.seekPreviewTime - 46.15) < 1e-9);
 assert.equal(hold.sent.filter(action => action.type === 'SEEK').length, 1, 'A hold previews without seeking every frame');
 hold.release('ArrowRight');
-assert.equal(hold.sent.filter(action => action.type === 'SEEK').at(-1).detail, 39);
+assert.ok(Math.abs(hold.sent.filter(action => action.type === 'SEEK').at(-1).detail - 46.15) < 1e-9);
 assert.equal(hold.sent.at(-1).type, 'PLAY');
+assert.equal(hold.state.seekMode, null);
+hold.key('ArrowRight', undefined, { hold: true }); advance(300);
+const seeksBeforeHide = hold.sent.filter(action => action.type === 'SEEK').length;
+hold.document.hidden = true;
+for (const listener of hold.listeners.get('visibilitychange') ?? []) listener();
+advance(10000); hold.release('ArrowRight');
+assert.equal(hold.sent.filter(action => action.type === 'SEEK').length, seeksBeforeHide, 'Backgrounding cancels the hold without a late elapsed-time seek');
 assert.equal(hold.state.seekMode, null);
 hold.unmount(); assert.equal(frames.size + scrubTimers.size, 0);
 console.log('PASS: mounted player hold lifecycle survives React updates and commits once on global key release.');
