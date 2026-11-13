@@ -53,6 +53,15 @@
 }
 
 .skipLink:focus-visible {
-    outline: auto;
-    outline-offset: 2px;
+    outline: var(--keyboard-focus-width) solid var(--ring);
+    outline-offset: 0;
+    box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
+}
+
+/* The page viewport can meet the window edge, so keep its indicator inside. */
+.viewport[tabindex]:focus-visible {
+    --keyboard-focus-offset: -2px;
+    outline: var(--keyboard-focus-width) solid var(--ring);
+    outline-offset: calc(-1 * var(--keyboard-focus-width));
+    box-shadow: inset 0 0 0 calc(var(--keyboard-focus-width) + var(--keyboard-focus-halo-width)) var(--focus-halo);
 }

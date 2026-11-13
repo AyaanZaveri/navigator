@@ -88,8 +88,9 @@
 }
 
 .playButton:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
+  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -179,10 +180,29 @@
   transform: translateZ(0);
 }
 
-/* Keep the browser's platform focus indicator inside the clipped artwork. */
-.artworkLink:focus-visible {
-  outline: auto;
-  outline-offset: -3px;
+/* Paint focus above the hover scrim, inside the frame's clipping boundary. */
+.frame > .artworkLink:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.frame:has(> .artworkLink:focus-visible)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  border: var(--keyboard-focus-width) solid var(--ring);
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
+}
+
+@media (forced-colors: active) {
+  .frame > .artworkLink:focus-visible { outline: none !important; }
+  .frame:has(> .artworkLink:focus-visible)::after {
+    border-color: Highlight;
+    box-shadow: none;
+  }
 }
 
 .detailsLink {
@@ -191,6 +211,7 @@
 }
 
 .detailsLink:focus-visible {
-  outline: auto;
-  outline-offset: 2px;
+  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
 }

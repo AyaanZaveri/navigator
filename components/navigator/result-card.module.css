@@ -26,6 +26,9 @@
     transform 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 .interactive:focus-visible {
+  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
   background: var(--muted);
   transition: none;
 }
