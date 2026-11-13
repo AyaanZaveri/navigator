@@ -23,11 +23,12 @@ export function HomeGradientBackground({ dotOpacity = 0.85, visible = true, emer
     const scene = useHomePaletteScene();
     const snapshot = useSyncExternalStore(scene?.subscribe ?? subscribe, scene?.getSnapshot ?? getEmpty, getEmpty);
     const colors = homePalette(emerald ? null : snapshot.colors, light);
+    const intensity = emerald ? 0.7 : 1;
 
     if (isPlayerVisible) return null;
 
     return (
-        <div aria-hidden="true" hidden={!visible} data-home-gradient="" className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>
+        <div aria-hidden="true" hidden={!visible} data-home-gradient="" data-subdued={emerald || undefined} className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>
             {/* CSS supplies both themes before hydration and during GPU loss. */}
             {hydrated && (
                 <div className={`${styles.animation} absolute inset-0`}>
@@ -43,8 +44,8 @@ export function HomeGradientBackground({ dotOpacity = 0.85, visible = true, emer
                         flicker={0.05}
                         mouseInteraction={false}
                         clickEffect="none"
-                        gradientOpacity={light ? 0.18 : 0.4}
-                        glyphOpacity={dotOpacity}
+                        gradientOpacity={(light ? 0.18 : 0.4) * intensity}
+                        glyphOpacity={dotOpacity * intensity}
                         glow={light ? 0 : 0.2}
                         grain={light ? 0 : 0.08}
                         lightMode={light}

@@ -193,5 +193,16 @@ assert.equal(renderToStaticMarkup(React.createElement(homeModule.exports.HomeGra
 playerVisible = false;
 assert.ok(renderToStaticMarkup(React.createElement(homeModule.exports.HomeGradientBackground)).includes('home-gradient-background'), 'Closing playback must restore the gradient');
 console.log('PASS: playback removes the gradient; closing playback restores it');
+for (const theme of ['light', 'dark']) {
+  resolvedTheme = theme;
+  const normal = renderToStaticMarkup(React.createElement(homeModule.exports.HomeGradientBackground));
+  const subdued = renderToStaticMarkup(React.createElement(homeModule.exports.HomeGradientBackground, { emerald: true }));
+  for (const name of ['glyph', 'gradient']) {
+    const read = html => Number(html.match(new RegExp(`data-${name}-opacity="([^"]+)"`))[1]);
+    assert.ok(Math.abs(read(subdued) - read(normal) * 0.7) < 1e-9, `${theme}: utility pages reduce ${name} opacity by 30%`);
+  }
+}
+console.log('PASS: subdued settings/addon shader opacity in both themes preserves the home defaults');
+
 removeListeners();
 assert.equal(listeners.size, 0, 'All context listeners are removed');

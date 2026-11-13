@@ -35,6 +35,7 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   assert.equal(headers.length, 1, `${path}: one persistent header`);
   assert.equal(mains.length, 1, `${path}: one page scrollport`);
   const gradients = find(mains[0], node => node.type === 'HomeGradientBackground');
+  assert.equal(gradients[0].props.emerald, /^\/(settings|addons)(?:\/|$)/.test(path), 'Only Settings and Addons use the subdued emerald treatment');
   assert.equal(gradients.length, 1, `${path}: keep one layout-owned gradient mounted`);
   assert.equal(gradients[0].props.visible, path === '/' || /^\/(search|settings|addons)(?:\/|$)/.test(path), `${path}: show dots only on catalog surfaces`);
   assert.equal(mains[0].props.tabIndex, -1, 'The skip target is programmatically focusable without an extra tab stop');
