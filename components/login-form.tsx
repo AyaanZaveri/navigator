@@ -111,7 +111,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
     return (
         <div className="flex flex-col gap-4">
-            <Button type="button" variant="outline" size="lg" className="w-full justify-center gap-2 bg-transparent" disabled={busy} onClick={signInWithStremio}>
+            <Button type="button" variant="outline" size="sm" className="h-10 w-full justify-center gap-2 bg-transparent" disabled={busy} onClick={signInWithStremio}>
                 {linking ? <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                     // Official asset: github.com/Stremio/stremio-brand
                     // eslint-disable-next-line @next/next/no-img-element
@@ -133,20 +133,20 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
             <form className="flex flex-col gap-3" onSubmit={submit} aria-busy={busy}>
                 <div className="flex flex-col gap-2.5">
                     <Label htmlFor={`${id}-email`}>Email</Label>
-                    <Input id={`${id}-email`} type="email" autoComplete="username" required maxLength={320}
+                    <Input id={`${id}-email`} className="h-10" type="email" autoComplete="username" required maxLength={320}
                         value={email} disabled={busy} placeholder="you@example.com"
                         aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
                         onChange={event => { setEmail(event.target.value); setError(""); }} />
                 </div>
                 <div className="flex flex-col gap-2.5">
                     <Label htmlFor={`${id}-password`}>Password</Label>
-                    <Input id={`${id}-password`} type="password" autoComplete="current-password" required maxLength={4096}
+                    <Input id={`${id}-password`} className="h-10" type="password" autoComplete="current-password" required maxLength={4096}
                         value={password} disabled={busy} placeholder="Password"
                         aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
                         onChange={event => { setPassword(event.target.value); setError(""); }} />
                 </div>
                 {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" size="lg" className="w-full justify-center gap-2" disabled={busy}>
+                <Button type="submit" size="sm" className="h-10 w-full justify-center gap-2" disabled={busy}>
                     {submitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
                     Sign in
                 </Button>
