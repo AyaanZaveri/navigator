@@ -19,7 +19,7 @@ The initial bootstrap build must be installed manually. Previously installed ver
 
 ## Publishing a Windows update
 
-1. Build **only on the Zenbook** over the existing `ssh navigator-windows` connection. Use a clean release snapshot and the ordinary `desktop:package` process. Never build Windows in GitHub Actions or Blacksmith.
+1. Build from a clean release snapshot with the approved [manual desktop Actions workflow](desktop-actions-builds.md), or build locally on the Zenbook over `ssh navigator-windows`. The manual workflow uses standard GitHub-hosted runners. Keep the official update-signing key on the Zenbook, never in Actions or a fork.
 2. To generate the appcast during packaging, set both `NAVIGATOR_UPDATE_SIGNING_KEY` (private PEM path on the build computer) and `NAVIGATOR_RELEASE_TAG` (the final GitHub release tag). The protected key initialized for this project is at `%USERPROFILE%\.navigator-signing\windows-ed25519.pem` on the Zenbook. Back it up securely; losing it breaks the existing clients' trust chain.
 3. Alternatively, after packaging, run:
 
