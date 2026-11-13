@@ -4,12 +4,12 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.5.6</title>
+      <title>Navigator 0.5.7</title>
       <description>Update Navigator, then reopen it with your existing sign-in and settings.</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.6/Navigator-0.5.6-macos-arm64.zip"
-        sparkle:version="0.5.6" sparkle:shortVersionString="0.5.6"
-        sparkle:edSignature="Ve8s9msF+pofabYeB2s6IeomrTLK5+SH0kgxhyFaPxvJhkysHgrJLhVAhwrYySBMPaOEuBXuJp6nn/NzaoSaDw==" length="93580210" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.7/Navigator-0.5.7-macos-arm64.zip"
+        sparkle:version="0.5.7" sparkle:shortVersionString="0.5.7"
+        sparkle:edSignature="BxNd+GkCV3OqvMzmS3WvCKMjJxjRFISwdrmjF70lbQRcWRBFLVLAp6TGGOwmzh+5hryRDigNmjBiMZlA4h1CBQ==" length="93579482" type="application/octet-stream" />
     </item>
   </channel>
 </rss>
