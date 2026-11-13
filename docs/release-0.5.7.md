@@ -26,4 +26,4 @@ This build uses an ad hoc signature and is not notarized by Apple. macOS may req
 
 ### Checks completed
 
-First and later Navigator opens, fullscreen keyboard shortcuts, player controls, desktop adapters and Navigator regression checks passed. TypeScript passed.
+First and later Navigator opens, fullscreen keyboard shortcuts, player controls, desktop adapters and Navigator regression checks passed. TypeScript, frontend and native production builds, packaged version metadata, archive integrity, checksums and signed update files were verified on both platforms.
