@@ -177,20 +177,24 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
 [data-slot="media-player-seek-track"],
 [data-slot="media-player-seek-buffered"],
 [data-slot="media-player-seek-range"],
+[data-slot="media-player-keyboard-range"],
 [data-slot="media-player-seek-hover-range"] {
-  clip-path: inset(1.5px 0 round 9999px);
+  clip-path: inset(1.5px var(--keyboard-seek-inset, 0%) 1.5px 0 round 9999px);
   transition: clip-path 100ms var(--ease-out);
 }
 [data-scrub-mode="keyboard"] [data-slot="media-player-seek-track"],
 [data-scrub-mode="keyboard"] [data-slot="media-player-seek-buffered"],
 [data-scrub-mode="keyboard"] [data-slot="media-player-seek-range"],
+[data-scrub-mode="keyboard"] [data-slot="media-player-keyboard-range"],
 [data-scrub-mode="keyboard"] [data-slot="media-player-seek-hover-range"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-track"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-buffered"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-range"],
+[data-scrub-mode="bar"] [data-slot="media-player-keyboard-range"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-hover-range"] {
-  clip-path: inset(0 round 9999px);
+  clip-path: inset(0 var(--keyboard-seek-inset, 0%) 0 0 round 9999px);
 }
+[data-slot="media-player-keyboard-range"] { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   [data-slot="media-player-seek-track"],
   [data-slot="media-player-seek-track"] > * { transition: none; }
@@ -257,7 +261,7 @@ html[data-native-platform="windows"] [data-player-shell] [data-slot="media-playe
   padding-right: var(--player-content-right);
 }
 
-/* Continuous keyboard scrubbing writes only transforms at display cadence. */
+/* Continuous keyboard scrubbing clips a pill without scaling its end caps. */
 [data-slot="media-player-keyboard-range"] { display: none; }
 [data-keyboard-scrubbing] [data-slot="media-player-keyboard-range"] { display: block; }
 [data-keyboard-scrubbing] [data-slot="media-player-seek-range"],

@@ -1983,7 +1983,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       if (position === null) { restore(); return; }
       if (!timeline.hasAttribute("data-keyboard-scrubbing")) measure();
       const fraction = Math.max(0, Math.min(1, (position - seekableStart) / (seekableEnd - seekableStart)));
-      if (keyboardRangeRef.current) keyboardRangeRef.current.style.transform = `scaleX(${fraction})`;
+      if (keyboardRangeRef.current) keyboardRangeRef.current.style.setProperty("--keyboard-seek-inset", `${(1 - fraction) * 100}%`);
       const tooltip = tooltipRef.current;
       if (tooltip) {
         restoreTooltip ??= { left: tooltip.style.left, transform: tooltip.style.transform };
@@ -2491,7 +2491,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
             }}
           />
           <SliderPrimitive.Range data-slot="media-player-seek-range" className="absolute h-full rounded-full bg-white will-change-[width]" />
-          <span ref={keyboardRangeRef} aria-hidden="true" data-slot="media-player-keyboard-range" className="pointer-events-none absolute inset-0 origin-left rounded-full bg-white" />
+          <span ref={keyboardRangeRef} aria-hidden="true" data-slot="media-player-keyboard-range" className="pointer-events-none absolute inset-0 rounded-full bg-white" />
           {seekState.isHovering && seekableEnd > 0 && (
             <div
               data-slot="media-player-seek-hover-range"
