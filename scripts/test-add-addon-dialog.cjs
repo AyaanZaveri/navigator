@@ -5,8 +5,11 @@ const nodes = node => !node || typeof node !== 'object' ? [] : [node, ...[node.p
 
 async function main() {
     const h = hooks();
+    const mediaQuery = new EventTarget();
+    mediaQuery.matches = false;
     const timers = new Map();
     const lookups = [];
+    const palettes = [];
     let timerId = 0;
     let installs = 0;
     const components = names => Object.fromEntries(names.map(name => [name, name]));
@@ -21,17 +24,21 @@ async function main() {
             previewAddon: link => new Promise(resolve => lookups.push({ link, resolve })),
             installAddon: async () => { installs++; return { error: null }; },
         },
+        '@/components/account-ui/drawer': components(['Drawer', 'DrawerContent', 'DrawerDescription', 'DrawerHeader', 'DrawerTitle']),
         '@/components/account-ui/dialog': components(['Dialog', 'DialogContent', 'DialogDescription', 'DialogHeader', 'DialogTitle']),
         '@/components/ui/button': components(['Button']),
         '@/components/ui/input-group': components(['InputGroup', 'InputGroupInput', 'InputGroupAddon']),
         '@/components/ui/field': components(['Field', 'FieldDescription', 'FieldError', 'FieldGroup', 'FieldLabel']),
         '@/components/ui/avatar': components(['Avatar', 'AvatarFallback', 'AvatarImage']),
         '@/components/ui/badge': components(['Badge']),
-        '@/lib/addons': { ADDON_CAPABILITIES: [] },
+        '@/lib/addons': load('lib/addons.ts', {}),
+        '@/lib/aurora-palette-loader': { loadHomePalette: source => new Promise(resolve => palettes.push({ source, resolve })) },
         '@/components/account-ui/surface.module.css': { surface: 'surface' },
         './browse-addon-link.module.css': { link: 'browse-link', arrow: 'browse-arrow' },
+        './addon-preview.module.css': { card: 'preview-card', artwork: 'preview-artwork' },
     }, {
         URL,
+        window: { matchMedia: query => { assert.equal(query, "(max-width: 639px)"); return mediaQuery; } },
         setTimeout: (work, delay) => { assert.equal(delay, 600); timers.set(++timerId, work); return timerId; },
         clearTimeout: id => timers.delete(id),
     });
@@ -39,7 +46,7 @@ async function main() {
     const find = type => nodes(render()).find(node => node.type === type);
     const change = value => { find('InputGroupInput').props.onChange({ target: { value } }); render(); };
     const runTimers = () => { const work = [...timers.values()]; timers.clear(); work.forEach(run => run()); };
-    const result = (name, logo) => ({ addon: { id: name, name, logo, version: '1', capabilities: [] }, configureUrl: null, configurationRequired: false, error: null });
+    const result = (name, logo) => ({ addon: { id: name, name, logo, version: '1', capabilities: [], types: [] }, configureUrl: null, configurationRequired: false, error: null });
 
     find('Button').props.onClick(); render();
     assert.ok(find('Link2'), 'The empty input uses the link icon');
@@ -53,12 +60,19 @@ async function main() {
     assert.equal(lookups.length, 1);
     assert.equal(lookups[0].link, 'https://example.com/config/manifest.json');
     assert.ok(find('Loader2'), 'Loading has visible feedback');
+    assert.ok(find('Link2'), 'The input retains its link icon during loading');
+    assert.equal(nodes(render()).find(node => node.type === 'Button' && node.props.type === 'submit').props['aria-busy'], true);
     change('stremio://example.com/new/manifest.json');
     runTimers(); render();
     lookups[0].resolve(result('Old addon', 'https://example.com/old.png')); await tick();
     assert.equal(find('AvatarImage'), undefined, 'An older lookup cannot show the wrong addon icon');
     lookups[1].resolve(result('New addon', 'https://example.com/new.png')); await tick();
     assert.equal(find('AvatarImage').props.src, 'https://example.com/new.png');
+    assert.equal(nodes(render()).filter(node => node.type === 'AvatarImage').length, 1, 'The logo appears only in the preview');
+    assert.ok(find('Link2'), 'The reviewed input retains its link icon');
+    assert.equal(palettes[0].source, 'https://example.com/new.png');
+    palettes[0].resolve(['#8855aa']); await tick();
+    assert.equal(find('section').props.style['--addon-color'], '#8855aa', 'The preview uses the logo dominant color');
     assert.equal(installs, 0, 'Automatic review never installs an addon');
     assert.ok(nodes(render()).some(node => node.type === 'a' && node.props.href === 'https://stremio-addons.net/'));
 
@@ -74,6 +88,20 @@ async function main() {
     assert.equal(lookups.length, 4, 'Manual review supersedes the pending automatic lookup');
     lookups[3].resolve(result('Manual addon')); await tick();
     assert.ok(find('Puzzle'), 'An addon without a logo gets a stable fallback icon');
+    assert.equal(find('section').props.style, undefined, 'An addon without artwork cannot inherit the previous logo color');
+    mediaQuery.matches = true;
+    mediaQuery.dispatchEvent(new Event('change'));
+    assert.equal(find('Dialog'), undefined, 'Mobile replaces the dialog with a drawer');
+    assert.equal(find('Drawer').props.open, true, 'Changing presentation keeps the drawer open');
+    assert.equal(find('Drawer').props.showSwipeHandle, true);
+    assert.ok(find('DrawerContent').props.className.includes('[--drawer-inset:0.5rem] after:hidden'), 'Drawer matches the sign-in inset');
+    assert.equal(find('DrawerHeader').props.className, 'p-6 pb-0');
+    assert.equal(find('InputGroupInput').props.value, 'https://example.com/manual/manifest.json', 'Changing presentation preserves the link');
+    find('Drawer').props.onOpenChange(false); render();
+    assert.equal(find('InputGroupInput').props.value, '', 'Drawer dismissal resets addon state');
+    mediaQuery.matches = false;
+    mediaQuery.dispatchEvent(new Event('change'));
+    assert.ok(find('Dialog'), 'Desktop retains the dialog');
     h.unmount();
     console.log('PASS: debounced addon lookup, icon loading/fallback, stale result protection, cancel, directory link, and explicit install boundary');
 }

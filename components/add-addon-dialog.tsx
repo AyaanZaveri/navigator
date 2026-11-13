@@ -1,21 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition, type CSSProperties, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ArrowUpRight, ExternalLink, Link2, Loader2, Plus, Puzzle } from "lucide-react";
 import { toast } from "sonner";
 import { installAddon, previewAddon } from "@/app/actions/addons";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/account-ui/dialog";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/account-ui/drawer";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ADDON_CAPABILITIES } from "@/lib/addons";
+import { loadHomePalette } from "@/lib/aurora-palette-loader";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import surface from "@/components/account-ui/surface.module.css";
 import browseLink from "./browse-addon-link.module.css";
+import previewStyle from "./addon-preview.module.css";
 
 type Preview = NonNullable<Awaited<ReturnType<typeof previewAddon>>["addon"]>;
 
@@ -28,6 +31,14 @@ function isManifestLink(value: string) {
 
 export function AddAddonDialog() {
     const router = useRouter();
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const query = window.matchMedia("(max-width: 639px)");
+        const update = () => setIsMobile(query.matches);
+        update();
+        query.addEventListener("change", update);
+        return () => query.removeEventListener("change", update);
+    }, []);
     const queries = useStreamQueries();
     const id = useId();
     const trigger = useRef<HTMLButtonElement>(null);
@@ -41,6 +52,17 @@ export function AddAddonDialog() {
     const [error, setError] = useState<string | null>(null);
     const [pending, startTransition] = useTransition();
     const [lookupPending, setLookupPending] = useState(false);
+    const [logoPalette, setLogoPalette] = useState<{ source: string; color: string } | null>(null);
+
+    useEffect(() => {
+        const source = preview?.logo;
+        if (!source) return;
+        let cancelled = false;
+        void loadHomePalette(source).then(colors => {
+            if (!cancelled && colors?.[0]) setLogoPalette({ source, color: colors[0] });
+        }).catch(() => { /* Keep the neutral card when artwork cannot be sampled. */ });
+        return () => { cancelled = true; };
+    }, [preview?.logo]);
 
     const review = useCallback(async (value: string, currentRequest: number) => {
         try {
@@ -114,18 +136,28 @@ export function AddAddonDialog() {
         });
     }
 
+    const capabilities = ADDON_CAPABILITIES.filter(item => preview?.capabilities.includes(item.value));
+
+    const Modal = isMobile ? Drawer : Dialog;
+    const ModalContent = isMobile ? DrawerContent : DialogContent;
+    const ModalHeader = isMobile ? DrawerHeader : DialogHeader;
+    const ModalTitle = isMobile ? DrawerTitle : DialogTitle;
+    const ModalDescription = isMobile ? DrawerDescription : DialogDescription;
+
     return (
         <>
             <Button ref={trigger} size="sm" className="rounded-full" disabled={pending} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => changeOpen(true)}>
                 <Plus data-icon="inline-start" aria-hidden="true" />Add addon
             </Button>
-            <Dialog open={open} onOpenChange={changeOpen}>
-                <DialogContent id={`${id}-dialog`} className={`${surface.surface} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-6 p-6 sm:max-w-[480px]`} finalFocus={trigger}>
-                    <DialogHeader className="pr-8">
-                        <DialogTitle>Add addon</DialogTitle>
-                        <DialogDescription className="sr-only">Install an addon from its Stremio link.</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={submit} className="flex min-w-0 flex-col gap-5" aria-busy={pending || lookupPending}>
+            <Modal open={open} onOpenChange={changeOpen} {...(isMobile ? { showSwipeHandle: true } : {})}>
+                <ModalContent id={`${id}-dialog`} className={isMobile
+                    ? `${surface.surface} [--drawer-inset:0.5rem] after:hidden`
+                    : `${surface.surface} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-7 p-6 sm:max-w-[560px]`} finalFocus={trigger}>
+                    <ModalHeader className={isMobile ? "p-6 pb-0" : "pr-8"}>
+                        <ModalTitle>Add addon</ModalTitle>
+                        <ModalDescription className="sr-only">Install an addon from its Stremio link.</ModalDescription>
+                    </ModalHeader>
+                    <form onSubmit={submit} className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6" : ""}`} aria-busy={pending || lookupPending}>
                         <FieldGroup>
                             <Field data-invalid={!!error}>
                                 <FieldLabel htmlFor={`${id}-link`} className="sr-only">Addon link</FieldLabel>
@@ -143,40 +175,34 @@ export function AddAddonDialog() {
                                             setError(null);
                                         }} />
                                     <InputGroupAddon align="inline-start" aria-hidden="true">
-                                        {lookupPending || (pending && !preview) ? (
-                                            <Loader2 className="animate-spin motion-reduce:animate-none" />
-                                        ) : preview ? (
-                                            <Avatar key={preview.logo || preview.id} className="size-4 rounded-sm">
-                                                {preview.logo && <AvatarImage src={preview.logo} alt="" referrerPolicy="no-referrer" className="object-contain" />}
-                                                <AvatarFallback className="rounded-sm"><Puzzle className="size-4" /></AvatarFallback>
-                                            </Avatar>
-                                        ) : <Link2 />}
+                                        <Link2 />
                                     </InputGroupAddon>
                                 </InputGroup>
                                 {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
                             </Field>
                         </FieldGroup>
                         {preview && (
-                            <section aria-label="Addon preview" className="flex min-w-0 flex-col gap-3 rounded-xl border p-4" aria-live="polite">
+                            <section aria-label="Addon preview" className={`${previewStyle.card} flex min-w-0 flex-col gap-4 rounded-xl border p-4`} aria-live="polite"
+                                style={logoPalette && logoPalette.source === preview.logo ? { "--addon-color": logoPalette.color } as CSSProperties : undefined}>
                                 <div className="flex min-w-0 items-center gap-3">
-                                    <Avatar className="size-11 shrink-0 rounded-lg">
-                                        {preview.logo && <AvatarImage src={preview.logo} alt="" className="object-contain" />}
-                                        <AvatarFallback className="rounded-lg">{Array.from(preview.name)[0]}</AvatarFallback>
+                                    <Avatar className="size-10 shrink-0 rounded-[10px]">
+                                        {preview.logo && <AvatarImage src={preview.logo} alt="" referrerPolicy="no-referrer" draggable={false} className="object-contain" />}
+                                        <AvatarFallback className="rounded-[10px] bg-transparent text-muted-foreground"><Puzzle className="size-5" /></AvatarFallback>
                                     </Avatar>
-                                    <div className="min-w-0">
-                                        <h2 className="break-words font-medium">{preview.name}</h2>
-                                        <p className="break-words text-xs text-muted-foreground">Version {preview.version}</p>
+                                    <div className="flex min-w-0 flex-col gap-0.5">
+                                        <h2 className="break-words text-base font-semibold leading-[1.3]">{preview.name}</h2>
+                                        {preview.version && <p className="break-words text-xs leading-[1.4] text-muted-foreground">v{preview.version}</p>}
                                     </div>
                                 </div>
-                                {preview.description && <p className="break-words text-sm text-muted-foreground">{preview.description}</p>}
-                                <div className="flex flex-wrap gap-1.5">
-                                    {ADDON_CAPABILITIES.filter(item => preview.capabilities.includes(item.value)).map(item => (
-                                        <Badge key={item.value} variant="secondary">{item.label}</Badge>
+                                {preview.description && <p className="break-words text-sm leading-[1.5] text-pretty text-muted-foreground">{preview.description}</p>}
+                                {capabilities.length > 0 && <div className="flex flex-wrap gap-1.5">
+                                    {capabilities.map(item => (
+                                        <Badge key={item.value} variant="outline" className="text-xs text-muted-foreground">{item.label}</Badge>
                                     ))}
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    {configurationRequired ? "Configure this addon first, then paste its configured link here." : "This installs the addon on your Stremio account and synced devices."}
-                                </p>
+                                </div>}
+                                {configurationRequired && <p className="text-sm leading-[1.5] text-muted-foreground">
+                                    Configure this addon first, then paste its configured link here.
+                                </p>}
                             </section>
                         )}
                         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -198,16 +224,18 @@ export function AddAddonDialog() {
                                         <a draggable={false} href={configureUrl} target="_blank" rel="noopener noreferrer">Configure addon<ExternalLink data-icon="inline-end" aria-hidden="true" /></a>
                                     </Button>
                                 ) : (
-                                    <Button type="submit" size="sm" disabled={pending || lookupPending || !link.trim() || configurationRequired}>
-                                        {pending && <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />}
-                                        {pending ? (preview ? "Installing…" : "Loading…") : lookupPending ? "Loading…" : (preview ? "Install addon" : "Review addon")}
+                                    <Button type="submit" size="sm" aria-busy={pending || lookupPending} disabled={pending || lookupPending || !link.trim() || configurationRequired}>
+                                        {pending || lookupPending ? <>
+                                            <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                                            <span className={previewStyle.loadingText}>{pending && preview ? "Installing" : "Loading"}</span>
+                                        </> : (preview ? "Install addon" : "Review addon")}
                                     </Button>
                                 )}
                             </div>
                         </div>
                     </form>
-                </DialogContent>
-            </Dialog>
+                </ModalContent>
+            </Modal>
         </>
     );
 }
