@@ -15,13 +15,14 @@ const subscribe = () => () => {};
 const EMPTY: HomePaletteSnapshot = { colors: null, duration: 0 };
 const getEmpty = () => EMPTY;
 
-export function HomeGradientBackground({ dotOpacity = 0.85, visible = true }: { dotOpacity?: number; visible?: boolean }) {
+export function HomeGradientBackground({ dotOpacity = 0.85, visible = true, emerald = false }: { dotOpacity?: number; visible?: boolean; emerald?: boolean }) {
     const { resolvedTheme } = useTheme();
     const light = resolvedTheme !== "dark";
     const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
     const isPlayerVisible = useAtomValue(isPlayerVisibleAtom);
     const scene = useHomePaletteScene();
     const snapshot = useSyncExternalStore(scene?.subscribe ?? subscribe, scene?.getSnapshot ?? getEmpty, getEmpty);
+    const colors = homePalette(emerald ? null : snapshot.colors, light);
 
     if (isPlayerVisible) return null;
 
@@ -31,8 +32,8 @@ export function HomeGradientBackground({ dotOpacity = 0.85, visible = true }: { 
             {hydrated && (
                 <div className={`${styles.animation} absolute inset-0`}>
                     <GradientASCII
-                        colors={homePalette(snapshot.colors, light)}
-                        colorTransitionMs={snapshot.duration}
+                        colors={colors}
+                        colorTransitionMs={emerald ? 650 : snapshot.duration}
                         homeSurface
                         shape="horizon"
                         characters="·•●"
