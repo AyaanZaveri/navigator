@@ -38,7 +38,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test:navigation": "node scripts/test-navigation.mjs",
-    "test:home-accessibility": "node scripts/test-home-accessibility.cjs && node scripts/test-carousel-artwork.cjs && node scripts/test-page-layout.cjs && node scripts/test-home-pagination.cjs",
+    "test:home-accessibility": "node scripts/test-home-accessibility.cjs && node scripts/test-carousel-artwork.cjs && node scripts/test-page-layout.cjs && node scripts/test-home-pagination.cjs && node scripts/test-user-menu-keyboard.cjs",
     "test:home-pagination": "node scripts/test-home-pagination.cjs && node scripts/test-home-row-streaming.cjs",
     "test:gradient": "node scripts/test-gradient-lifecycle.cjs",
     "test:home-palette": "node scripts/test-home-palette.cjs && node scripts/test-home-dominant-colors.cjs && node scripts/test-home-palette-worker.cjs && node scripts/test-home-logo-canvas.cjs",

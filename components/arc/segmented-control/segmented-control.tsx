@@ -49,12 +49,13 @@ export default function SegmentedControl({ options, value, onValueChange, label,
     first.current = false;
   }, [value, reduced]);
 
-  // Arrow keys, Home and End move the selection like a tab list; only the selected option is a tab stop.
+  // This group is horizontal. Leave Up/Down to parent menus and page scrolling.
+  // Left/Right, Home and End select an option; only that option is a tab stop.
   const selectedIndex = Math.max(0, options.findIndex(option => option.value === value));
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const last = options.length - 1;
-    const target = event.key === "ArrowRight" || event.key === "ArrowDown" ? (selectedIndex === last ? 0 : selectedIndex + 1)
-      : event.key === "ArrowLeft" || event.key === "ArrowUp" ? (selectedIndex === 0 ? last : selectedIndex - 1)
+    const target = event.key === "ArrowRight" ? (selectedIndex === last ? 0 : selectedIndex + 1)
+      : event.key === "ArrowLeft" ? (selectedIndex === 0 ? last : selectedIndex - 1)
         : event.key === "Home" ? 0 : event.key === "End" ? last : -1;
     if (target < 0 || !options[target]) return;
     event.preventDefault();
