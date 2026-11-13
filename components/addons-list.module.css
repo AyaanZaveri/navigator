@@ -83,10 +83,6 @@
   min-width: 0;
 }
 
-.removeAction {
-  color: var(--foreground);
-}
-
 .dialogBody {
   display: flex;
   flex-direction: column;
