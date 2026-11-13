@@ -86,7 +86,7 @@
 .highlight { position: absolute; top: 0; right: 0; left: 0; border-radius: 6px; background: color-mix(in oklab, var(--foreground) 6%, transparent); opacity: 0; pointer-events: none; }
 
 .item { position: relative; display: flex; width: 100%; height: var(--row); box-sizing: border-box; align-items: center; gap: 10px; margin: 0; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--foreground); font: inherit; font-size: 13px; text-align: left; cursor: pointer; outline: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: color var(--duration-fast) var(--ease-standard); }
-.icon { display: inline-grid; width: 16px; flex: none; place-items: center; color: var(--text-secondary); transition: color var(--duration-fast) var(--ease-standard); }
+.icon { display: inline-grid; width: 16px; flex: none; place-items: center; color: var(--text-secondary); transition: color var(--duration-standard) ease; }
 .item:focus .icon { color: var(--foreground); }
 .itemLabel { position: relative; display: inline-flex; min-width: 0; flex: 1; }
 .rise { display: inline-block; white-space: nowrap; }
