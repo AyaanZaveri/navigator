@@ -38,7 +38,7 @@ export function PlaybackLanguageSettings() {
   return <section aria-labelledby="playback-language-title" className={styles.section}>
     <h2 id="playback-language-title" className="text-lg font-medium">Languages</h2>
     <FieldGroup className="min-w-0 gap-6">
-      <FieldGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <FieldGroup className={styles.pairedFields}>
         <LanguageSelect id="preferred-audio-language" label="Audio language" value={preferences.audioLanguage}
           onChange={audioLanguage => update({ audioLanguage })} />
         <LanguageSelect id="preferred-subtitle-language" label="Subtitle language" value={preferences.subtitleLanguage}

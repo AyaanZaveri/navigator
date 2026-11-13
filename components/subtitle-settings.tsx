@@ -31,7 +31,7 @@ export function SubtitleSettings() {
         <div className="flex"><SegmentedControl label="Subtitle text size" value={subtitleSize}
           onValueChange={value => setSubtitleSize(value as SubtitleSize)} options={[...SUBTITLE_SIZES]} /></div>
       </Field>
-      <FieldGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <FieldGroup className={styles.pairedFields}>
         <Field><Select id="subtitle-weight" label="Font weight" value={subtitleWeight}
           options={[...SUBTITLE_WEIGHTS]} onValueChange={value => setSubtitleWeight(value as SubtitleWeight)} /></Field>
         <Field><Select id="subtitle-color" label="Text color" value={subtitleColor}

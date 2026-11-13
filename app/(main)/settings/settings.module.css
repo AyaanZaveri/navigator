@@ -9,10 +9,10 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 9.5rem minmax(0, 1fr);
+  grid-template-columns: 10rem minmax(0, 1fr);
   align-items: start;
   gap: 2rem;
-  max-width: 72rem;
+  max-width: 56rem;
   margin-inline: auto;
   padding-block: 1.5rem 5rem;
 }
@@ -92,11 +92,18 @@
 
 .panel {
   min-width: 0;
+  container: settings-panel / inline-size;
 }
 
-.panel[data-category="navigator"],
-.panel[data-category="connections"] {
-  max-inline-size: 42.5rem;
+.pairedFields[data-slot="field-group"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container settings-panel (min-width: 32rem) {
+  .pairedFields[data-slot="field-group"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .pageHeader {
@@ -286,7 +293,7 @@
 }
 
 .subtitleSettings {
-  max-inline-size: 42.5rem;
+  min-inline-size: 0;
 }
 
 .subtitleSettings > [data-slot="field-group"] {
@@ -327,7 +334,7 @@
 @media (max-width: 760px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
-    gap: 2rem;
+    gap: 1.5rem;
     padding-block: 1.5rem 3rem;
   }
   .sidebar { display: none; }
@@ -342,7 +349,7 @@
     letter-spacing: -.02em;
     overflow-wrap: anywhere;
   }
-  .pageHeader { margin-block-end: 2rem; }
+  .pageHeader { margin-block-end: 1.5rem; }
 }
 
 @media (max-width: 480px) {
