@@ -25,6 +25,10 @@
 
 .root { position: relative; display: inline-flex; flex: none; vertical-align: middle; }
 
+:global(html:not(.dark)) .panel {
+  --shadow-floating: 0 20px 48px rgb(0 0 0 / .08), 0 3px 10px rgb(0 0 0 / .04);
+}
+
 /* The trigger anchors the menu, so it answers hover and press with color, never with scale. */
 .trigger { --presence-surface: var(--user-menu-surface, var(--surface)); position: relative; display: inline-flex; height: 40px; flex: none; align-items: center; gap: var(--space-2); margin: 0; padding: 4px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--foreground); font: inherit; font-family: var(--font-body); font-size: var(--text-sm); letter-spacing: var(--tracking-body); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color var(--duration-fast) var(--ease-standard); }
 .trigger[data-name] { padding-right: 10px; }
