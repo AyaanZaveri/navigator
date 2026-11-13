@@ -17,6 +17,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/series-route.ts', 'ut
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, routeContext);
 const context = { exports: {}, Element: TestElement, Node: TestNode, window: { matchMedia: () => ({ matches: finePointer }) }, require(name) {
+    if (name === '@/components/metadata-preload') return { useMetadataIntent: () => ({ start() {}, cancel() {} }) };
     if (name === '@/components/artwork-image') return { ArtworkImage: 'img' };
     if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
     if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;

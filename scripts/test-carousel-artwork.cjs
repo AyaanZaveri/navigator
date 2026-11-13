@@ -4,6 +4,7 @@ const React = require('react');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 const h = hooks();
 let warmed = 0, released = 0;
+let reducedMotion = false;
 const { MediaSection } = load('components/media-section.tsx', {
   react: { ...React, ...h.react }, 'react/jsx-runtime': h.jsx,
   '@/components/ui/card': { Card: 'Card', CardContent: 'CardContent' },
@@ -12,7 +13,7 @@ const { MediaSection } = load('components/media-section.tsx', {
   './ui/scroll-area': { ScrollArea: 'ScrollArea', ScrollBar: 'ScrollBar' },
   './media-section.module.css': { viewport: 'viewport', track: 'track' },
   '@/lib/media/carousel-artwork': { warmCarouselArtwork() { warmed++; return () => { released++; }; } },
-});
+}, { window: { matchMedia: () => ({ matches: reducedMotion }) } });
 const row = h.render(MediaSection, {
   sectionName: 'Continue Watching', continueWatching: true,
   mediaItems: Array.from({ length: 20 }, (_, index) => ({ id: `tt${index}`, type: 'movie', name: `Title ${index}` })),
@@ -25,10 +26,17 @@ assert.equal(find(row, node => node.props?.['data-media-row-viewport'] !== undef
 const rowViewport = find(row, node => node.props?.['data-media-row-viewport'] !== undefined)[0];
 assert.equal(rowViewport.props.tabIndex, 0, 'The native carousel stays keyboard scrollable');
 const movements = [];
-rowViewport.props.ref.current = { scrollBy: value => movements.push(value.left) };
+rowViewport.props.ref.current = { scrollBy: value => movements.push(value) };
 h.flush();
 find(row, node => node.type === 'CarouselAction').forEach(node => node.props.onClick());
-assert.deepEqual(movements, [-300, 300], 'Both arrow actions address the actual native viewport');
+assert.deepEqual(movements.map(value => value.left), [-300, 300], 'Both arrow actions address the actual native viewport');
+assert.ok(movements.every(value => value.behavior === 'smooth'));
+reducedMotion = true;
+find(row, node => node.type === 'CarouselAction')[0].props.onClick();
+assert.equal(movements.at(-1).behavior, 'instant', 'Reduced motion skips animated carousel scrolling');
+assert.equal(find(row, node => node.type === 'CarouselAction')[0].props['aria-label'], 'Scroll Continue Watching left');
+assert.equal(find(row, node => node.type === 'ul').length, 1, 'Cards have native list semantics');
+assert.equal(find(row, node => node.type === 'li').length, 20);
 assert.equal(warmed, 1);
 h.unmount();
 assert.equal(released, 1, 'Removing a row releases its artwork observers');

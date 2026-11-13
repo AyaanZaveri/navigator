@@ -95,6 +95,9 @@ export function MediaCard({
         ? item.year.toString()
         : item.releaseInfo || "");
 
+  const progressPercent = continueWatching && typeof item.progressPercent === "number" && Number.isFinite(item.progressPercent)
+    ? Math.min(100, Math.max(0, item.progressPercent)) : null;
+
   const handlePlayClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -165,7 +168,7 @@ export function MediaCard({
         onPointerCancel={() => setPressed(false)}
       >
         {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
-        <IntentLink href={linkHref} scroll={false} draggable={false} className="absolute inset-0">
+        <IntentLink href={linkHref} scroll={false} draggable={false} className={`${styles.artworkLink} absolute inset-0`} aria-label={`View details for ${item.name || "Untitled"}`}>
           {imageUrl ? (
             <ArtworkImage
               reveal={revealArtwork}
@@ -177,7 +180,7 @@ export function MediaCard({
               loading="lazy"
               data-prefetch-artwork={continueWatching ? "" : undefined}
               onError={() => setFailedImages(previous => previous.includes(imageUrl) ? previous : [...previous, imageUrl])}
-              alt={item.name || ""}
+              alt=""
               className={`${styles.artwork} block w-full h-full object-cover`}
               draggable={false}
             />
@@ -196,7 +199,7 @@ export function MediaCard({
             onFocus={preloadPlayer}
             className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
           >
-            <Play className="h-6 w-6 text-white fill-white" />
+            <Play className="h-6 w-6 text-white fill-white" aria-hidden="true" />
           </button>
         </div>
 
@@ -205,15 +208,15 @@ export function MediaCard({
           type={item.type}
           videoId={item.mediaSourceId || item.episodeId || (item.type === "series" && item.seasonNumber !== undefined && item.episodeNumber !== undefined
             ? `${item.seriesId || item.id}:${item.seasonNumber}:${item.episodeNumber}` : undefined)}
-          aboveProgress={continueWatching && typeof item.progressPercent === "number"}
+          aboveProgress={progressPercent !== null}
         />
 
-        {continueWatching && typeof item.progressPercent === "number" ? (
+        {progressPercent !== null ? (
           // Keep playback status above the hover scrim, like the watched indicator.
-          <div className="absolute inset-x-2 bottom-2 z-40 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
+          <div role="progressbar" aria-label={`${item.name} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} aria-valuetext={item.progressLabel || undefined} className="absolute inset-x-2 bottom-2 z-40 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
             <div
               className="h-full rounded-full bg-white/80"
-              style={{ width: `${item.progressPercent}%` }}
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
         ) : null}
@@ -228,14 +231,15 @@ export function MediaCard({
               fetchPriority="low"
               onLoad={() => setLoadedLogo(artwork.logo!)}
               onError={() => setFailedLogo(artwork.logo!)}
-              alt={`${item.name} logo`}
+              alt=""
+              aria-hidden="true"
               className="max-h-[36%] max-w-[78%] w-auto object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]"
               draggable={false}
             />
           </div>
         ) : null}
       </div>
-      <IntentLink href={linkHref} scroll={false} draggable={false}>
+      <IntentLink href={linkHref} scroll={false} draggable={false} className={styles.detailsLink}>
         <div className="px-1">
           <div className={`mt-2.5 text-sm font-medium text-foreground ${titleLines === 2 ? "line-clamp-2 break-words leading-snug" : "truncate"}`}>
             {item.name}

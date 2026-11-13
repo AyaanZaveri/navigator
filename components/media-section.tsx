@@ -34,47 +34,47 @@ export function MediaSection({
 
   const scrollLeft = () => {
     if (viewportRef.current) {
-      viewportRef.current.scrollBy({ left: -300, behavior: "smooth" });
+      viewportRef.current.scrollBy({ left: -300, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     }
   };
 
   const scrollRight = () => {
     if (viewportRef.current) {
-      viewportRef.current.scrollBy({ left: 300, behavior: "smooth" });
+      viewportRef.current.scrollBy({ left: 300, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     }
   };
 
   return (
-    <section className="relative z-10 mb-8">
+    <section aria-label={sectionName} className="relative z-10 mb-8">
       <div className="flex items-center justify-between gap-3 mb-4">
-        <h3 className="min-w-0 text-xl sm:text-2xl font-semibold text-foreground font-poppins">
+        <h2 className="min-w-0 text-xl sm:text-2xl font-semibold text-foreground font-poppins">
           {sectionName}
-        </h3>
+        </h2>
         <div className="flex shrink-0 items-center gap-2">
           <CarouselAction
             size="icon-sm"
             className="hidden md:inline-flex"
-            aria-label="Scroll left"
+            aria-label={`Scroll ${sectionName} left`}
             onClick={scrollLeft}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft aria-hidden="true" />
           </CarouselAction>
           <CarouselAction
             size="icon-sm"
             className="hidden md:inline-flex"
-            aria-label="Scroll right"
+            aria-label={`Scroll ${sectionName} right`}
             onClick={scrollRight}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight aria-hidden="true" />
           </CarouselAction>
         </div>
       </div>
       {hasItems ? (
         <div ref={viewportRef} data-media-row-viewport="" className={styles.viewport}
           role="region" aria-label={`${sectionName} titles`} tabIndex={0}>
-          <div className={styles.track}>
+          <ul className={styles.track}>
             {mediaItems.map((item, index) => (
-              <div
+              <li
                 key={`${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
                 data-continue-watching-index={continueWatching ? index : undefined}
                 className="flex-shrink-0"
@@ -84,14 +84,14 @@ export function MediaSection({
                   continueWatching={continueWatching}
                   subtitleContent={cardSubtitles?.[index]}
                 />
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       ) : (
         <Card className="bg-card border-border text-foreground">
           <CardContent className="p-8 text-center">
-            <Play className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <Play className="h-12 w-12 text-muted-foreground mx-auto mb-4" aria-hidden="true" />
             <p className="text-muted-foreground">
               No {sectionName.toLowerCase()} found in your library
             </p>

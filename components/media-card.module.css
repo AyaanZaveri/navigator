@@ -178,3 +178,19 @@
 :global(html[data-native-platform="macos"]) .wordmark {
   transform: translateZ(0);
 }
+
+/* Keep the browser's platform focus indicator inside the clipped artwork. */
+.artworkLink:focus-visible {
+  outline: auto;
+  outline-offset: -3px;
+}
+
+.detailsLink {
+  display: block;
+  border-radius: 4px;
+}
+
+.detailsLink:focus-visible {
+  outline: auto;
+  outline-offset: 2px;
+}
