@@ -231,9 +231,9 @@ export function AddAddonDialog() {
                                         {preview.logo && <AvatarImage src={preview.logo} alt="" referrerPolicy="no-referrer" draggable={false} className="object-contain" />}
                                         <AvatarFallback className="rounded-[10px] bg-transparent text-muted-foreground"><Puzzle className="size-5" /></AvatarFallback>
                                     </Avatar>
-                                    <div className="flex min-w-0 flex-col gap-0.5">
+                                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
                                         <h2 className="break-words text-base font-semibold leading-[1.3]">{preview.name}</h2>
-                                        {preview.version && <p className="break-words text-xs leading-[1.4] text-muted-foreground">v{preview.version}</p>}
+                                        {preview.version && <span className="break-words text-base font-normal leading-[1.3] text-muted-foreground">v{preview.version}</span>}
                                     </div>
                                 </div>
                                 {preview.description && <p className="break-words text-sm leading-[1.5] text-pretty text-muted-foreground">{preview.description}</p>}
