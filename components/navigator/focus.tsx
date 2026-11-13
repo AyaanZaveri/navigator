@@ -27,7 +27,7 @@ import {
 import { BorderBeam } from "border-beam";
 import { Streamdown } from "streamdown";
 import { useTheme } from "next-themes";
-import { Button } from "./focus-ui/button";
+import { Button } from "@/components/ui/button";
 import { NavigatorLauncher } from "./launcher";
 import {
   InputGroup,

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { authenticateUser, finishStremioSignIn, startStremioSignIn } from "@/app/actions/auth";
-import { Button } from "@/components/account-ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/account-ui/input";
 import { Label } from "@/components/account-ui/label";
 import { Separator } from "@/components/account-ui/separator";

@@ -40,7 +40,7 @@ export function AppUpdates() {
                 {status.message ?? (checking ? "Checking for updates…" : status.state === "current" ? "You’re up to date." : status.state === "available" ? "An update is available. Continue in the update window." : "")}
             </p>
         </> : null}
-        <div><Button asChild variant="ghost" size="sm" className="-ml-2.5">
+        <div><Button asChild variant="outline" size="sm">
             <a href="https://github.com/AyaanZaveri/navigator/releases" target="_blank" rel="noreferrer">
                 <GitHubIcon data-icon="inline-start" />
                 View releases on GitHub

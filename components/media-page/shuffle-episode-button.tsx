@@ -27,7 +27,7 @@ export function ShuffleEpisodeButton({ media, episodes }: { media: MediaToPlay; 
                 <TooltipTrigger asChild>
                     <Button
                         type="button"
-                        variant="secondary"
+                        variant="media-secondary"
                         size="icon-lg"
                         className="shrink-0 rounded-full"
                         aria-label="Shuffle episodes"

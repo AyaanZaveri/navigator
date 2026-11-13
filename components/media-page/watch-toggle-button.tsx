@@ -21,7 +21,7 @@ export function WatchToggleButton({ media }: { media: MediaToPlay }) {
                 <TooltipTrigger asChild>
                     <Button
                         type="button"
-                        variant={watched ? "default" : "secondary"}
+                        variant={watched ? "media-primary" : "media-secondary"}
                         size="icon-lg"
                         className={`shrink-0 rounded-full ${watched ? "bg-[color-mix(in_oklab,var(--primary)_84%,black)] text-white hover:bg-[color-mix(in_oklab,var(--primary)_78%,black)]" : ""}`}
                         aria-label={label}

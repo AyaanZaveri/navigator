@@ -18,9 +18,8 @@ for (const platform of ['windows', 'macos']) {
     });
     let tree = host.render(AppUpdates); host.flush();
     const github = find(tree, 'Button')[0];
-    assert.equal(github.props.variant, 'ghost');
+    assert.equal(github.props.variant, 'outline');
     assert.equal(github.props.size, 'sm');
-    assert.equal(github.props.className, '-ml-2.5');
     assert.equal(find(github, 'a')[0].props.href, 'https://github.com/AyaanZaveri/navigator/releases');
     assert.equal(find(github, 'GitHubIcon').length, 1);
     assert.equal(find(tree, 'Switch').length, 0);

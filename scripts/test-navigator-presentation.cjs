@@ -82,7 +82,7 @@ const { NavigatorFocus } = load('components/navigator/focus.tsx', {
     'framer-motion': { motion: { div: 'div', section: 'section', span: 'span' }, AnimatePresence: 'div', LayoutGroup: 'div', useReducedMotion: () => focusReducedMotion },
     'border-beam': { BorderBeam: 'div' }, streamdown: { Streamdown: 'div' },
     'next-themes': { useTheme: () => ({ resolvedTheme: 'dark' }) },
-    './focus-ui/button': { Button: 'button' }, './launcher': { NavigatorLauncher: 'button' },
+    '@/components/ui/button': { Button: 'button' }, './launcher': { NavigatorLauncher: 'button' },
     './focus-ui/input-group': { InputGroup: 'div', InputGroupAddon: 'div', InputGroupButton: 'button', InputGroupInput: 'input' },
     './composer-input': { NavigatorComposerInput: 'textarea' },
     './activity-status': { NavigatorActivityStatus: 'span' }, './focus-results': { toNavigatorSegments: () => [], isPlaybackRequest: () => false }, './focus.css': {},

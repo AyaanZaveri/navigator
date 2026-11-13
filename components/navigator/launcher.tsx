@@ -1,7 +1,7 @@
 "use client";
 
 import { Ship } from "lucide-react";
-import { Button } from "./focus-ui/button";
+import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "./focus-ui/kbd";
 import "./launcher.css";
 import { useNavigatorShortcut } from "@/hooks/use-navigator-shortcut";

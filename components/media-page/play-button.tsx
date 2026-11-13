@@ -65,9 +65,9 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
         <div className="mt-3 flex max-w-full flex-wrap items-center gap-2">
             <Button
                 type="button"
-                variant="default"
+                variant="media-primary"
                 size="lg" onPointerEnter={warm} onFocus={warm} onPointerLeave={metadataIntent.cancel} onBlur={metadataIntent.cancel}
-                className="min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5 hover:bg-foreground/90 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
+                className="h-10 min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5 hover:bg-foreground/90 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
                 disabled={authenticated && checkingProgress}
                 aria-busy={(authenticated && checkingProgress) || undefined}
                 aria-label={!authenticated ? `Sign in to play ${media.name}` : resume ? `Resume ${media.name} ${context}` : `Play ${media.name}`}
@@ -84,7 +84,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
                     <TooltipTrigger asChild>
                         <Button
                             type="button"
-                            variant="secondary"
+                            variant="media-secondary"
                             size="icon-lg"
                             className="shrink-0 rounded-full"
                             aria-label="Play from start"

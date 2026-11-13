@@ -16,11 +16,11 @@ export function EpisodeDetailsSample() {
       thumbnail={<div skullet-block="" className="h-full w-full" />}
       actions={
         <div className="mt-3 flex max-w-full flex-wrap items-center gap-2">
-          <Button disabled size="lg" className="min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5">
+          <Button disabled variant="media-primary" size="lg" className="h-10 min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5">
             <Play aria-hidden="true" data-icon="inline-start" className="size-4 fill-current" />
             <span>Play</span>
           </Button>
-          <Button disabled variant="secondary" size="icon-lg" className="rounded-full" aria-label="Mark watched">
+          <Button disabled variant="media-secondary" size="icon-lg" className="rounded-full" aria-label="Mark watched">
             <Check aria-hidden="true" className="size-4" />
           </Button>
         </div>

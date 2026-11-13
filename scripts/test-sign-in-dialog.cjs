@@ -12,7 +12,7 @@ async function main() {
     const form = load('components/login-form.tsx', {
         react: { ...h.react, useId: () => 'signin' }, 'react/jsx-runtime': h.jsx,
         '@/app/actions/auth': { authenticateUser: (email, password) => { calls.push({ email, password }); return new Promise(resolve => { complete = resolve; }); } },
-        '@/components/account-ui/button': { Button: 'button' },
+        '@/components/ui/button': { Button: 'button' },
         '@/components/account-ui/input': { Input: 'input' },
         '@/components/account-ui/label': { Label: 'label' },
         '@/components/account-ui/separator': { Separator: 'separator' },
