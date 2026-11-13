@@ -68,7 +68,9 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
                     <div className={`${styles.search} rounded-xl backdrop-blur-md`}>
                         <SearchField ref={search} label="Search addons" hideLabel placeholder="Search addons…" value={query} onValueChange={setQuery} autoComplete="off" />
                     </div>
-                    <ChipGroup label="Filter addons by capability" multiple={false} options={filters} value={[capability]} onValueChange={(values) => setCapability(values[0] ?? "all")} />
+                    <div className={styles.filters}>
+                        <ChipGroup label="Filter addons by capability" multiple={false} options={filters} value={[capability]} onValueChange={(values) => setCapability(values[0] ?? "all")} />
+                    </div>
                 </>}
                 <div className={styles.addAction}><AddAddonDialog /></div>
             </div>

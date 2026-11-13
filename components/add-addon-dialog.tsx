@@ -146,8 +146,8 @@ export function AddAddonDialog() {
 
     return (
         <>
-            <Button ref={trigger} size="sm" className="rounded-full" disabled={pending} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => changeOpen(true)}>
-                <Plus data-icon="inline-start" aria-hidden="true" />Add addon
+            <Button ref={trigger} size="sm" className="size-11 rounded-full p-0 sm:h-9 sm:w-auto sm:px-3" disabled={pending} aria-label="Add addon" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => changeOpen(true)}>
+                <Plus data-icon="inline-start" aria-hidden="true" /><span className="hidden sm:inline">Add addon</span>
             </Button>
             <Modal open={open} onOpenChange={changeOpen} {...(isMobile ? { showSwipeHandle: true } : {})}>
                 <ModalContent id={`${id}-dialog`} className={isMobile

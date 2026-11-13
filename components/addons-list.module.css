@@ -179,8 +179,34 @@
   .capabilities { justify-content: flex-start; }
 }
 
-@media (max-width: 26rem) {
-  .search { flex-basis: 100%; width: 100%; }
+.filters {
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 12px;
+    --control-height-md: 44px;
+  }
+
+  .search {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+  }
+
+  .addAction {
+    grid-column: 2;
+    grid-row: 1;
+    margin-inline-start: 0;
+  }
+
+  .filters {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 
 @container (max-width: 26rem) {
