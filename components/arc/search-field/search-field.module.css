@@ -37,10 +37,10 @@
 }
 /* Keep the search glyph compact and muted, including while typing. */
 .shell > svg {
-  width: 1rem;
-  height: 1rem;
-  flex: 0 0 1rem;
-  color: var(--muted-foreground);
+  width: var(--search-field-icon-size, 1rem);
+  height: var(--search-field-icon-size, 1rem);
+  flex: 0 0 var(--search-field-icon-size, 1rem);
+  color: var(--search-field-icon-color, var(--muted-foreground));
 }
 .input {
   width: 100%;

@@ -27,6 +27,8 @@
 }
 
 .search {
+  --search-field-icon-size: 18px;
+  --search-field-icon-color: color-mix(in oklab, var(--foreground) 80%, transparent);
   width: min(100%, 20rem);
   min-width: 0;
   flex: 0 1 20rem;
@@ -206,10 +208,11 @@
   }
 
   .toolbar {
+    --addon-search-height: 44px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) var(--addon-search-height);
     gap: 12px;
-    --control-height-md: 44px;
+    --control-height-md: var(--addon-search-height);
   }
 
   .search {

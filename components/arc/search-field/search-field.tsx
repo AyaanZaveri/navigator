@@ -38,7 +38,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
       <div className={styles.field} data-size={size}>
         <label htmlFor={controlId} className={hideLabel ? styles.srOnly : undefined}>{label}</label>
         <div className={styles.shell} data-filled={value ? "true" : undefined}>
-          <Search width={18} height={18} aria-hidden="true" />
+          <Search width={18} height={18} strokeWidth={1.75} aria-hidden="true" />
           <input
             {...props}
             ref={setRefs}
