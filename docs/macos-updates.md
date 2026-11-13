@@ -7,9 +7,12 @@ relaunches it. The app does not accept update URLs or file paths from JavaScript
 ## User controls
 
 Settings → About has a manual check button and a background-check switch.
-The header indicator appears only after Sparkle finds an update. Automatic
-checks do not allow silent downloads or installation. The user chooses when
-to install and restart.
+When automatic checks are enabled, the native shell probes on launch and every
+hour with Sparkle's information-only API. The check shows no update window and
+downloads no archive. The header shows an “Update available” button immediately
+left of the avatar only after Sparkle finds an eligible update. Clicking it
+opens Sparkle directly, without visiting Settings. The user confirms the download
+and chooses when to install and restart.
 
 Web shows the app version and GitHub release button. It shows no desktop
 update message or native update controls.

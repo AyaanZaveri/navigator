@@ -354,7 +354,7 @@ pub fn run(app: App) -> Result<(), String> {
     let update_proxy = proxy.clone();
     let updater_result = if !app.smoke && app.backend.is_some()
         && installed_directory.as_ref().is_some_and(|p| p.join("Uninstall.exe").is_file()) {
-        Some(crate::windows_updater::Updater::start(installed_directory.as_ref().unwrap(), automatic_updates,
+        Some(crate::windows_updater::Updater::start(installed_directory.as_ref().unwrap(),
             move |event| { let _ = update_proxy.send_event(UserEvent::Update(event)); }))
     } else { None };
     let update_error = updater_result.as_ref().and_then(|r|r.as_ref().err()).cloned();
@@ -461,8 +461,15 @@ pub fn run(app: App) -> Result<(), String> {
             }
         }
     }
+    let mut next_update_probe = Instant::now();
     event_loop.run(move |event, _, flow| {
-        *flow = if closing || ready_deadline.is_some() { ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)) } else { ControlFlow::Wait };
+        if !closing && automatic_updates && updater.is_some() && Instant::now() >= next_update_probe {
+            let started = update_state != "checking" && updater.as_ref().unwrap().probe();
+            next_update_probe = Instant::now() + crate::update_feed::next_probe_delay(started);
+        }
+        *flow = if closing || ready_deadline.is_some() { ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)) }
+            else if automatic_updates && updater.is_some() { ControlFlow::WaitUntil(next_update_probe) }
+            else { ControlFlow::Wait };
         match event {
             Event::UserEvent(UserEvent::RenderError(message)) => {
                 if !closing {record(&log,started,"video-output-error");platform::show_error(&format!("The video device stopped responding: {message}. Restart Navigator."));}
@@ -473,6 +480,9 @@ pub fn run(app: App) -> Result<(), String> {
                 use crate::windows_updater::Event as UpdateEvent;
                 match event {
                     UpdateEvent::Shutdown => platform::request_close(&window),
+                    UpdateEvent::ProbeAvailable if automatic_updates && update_state != "checking" => { update_state = "available"; update_message = None; }
+                    UpdateEvent::ProbeCurrent if automatic_updates && update_state != "checking" => { update_state = "current"; update_message = None; }
+                    UpdateEvent::ProbeAvailable | UpdateEvent::ProbeCurrent | UpdateEvent::ProbeError => {}
                     UpdateEvent::Available => { update_state = "available"; update_message = None; }
                     UpdateEvent::Current => { update_state = "current"; update_message = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
@@ -502,7 +512,11 @@ pub fn run(app: App) -> Result<(), String> {
                                 protocol::Command::UpdateCheck {} => { if update_state != "checking" { update_state = "checking"; update_message = None; updater.check(); } }
                                 protocol::Command::UpdateAutomatic { enabled } => {
                                     match std::fs::write(&update_settings, if enabled { "true" } else { "false" }) {
-                                        Ok(()) => { automatic_updates = enabled; updater.automatic(enabled); }
+                                        Ok(()) => {
+                                            automatic_updates = enabled;
+                                            let started = enabled && update_state != "checking" && updater.probe();
+                                            next_update_probe = Instant::now() + crate::update_feed::next_probe_delay(started);
+                                        }
                                         Err(_) => { update_state = "error"; update_message = Some("Couldn’t save update preferences.".into()); }
                                     }
                                 }

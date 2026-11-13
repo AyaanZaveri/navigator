@@ -51,7 +51,7 @@ pub struct Updater {
     _framework: Retained<NSBundle>,
 }
 impl Updater {
-    pub fn start(automatic: bool, notify: impl Fn(Event) + 'static) -> Result<Self, String> {
+    pub fn start(notify: impl Fn(Event) + 'static) -> Result<Self, String> {
         let mtm = MainThreadMarker::new().ok_or("Updates require AppKit's main thread")?;
         let bundle = NSBundle::mainBundle();
         let info = bundle
@@ -90,7 +90,9 @@ impl Updater {
             let controller =
                 Retained::from_raw(controller).ok_or("Could not create the update controller")?;
             let updater: Retained<AnyObject> = msg_send![&*controller, updater];
-            let _: () = msg_send![&*updater, setAutomaticallyChecksForUpdates: automatic];
+            // The shell owns silent launch/hourly probes. Sparkle's scheduled
+            // checks can offer an update window, which is reserved for a click.
+            let _: () = msg_send![&*updater, setAutomaticallyChecksForUpdates: false];
             let _: () = msg_send![&*updater, setAutomaticallyDownloadsUpdates: false];
             let mut error: *mut NSError = ptr::null_mut();
             let started: bool = msg_send![&*updater, startUpdater: &mut error];
@@ -116,9 +118,15 @@ impl Updater {
             let _: () = msg_send![&*self.controller, checkForUpdates: ptr::null::<AnyObject>()];
         }
     }
-    pub fn automatic(&self, enabled: bool) {
+    pub fn probe(&self) -> bool {
+        // The documented information-only API calls our delegate without any UI
+        // or download, and honors Sparkle's OS/skip/version eligibility checks.
         unsafe {
-            let _: () = msg_send![&*self.updater, setAutomaticallyChecksForUpdates: enabled];
+            let busy: bool = msg_send![&*self.updater, sessionInProgress];
+            if !busy {
+                let _: () = msg_send![&*self.updater, checkForUpdateInformation];
+            }
+            !busy
         }
     }
     pub fn finish_install(&self) -> bool {

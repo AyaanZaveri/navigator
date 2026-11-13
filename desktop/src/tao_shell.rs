@@ -163,7 +163,6 @@ pub fn run(mut app: App) -> Result<(), String> {
     let update_proxy = proxy.clone();
     let updater_result = if !app.smoke && app._server.is_some() {
         Some(crate::macos_updater::Updater::start(
-            automatic_updates,
             move |event| {
                 let _ = update_proxy.send_event(UserEvent::Update(event));
             },
@@ -185,6 +184,7 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut closing = false;
     let mut fullscreen = false;
     let mut window_controls_visible = true;
+    let mut next_update_probe = Instant::now();
     event_loop.run(move |event, _, flow| {
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
         // Stop the owned backend here rather than relying on process-exit drops.
@@ -203,8 +203,14 @@ pub fn run(mut app: App) -> Result<(), String> {
         let _instance = &app._instance;
         #[cfg(target_os = "macos")]
         let _menu = &menu;
+        if !closing && automatic_updates && updater.is_some() && Instant::now() >= next_update_probe {
+            let started = update_state != "checking" && updater.as_ref().unwrap().probe();
+            next_update_probe = Instant::now() + crate::update_feed::next_probe_delay(started);
+        }
         *flow = if closing && !installing {
             ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16))
+        } else if automatic_updates && updater.is_some() {
+            ControlFlow::WaitUntil(next_update_probe)
         } else {
             ControlFlow::Wait
         };
@@ -241,7 +247,11 @@ pub fn run(mut app: App) -> Result<(), String> {
                         protocol::Command::UpdateCheck {} => { update_state = "checking"; update_message = None; updater.check(); }
                         protocol::Command::UpdateAutomatic { enabled } => {
                             match std::fs::write(&update_settings, if enabled { "true" } else { "false" }) {
-                                Ok(()) => { automatic_updates = enabled; updater.automatic(enabled); }
+                                Ok(()) => {
+                                    automatic_updates = enabled;
+                                    let started = enabled && update_state != "checking" && updater.probe();
+                                    next_update_probe = Instant::now() + crate::update_feed::next_probe_delay(started);
+                                }
                                 Err(_) => { update_state = "error"; update_message = Some("Couldn’t save update preferences.".into()); }
                             }
                         }

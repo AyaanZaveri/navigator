@@ -56,12 +56,43 @@ for (const platform of ['windows', 'macos']) {
     }
     listener({ type: 'update-status', version: '0.5.2', available: true, automatic: true, state: 'available' });
     const indicator = header.render(DesktopUpdateButton);
-    assert.equal(indicator.props.children.props.href, '/settings/about');
+    assert.equal(typeof indicator.props.onClick, 'function');
+    assert.equal(find(indicator, 'Link').length, 0, 'Available updates open the native updater without routing through Settings');
+    assert.equal(find(indicator, 'span')[0].props.children, 'Update available');
+    assert.match(indicator.props['aria-label'], /Update available/);
+    indicator.props.onClick();
+    assert.equal(sent.at(-1).type, 'update-check');
     assert.equal(indicator.props.variant, 'outline');
-    assert.match(indicator.props.className, /size-11/);
+    assert.match(indicator.props.className, /h-11/);
     assert.match(indicator.props.className, /sign-in-material/);
     listener({ type: 'update-status', version: '0.5.2', available: false, automatic: true, state: 'available' });
     assert.equal(header.render(DesktopUpdateButton), null);
     header.unmount();
     console.log(`PASS: ${platform} update commands, preference, statuses, cleanup and offered-update indicator; web-only version/GitHub button.`);
 }
+
+// Native startup owns the schedule. React mounts request status only, never a
+// user-initiated check that could display a modal when opening the app.
+const fs = require('node:fs');
+const button = fs.readFileSync('components/desktop-update-button.tsx', 'utf8');
+assert.match(button, /bridge\.send\(\{ type: "update-status" \}\)/);
+assert.doesNotMatch(button.slice(button.indexOf('useEffect'), button.indexOf('if (!status')), /update-check/);
+for (const file of ['desktop/src/windows_shell.rs', 'desktop/src/tao_shell.rs']) {
+    const shell = fs.readFileSync(file, 'utf8');
+    assert.match(shell, /let mut next_update_probe = Instant::now\(\)/, 'First check is due at launch, not after an interval');
+    assert.match(shell, /!closing && automatic_updates && updater\.is_some\(\) && Instant::now\(\) >= next_update_probe/);
+    assert.match(shell, /updater\.as_ref\(\)\.unwrap\(\)\.probe\(\)/);
+    assert.match(shell, /ControlFlow::WaitUntil\(next_update_probe\)/, 'Periodic checks must wake an idle app');
+}
+const mac = fs.readFileSync('desktop/src/macos_updater.rs', 'utf8');
+assert.match(mac, /checkForUpdateInformation/);
+assert.doesNotMatch(mac, /setAutomaticallyChecksForUpdates: (?:true|automatic|enabled)/);
+const windows = fs.readFileSync('desktop/src/windows_updater.rs', 'utf8');
+assert.match(windows, /automatic_fn\(0\)/);
+assert.match(windows, /timeout_global\(Some\(Duration::from_secs\(10\)\)\)/);
+assert.match(windows, /limit\(64 \* 1024\)/);
+assert.match(windows, /windows_update_available\(&feed, env!\("CARGO_PKG_VERSION"\)\)/);
+assert.doesNotMatch(windows, /get!\("win_sparkle_check_update_without_ui"/);
+const header = fs.readFileSync('components/app-header.tsx', 'utf8');
+assert.ok(header.indexOf('<DesktopUpdateButton />') < header.indexOf('{authenticated ? <ProfileMenu'), 'Update button sits immediately before the avatar');
+console.log('PASS: silent launch/hourly probes, automatic-check preference, native download handoff and avatar-side placement');

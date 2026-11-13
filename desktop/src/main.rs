@@ -27,6 +27,8 @@ mod window_state;
 mod windows_install;
 #[cfg(windows)]
 mod windows_updater;
+#[cfg(any(windows, target_os = "macos", test))]
+mod update_feed;
 #[cfg(any(windows, test))]
 mod windows_hdr;
 #[cfg(windows)]

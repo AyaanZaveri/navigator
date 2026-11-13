@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { desktopBridge, type UpdateStatus } from "@/lib/desktop/bridge";
@@ -18,9 +17,10 @@ export function DesktopUpdateButton() {
         return unsubscribe;
     }, []);
     if (!status?.available || status.state !== "available") return null;
-    return <Button asChild variant="outline" size="icon" className={`size-11 ${styles.signIn}`}>
-        <Link href="/settings/about" aria-label="Update available" title="Update available">
-            <Download aria-hidden="true" />
-        </Link>
+    return <Button variant="outline" className={`h-11 max-sm:size-11 max-sm:p-0 ${styles.signIn}`}
+        aria-label="Update available. Open the updater to download." title="Update available"
+        onClick={() => desktopBridge()?.send({ type: "update-check" })}>
+        <Download aria-hidden="true" />
+        <span className="hidden sm:inline">Update available</span>
     </Button>;
 }

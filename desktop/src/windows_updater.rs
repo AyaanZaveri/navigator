@@ -1,7 +1,7 @@
-//! WinSparkle owns networking, signature verification and its native update UI.
+//! WinSparkle owns downloads, signature verification and its native update UI.
 //! Only fixed commands cross the web bridge; no URL, path or key comes from JS.
 use libloading::Library;
-use std::{ffi::CString, path::Path, sync::OnceLock};
+use std::{ffi::CString, path::Path, sync::{OnceLock, Arc, atomic::{AtomicBool, Ordering}}, time::Duration};
 
 pub const FEED: &str =
     "https://raw.githubusercontent.com/AyaanZaveri/navigator/main/updates/windows.xml";
@@ -13,6 +13,9 @@ pub enum Event {
     Error,
     Dismissed,
     Shutdown,
+    ProbeAvailable,
+    ProbeCurrent,
+    ProbeError,
 }
 static NOTIFY: OnceLock<Box<dyn Fn(Event) + Send + Sync>> = OnceLock::new();
 fn notify(event: Event) {
@@ -43,20 +46,18 @@ type SetInt = unsafe extern "C" fn(i32);
 pub struct Updater {
     library: Library,
     check: Void,
-    automatic: SetInt,
     cleanup: Void,
+    probing: Arc<AtomicBool>,
 }
 impl Updater {
     pub fn start(
         directory: &Path,
-        automatic: bool,
         send: impl Fn(Event) + Send + Sync + 'static,
     ) -> Result<Self, String> {
-        Self::configured(directory, automatic, send, FEED, PUBLIC_KEY)
+        Self::configured(directory, send, FEED, PUBLIC_KEY)
     }
     fn configured(
         directory: &Path,
-        automatic: bool,
         send: impl Fn(Event) + Send + Sync + 'static,
         feed_url: &str,
         public_key: &str,
@@ -160,13 +161,15 @@ impl Updater {
                 set(callback);
             }
             can(can_shutdown);
-            automatic_fn(i32::from(automatic));
+            // The shell schedules silent probes. WinSparkle's background checks
+            // can show a dialog, so reserve its UI for an explicit user action.
+            automatic_fn(0);
             init();
             Ok(Self {
                 library,
                 check,
-                automatic: automatic_fn,
                 cleanup,
+                probing: Arc::new(AtomicBool::new(false)),
             })
         }
     }
@@ -175,10 +178,23 @@ impl Updater {
             (self.check)();
         }
     }
-    pub fn automatic(&self, enabled: bool) {
-        unsafe {
-            (self.automatic)(i32::from(enabled));
-        }
+    pub fn probe(&self) -> bool {
+        if self.probing.swap(true, Ordering::AcqRel) { return false; }
+        let probing = self.probing.clone();
+        let started = std::thread::Builder::new().name("navigator-update-check".into()).spawn(move || {
+            let available = (|| {
+                let agent: ureq::Agent = ureq::Agent::config_builder()
+                    .timeout_global(Some(Duration::from_secs(10)))
+                    .max_redirects(0).https_only(true).build().into();
+                let mut response = agent.get(FEED).header("Cache-Control", "no-cache").call().ok()?;
+                let feed = response.body_mut().with_config().limit(64 * 1024).read_to_string().ok()?;
+                crate::update_feed::windows_update_available(&feed, env!("CARGO_PKG_VERSION"))
+            })();
+            probing.store(false, Ordering::Release);
+            notify(match available { Some(true) => Event::ProbeAvailable, Some(false) => Event::ProbeCurrent, None => Event::ProbeError });
+        });
+        if started.is_err() { self.probing.store(false, Ordering::Release); }
+        started.is_ok()
     }
 }
 impl Drop for Updater {
@@ -212,7 +228,6 @@ mod tests {
         let output = events.clone();
         let updater = Updater::configured(
             Path::new(config["directory"].as_str().unwrap()),
-            false,
             move |event| {
                 output.lock().unwrap().push(event);
             },
