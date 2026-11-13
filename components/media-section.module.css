@@ -11,9 +11,8 @@
 .viewport::-webkit-scrollbar { display: none; }
 
 .viewport:focus-visible {
-  outline: var(--keyboard-focus-width) solid var(--ring);
-  outline-offset: 0;
-  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
+  outline: none;
+  box-shadow: none;
 }
 
 .track {

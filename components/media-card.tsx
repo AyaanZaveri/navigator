@@ -151,57 +151,84 @@ export function MediaCard({
           fallback: continueWatching ? artwork.poster : artwork.background,
         });
       }}
-      className={`${styles.card} cursor-pointer select-none ${
+      className={`${styles.card} relative cursor-pointer select-none ${
         continueWatching ? "w-80" : fullWidth ? "w-full" : "w-36"
       }`}
     >
-      <div
-        className={`${styles.frame} ${continueWatching ? "border" : styles.posterFrame} relative w-full overflow-hidden ${
-          continueWatching ? "aspect-video" : "aspect-[2/3]"
-        }`}
-        data-pressed={pressed || undefined}
-        onPointerDown={(event) => {
-          if (event.button === 0) setPressed(true);
-        }}
-        onPointerUp={() => setPressed(false)}
-        onPointerLeave={() => setPressed(false)}
-        onPointerCancel={() => setPressed(false)}
-      >
-        {/* Definite link bounds avoid WebKit resolving nested 100% image heights against the page. */}
-        <IntentLink href={linkHref} scroll={false} draggable={false} className={`${styles.artworkLink} absolute inset-0`} aria-label={`View details for ${item.name || "Untitled"}`}>
-          {imageUrl ? (
-            <ArtworkImage
-              reveal={revealArtwork}
-              src={imageUrl}
-              srcSet={imageSrcSet}
-              sizes={continueWatching ? "320px" : undefined}
-              width={continueWatching ? 320 : 144}
-              height={continueWatching ? 180 : 216}
-              loading="lazy"
-              data-prefetch-artwork={continueWatching ? "" : undefined}
-              onError={() => setFailedImages(previous => previous.includes(imageUrl) ? previous : [...previous, imageUrl])}
-              alt=""
-              className={`${styles.artwork} block w-full h-full object-cover`}
-              draggable={false}
-            />
-          ) : (
-            <ArtworkPlaceholder className="w-full h-full" aria-hidden="true" />
-          )}
-        </IntentLink>
+      <IntentLink href={linkHref} scroll={false} draggable={false} className={styles.detailsLink} aria-label={`View details for ${item.name || "Untitled"}`}>
+        <div
+          className={`${styles.frame} ${continueWatching ? "border" : styles.posterFrame} relative w-full overflow-hidden ${
+            continueWatching ? "aspect-video" : "aspect-[2/3]"
+          }`}
+          data-pressed={pressed || undefined}
+          onPointerDown={(event) => {
+            if (event.button === 0) setPressed(true);
+          }}
+          onPointerUp={() => setPressed(false)}
+          onPointerLeave={() => setPressed(false)}
+          onPointerCancel={() => setPressed(false)}
+        >
+          {/* Definite bounds keep WebKit image heights inside the poster frame. */}
+          <div className={`${styles.artworkBounds} absolute inset-0`}>
+            {imageUrl ? (
+              <ArtworkImage
+                reveal={revealArtwork}
+                src={imageUrl}
+                srcSet={imageSrcSet}
+                sizes={continueWatching ? "320px" : undefined}
+                width={continueWatching ? 320 : 144}
+                height={continueWatching ? 180 : 216}
+                loading="lazy"
+                data-prefetch-artwork={continueWatching ? "" : undefined}
+                onError={() => setFailedImages(previous => previous.includes(imageUrl) ? previous : [...previous, imageUrl])}
+                alt=""
+                className={`${styles.artwork} block w-full h-full object-cover`}
+                draggable={false}
+              />
+            ) : (
+              <ArtworkPlaceholder className="w-full h-full" aria-hidden="true" />
+            )}
+          </div>
 
-        {/* Play button overlay */}
-        <div className={`${styles.playOverlay} absolute inset-0 z-30 flex items-center justify-center`}>
-          <button
-            type="button"
-            aria-label={`Play ${item.episodeTitle || item.name}`}
-            onClick={handlePlayClick}
-            onPointerEnter={preloadPlayer}
-            onFocus={preloadPlayer}
-            className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
-          >
-            <Play className="h-6 w-6 text-white fill-white" aria-hidden="true" />
-          </button>
+          {continueWatching && artwork.logo && failedLogo !== artwork.logo ? (
+            <div data-logo-ready={loadedLogo === artwork.logo ? "" : undefined} className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
+              <img
+                ref={attachLogo}
+                src={artwork.logo}
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
+                onLoad={() => setLoadedLogo(artwork.logo!)}
+                onError={() => setFailedLogo(artwork.logo!)}
+                alt=""
+                aria-hidden="true"
+                className="max-h-[36%] max-w-[78%] w-auto object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]"
+                draggable={false}
+              />
+            </div>
+          ) : null}
         </div>
+        <div className="px-1">
+          <div className={`mt-2.5 text-sm font-medium text-foreground ${titleLines === 2 ? "line-clamp-2 break-words leading-snug" : "truncate"}`}>
+            {item.name}
+          </div>
+          <div className={`text-xs text-muted-foreground mt-0.5 ${continueWatching ? "min-h-4" : ""}`}>
+            {subtitleContent ?? subtitle}
+          </div>
+        </div>
+      </IntentLink>
+      {/* Play button overlay */}
+      <div className={`${styles.playOverlay} absolute inset-x-0 top-0 z-30 ${continueWatching ? "aspect-video" : "aspect-[2/3]"} flex items-center justify-center`}>
+        <button
+          type="button"
+          aria-label={`Play ${item.episodeTitle || item.name}`}
+          onClick={handlePlayClick}
+          onPointerEnter={preloadPlayer}
+          onFocus={preloadPlayer}
+          className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
+        >
+          <Play className="h-6 w-6 text-white fill-white" aria-hidden="true" />
+        </button>
 
         <WatchedIndicator
           id={item.seriesId || item.id}
@@ -220,35 +247,7 @@ export function MediaCard({
             />
           </div>
         ) : null}
-
-        {continueWatching && artwork.logo && failedLogo !== artwork.logo ? (
-          <div data-logo-ready={loadedLogo === artwork.logo ? "" : undefined} className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
-            <img
-              ref={attachLogo}
-              src={artwork.logo}
-              loading="lazy"
-              decoding="async"
-              fetchPriority="low"
-              onLoad={() => setLoadedLogo(artwork.logo!)}
-              onError={() => setFailedLogo(artwork.logo!)}
-              alt=""
-              aria-hidden="true"
-              className="max-h-[36%] max-w-[78%] w-auto object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]"
-              draggable={false}
-            />
-          </div>
-        ) : null}
       </div>
-      <IntentLink href={linkHref} scroll={false} draggable={false} className={styles.detailsLink}>
-        <div className="px-1">
-          <div className={`mt-2.5 text-sm font-medium text-foreground ${titleLines === 2 ? "line-clamp-2 break-words leading-snug" : "truncate"}`}>
-            {item.name}
-          </div>
-          <div className={`text-xs text-muted-foreground mt-0.5 ${continueWatching ? "min-h-4" : ""}`}>
-            {subtitleContent ?? subtitle}
-          </div>
-        </div>
-      </IntentLink>
     </div>
   );
 }

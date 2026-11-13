@@ -21,6 +21,11 @@ const render = (item, continueWatching = false) => nodes(h.render(MediaCard, { i
 const movie = { id: 'tt123', type: 'movie', name: 'A full title that must remain readable' };
 let tree = render(movie);
 assert.ok(tree.some(node => node.type === 'placeholder'));
+assert.equal(tree.filter(node => node.type === 'a').length, 1, 'Poster and title share one navigation link');
+const cardLink = tree.find(node => node.type === 'a');
+assert.equal(nodes(cardLink).some(node => node.type === 'button'), false, 'Play is a sibling, never a button nested in a link');
+const tabStops = tree.filter(node => node.type === 'a' || node.type === 'button');
+assert.deepEqual(tabStops.map(node => node.type), ['a', 'button'], 'Tab order is the full card, then Play');
 assert.equal(tree.find(node => node.type === 'a').props['aria-label'], `View details for ${movie.name}`,
   'An artwork failure cannot leave an unnamed navigation link');
 assert.equal(tree.find(node => node.type === 'button').props['aria-label'], `Play ${movie.name}`);

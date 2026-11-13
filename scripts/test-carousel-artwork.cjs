@@ -24,7 +24,7 @@ function find(node, predicate) {
 }
 assert.equal(find(row, node => node.props?.['data-media-row-viewport'] !== undefined).length, 1, 'Use one native clipped scroll viewport for the row');
 const rowViewport = find(row, node => node.props?.['data-media-row-viewport'] !== undefined)[0];
-assert.equal(rowViewport.props.tabIndex, 0, 'The native carousel stays keyboard scrollable');
+assert.equal(rowViewport.props.tabIndex, -1, 'Tab moves directly to cards and controls instead of the whole carousel');
 const movements = [];
 rowViewport.props.ref.current = { scrollBy: value => movements.push(value) };
 h.flush();

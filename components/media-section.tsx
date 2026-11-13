@@ -71,7 +71,7 @@ export function MediaSection({
       </div>
       {hasItems ? (
         <div ref={viewportRef} data-media-row-viewport="" className={styles.viewport}
-          role="region" aria-label={`${sectionName} titles`} tabIndex={0}>
+          role="region" aria-label={`${sectionName} titles`} tabIndex={-1}>
           <ul className={styles.track}>
             {mediaItems.map((item, index) => (
               <li

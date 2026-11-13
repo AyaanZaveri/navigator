@@ -50,7 +50,7 @@ function render(continueWatching = false) {
     return context.exports.MediaCard({ continueWatching, item: { id: 'tt123', name: 'Fixture', type: 'movie', resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } });
 }
 assert.equal(render(true).props['data-continue-watching'], true, 'Resume cards opt into stable brightness styling');
-const thumbnail = render(true).props.children[0].props.children[0].props.children;
+const thumbnail = render(true).props.children[0].props.children[0].props.children[0].props.children;
 assert.equal(thumbnail.props.sizes, '320px');
 assert.equal(thumbnail.props.src, '/backdrop.jpg?width=780');
 assert.equal(thumbnail.props.width, 320);
@@ -76,7 +76,7 @@ function hasSeparateResumeShade(node) {
     return React.Children.toArray(node.props?.children).some(hasSeparateResumeShade);
 }
 assert.equal(hasSeparateResumeShade(render(true)), false, 'A separate shade must not be composited over the resume image');
-const frame = () => render().props.children[0];
+const frame = () => render().props.children[0].props.children[0];
 for (const end of ['onPointerLeave', 'onPointerCancel', 'onPointerUp']) {
     frame().props.onPointerDown({ button: 0 });
     assert.equal(frame().props['data-pressed'], true);

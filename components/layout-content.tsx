@@ -100,7 +100,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
                             viewportRef.current?.focus({ preventScroll: true });
                         }}>Skip to content</a>
                         <AppHeader email={email} overlay={overlayHeader} />
-                        <ScrollAreaViewport ref={viewportRef} id="page-content" role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
+                        <ScrollAreaViewport ref={viewportRef} id="page-content" role="main" aria-label="Page content" tabIndex={-1} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
                             <PersistentAuroraBackground />
                             <HomeGradientBackground visible={showHomeGradient} emerald={useEmeraldBackdrop} />
                             {children}
