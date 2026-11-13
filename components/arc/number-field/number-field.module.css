@@ -71,7 +71,7 @@
 }
 
 .control:has(.input:focus-visible) {
-  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline: none;
   outline-offset: 0;
   box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
 }

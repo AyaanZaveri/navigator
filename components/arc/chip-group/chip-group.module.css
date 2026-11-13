@@ -122,7 +122,7 @@
   box-shadow: none;
 }
 .chip:focus-visible .surface {
-  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline: none;
   outline-offset: 0;
   border-color: var(--ring);
   box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);

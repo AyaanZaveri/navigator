@@ -338,7 +338,7 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
 }
 
 :root {
-  --keyboard-focus-width: 2px;
+  --keyboard-focus-width: 1px;
   --keyboard-focus-halo-width: 3px;
 }
 
@@ -350,9 +350,14 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
   box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
 }
 
+/* Restore the original border-and-halo treatment on bordered controls. */
+:is([data-slot="button"], [data-slot="input"], [data-slot="textarea"]):focus-visible {
+  outline: none;
+}
+
 /* The visible shell owns focus, so its inner input must not draw twice. */
 [data-slot="input-group"]:has([data-slot="input-group-control"]:focus-visible) {
-  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline: none;
   outline-offset: 0;
   box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
 }
@@ -363,7 +368,7 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
 }
 
 @media (forced-colors: active) {
-  :focus-visible {
+  :focus-visible:not([data-page-scroll]):not([data-media-row-viewport]) {
     outline: 2px solid Highlight !important;
     outline-offset: var(--keyboard-focus-offset, 0px) !important;
     box-shadow: none !important;
