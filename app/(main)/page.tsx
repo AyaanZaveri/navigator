@@ -217,8 +217,8 @@ async function DiscoverySections() {
   return <>
     <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
     <p className="relative z-10 py-4 text-xs text-muted-foreground">
-      Movie and TV data by <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline underline-offset-4">TMDB</a>.
-      {" "}Streaming availability by <a href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({region}).
+      Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline underline-offset-4">TMDB</a>.
+      {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({region}).
     </p>
   </>;
 }

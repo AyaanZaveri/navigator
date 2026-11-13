@@ -136,7 +136,7 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", desc
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <FieldLabel htmlFor={id}>{label}</FieldLabel>
                 {keyUrl && (
-                    <a
+                    <a draggable={false}
                         href={keyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -258,7 +258,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
             </Field>}
             {variant === "preference" && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
             {variant === "preference" && !loading && !state.configured && <p className={styles.description}>
-                <Link href="/settings/connections" className={styles.keyLink}>Connect TinyFish</Link> to enable web search.
+                <Link draggable={false} href="/settings/connections" className={styles.keyLink}>Connect TinyFish</Link> to enable web search.
             </p>}
             {variant === "connection" && <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || pending} onSubmit={event => { event.preventDefault(); if (!pending && key.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
@@ -624,7 +624,7 @@ function NavigatorSettings() {
         },
         ollama: {
             value: ollamaModel, onValueChange: setOllamaModel, placeholder: "phi3",
-            description: <a href="https://ollama.com/search?c=tools" target="_blank" rel="noopener noreferrer">Browse Ollama models</a>,
+            description: <a draggable={false} href="https://ollama.com/search?c=tools" target="_blank" rel="noopener noreferrer">Browse Ollama models</a>,
         },
         groq: {
             value: groqModel, onValueChange: setGroqModel, options: catalog.models,
@@ -758,7 +758,7 @@ export function SettingsView({ category }: { category: SettingsCategory }) {
         return <AppUpdates />;
     case "playback":
         return <><PlaybackSettings /><PlaybackLanguageSettings />
-            <p className={styles.credits}>Skip timings from <a href="https://theintrodb.org" target="_blank" rel="noreferrer">TheIntroDB</a>, <a href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB</a>, and <a href="https://skipdb.tv" target="_blank" rel="noreferrer">SkipDB</a> (<a href="https://skipdb.tv/license" target="_blank" rel="noreferrer">ODbL license</a>).</p>
+            <p className={styles.credits}>Skip timings from <a draggable={false} href="https://theintrodb.org" target="_blank" rel="noreferrer">TheIntroDB</a>, <a draggable={false} href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB</a>, and <a draggable={false} href="https://skipdb.tv" target="_blank" rel="noreferrer">SkipDB</a> (<a draggable={false} href="https://skipdb.tv/license" target="_blank" rel="noreferrer">ODbL license</a>).</p>
         </>;
     case "subtitles":
         return <SubtitleSettings />;

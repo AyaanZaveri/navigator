@@ -121,7 +121,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
             {link && <div className="flex flex-col items-center gap-2 text-center text-sm">
                 <p role="status" className="text-balance text-muted-foreground">Finish signing in in the Stremio window.</p>
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-                    <a href={link.link} target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Open Stremio</a>
+                    <a draggable={false} href={link.link} target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Open Stremio</a>
                     <button type="button" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { popup.current?.close(); pendingLink.current = false; setLink(null); setLinking(false); }}>Cancel</button>
                 </div>
             </div>}
@@ -153,7 +153,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
             </form>
             <p className="text-center text-sm text-muted-foreground">
                 {"Don't have an account?"}{" "}
-                <a href="https://web.stremio.com/#/intro" target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Sign up</a>
+                <a draggable={false} href="https://web.stremio.com/#/intro" target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Sign up</a>
             </p>
         </div>
     );

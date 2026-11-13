@@ -16,7 +16,7 @@ export function IntentLink({ href, onPointerEnter, onPointerLeave, onFocus, onBl
         cancel.current = scheduleRoutePrefetch(href, () => setArmed(href));
     };
     const stop = () => { cancel.current?.(); cancel.current = null; setArmed(null); };
-    return <Link {...props} href={href} prefetch={armed === href}
+    return <Link {...props} draggable={false} href={href} prefetch={armed === href}
         onPointerEnter={event => { onPointerEnter?.(event); if (event.pointerType === "mouse") start(); }}
         onPointerLeave={event => { onPointerLeave?.(event); if (!event.currentTarget.matches(":focus-visible")) stop(); }}
         onFocus={event => { onFocus?.(event); if (event.currentTarget.matches(":focus-visible")) start(); }}

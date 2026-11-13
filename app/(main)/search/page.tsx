@@ -29,7 +29,7 @@ async function SearchResults({ query }: { query: string }) {
     }
     if (!initialResults) return <Empty role="alert" className={styles.empty}>
         <EmptyHeader><EmptyTitle>Search couldn’t load</EmptyTitle><EmptyDescription>{failure}</EmptyDescription></EmptyHeader>
-        <div className={styles.emptyActions}><SearchRetryButton /><Button asChild variant="outline"><Link href="/settings/connections">Connection settings</Link></Button></div>
+        <div className={styles.emptyActions}><SearchRetryButton /><Button asChild variant="outline"><Link draggable={false} href="/settings/connections">Connection settings</Link></Button></div>
     </Empty>;
     return <SearchResultsView key={query} query={query} initialResults={initialResults} />;
 }
@@ -52,7 +52,7 @@ export default async function Search({ searchParams }: {
                         <EmptyMedia variant="icon"><SearchIcon aria-hidden="true" /></EmptyMedia>
                         <EmptyTitle>Search movies and TV shows</EmptyTitle>
                         <EmptyDescription>Enter a title in the search above, or browse for something new.</EmptyDescription>
-                    </EmptyHeader><Button asChild variant="secondary"><Link href="/">Browse titles</Link></Button></Empty>
+                    </EmptyHeader><Button asChild variant="secondary"><Link draggable={false} href="/">Browse titles</Link></Button></Empty>
                 )}
             </div>
         </div>

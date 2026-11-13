@@ -98,7 +98,7 @@ export function SearchResultsView({ query, initialResults }: {
             </EmptyHeader>
             <div className={styles.emptyActions}>
                 {filter !== "all" && <Button variant="outline" onClick={() => changeType("all")}>Show all types</Button>}
-                <Button asChild variant="outline"><Link href="/">Browse titles</Link></Button>
+                <Button asChild variant="outline"><Link draggable={false} href="/">Browse titles</Link></Button>
             </div>
         </Empty>}
         {source.error && <div className={styles.loadStatus}>

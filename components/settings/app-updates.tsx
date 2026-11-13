@@ -41,7 +41,7 @@ export function AppUpdates() {
             </p>
         </> : null}
         <div><Button asChild variant="outline" size="sm">
-            <a href="https://github.com/AyaanZaveri/navigator/releases" target="_blank" rel="noreferrer">
+            <a draggable={false} href="https://github.com/AyaanZaveri/navigator/releases" target="_blank" rel="noreferrer">
                 <GitHubIcon data-icon="inline-start" />
                 View releases on GitHub
             </a>

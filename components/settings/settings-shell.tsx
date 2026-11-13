@@ -37,7 +37,7 @@ export function SettingsShell({ children }: { children: ReactNode }) {
                     onPointerDownCapture={() => setAnimateSelection(true)}>
                     <LayoutGroup id={selectionId}><ul className={styles.navigationList}>
                         {SETTINGS_CATEGORIES.map(item => <li key={item.id}>
-                            <Link className={styles.navigationLink} href={`/settings/${item.id}`} aria-current={active === item.id ? "page" : undefined}>
+                            <Link draggable={false} className={styles.navigationLink} href={`/settings/${item.id}`} aria-current={active === item.id ? "page" : undefined}>
                                 {active === item.id && <motion.span className={styles.navigationSelection}
                                     layoutId="settings-selection" layoutDependency={active} initial={false}
                                     transition={reducedMotion || !animateSelection ? { duration: 0 } : motionTokens.spring.snappy}

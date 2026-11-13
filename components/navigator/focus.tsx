@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type ComponentProps,
   memo,
   useMemo,
   useCallback,
@@ -25,7 +26,7 @@ import {
   Timer as TimerIcon,
 } from "lucide-react";
 import { BorderBeam } from "border-beam";
-import { Streamdown } from "streamdown";
+import { Streamdown, defaultComponents } from "streamdown";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { NavigatorLauncher } from "./launcher";
@@ -53,6 +54,10 @@ import floatingSurface from "@/components/arc/floating-surface.module.css";
 import { motionTokens } from "@/components/arc/motion-tokens";
 import { navigatorBeamColors } from "@/lib/navigator-beam";
 import { createNavigatorRowDeriver, type NavigatorRow } from "@/lib/navigator-rows";
+
+const markdownComponents = {
+  a: (props: ComponentProps<typeof defaultComponents.a>) => <defaultComponents.a {...props} draggable={false} />,
+};
 
 function ActivityPill({
   label,
@@ -180,6 +185,7 @@ const NavigatorMessageRow = memo(function NavigatorMessageRow({ row, duration, i
               key={segment.key}
             >
               <Streamdown
+                components={markdownComponents}
                 animated={false}
                 className="break-words text-[15px] leading-6 [&>*]:first:mt-0 [&>*]:last:mb-0 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5 [&_p]:my-2 [&_pre]:text-sm [&_table]:text-sm"
                 mode={

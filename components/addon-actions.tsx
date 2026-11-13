@@ -76,7 +76,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
         <div className={styles.actions}>
             {addon.configurable && (
                 <Button asChild variant="outline" size="sm">
-                    <a href={`/api/addons/${addon.id}/configure`} onClick={() => { configuring.current = true; }} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
+                    <a draggable={false} href={`/api/addons/${addon.id}/configure`} onClick={() => { configuring.current = true; }} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
                         <Settings data-icon="inline-start" aria-hidden="true" />Settings
                     </a>
                 </Button>
