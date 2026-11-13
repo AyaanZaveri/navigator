@@ -8,6 +8,6 @@
 .switch[data-state="checked"] .thumb { background: var(--control-thumb-on); }
 @media (hover: hover) and (pointer: fine) { .switch[data-state="unchecked"]:hover:not(:disabled) .track { background: var(--control-track-hover); } }
 .switch:focus-visible { outline: none; }
-.switch:focus-visible .track { outline: 3px solid color-mix(in oklab, var(--ring) 50%, transparent); outline-offset: 2px; }
+.switch:focus-visible .track { outline: 3px solid var(--focus-halo); outline-offset: 2px; }
 .label { line-height: var(--leading-body); }
 @media (prefers-reduced-motion: reduce) { .track, .track::before, .thumb { transition: none; } }

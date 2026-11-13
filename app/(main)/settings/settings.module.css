@@ -240,7 +240,7 @@
 .providerInput:focus-within {
   border-color: var(--ring);
   background: var(--surface-muted);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .apiKeyInput > input[data-slot="input-group-control"] {

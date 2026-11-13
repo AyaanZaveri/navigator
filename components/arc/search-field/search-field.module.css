@@ -1,7 +1,8 @@
 .field {
   --radius-control: 12px;
   --text-muted: var(--muted-foreground);
-  --surface: var(--search-field-surface, color-mix(in oklab, var(--background) 90%, transparent));
+  --surface: var(--search-field-surface, var(--text-input-fill));
+  --border: var(--text-input-border);
   display: grid;
   gap: var(--space-2);
   min-width: 0;
@@ -99,7 +100,7 @@
 /* Match the app header search's surface, corners and keyboard focus. */
 .shell:has(.input:focus-visible) {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+  box-shadow: 0 0 0 2px var(--focus-halo);
 }
 
 .field[data-size="sm"] {

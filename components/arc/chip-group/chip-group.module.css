@@ -122,7 +122,7 @@
 }
 .chip:focus-visible .surface {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 .chip[aria-pressed="true"]:focus-visible .surface {
   border-color: var(--ring);

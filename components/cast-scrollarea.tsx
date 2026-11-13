@@ -32,7 +32,7 @@ function CastRole({ role, name }: { role: string; name: string }) {
             <TooltipTrigger asChild>
                 <button
                     type="button"
-                    className={`${className} cursor-help rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                    className={`${className} cursor-help rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/22`}
                     aria-label={`Show full role for ${name}`}
                     onPointerDown={() => { openOnPress.current = open; }}
                     onClick={event => {
@@ -96,7 +96,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
                     </CarouselAction>
                 </div>
             </div>
-            <div ref={viewport} onScroll={updatePosition} tabIndex={0} role="region" aria-label="Cast members" className="overflow-x-auto overscroll-x-contain rounded-lg pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <div ref={viewport} onScroll={updatePosition} tabIndex={0} role="region" aria-label="Cast members" className="overflow-x-auto overscroll-x-contain rounded-lg pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/22">
                 <ul className="flex w-max gap-6">
                     {cast.map((member) => (
                         <li key={member.id} className="w-28 shrink-0 text-center">

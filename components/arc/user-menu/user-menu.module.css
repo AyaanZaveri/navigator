@@ -156,7 +156,7 @@
 }
 .trigger:not([data-name]):focus-visible .face,
 .trigger[data-name]:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 60%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 .trigger:focus-visible .portrait { outline-color: var(--ring); }
 @media (prefers-reduced-motion: reduce) {

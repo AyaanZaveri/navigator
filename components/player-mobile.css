@@ -108,7 +108,7 @@ html[data-native-playing] [data-player-glass] { --player-glass-tint: 68%; }
   pointer-events: none;
 }
 [data-player-close]:focus-visible {
-  outline: 2px solid var(--foreground);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 /* Override the original Android client offsets in both loading and playback. */

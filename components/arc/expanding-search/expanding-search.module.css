@@ -3,13 +3,14 @@
   --radius-control: 12px;
   --radius-panel: 16px;
   --radius-pill: 9999px;
-  --surface: color-mix(in oklab, var(--background) 90%, transparent);
+  --surface: var(--text-input-fill);
+  --border: var(--text-input-border);
   --surface-raised: color-mix(in oklab, var(--background) 95%, transparent);
   --surface-muted: var(--muted);
   --text-secondary: var(--muted-foreground);
   --text-muted: var(--muted-foreground);
   --border-strong: var(--border);
-  --focus-ring: color-mix(in oklab, var(--primary) 22%, transparent);
+  --focus-ring: var(--focus-halo);
   --icon-color: color-mix(in oklab, var(--foreground) 80%, transparent);
   --font-body: var(--font-sunghyun-sans), sans-serif;
   --text-sm: .875rem;
@@ -26,8 +27,6 @@
   font-family: var(--font-body);
 }
 :global(.dark) .root {
-  --surface: color-mix(in oklab, var(--background) 70%, transparent);
-  --border: rgb(255 255 255 / .12);
   --surface-raised: color-mix(in oklab, var(--background) 85%, transparent);
 }
 .root { position: relative; width: 100%; min-width: var(--control-height-md); height: var(--control-height-md); pointer-events: none; }
@@ -36,7 +35,7 @@
 .root[data-anchor="start"] .shell { right: auto; left: 0; }
 .shell[data-expanded] { border-color: var(--border-strong); color: var(--foreground); }
 /* A thin primary border and restrained halo distinguish focus from expansion. */
-.shell:has(> .trigger:focus-visible), .shell:has(> .input:focus-visible) { border-color: var(--primary); color: var(--foreground); box-shadow: 0 0 0 2px var(--focus-ring); }
+.shell:has(> .trigger:focus-visible), .shell:has(> .input:focus-visible) { border-color: var(--ring); color: var(--foreground); box-shadow: 0 0 0 2px var(--focus-ring); }
 .shortcut { position: absolute; top: 0; right: 12px; display: flex; height: 100%; align-items: center; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
   .shell:not([data-expanded]):hover { background: var(--surface-muted); color: var(--foreground); }

@@ -12,7 +12,7 @@
 .results { display: flex; min-width: 0; flex-direction: column; gap: var(--space-6); }
 .toolbar { display: flex; min-width: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3) var(--space-6); }
 .filters { --text-muted: var(--muted-foreground); max-width: 100%; }
-.filters :global(button:focus-visible) { outline: 2px solid var(--foreground); outline-offset: 1px; }
+.filters :global(button:focus-visible) { outline: 2px solid var(--ring); outline-offset: 1px; }
 .badge { color: var(--muted-foreground); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 
 /* Match home poster density while filling available width, including 320px. */
