@@ -7,7 +7,12 @@
 .thumb { flex: 0 0 auto; width: 18px; height: 18px; border-radius: var(--radius-pill); background: var(--control-thumb); box-shadow: var(--control-thumb-shadow); will-change: transform; transition: background-color var(--duration-standard) var(--ease-standard); }
 .switch[data-state="checked"] .thumb { background: var(--control-thumb-on); }
 @media (hover: hover) and (pointer: fine) { .switch[data-state="unchecked"]:hover:not(:disabled) .track { background: var(--control-track-hover); } }
-.switch:focus-visible { outline: none; }
-.switch:focus-visible .track { outline: 3px solid var(--focus-halo); outline-offset: 2px; }
+.switch:focus-visible:has(.track) { outline: none; box-shadow: none; }
+.switch:focus-visible .track { outline: var(--keyboard-focus-width) solid var(--ring); outline-offset: 0; box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo); }
 .label { line-height: var(--leading-body); }
 @media (prefers-reduced-motion: reduce) { .track, .track::before, .thumb { transition: none; } }
+
+@media (forced-colors: active) {
+  .switch:focus-visible:has(.track) { outline: none !important; }
+  .switch:focus-visible .track { outline: 2px solid Highlight; box-shadow: none; }
+}

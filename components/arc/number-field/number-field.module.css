@@ -15,9 +15,9 @@
 .control { display: flex; align-items: center; width: min(100%, var(--nf-width)); min-height: var(--nf-height); gap: 2px; border: 1px solid var(--border); border-radius: var(--radius-control); padding: var(--nf-inset); background: var(--surface); transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-standard) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard); }
 @media (hover: hover) and (pointer: fine) { .control:hover, .field:has(.label[data-scrub]:hover) .control { border-color: var(--border-strong); } }
 .control[data-scrubbing] { border-color: var(--foreground); }
-.control:has(input:focus) { border-color: var(--ring); }
+.control:has(input:focus-visible) { border-color: var(--ring); }
 .control[data-warn], .control[data-warn]:hover { border-color: color-mix(in oklab, var(--warning) 55%, var(--border)); background: color-mix(in oklab, var(--warning) 5%, var(--surface)); }
-.control[data-warn]:has(input:focus) { border-color: color-mix(in oklab, var(--warning) 80%, var(--border)); }
+.control[data-warn]:has(input:focus-visible) { border-color: color-mix(in oklab, var(--warning) 80%, var(--border)); }
 .control[data-disabled] { opacity: .5; background: var(--surface-muted); }
 /* Radius steps in by the shell's inset, so the pressed fill sits concentric with the shell. */
 .step { display: grid; width: var(--nf-step); height: var(--nf-step); flex: 0 0 var(--nf-step); place-items: center; border: 0; border-radius: calc(var(--radius-control) - var(--nf-inset) - 1px); padding: 0; background: transparent; color: var(--text-secondary); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), opacity var(--duration-standard) var(--ease-standard); }
@@ -27,7 +27,7 @@
 /* Quick press, spring release: the fill deepens and the glyph sinks. A held button stays pressed for as long as it repeats. */
 .step:is(:active, [data-pressed]):not(:disabled, [aria-disabled="true"]) { background: color-mix(in oklab, var(--foreground) 10%, var(--surface)); color: var(--foreground); transition: background-color 60ms linear, color 60ms linear; }
 .step:is(:active, [data-pressed]):not(:disabled, [aria-disabled="true"]) svg { transform: scale(.82); transition: transform 90ms var(--ease-standard); }
-.step:focus-visible { outline: none; background: var(--surface-muted); color: var(--foreground); }
+.step:focus-visible { outline: var(--keyboard-focus-width) solid var(--ring); outline-offset: 0; box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo); background: var(--surface-muted); color: var(--foreground); }
 /* At a limit the button dims and refuses, but stays in the tab order; pressing it strains the value toward the limit and it shakes once. */
 .step[aria-disabled="true"] { opacity: .32; cursor: not-allowed; }
 .step:disabled { opacity: .35; cursor: not-allowed; }
@@ -45,7 +45,7 @@
 .display[data-hidden] { position: absolute; top: 0; left: 0; visibility: hidden; }
 .mirror { grid-area: 1 / 1; white-space: pre; }
 .input { position: absolute; z-index: 1; top: 0; left: 0; width: calc(100% + 1em); height: 100%; margin: 0; border: 0; padding: 0; background: transparent; color: transparent; caret-color: var(--foreground); font: inherit; font-variant-numeric: inherit; letter-spacing: inherit; line-height: inherit; text-align: left; outline: none; }
-.input:focus-visible { outline: none; }
+.control .input:focus-visible { outline: none; box-shadow: none; }
 .input::selection { background: color-mix(in oklab, var(--foreground) 16%, transparent); color: transparent; }
 .input:disabled { cursor: not-allowed; }
 /* Each digit is a wheel whose window reaches a little past the line box and feathers out, so a turning digit fades at the edge instead of being cut.
@@ -68,4 +68,15 @@
   .control, .step { transition: opacity var(--duration-instant) linear, border-color var(--duration-instant) linear, background-color var(--duration-instant) linear; }
   .step:is(:active, [data-pressed]):not(:disabled, [aria-disabled="true"]) svg, .icon svg { transform: none; transition: none; }
   .control[data-strain] .value { color: var(--nf-limit); transition: none; }
+}
+
+.control:has(.input:focus-visible) {
+  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
+}
+
+@media (forced-colors: active) {
+  .control:has(.input:focus-visible) { outline: 2px solid Highlight; }
+  .control .input:focus-visible { outline: none !important; }
 }

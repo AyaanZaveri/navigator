@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // app's existing variants, Slot composition and original 3% press feedback.
 const primary = "border-foreground bg-foreground text-background hover:opacity-[0.91] data-[pressed=true]:opacity-[0.84]";
 const secondary = "border-border bg-[var(--surface)] text-foreground hover:bg-[var(--surface-muted)] hover:shadow-[var(--shadow-resting)] disabled:bg-[var(--surface-muted)] disabled:text-muted-foreground disabled:opacity-100";
-const danger = "border-transparent bg-destructive/20 text-destructive hover:bg-destructive/30 focus-visible:border-destructive focus-visible:ring-destructive/20";
+const danger = "border-transparent bg-destructive/20 text-destructive hover:bg-destructive/30";
 
 const buttonVariants = cva(
   "group/button relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap border border-transparent text-sm font-medium leading-[1.4] tracking-[var(--tracking-body)] outline-none touch-manipulation select-none [-webkit-tap-highlight-color:transparent] origin-center [transform-box:border-box] transition-[color,background-color,border-color,opacity,box-shadow,scale] duration-200 ease-in-out motion-safe:data-[pressed=true]:scale-[0.97] motion-reduce:transition-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-[0.52] focus-visible:border-ring focus-visible:ring-ring/22 focus-visible:ring-[3px] aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

@@ -35,7 +35,7 @@
 .root[data-anchor="start"] .shell { right: auto; left: 0; }
 .shell[data-expanded] { border-color: var(--border-strong); color: var(--foreground); }
 /* A thin primary border and restrained halo distinguish focus from expansion. */
-.shell:has(> .trigger:focus-visible), .shell:has(> .input:focus-visible) { border-color: var(--ring); color: var(--foreground); box-shadow: 0 0 0 2px var(--focus-ring); }
+.shell:has(> .trigger:focus-visible), .shell:has(> .input:focus-visible) { outline: var(--keyboard-focus-width) solid var(--ring); outline-offset: 0; border-color: var(--ring); color: var(--foreground); box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo); }
 .shortcut { position: absolute; top: 0; right: 12px; display: flex; height: 100%; align-items: center; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
   .shell:not([data-expanded]):hover { background: var(--surface-muted); color: var(--foreground); }
@@ -44,11 +44,11 @@
 /* A compact press while it is still a button; the morph takes over on release. */
 .shell:not([data-expanded]):has(> .trigger:active) { transform: scale(.97); transition-duration: var(--duration-fast), var(--duration-fast), var(--duration-fast), var(--duration-standard), var(--duration-instant); }
 .trigger { position: absolute; z-index: 1; inset: 0; margin: 0; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.trigger:focus-visible { outline: none; }
+.shell > .trigger:focus-visible { outline: none; box-shadow: none; }
 /* The glass sits at the leading edge, so it is centered in the circle and rides that edge to its place in the open field. */
 .icon { color: var(--icon-color); position: absolute; top: calc(50% - 9px); left: calc(var(--control-height-md) / 2 - 10px); pointer-events: none; }
 .input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0 40px 0 38px; border: 0; border-radius: inherit; background: transparent; box-shadow: none; color: var(--foreground); font: inherit; font-size: var(--text-sm); letter-spacing: var(--tracking-body); text-overflow: ellipsis; outline: none; }
-.input:focus-visible { outline: none; }
+.shell > .input:focus-visible { outline: none; box-shadow: none; }
 .input::placeholder { color: var(--text-muted); opacity: 1; }
 .input[inert] { pointer-events: none; }
 .clear { position: absolute; z-index: 1; top: calc(50% - 14px); right: 7px; display: grid; width: 28px; height: 28px; place-items: center; margin: 0; padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--icon-color); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard); -webkit-tap-highlight-color: transparent; }
@@ -92,3 +92,8 @@
 .optionIcon { width: 30px; }
 .optionIcon img { display: block; width: 30px; height: 44px; border-radius: 4px; object-fit: cover; }
 @media (min-width: 768px) { .input { font-size: .875rem; } }
+
+@media (forced-colors: active) {
+  .shell:has(> .trigger:focus-visible), .shell:has(> .input:focus-visible) { outline: 2px solid Highlight; }
+  .shell > .trigger:focus-visible, .shell > .input:focus-visible { outline: none !important; }
+}

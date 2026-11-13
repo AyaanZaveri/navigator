@@ -336,3 +336,45 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
     scrollbar-color: var(--accent) transparent;
   }
 }
+
+:root {
+  --keyboard-focus-width: 2px;
+  --keyboard-focus-halo-width: 3px;
+}
+
+/* One keyboard focus treatment for native controls, links, and custom widgets.
+   Compound fields delegate the indicator to their visible shell below. */
+:is(a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="slider"], [role="checkbox"], [role="switch"], [role="combobox"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], [role="radio"], [role="tab"], [role="treeitem"], :where([tabindex]:not([tabindex="-1"]))):focus-visible {
+  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
+}
+
+/* The visible shell owns focus, so its inner input must not draw twice. */
+[data-slot="input-group"]:has([data-slot="input-group-control"]:focus-visible) {
+  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
+}
+
+[data-slot="input-group-control"]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: var(--keyboard-focus-offset, 0px) !important;
+    box-shadow: none !important;
+  }
+
+  [data-slot="input-group"]:has([data-slot="input-group-control"]:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: 0;
+  }
+
+  [data-slot="input-group"] [data-slot="input-group-control"]:focus-visible {
+    outline: none !important;
+  }
+}

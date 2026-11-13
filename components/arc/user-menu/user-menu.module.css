@@ -127,7 +127,7 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-.themeControl button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.themeControl button:focus-visible { outline: var(--keyboard-focus-width) solid var(--ring); outline-offset: 0; box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo); }
 
 .spinner { animation: user-menu-spin .8s linear infinite; }
 @keyframes user-menu-spin { to { transform: rotate(360deg); } }
@@ -149,6 +149,7 @@
 
 /* Keep the hit area generous while the icon-only ring hugs the avatar. */
 .trigger { outline: none; }
+.trigger:not([data-name]):focus-visible { outline: none; box-shadow: none; }
 .trigger .face {
   border-radius: var(--radius-pill);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 20%, transparent);
@@ -156,7 +157,9 @@
 }
 .trigger:not([data-name]):focus-visible .face,
 .trigger[data-name]:focus-visible {
-  box-shadow: 0 0 0 3px var(--focus-halo);
+  outline: var(--keyboard-focus-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
 }
 .trigger:focus-visible .portrait { outline-color: var(--ring); }
 @media (prefers-reduced-motion: reduce) {
@@ -170,4 +173,9 @@
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .sheet { background: var(--popover); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+@media (forced-colors: active) {
+  .trigger:not([data-name]):focus-visible { outline: none !important; }
+  .trigger:not([data-name]):focus-visible .face { outline: 2px solid Highlight; box-shadow: none; }
 }
