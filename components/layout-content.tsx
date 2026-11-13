@@ -61,15 +61,13 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
         setIsNavigatorEnabled(authenticated && navigatorEnabled);
     }, [authenticated, navigatorEnabled, setIsNavigatorEnabled]);
 
-    // Function to handle opening AI Ask with fullscreen exit if needed
+    // Native fullscreen covers the whole app, so Navigator can open in place.
+    // Only browser element fullscreen hides the global overlay.
     const handleToggleAIAsk = async () => {
-        if (isFullscreen && !isAIAskOpen && !(isPlayerVisible && desktopBridge())) {
+        if (isFullscreen && !isAIAskOpen && !desktopBridge()) {
             // Exit fullscreen first when opening AI Ask
             try {
-                const desktop = desktopBridge();
-                if (desktop) {
-                    desktop.send({ type: "fullscreen", value: false });
-                } else if (document.exitFullscreen) {
+                if (document.exitFullscreen) {
                     await document.exitFullscreen();
                 } else if ((document as any).webkitExitFullscreen) {
                     await (document as any).webkitExitFullscreen();

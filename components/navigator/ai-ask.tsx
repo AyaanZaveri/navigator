@@ -16,6 +16,7 @@ import { isAIAskOpenAtom, currentTimestampAtom } from "@/lib/atoms";
 import { useSettings } from "@/contexts/settings-context";
 import { NavigatorFocus } from "./focus";
 import { preloadPlayer } from "@/lib/preload-tools";
+import { desktopBridge } from "@/lib/desktop/bridge";
 import { isNavigatorRequestSettled, navigatorResponseDurations } from "@/lib/navigator-timing";
 
 const AIAsk = ({ userId }: { userId: string }) => {
@@ -102,7 +103,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
 
     // Function to handle opening AI Ask, with fullscreen exit if needed
     const handleOpenAsk = async () => {
-        if (isFullscreen) {
+        if (isFullscreen && !desktopBridge()) {
             // Exit fullscreen first
             try {
                 if (document.exitFullscreen) {

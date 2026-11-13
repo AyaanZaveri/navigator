@@ -5,7 +5,6 @@ import {
   isAIAskOpenAtom,
   isFullscreenAtom,
   isNavigatorEnabledAtom,
-  isPlayerVisibleAtom,
 } from "@/lib/atoms";
 import { useEffect } from "react";
 import { desktopBridge } from "@/lib/desktop/bridge";
@@ -14,7 +13,6 @@ export function KeyboardShortcuts() {
   const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
   const [isFullscreen] = useAtom(isFullscreenAtom);
   const [isNavigatorEnabled] = useAtom(isNavigatorEnabledAtom);
-  const [isPlayerVisible] = useAtom(isPlayerVisibleAtom);
 
   // Function to handle opening AI Ask with fullscreen exit if needed
   const handleToggleAIAsk = async () => {
@@ -26,7 +24,7 @@ export function KeyboardShortcuts() {
       return;
     }
 
-    if (isFullscreen && !isAIAskOpen && !(isPlayerVisible && desktopBridge())) {
+    if (isFullscreen && !isAIAskOpen && !desktopBridge()) {
       // Exit fullscreen first when opening AI Ask
       try {
         if (document.exitFullscreen) {

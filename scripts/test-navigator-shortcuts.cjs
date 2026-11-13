@@ -77,6 +77,9 @@ async function fire(event) {
     assert.equal(dispatched.length, 0);
     mount({ open: true }); await fire(key({ [modifier]: true })); assert.equal(state.open, false);
     mount(); await fire(key({ [modifier]: true, repeat: true })); assert.equal(state.open, false, 'Held shortcut must not flicker');
+    mount({ playing: false }); await fire(key({ [modifier]: true }));
+    assert.equal(state.open, true, 'Navigator opens in fullscreen browsing before playback');
+    assert.equal(fullscreenExits, 0, 'Native browsing fullscreen must stay active too');
   }
   mount({ enabled: false }); await fire(key({ ctrlKey: true })); assert.equal(state.open, false);
   native = false; mount(); await fire(key({ ctrlKey: true }));

@@ -31,6 +31,7 @@ const hooks = {
     useMemo: fn => fn(), useEffect: () => {},
 };
 const { default: AIAsk } = load('components/navigator/ai-ask.tsx', {
+    '@/lib/desktop/bridge': { desktopBridge: () => undefined },
     react: hooks,
     '@ai-sdk/react': { useChat: options => {
         config = options;
