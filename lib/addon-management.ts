@@ -67,3 +67,18 @@ export async function removeInstalledAddon(authKey: string, key: string) {
     try { await operation; }
     finally { if (pending.get(authKey) === operation) pending.delete(authKey); }
 }
+
+export async function addInstalledAddon(authKey: string, addon: StremioAddon) {
+    const previous = pending.get(authKey) ?? Promise.resolve();
+    const operation = previous.catch(() => {}).then(async () => {
+        const addons = await readAddonCollection(authKey);
+        if (addons.some(item => item.transportUrl === addon.transportUrl)) {
+            throw new Error("This addon configuration is already installed.");
+        }
+        const result = await request(authKey, "AddonCollectionSet", { addons: [...addons, addon] });
+        if (result.success !== true) throw new Error("Stremio did not confirm the install. Please try again.");
+    });
+    pending.set(authKey, operation);
+    try { await operation; }
+    finally { if (pending.get(authKey) === operation) pending.delete(authKey); }
+}

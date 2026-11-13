@@ -32,6 +32,13 @@
   flex: 0 1 20rem;
 }
 
+.addAction {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-inline-start: auto;
+}
+
 .list {
   container-type: inline-size;
   display: grid;

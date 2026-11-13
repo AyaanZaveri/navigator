@@ -72,7 +72,7 @@ async function managementTests() {
   vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/addon-management.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText, server);
-  const { addonKey, addonLinks, removeInstalledAddon } = server.exports;
+  const { addonKey, addonLinks, removeInstalledAddon, addInstalledAddon } = server.exports;
   assert.equal(addonLinks(configured).configureUrl, 'https://example.com/personal-config/configure?option=1');
   assert.equal(addonLinks(protectedAddon).configureUrl, null);
   assert.equal(addonLinks({ ...configured, transportUrl: 'stremio://example.com/manifest.json' }).shareUrl,
@@ -103,6 +103,22 @@ async function managementTests() {
   ]);
   assert.equal(collection.length, 1, 'Concurrent removals read fresh and never restore a removed addon');
   assert.equal(collection[0].transportUrl, protectedAddon.transportUrl);
+  await addInstalledAddon('account-token', configured);
+  assert.equal(collection.length, 2);
+  assert.equal(collection[0].flags.protected, true, 'Installing preserves protected addons');
+  const beforeDuplicate = writes.length;
+  await assert.rejects(addInstalledAddon('account-token', configured), /already installed/);
+  assert.equal(writes.length, beforeDuplicate, 'Duplicate installs never replace the collection');
+  failure = true;
+  await assert.rejects(addInstalledAddon('account-token', secondConfig), /could not update/);
+  assert.equal(collection.length, 2, 'Failed installs preserve the collection');
+  failure = false;
+  await Promise.all([
+    addInstalledAddon('account-token', secondConfig),
+    removeInstalledAddon('account-token', addonKey(configured.transportUrl)),
+  ]);
+  assert.equal(collection.length, 2, 'Concurrent install and uninstall preserve both changes');
+  assert.equal(collection[1].transportUrl, secondConfig.transportUrl);
   console.log('PASS: configuration/share links, protected addons, exact configuration removal, API failures, and concurrent writes');
 }
 managementTests().catch(error => { console.error(error); process.exitCode = 1; });

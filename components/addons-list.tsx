@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createAddonRemovalMotion } from "./addon-removal-motion";
 import { AddonActions } from "@/components/addon-actions";
+import { AddAddonDialog } from "@/components/add-addon-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,10 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
     const [query, setQuery] = useState("");
     const [capability, setCapability] = useState("all");
     const [removed, setRemoved] = useState<Set<string>>(() => new Set());
+    useEffect(() => {
+        // A fresh account collection can include a previously removed addon again.
+        setRemoved(previous => previous.size ? new Set() : previous);
+    }, [addons]);
     const search = useRef<HTMLInputElement>(null);
     const emptyTitle = useRef<HTMLDivElement>(null);
     const [rows] = useState(() => new Map<string, HTMLLIElement>());
@@ -56,31 +61,30 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
         };
     }, [motion]);
 
-    if (!installed.length) {
-        return (
-            <Empty className={styles.empty}>
-                <EmptyHeader>
-                    <EmptyTitle ref={emptyTitle} tabIndex={-1}>No addons installed</EmptyTitle>
-                    <EmptyDescription>Install addons in Stremio, then refresh this page to see them here.</EmptyDescription>
-                </EmptyHeader>
-            </Empty>
-        );
-    }
-
     return (
         <div className={styles.directory}>
             <div className={`${styles.toolbar} [&_button[data-chip]]:backdrop-blur-md`}>
-                <div className={`${styles.search} rounded-xl backdrop-blur-md`}>
-                    <SearchField ref={search} label="Search addons" hideLabel placeholder="Search addons…" value={query} onValueChange={setQuery} autoComplete="off" />
-                </div>
-                <ChipGroup label="Filter addons by capability" multiple={false} options={filters} value={[capability]} onValueChange={(values) => setCapability(values[0] ?? "all")} />
+                {installed.length > 0 && <>
+                    <div className={`${styles.search} rounded-xl backdrop-blur-md`}>
+                        <SearchField ref={search} label="Search addons" hideLabel placeholder="Search addons…" value={query} onValueChange={setQuery} autoComplete="off" />
+                    </div>
+                    <ChipGroup label="Filter addons by capability" multiple={false} options={filters} value={[capability]} onValueChange={(values) => setCapability(values[0] ?? "all")} />
+                </>}
+                <div className={styles.addAction}><AddAddonDialog /></div>
             </div>
 
             <p role="status" aria-live="polite" className="sr-only">
                 {results.length} addon{results.length === 1 ? "" : "s"} found
             </p>
 
-            {results.length ? (
+            {!installed.length ? (
+                <Empty className={styles.empty}>
+                    <EmptyHeader>
+                        <EmptyTitle ref={emptyTitle} tabIndex={-1}>No addons installed</EmptyTitle>
+                        <EmptyDescription>Use Add addon to install an addon from its manifest link.</EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+            ) : results.length ? (
                 <ul aria-label="Installed addons" className={styles.list}>
                     {results.map((addon) => {
                         const details = [...new Set(addon.types.map(addonTypeLabel))].filter(Boolean);
