@@ -111,7 +111,7 @@ export function AppHeader({ email }: { email: string; overlay?: boolean }) {
                 <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center gap-3`}>
                     <DesktopUpdateButton />
                     {authenticated ? <ProfileMenu email={email} /> : (
-                        <Button variant="outline" className={`${styles.signIn} max-sm:size-11 max-sm:p-0 max-sm:has-[>svg]:px-0`} onClick={requestSignIn} aria-label="Sign in">
+                        <Button variant="outline" className="max-sm:size-11 max-sm:p-0" onClick={requestSignIn} aria-label="Sign in">
                             <LogIn data-icon="inline-start" aria-hidden="true" />
                             <span className="hidden sm:inline">Sign in</span>
                         </Button>
