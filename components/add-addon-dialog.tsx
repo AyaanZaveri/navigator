@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useTransition, type CSSProperties, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowUpRight, ExternalLink, Link2, Loader2, Plus, Puzzle } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Link2, Loader2, Plus, Puzzle, X } from "lucide-react";
 import { toast } from "sonner";
 import { installAddon, previewAddon } from "@/app/actions/addons";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/account-ui/dialog";
@@ -157,6 +157,32 @@ export function AddAddonDialog() {
     const ModalTitle = isMobile ? DrawerTitle : DialogTitle;
     const ModalDescription = isMobile ? DrawerDescription : DialogDescription;
 
+    const browseAction = (
+        <Button asChild variant={isMobile ? "link" : "outline"} size={isMobile ? "default" : "sm"}>
+            <a draggable={false} className={browseLink.link} href="https://stremio-addons.net/" target="_blank" rel="noopener noreferrer" aria-label="Browse Stremio Addons (opens in a new tab)">
+                <Image src="/images/stremio-addons.ico" width={16} height={16} unoptimized alt="" data-icon="inline-start" />
+                <span className="inline-flex items-center">
+                    Browse addons
+                    <span className={browseLink.arrow} aria-hidden="true">
+                        <ArrowUpRight className="size-4" strokeWidth={2} absoluteStrokeWidth />
+                    </span>
+                </span>
+            </a>
+        </Button>
+    );
+    const primaryAction = configurationRequired && configureUrl ? (
+        <Button asChild size={isMobile ? "default" : "sm"} className={isMobile ? "w-full" : undefined}>
+            <a draggable={false} href={configureUrl} target="_blank" rel="noopener noreferrer">Configure addon<ExternalLink data-icon="inline-end" strokeWidth={1.75} aria-hidden="true" /></a>
+        </Button>
+    ) : (
+        <Button type="submit" size={isMobile ? "default" : "sm"} className={isMobile ? "w-full" : undefined} aria-busy={pending || lookupPending} disabled={pending || lookupPending || !link.trim() || configurationRequired}>
+            {pending || lookupPending ? <>
+                <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                <span className={previewStyle.loadingText}>{pending && preview ? "Installing" : "Loading"}</span>
+            </> : (preview ? "Install addon" : "Review addon")}
+        </Button>
+    );
+
     return (
         <>
             <Button ref={trigger} size="sm" className="size-[var(--addon-search-height,2.75rem)] rounded-xl p-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" disabled={pending} aria-label="Add addon" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => { void openFromClipboard(); }}>
@@ -166,8 +192,11 @@ export function AddAddonDialog() {
                 <ModalContent id={`${id}-dialog`} className={isMobile
                     ? `${surface.surface} [--drawer-inset:0.5rem] after:hidden`
                     : `${surface.surface} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-7 p-6 sm:max-w-[560px]`} finalFocus={trigger}>
-                    <ModalHeader className={isMobile ? "p-6 pb-0" : "pr-8"}>
-                        <ModalTitle>Add addon</ModalTitle>
+                    <ModalHeader className={isMobile ? "relative p-6 pb-0" : "pr-8"}>
+                        <ModalTitle className={isMobile ? "mx-10" : undefined}>Add addon</ModalTitle>
+                        {isMobile && <Button type="button" variant="ghost" size="icon" className="absolute right-4 top-4 size-11" aria-label="Close" onClick={() => changeOpen(false)}>
+                            <X aria-hidden="true" />
+                        </Button>}
                         <ModalDescription className="sr-only">Install an addon from its Stremio link.</ModalDescription>
                     </ModalHeader>
                     <form onSubmit={submit} className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6" : ""}`} aria-busy={pending || lookupPending}>
@@ -218,34 +247,20 @@ export function AddAddonDialog() {
                                 </p>}
                             </section>
                         )}
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                            <Button asChild variant="outline" size="sm">
-                                <a draggable={false} className={browseLink.link} href="https://stremio-addons.net/" target="_blank" rel="noopener noreferrer" aria-label="Browse Stremio Addons (opens in a new tab)">
-                                    <Image src="/images/stremio-addons.ico" width={16} height={16} unoptimized alt="" data-icon="inline-start" />
-                                    <span className="inline-flex items-center">
-                                        Browse addons
-                                        <span className={browseLink.arrow} aria-hidden="true">
-                                            <ArrowUpRight className="size-4" strokeWidth={2} absoluteStrokeWidth />
-                                        </span>
-                                    </span>
-                                </a>
-                            </Button>
-                            <div className="ms-auto flex flex-wrap items-center justify-end gap-2">
-                                <Button type="button" variant="outline" size="sm" onClick={() => changeOpen(false)}>Cancel</Button>
-                                {configurationRequired && configureUrl ? (
-                                    <Button asChild size="sm">
-                                        <a draggable={false} href={configureUrl} target="_blank" rel="noopener noreferrer">Configure addon<ExternalLink data-icon="inline-end" aria-hidden="true" /></a>
-                                    </Button>
-                                ) : (
-                                    <Button type="submit" size="sm" aria-busy={pending || lookupPending} disabled={pending || lookupPending || !link.trim() || configurationRequired}>
-                                        {pending || lookupPending ? <>
-                                            <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-                                            <span className={previewStyle.loadingText}>{pending && preview ? "Installing" : "Loading"}</span>
-                                        </> : (preview ? "Install addon" : "Review addon")}
-                                    </Button>
-                                )}
+                        {isMobile ? (
+                            <div className="flex flex-col items-center gap-2">
+                                {primaryAction}
+                                {browseAction}
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                {browseAction}
+                                <div className="ms-auto flex flex-wrap items-center justify-end gap-2">
+                                    <Button type="button" variant="outline" size="sm" onClick={() => changeOpen(false)}>Cancel</Button>
+                                    {primaryAction}
+                                </div>
+                            </div>
+                        )}
                     </form>
                 </ModalContent>
             </Modal>

@@ -19,7 +19,7 @@ async function main() {
         'react/jsx-runtime': h.jsx,
         'next/navigation': { useRouter: () => ({ refresh() {} }) },
         'next/image': { default: 'img' },
-        'lucide-react': components(['ArrowUpRight', 'ExternalLink', 'Link2', 'Loader2', 'Plus', 'Puzzle']),
+        'lucide-react': components(['ArrowUpRight', 'ExternalLink', 'Link2', 'Loader2', 'Plus', 'Puzzle', 'X']),
         sonner: { toast: { success() {} } },
         '@/app/actions/addons': {
             previewAddon: link => new Promise(resolve => lookups.push({ link, resolve })),
@@ -97,7 +97,15 @@ async function main() {
     assert.equal(find('Drawer').props.open, true, 'Changing presentation keeps the drawer open');
     assert.equal(find('Drawer').props.showSwipeHandle, true);
     assert.ok(find('DrawerContent').props.className.includes('[--drawer-inset:0.5rem] after:hidden'), 'Drawer matches the sign-in inset');
-    assert.equal(find('DrawerHeader').props.className, 'p-6 pb-0');
+    assert.equal(find('DrawerHeader').props.className, 'relative p-6 pb-0');
+    assert.ok(nodes(render()).some(node => node.type === 'Button' && node.props['aria-label'] === 'Close'), 'Mobile has a named close control');
+    assert.equal(nodes(render()).some(node => node.type === 'Button' && node.props.children === 'Cancel'), false, 'Mobile omits the footer Cancel action');
+    const mobileNodes = nodes(render());
+    const primaryIndex = mobileNodes.findIndex(node => node.type === 'Button' && node.props.type === 'submit');
+    const browseIndex = mobileNodes.findIndex(node => node.type === 'a' && node.props.href === 'https://stremio-addons.net/');
+    assert.ok(primaryIndex < browseIndex, 'Mobile shows the primary action before Browse addons');
+    assert.equal(mobileNodes[primaryIndex].props.className, 'w-full');
+    assert.equal(mobileNodes[primaryIndex].props.size, 'default');
     assert.equal(find('InputGroupInput').props.value, 'https://example.com/manual/manifest.json', 'Changing presentation preserves the link');
     find('Drawer').props.onOpenChange(false); render();
     assert.equal(find('InputGroupInput').props.value, '', 'Drawer dismissal resets addon state');
@@ -129,6 +137,22 @@ async function main() {
     find('Dialog').props.onOpenChange(false); render();
     deliverClipboard('https://example.com/clipboard/manifest.json'); await tick(); render();
     assert.equal(find('InputGroupInput').props.value, '', 'Late clipboard reads cannot repopulate a closed dialog');
+    mediaQuery.matches = true;
+    mediaQuery.dispatchEvent(new Event('change'));
+    readClipboard = async () => '';
+    find('Button').props.onClick(); await tick(); render();
+    change('https://example.com/setup/manifest.json');
+    find('form').props.onSubmit({ preventDefault() {} });
+    const required = result('Setup addon');
+    required.configurationRequired = true;
+    required.configureUrl = 'https://example.com/setup/configure';
+    lookups.at(-1).resolve(required); await tick(); render();
+    const configure = nodes(render()).find(node => node.type === 'Button' && node.props.children?.props?.href === required.configureUrl);
+    assert.equal(configure.props.className, 'w-full', 'Required configuration uses the full-width primary action');
+    assert.equal(find('ExternalLink').props.strokeWidth, 1.75);
+    nodes(render()).find(node => node.type === 'Button' && node.props['aria-label'] === 'Close').props.onClick(); render();
+    assert.equal(find('Drawer').props.open, false, 'Header close dismisses the drawer');
+    assert.equal(find('InputGroupInput').props.value, '', 'Header close resets the link');
     h.unmount();
     console.log('PASS: debounced addon lookup, icon loading/fallback, stale result protection, cancel, directory link, and explicit install boundary');
 }
