@@ -34,3 +34,25 @@
 .scrollbar {
     z-index: var(--layer-header);
 }
+
+.skipLink {
+    position: fixed;
+    inset-block-start: 12px;
+    inset-inline-start: 16px;
+    z-index: calc(var(--layer-header) + 1);
+    padding: 12px 16px;
+    border: 1px solid var(--foreground);
+    border-radius: 12px;
+    background: var(--popover);
+    color: var(--popover-foreground);
+    transform: translateY(calc(-100% - 16px));
+}
+
+.skipLink:focus {
+    transform: none;
+}
+
+.skipLink:focus-visible {
+    outline: auto;
+    outline-offset: 2px;
+}

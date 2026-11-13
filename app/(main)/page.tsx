@@ -231,6 +231,7 @@ export default async function Home() {
   return (
     <AuthErrorHandler>
       <div data-home-page className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
+        <h1 className="sr-only">Home</h1>
         {continueWatchingPromise && <Suspense fallback={<HomeSectionSkeleton continueWatching />}>
           <ContinueWatchingSection continueWatchingPromise={continueWatchingPromise} />
         </Suspense>}

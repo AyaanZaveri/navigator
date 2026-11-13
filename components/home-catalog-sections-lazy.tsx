@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { MediaSection } from "@/components/media-section";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,7 +55,7 @@ function InitialCatalogRow({ row }: { row: InitialHomeCatalog }) {
   useEffect(() => () => controller.current?.abort(), [row.result]);
   const result = use(retry?.owner === row.result ? retry.result : row.result);
   if (result.status === "error") return <section className="relative z-10 mb-8">
-    <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h3>
+    <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h2>
     <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
     <Button variant="outline" disabled={!row.retry} onClick={() => {
       controller.current?.abort();
@@ -70,7 +70,7 @@ function InitialCatalogRow({ row }: { row: InitialHomeCatalog }) {
     {artwork && <HomeInitialPalette primary={artwork.poster} fallback={artwork.background} />}
     <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
   </> : <section className="relative z-10 mb-8">
-    <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h3>
+    <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h2>
     <p className="text-sm text-muted-foreground">No titles available in this catalog.</p>
   </section>;
 }
@@ -89,6 +89,13 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
   const [catalogs, setCatalogs] = useState<Map<string, CatalogState>>(() => new Map());
   const requestRef = useRef<{ controller: AbortController; keys: string[] } | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
+  const [focusedRow, setFocusedRow] = useState<number | null>(null);
+  const rangeExtractor = useCallback((range: Parameters<typeof defaultRangeExtractor>[0]) => {
+    const indexes = defaultRangeExtractor(range);
+    // Keep the active control mounted when pointer scrolling moves its row away.
+    if (focusedRow !== null && focusedRow < range.count && !indexes.includes(focusedRow)) indexes.push(focusedRow);
+    return indexes.sort((a, b) => a - b);
+  }, [focusedRow]);
   const initialCount = initialRows?.length ?? initialSections.length;
   const getItemKey = useCallback((index: number) => index < initialCount
     ? (initialRows?.[index] ?? initialSections[index]).key : remainingEntries[index - initialCount].key,
@@ -99,6 +106,7 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
     getScrollElement: () => listRef.current?.closest<HTMLElement>("[data-page-scroll]") || null,
     estimateSize: () => CATALOG_ROW_HEIGHT,
     getItemKey,
+    rangeExtractor,
     overscan: 2,
     scrollMargin: scrollMargin ?? 0,
     initialRect: { width: 0, height: Math.max(1, initialCount) * CATALOG_ROW_HEIGHT },
@@ -210,6 +218,10 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
         const section = row.index < initialCount ? initialSections[row.index] : state?.status === "ready" ? state.section : undefined;
         return (
           <div key={row.key} data-index={row.index} ref={virtualizer.measureElement}
+            onFocusCapture={() => setFocusedRow(row.index)}
+            onBlurCapture={event => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setFocusedRow(null);
+            }}
             className="absolute left-0 top-0 w-full flow-root"
             aria-busy={entry && (!state || state.status === "loading") ? true : undefined}
             style={{ minHeight: CATALOG_ROW_HEIGHT, transform: `translateY(${row.start - (scrollMargin ?? 0)}px)` }}>
@@ -217,12 +229,12 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
               <InitialCatalogRow row={initialRows[row.index]} />
             </Suspense> : section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
               : state?.status === "error" ? <section className="relative z-10 mb-8">
-                <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h3>
+                <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h2>
                 <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
                 <Button variant="outline" disabled={Boolean(requestRef.current)} onClick={() => void loadEntries([entry])}>Retry</Button>
               </section>
               : state?.status === "ready" ? <section className="relative z-10 mb-8">
-                <h3 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h3>
+                <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h2>
                 <p className="text-sm text-muted-foreground">No titles available in this catalog.</p>
               </section>
               : <HomeSectionSkeleton />}

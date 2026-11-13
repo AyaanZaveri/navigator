@@ -95,8 +95,12 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
             <div data-app-layout className="relative flex h-dvh flex-col overflow-hidden">
                 <ScrollAreaRoot type="scroll" scrollHideDelay={900} asChild>
                     <div data-desktop-app-content data-playback-hidden={isPlayerVisible ? "" : undefined} inert={isPlayerVisible} className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
+                        <a href="#page-content" className={styles.skipLink} onClick={event => {
+                            event.preventDefault();
+                            viewportRef.current?.focus({ preventScroll: true });
+                        }}>Skip to content</a>
                         <AppHeader email={email} overlay={overlayHeader} />
-                        <ScrollAreaViewport ref={viewportRef} role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
+                        <ScrollAreaViewport ref={viewportRef} id="page-content" role="main" aria-label="Page content" tabIndex={0} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
                             <PersistentAuroraBackground />
                             <HomeGradientBackground visible={showHomeGradient} emerald={useEmeraldBackdrop} />
                             {children}

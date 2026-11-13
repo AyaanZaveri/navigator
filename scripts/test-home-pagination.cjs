@@ -10,7 +10,7 @@ function harness(count = 100) {
   let core, options, tree, rendered = -1, viewportChanged = false;
   const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', {
     react: { ...h.react, useLayoutEffect: h.react.useEffect }, 'react/jsx-runtime': h.jsx,
-    '@tanstack/react-virtual': { useVirtualizer(next) {
+    '@tanstack/react-virtual': { defaultRangeExtractor: require('@tanstack/virtual-core').defaultRangeExtractor, useVirtualizer(next) {
       options = next;
       // Real TanStack range calculations; only the DOM observation adapter is simulated.
       const settings = { ...next, initialRect: { width: 1024, height: 720 },
@@ -52,6 +52,9 @@ function harness(count = 100) {
         fail() { controller.error(Error('stream interrupted')); }, get cancelled() { return cancelled; } };
     },
     retry() { nodes(tree, node => node.type === 'button')[0].props.onClick(); },
+    focusRow(index) { nodes(tree, node => node.props?.['data-index'] === index)[0].props.onFocusCapture(); },
+    blurRow(index) { nodes(tree, node => node.props?.['data-index'] === index)[0].props.onBlurCapture({ currentTarget: { contains: () => false }, relatedTarget: null }); },
+    get rowIndexes() { return nodes(tree, node => node.props?.['data-index'] !== undefined).map(node => node.props['data-index']); },
     get rowCount() { return nodes(tree, node => node.props?.['data-index'] !== undefined).length; },
     get height() { return tree.props.style.height; },
     get buttons() { return nodes(tree, node => node.type === 'button'); },
@@ -61,6 +64,13 @@ function harness(count = 100) {
 }
 
 (async () => {
+  const focusPage = harness(); await focusPage.settle();
+  focusPage.focusRow(0); await focusPage.settle();
+  focusPage.jump(35); await focusPage.settle();
+  assert.ok(focusPage.rowIndexes.includes(0), 'A focused catalog stays mounted when scrolled outside the virtual range');
+  focusPage.blurRow(0); await focusPage.settle();
+  assert.equal(focusPage.rowIndexes.includes(0), false, 'Leaving the row releases it back to normal virtualization');
+  focusPage.h.unmount();
   const page = harness(); await page.settle();
   assert.equal(page.height, 36000, 'All known catalog positions exist before their data loads');
   assert.ok(page.rowCount <= 7, 'Only viewport rows plus overscan enter the DOM');

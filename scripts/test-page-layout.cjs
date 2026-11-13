@@ -111,6 +111,13 @@ function renderNavigation() {
   assert.ok(main.props.ref, 'The effect must target the actual Radix viewport, not the document');
   main.props.ref.current = viewport;
   navigationHooks.flush();
+  const skip = find(tree, node => node.type === 'a' && node.props.href === '#page-content')[0];
+  assert.ok(skip, 'A skip link bypasses repeated header controls');
+  assert.equal(main.props.id, 'page-content');
+  let focused = false, prevented = false;
+  viewport.focus = options => { focused = true; assert.equal(options.preventScroll, true); };
+  skip.props.onClick({ preventDefault() { prevented = true; } });
+  assert.ok(focused && prevented, 'Skip moves keyboard focus to the actual page viewport without changing the URL');
 }
 for (const route of ['/movie/first', '/series/second', '/movie/third', '/']) {
   pathname = route;
