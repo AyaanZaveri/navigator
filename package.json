@@ -5,7 +5,7 @@
   "scripts": {
     "desktop:dev": "node scripts/desktop.mjs dev",
     "desktop:check": "node scripts/desktop.mjs check",
-    "test:app-updates": "node scripts/test-app-updates.cjs && node scripts/test-macos-update-feed.mjs && node scripts/test-windows-update-feed.mjs",
+    "test:app-updates": "node scripts/test-app-updates.cjs && node scripts/test-macos-update-feed.mjs && node scripts/test-windows-update-feed.mjs && node scripts/test-update-release-notes.mjs",
     "test:windows-desktop": "node scripts/test-windows-desktop.cjs && node scripts/test-windows-player-cursor.cjs && node scripts/test-player-desktop-shortcuts.cjs && node scripts/test-windows-install-readiness.cjs && node scripts/test-windows-install.cjs",
     "desktop:fetch-libs": "node scripts/fetch-desktop-libs.mjs",
     "desktop:package": "node scripts/desktop.mjs package",

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fetchSparkle } from "./fetch-sparkle.mjs";
+import { updateReleaseNotesHtml } from "./update-release-notes.mjs";
 const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const KEYCHAIN_ACCOUNT = "app.navigator.desktop.sparkle";
@@ -23,7 +24,7 @@ export function makeMacOSFeed({ version, tag, filename, bytes, signature, public
     <language>en</language>
     <item>
       <title>Navigator ${xml(version)}</title>
-      <description>Update Navigator, then reopen it with your existing sign-in and settings.</description>
+      <description><![CDATA[${updateReleaseNotesHtml}]]></description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
       <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/${xml(tag)}/${xml(filename)}"
         sparkle:version="${xml(version)}" sparkle:shortVersionString="${xml(version)}"
