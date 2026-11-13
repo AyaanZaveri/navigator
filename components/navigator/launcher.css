@@ -1,9 +1,5 @@
-/* Keep the compact launcher easy to tap, just above the phone's safe area. */
+/* Keep the compact launcher easy to tap at the shared desktop/mobile position. */
 @media (width < 40rem) {
-  [data-navigator-focus-ui]:has([data-navigator-launcher]) {
-    bottom: calc(.5rem + env(safe-area-inset-bottom, 0px));
-  }
-
   [data-navigator-launcher] {
     position: relative;
     height: 2.25rem;
