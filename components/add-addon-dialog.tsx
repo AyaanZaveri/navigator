@@ -107,6 +107,19 @@ export function AddAddonDialog() {
         }
     }
 
+    async function openFromClipboard() {
+        changeOpen(true);
+        const currentRequest = ++request.current;
+        try {
+            const value = (await navigator.clipboard.readText()).trim();
+            if (request.current === currentRequest && !submitting.current && isManifestLink(value)) {
+                setLink(value);
+            }
+        } catch { /* Clipboard access is optional. The link field stays ready for manual paste. */ }
+    }
+
+    useEffect(() => () => { request.current++; }, []);
+
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (submitting.current || lookupPending || !link.trim() || configurationRequired) return;
@@ -146,7 +159,7 @@ export function AddAddonDialog() {
 
     return (
         <>
-            <Button ref={trigger} size="sm" className="size-11 rounded-full p-0 sm:h-9 sm:w-auto sm:px-3" disabled={pending} aria-label="Add addon" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => changeOpen(true)}>
+            <Button ref={trigger} size="sm" className="size-11 rounded-full p-0 sm:h-9 sm:w-auto sm:px-3" disabled={pending} aria-label="Add addon" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => { void openFromClipboard(); }}>
                 <Plus data-icon="inline-start" aria-hidden="true" /><span className="hidden sm:inline">Add addon</span>
             </Button>
             <Modal open={open} onOpenChange={changeOpen} {...(isMobile ? { showSwipeHandle: true } : {})}>

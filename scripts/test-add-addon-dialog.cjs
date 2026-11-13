@@ -10,6 +10,7 @@ async function main() {
     const timers = new Map();
     const lookups = [];
     const palettes = [];
+    let readClipboard = async () => "";
     let timerId = 0;
     let installs = 0;
     const components = names => Object.fromEntries(names.map(name => [name, name]));
@@ -38,6 +39,7 @@ async function main() {
         './addon-preview.module.css': { card: 'preview-card', artwork: 'preview-artwork' },
     }, {
         URL,
+        navigator: { clipboard: { readText: () => readClipboard() } },
         window: { matchMedia: query => { assert.equal(query, "(max-width: 639px)"); return mediaQuery; } },
         setTimeout: (work, delay) => { assert.equal(delay, 600); timers.set(++timerId, work); return timerId; },
         clearTimeout: id => timers.delete(id),
@@ -102,6 +104,31 @@ async function main() {
     mediaQuery.matches = false;
     mediaQuery.dispatchEvent(new Event('change'));
     assert.ok(find('Dialog'), 'Desktop retains the dialog');
+    find('Dialog').props.onOpenChange(false); render();
+    readClipboard = async () => '  stremio://example.com/clipboard/manifest.json  ';
+    find('Button').props.onClick(); await tick(); render();
+    assert.equal(find('InputGroupInput').props.value, 'stremio://example.com/clipboard/manifest.json', 'Opening fills a valid clipboard manifest link');
+    assert.equal(installs, 0, 'Clipboard prefill never installs automatically');
+    find('Dialog').props.onOpenChange(false); render();
+    readClipboard = async () => 'unrelated private clipboard text';
+    find('Button').props.onClick(); await tick(); render();
+    assert.equal(find('InputGroupInput').props.value, '', 'Unrelated clipboard text is ignored');
+    find('Dialog').props.onOpenChange(false); render();
+    readClipboard = async () => { throw new Error('Permission denied'); };
+    find('Button').props.onClick(); await tick(); render();
+    assert.equal(find('Dialog').props.open, true, 'Denied clipboard access keeps manual entry available');
+    let deliverClipboard;
+    readClipboard = () => new Promise(resolve => { deliverClipboard = resolve; });
+    find('Dialog').props.onOpenChange(false); render();
+    find('Button').props.onClick(); render();
+    change('https://example.com/typed/manifest.json');
+    deliverClipboard('https://example.com/clipboard/manifest.json'); await tick(); render();
+    assert.equal(find('InputGroupInput').props.value, 'https://example.com/typed/manifest.json', 'Late clipboard reads cannot overwrite typing');
+    find('Dialog').props.onOpenChange(false); render();
+    find('Button').props.onClick(); render();
+    find('Dialog').props.onOpenChange(false); render();
+    deliverClipboard('https://example.com/clipboard/manifest.json'); await tick(); render();
+    assert.equal(find('InputGroupInput').props.value, '', 'Late clipboard reads cannot repopulate a closed dialog');
     h.unmount();
     console.log('PASS: debounced addon lookup, icon loading/fallback, stale result protection, cancel, directory link, and explicit install boundary');
 }
