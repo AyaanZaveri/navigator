@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { MediaRatingBadge } from "@/components/media-page/media-rating-badge";
 import { redirect } from "next/navigation";
 import { getSeriesLayoutData } from "./_shared/series-data";
+import { formatReleaseDate } from "@/lib/format-release-date";
 
 export default async function SeriesOverviewPage({
   params,
@@ -47,7 +48,7 @@ export default async function SeriesOverviewPage({
                   <Badge
                     variant="secondary"
                   >
-                    {show.releaseInfo || show.year}
+                    {show.releaseInfo ? formatReleaseDate(show.releaseInfo) : show.year}
                   </Badge>
                 )}
                 <MediaRatingBadge media={show} />

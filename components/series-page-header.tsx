@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Star } from "lucide-react";
+import { formatReleaseDate } from "@/lib/format-release-date";
 
 interface SeriesPageHeaderProps {
   showName: string;
@@ -54,7 +55,7 @@ export function SeriesPageHeader({
         )}
         {releaseInfo && (
           <Badge variant="outline" className="bg-background/90 backdrop-blur-sm">
-            {releaseInfo}
+            {formatReleaseDate(releaseInfo)}
           </Badge>
         )}
         {imdbRating && (
