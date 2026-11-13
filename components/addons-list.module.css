@@ -73,6 +73,14 @@
   gap: 8px;
 }
 
+.primaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .dialogBody {
   display: flex;
   flex-direction: column;
@@ -121,7 +129,8 @@
 
 .version {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 15px;
+  font-weight: 400;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -184,6 +193,18 @@
 }
 
 @media (max-width: 639px) {
+  .metadata {
+    grid-column: 1 / -1;
+  }
+
+  .actions {
+    justify-content: space-between;
+  }
+
+  .removeAction {
+    margin-inline-start: auto;
+  }
+
   .toolbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 44px;

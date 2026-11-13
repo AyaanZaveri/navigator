@@ -74,35 +74,37 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
 
     return (
         <div className={styles.actions}>
-            {addon.configurable && (
-                <Button asChild variant="outline" size="sm">
-                    <a draggable={false} href={`/api/addons/${addon.id}/configure`} onClick={() => { configuring.current = true; }} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
-                        <Settings data-icon="inline-start" aria-hidden="true" />Settings
-                    </a>
-                </Button>
-            )}
-            <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-                <DialogTrigger asChild><Button variant="outline" size="sm" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
-                <DialogContent title={`Share ${addon.name}`} description="Copy the manifest link to install this addon in Stremio.">
-                    <div className={styles.dialogBody}>
-                        {shareUrl ? (
-                            <>
-                                <label htmlFor={`share-${addon.id}`} className="text-sm font-medium">Addon link</label>
-                                <Input id={`share-${addon.id}`} value={shareUrl} readOnly onFocus={(event) => event.currentTarget.select()} />
-                                {addon.configurable && <p className="text-sm text-muted-foreground">This configured link may include your personal addon settings. Share it only with people you trust.</p>}
-                            </>
-                        ) : !shareError && <p role="status">Loading addon link…</p>}
-                        {shareError && <p role="alert" className={styles.error}>{shareError}</p>}
-                        <div className={styles.dialogActions}>
-                            <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                            <Button disabled={!shareUrl || copying} onClick={copyLink}><Copy data-icon="inline-start" aria-hidden="true" />{copying ? "Copying…" : "Copy link"}</Button>
+            <div className={styles.primaryActions}>
+                {addon.configurable && (
+                    <Button asChild variant="outline" size="sm">
+                        <a draggable={false} href={`/api/addons/${addon.id}/configure`} onClick={() => { configuring.current = true; }} target="_blank" rel="noopener noreferrer" aria-label={`Settings for ${addon.name} (opens in a new tab)`}>
+                            <Settings data-icon="inline-start" aria-hidden="true" />Settings
+                        </a>
+                    </Button>
+                )}
+                <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+                    <DialogTrigger asChild><Button variant="outline" size="sm" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
+                    <DialogContent title={`Share ${addon.name}`} description="Copy the manifest link to install this addon in Stremio.">
+                        <div className={styles.dialogBody}>
+                            {shareUrl ? (
+                                <>
+                                    <label htmlFor={`share-${addon.id}`} className="text-sm font-medium">Addon link</label>
+                                    <Input id={`share-${addon.id}`} value={shareUrl} readOnly onFocus={(event) => event.currentTarget.select()} />
+                                    {addon.configurable && <p className="text-sm text-muted-foreground">This configured link may include your personal addon settings. Share it only with people you trust.</p>}
+                                </>
+                            ) : !shareError && <p role="status">Loading addon link…</p>}
+                            {shareError && <p role="alert" className={styles.error}>{shareError}</p>}
+                            <div className={styles.dialogActions}>
+                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                                <Button disabled={!shareUrl || copying} onClick={copyLink}><Copy data-icon="inline-start" aria-hidden="true" />{copying ? "Copying…" : "Copy link"}</Button>
+                            </div>
                         </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                    </DialogContent>
+                </Dialog>
+            </div>
             {!addon.protected && (
                 <AlertDialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>
-                    <AlertDialogTrigger asChild><Button variant="ghost" size="sm" aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></AlertDialogTrigger>
+                    <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className={styles.removeAction} aria-label={`Uninstall ${addon.name}`}><Trash2 data-icon="inline-start" aria-hidden="true" />Uninstall</Button></AlertDialogTrigger>
                     <AlertDialogContent aria-busy={removing} onCloseAutoFocus={event => {
                         if (uninstalled.current) {
                             event.preventDefault();
