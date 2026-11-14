@@ -106,6 +106,7 @@ cargo test --manifest-path desktop/Cargo.toml --locked headless_shared \
   -- --include-ignored --nocapture --test-threads=1
 ```
 
-Windows compilation and tests run only on the user's Zenbook. No app package,
+Current Windows builds and basic tests run through GitHub Actions. Never use
+the Zenbook. No app package,
 installation or release was created for this change; an updated native app build
 is needed to use the cache in the installed application.

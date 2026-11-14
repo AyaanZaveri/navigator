@@ -76,7 +76,8 @@ still needs a comparison on the actual display.
 
 ## Build workflow
 
-Run basic unit/regression checks and compile on the Zenbook over SSH.
+Run basic unit/regression checks and compile with the manual GitHub Actions
+desktop installer workflow. Never use the Zenbook or connect to it over SSH.
 The user performs hands-on playback, HDR and visual checks. This is the default
 workflow for future desktop changes as well.
 
