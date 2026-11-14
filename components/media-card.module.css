@@ -172,14 +172,15 @@
 
 :global(html[data-native-platform="macos"]) .card[data-continue-watching] .artwork {
   opacity: 0.65;
-  transition: none;
+  transform: translateZ(0) scale(1);
 }
 
-/* Keep these layered backdrops stationary in WKWebView. Starting/stopping a
-   zoom can rebuild the image plane under the wordmark and sibling Play blur.
-   The Play surface and scrim still fade; ordinary posters retain their zoom. */
-:global(html[data-native-platform="macos"]) .card[data-continue-watching]:hover .artwork {
-  transform: none;
+/* Keep the same compositing transform at both endpoints. Hover changes only
+   scale, instead of creating/removing the image plane below the wordmark. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :global(html[data-native-platform="macos"]) .card[data-continue-watching]:hover .artwork {
+    transform: translateZ(0) scale(1.02);
+  }
 }
 
 /* Keep the small filtered logo composited before hover starts. Its layer must
