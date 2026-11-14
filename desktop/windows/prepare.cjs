@@ -37,7 +37,10 @@ async function verifyFiles(resources, manifestPath = join(resources, 'install-ma
   return manifest.files.length;
 }
 
-async function checkLocalService(resources, timeoutMs = 30_000) {
+// A cold install can spend substantially longer loading files than an already
+// running app. Keep this below the native preparation watchdog (180 seconds).
+const SERVICE_READY_TIMEOUT_MS = 90_000;
+async function checkLocalService(resources, timeoutMs = SERVICE_READY_TIMEOUT_MS) {
   const reservation = net.createServer();
   reservation.listen(0, '127.0.0.1');
   await once(reservation, 'listening');
@@ -49,27 +52,38 @@ async function checkLocalService(resources, timeoutMs = 30_000) {
   });
   let spawnError;
   let lastStatus;
+  let lastError;
   child.on('error', error => { spawnError = error; });
   try {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (spawnError) throw spawnError;
-      if (child.exitCode !== null) throw new Error('Local service exited during installation preparation');
+      if (child.exitCode !== null) throw new Error(`Local service exited during installation preparation (exit ${child.exitCode})`);
       const ready = await new Promise(resolve => {
+        const remaining = deadline - Date.now();
+        let timer;
+        const finish = value => { clearTimeout(timer); resolve(value); };
         const request = http.get({ hostname: '127.0.0.1', port, path: '/', timeout: 3000 }, response => {
           lastStatus = response.statusCode;
           let length = 0;
           response.on('data', chunk => { length += chunk.length; if (length > 8*1024*1024) response.destroy(); });
-          response.on('end', () => resolve(response.statusCode === 200 && length > 0));
-          response.on('error', () => resolve(false));
+          response.on('end', () => finish(response.statusCode === 200 && length > 0));
+          response.on('error', () => finish(false));
+          response.on('close', () => finish(false));
         });
-        request.on('timeout', () => request.destroy());
-        request.on('error', () => resolve(false));
+        // Socket idle timeouts alone do not bound a page that keeps streaming.
+        timer = setTimeout(() => {
+          lastError = 'HTTP response exceeded the request deadline';
+          request.destroy();
+          finish(false);
+        }, Math.max(1, Math.min(10_000, remaining)));
+        request.on('timeout', () => { lastError = 'HTTP socket timed out'; request.destroy(); });
+        request.on('error', error => { lastError = error.code || error.message; finish(false); });
       });
       if (ready) return;
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, Math.min(100, deadline - Date.now()))));
     }
-    throw new Error(`Local service did not become ready during installation preparation${lastStatus ? ` (last HTTP status ${lastStatus})` : ''}`);
+    throw new Error(`Local service did not become ready during installation preparation after ${timeoutMs}ms${lastStatus ? ` (last HTTP status ${lastStatus})` : ''}${lastError ? ` (${lastError})` : ''}`);
   } finally {
     if (child.exitCode === null && child.pid) {
       const closed = once(child, 'close');
@@ -86,7 +100,7 @@ async function prepare(resources, manifestPath) {
   await checkLocalService(resources);
   console.log(`Local service check completed in ${Date.now()-started}ms`);
 }
-module.exports = { verifyFiles, checkLocalService, prepare };
+module.exports = { verifyFiles, checkLocalService, prepare, SERVICE_READY_TIMEOUT_MS };
 if (require.main === module) prepare(resolve(process.argv[2] || __dirname), process.argv[3]).catch(error => {
   console.error(error.message);
   if (process.env.LOCALAPPDATA) {
