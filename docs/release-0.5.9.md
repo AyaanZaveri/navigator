@@ -25,3 +25,7 @@ Requires **Apple Silicon and macOS 13.5 or later**.
 Extract the app ZIP and move Navigator to Applications. Navigator 0.5.3 and later can update in the app. Versions through 0.5.2 require a manual upgrade to enable in-app updates.
 
 This build uses an ad hoc signature and is not notarized by Apple. macOS may require approval before you can open it. In-app updates use cryptographic signatures to verify downloads.
+
+### Checks completed
+
+Desktop, updater, installation-readiness, card interaction, Settings navigation, and TMDB setup regression checks passed. TypeScript, frontend and native production builds passed. Packaged versions, archive integrity, checksums, and both platform update signatures were verified.
