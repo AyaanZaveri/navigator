@@ -30,4 +30,6 @@ assert.equal(declaration('.card:hover .artwork', 'transform'), 'scale(1.02)');
 assert.equal(declaration('.card:hover .playOverlay::before', 'opacity'), '1');
 assert.notEqual(declaration('.card[data-continue-watching] .playOverlay::before', 'display'), 'none', 'Continue Watching retains hover dimming');
 assert.equal(declaration('.artwork', 'filter'), undefined, 'Ordinary posters keep their existing brightness');
-console.log('PASS: fixed base shade, stable macOS wordmark layer and shared Continue Watching hover dimming and zoom');
+assert.equal(declaration(':global(html[data-native-platform="macos"]) .card[data-continue-watching] .artwork', 'transition'), 'none');
+assert.equal(declaration(':global(html[data-native-platform="macos"]) .card[data-continue-watching]:hover .artwork', 'transform'), 'none', 'macOS resume backdrops must not change compositor planes at hover boundaries');
+console.log('PASS: fixed base shade, stable macOS wordmark and stationary resume backdrops; other platforms retain hover zoom and Play dimming');
