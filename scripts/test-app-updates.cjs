@@ -62,8 +62,8 @@ for (const platform of ['windows', 'macos']) {
     indicator.props.onClick();
     assert.equal(sent.at(-1).type, 'update-check');
     assert.equal(indicator.props.variant, 'outline');
-    assert.match(indicator.props.className, /h-11/);
-    assert.match(indicator.props.className, /sign-in-material/);
+    assert.equal(indicator.props.className, 'max-sm:size-11 max-sm:p-0', 'Update and Sign in share default button geometry and material');
+    assert.equal(indicator.props.size, undefined, 'Use the same default size as Sign in');
     listener({ type: 'update-status', version: '0.5.2', available: false, automatic: true, state: 'available' });
     assert.equal(header.render(DesktopUpdateButton), null);
     header.unmount();
