@@ -4,7 +4,7 @@ import { createPublicKey, sign, verify } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { updateReleaseNotesHtml } from "./update-release-notes.mjs";
+import { updateReleaseNotesXml } from "./update-release-notes.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const xml = value => String(value).replace(/[<>&"']/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[char]);
 export function makeWindowsFeed({ version, tag, filename, bytes, privateKey, publicKey }) {
@@ -21,7 +21,7 @@ export function makeWindowsFeed({ version, tag, filename, bytes, privateKey, pub
     <language>en</language>
     <item>
       <title>Navigator ${xml(version)}</title>
-      <description><![CDATA[${updateReleaseNotesHtml}]]></description>
+      <description>${updateReleaseNotesXml}</description>
       <enclosure url="${xml(url)}" sparkle:version="${xml(version)}" sparkle:shortVersionString="${xml(version)}"
         sparkle:os="windows" sparkle:installerArguments="/S /UPDATE" sparkle:edSignature="${signature.toString('base64')}"
         length="${bytes.length}" type="application/octet-stream" />

@@ -5,23 +5,23 @@
     <language>en</language>
     <item>
       <title>Navigator 0.5.7</title>
-      <description><![CDATA[<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="color-scheme" content="light dark">
-<style>
+      <description>&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;color-scheme&quot; content=&quot;light dark&quot;&gt;
+&lt;style&gt;
 :root { color-scheme: light dark; }
 html, body { background-color: #ffffff; color: #171717; }
-body { margin: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.5; }
+body { margin: 16px; font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif; font-size: 14px; line-height: 1.5; }
 p { margin: 0; }
 @media (prefers-color-scheme: dark) {
   html, body { background-color: #171717; color: #f5f5f5; }
 }
-</style>
-</head>
-<body><p>Update Navigator, then reopen it with your existing sign-in and settings.</p></body>
-</html>]]></description>
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
+&lt;/html&gt;</description>
       <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.7/Navigator-0.5.7-windows-x64-setup.exe" sparkle:version="0.5.7" sparkle:shortVersionString="0.5.7"
         sparkle:os="windows" sparkle:installerArguments="/S /UPDATE" sparkle:edSignature="lVMVFJTeq6KV5t80Y+3bOxhz0ULVR9yrRGOY7snkq7MSK7VNbGjLrf4H3QBOpa8xb+oLzxWNmvZr7UD1kODkCA=="
         length="80225790" type="application/octet-stream" />

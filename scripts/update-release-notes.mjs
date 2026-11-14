@@ -18,3 +18,8 @@ p { margin: 0; }
 </head>
 <body><p>Update Navigator, then reopen it with your existing sign-in and settings.</p></body>
 </html>`;
+
+// Escape the HTML as XML text rather than CDATA. Older Windows availability
+// probes reject declarations (<!), including CDATA, before WinSparkle opens.
+export const updateReleaseNotesXml = updateReleaseNotesHtml.replace(/[<>&"']/g,
+    char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[char]);

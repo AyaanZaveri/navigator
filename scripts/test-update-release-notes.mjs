@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import postcss from "postcss";
-import { updateReleaseNotesHtml } from "./update-release-notes.mjs";
+import { updateReleaseNotesHtml, updateReleaseNotesXml } from "./update-release-notes.mjs";
 
 // Test the feed payload, not the app's CSS. These are separate native WebViews.
 for (const platform of ["windows", "macos"]) {
     const feed = readFileSync(`updates/${platform}.xml`, "utf8");
-    const html = feed.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)?.[1];
-    assert.equal(html, updateReleaseNotesHtml, `${platform}: current feed uses the shared HTML`);
+    const html = feed.match(/<description>([\s\S]*?)<\/description>/)?.[1];
+    assert.equal(html?.replace(/\r\n/g, "\n"), updateReleaseNotesXml, `${platform}: current feed uses the shared HTML`);
+    assert.ok(!feed.includes("<!"), "Older Windows availability probes must accept the feed");
 }
 assert.match(updateReleaseNotesHtml, /<meta name="color-scheme" content="light dark">/);
 assert.doesNotMatch(updateReleaseNotesHtml, /<script|https?:\/\//, "Notes must work offline without script or remote styles");

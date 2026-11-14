@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync, createPublicKey, verify } from "node:crypto";
 import { makeWindowsFeed } from "./windows-update-feed.mjs";
-import { updateReleaseNotesHtml } from "./update-release-notes.mjs";
+import { updateReleaseNotesXml } from "./update-release-notes.mjs";
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
 const bytes = Buffer.from("signed installer fixture");
 const options = { version: "0.3.7", tag: "windows-v0.3.7", filename: "Navigator-0.3.7-windows-x64-setup.exe", bytes,
     privateKey: privateKey.export({ type: "pkcs8", format: "pem" }), publicKey: publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("base64") };
 const feed = makeWindowsFeed(options);
-assert.ok(feed.includes(`<description><![CDATA[${updateReleaseNotesHtml}]]></description>`), "Windows feeds embed the theme-aware release notes as HTML");
+assert.ok(feed.includes(`<description>${updateReleaseNotesXml}</description>`), "Windows feeds embed the theme-aware release notes as HTML");
 const signature = Buffer.from(feed.match(/sparkle:edSignature="([^"]+)"/)[1], "base64");
 assert.equal(verify(null, bytes, createPublicKey(options.privateKey), signature), true);
 assert.equal(verify(null, Buffer.from("tampered installer fixture"), publicKey, signature), false);
