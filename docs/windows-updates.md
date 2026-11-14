@@ -20,11 +20,11 @@ The initial bootstrap build must be installed manually. Previously installed ver
 ## Publishing a Windows update
 
 1. Build from a clean release snapshot with the approved [manual desktop Actions workflow](desktop-actions-builds.md). Use standard GitHub-hosted runners. Never use the Zenbook for builds, tests, signing, key retrieval, or SSH.
-2. Sign the immutable installer with an approved backup of the existing private key. Keep it outside source control and release artifacts. Do not generate a replacement key: existing clients trust the public key already shipped. If the key is unavailable, request its backup location. Do not contact the Zenbook. The manual build workflow does not contain the official signing key.
-3. Alternatively, after packaging, run:
+2. Sign the immutable installer on this Mac with the existing private key at `~/.navigator-signing/windows-ed25519.pem` (owner-only permissions). The key was retrieved with explicit user authorization and verified against the shipped public key. Keep it outside source control and release artifacts. Do not generate a replacement key. Future releases do not need the Zenbook. The manual build workflow does not contain the official signing key.
+3. After packaging, run on this Mac:
 
-   ```powershell
-   node scripts/windows-update-feed.mjs dist/Navigator-0.3.7-windows-x64-setup.exe 0.3.7 windows-v0.3.7 "$env:USERPROFILE\.navigator-signing\windows-ed25519.pem" dist/windows.xml
+   ```sh
+   node scripts/windows-update-feed.mjs dist/Navigator-X.Y.Z-windows-x64-setup.exe X.Y.Z release-vX.Y.Z "$HOME/.navigator-signing/windows-ed25519.pem" dist/windows.xml
    ```
 
 4. Upload and publish the **exact signed installer bytes** to that GitHub tag. Verify the uploaded SHA256 and size. Never repackage/re-sign the installer after generating the appcast without regenerating its signature.
