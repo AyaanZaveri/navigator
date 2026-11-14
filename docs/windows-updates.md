@@ -19,8 +19,8 @@ The initial bootstrap build must be installed manually. Previously installed ver
 
 ## Publishing a Windows update
 
-1. Build from a clean release snapshot with the approved [manual desktop Actions workflow](desktop-actions-builds.md), or build locally on the Zenbook over `ssh navigator-windows`. The manual workflow uses standard GitHub-hosted runners. Keep the official update-signing key on the Zenbook, never in Actions or a fork.
-2. To generate the appcast during packaging, set both `NAVIGATOR_UPDATE_SIGNING_KEY` (private PEM path on the build computer) and `NAVIGATOR_RELEASE_TAG` (the final GitHub release tag). The protected key initialized for this project is at `%USERPROFILE%\.navigator-signing\windows-ed25519.pem` on the Zenbook. Back it up securely; losing it breaks the existing clients' trust chain.
+1. Build from a clean release snapshot with the approved [manual desktop Actions workflow](desktop-actions-builds.md). Use standard GitHub-hosted runners. Never use the Zenbook for builds, tests, signing, key retrieval, or SSH.
+2. Sign the immutable installer with an approved backup of the existing private key. Keep it outside source control and release artifacts. Do not generate a replacement key: existing clients trust the public key already shipped. If the key is unavailable, request its backup location. Do not contact the Zenbook. The manual build workflow does not contain the official signing key.
 3. Alternatively, after packaging, run:
 
    ```powershell
@@ -28,7 +28,7 @@ The initial bootstrap build must be installed manually. Previously installed ver
    ```
 
 4. Upload and publish the **exact signed installer bytes** to that GitHub tag. Verify the uploaded SHA256 and size. Never repackage/re-sign the installer after generating the appcast without regenerating its signature.
-5. Test an actual older installed build → candidate update on the Zenbook. Preserve sign-in/settings; verify shutdown, restart, native version, frontend Build ID and removal of obsolete chunks. Do not treat a locked desktop or `-NoCapture` run as visual confirmation.
+5. The user performs hands-on update tests on their chosen Windows device. Preserve sign-in/settings; verify shutdown, restart, native version, frontend Build ID and removal of obsolete chunks. Do not run interactive tests without a current explicit request.
 6. Only after the asset exists and is validated, replace `updates/windows.xml` on `main` with the generated appcast. Commit/push that feed through the normal release review. No GitHub API token is shipped to users. A GitHub prerelease is offered only if deliberately included in this stable feed; `/releases/latest` is not used, so a macOS-only release cannot accidentally replace the Windows target.
 
 Publish an incremented numeric version; never reuse the installed version for a new advertised build. macOS updater integration and delta packages are separate future work.
@@ -47,7 +47,7 @@ node scripts/test-windows-install-readiness.cjs
 node scripts/test-windows-package.mjs
 ```
 
-On the Zenbook:
+Optional Windows fixture checks, only when explicitly requested for the current task:
 
 ```powershell
 $env:RUSTFLAGS='-C target-feature=+crt-static'

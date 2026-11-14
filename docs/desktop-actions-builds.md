@@ -6,6 +6,10 @@ The workflow builds macOS Apple silicon and Windows x64 packages from source.
 It uses standard GitHub-hosted `macos-15` and `windows-2025` runners.
 It does not use Blacksmith or publish a release.
 
+All macOS and Windows release builds use this workflow. Never use the Zenbook
+for builds, tests, signing, key retrieval, or SSH. This user instruction, updated
+on 2026-11-13, supersedes older instructions in historical release documents.
+
 Standard GitHub-hosted runner compute is free for public repositories.
 Artifact storage still has limits. These build artifacts expire after one day.
 See [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
