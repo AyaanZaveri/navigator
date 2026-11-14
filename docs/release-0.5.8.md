@@ -14,9 +14,9 @@ Navigator 0.5.8 supports Windows and macOS. This update improves add-on setup, k
 
 Requires **Windows 11 on an x64 PC**.
 
-Download and run the installer. Installed versions with in-app update support can update through Navigator. Portable ZIP copies require manual updates.
+Download and run the installer to update to 0.5.8. This Windows release requires manual installation because its update signature is not yet available. The Windows in-app update channel remains on 0.5.7. Portable ZIP copies also require manual updates.
 
-The installer does not have a Windows publisher signature. In-app updates use cryptographic signatures to verify downloads.
+The installer does not have a Windows publisher signature.
 
 ### macOS installation
 
@@ -25,3 +25,7 @@ Requires **Apple Silicon and macOS 13.5 or later**.
 Extract the app ZIP and move Navigator to Applications. Navigator 0.5.3 and later can update in the app. Versions through 0.5.2 require a manual upgrade to enable in-app updates.
 
 This build uses an ad hoc signature and is not notarized by Apple. macOS may require approval before you can open it. In-app updates use cryptographic signatures to verify downloads.
+
+### Checks completed
+
+Desktop, updater, Navigator, add-on, keyboard navigation, and interface regression checks passed. Frontend and native production builds passed on both platforms. Packaged version metadata, archive integrity, checksums, and the macOS update signature were verified.
