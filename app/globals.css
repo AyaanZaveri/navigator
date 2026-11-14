@@ -362,7 +362,7 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
   box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
 }
 
-[data-slot="input-group-control"]:focus-visible {
+[data-slot="input-group"] [data-slot="input-group-control"]:focus-visible {
   outline: none;
   box-shadow: none;
 }
