@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.5.7</title>
+      <title>Navigator 0.5.8</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,9 +23,9 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.7/Navigator-0.5.7-macos-arm64.zip"
-        sparkle:version="0.5.7" sparkle:shortVersionString="0.5.7"
-        sparkle:edSignature="BxNd+GkCV3OqvMzmS3WvCKMjJxjRFISwdrmjF70lbQRcWRBFLVLAp6TGGOwmzh+5hryRDigNmjBiMZlA4h1CBQ==" length="93579482" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.8/Navigator-0.5.8-macos-arm64.zip"
+        sparkle:version="0.5.8" sparkle:shortVersionString="0.5.8"
+        sparkle:edSignature="iu2bNpkre3/xtXI6OuCEHlbVF8qATSBnqCmenlogsiUadfIYKby8HF53Z8tqUL8NG2MClYn/i9NV2A7hITLaAg==" length="93632295" type="application/octet-stream" />
     </item>
   </channel>
 </rss>
