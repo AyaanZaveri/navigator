@@ -314,7 +314,7 @@ function ArtworkSettings() {
     }
 
     return (
-        <section aria-labelledby="artwork-settings-title" className={styles.section}>
+        <section id="tmdb" aria-labelledby="artwork-settings-title" className={styles.section}>
             <div className={styles.connectionHeader}>
                 <h2 id="artwork-settings-title">TMDB</h2>
             </div>

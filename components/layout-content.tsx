@@ -3,6 +3,7 @@
 import { useAtom } from "jotai";
 import { usePathname } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
+import { DesktopTmdbSetupPrompt } from "@/components/desktop-tmdb-setup-prompt";
 import { DeferredTools } from "@/components/deferred-tools";
 import {
     isAIAskOpenAtom,
@@ -92,6 +93,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
 
     return (
         <HomePaletteProvider><AuroraProvider>
+            <DesktopTmdbSetupPrompt userId={authenticated ? userId || email : undefined} />
             <div data-app-layout className="relative flex h-dvh flex-col overflow-hidden">
                 <ScrollAreaRoot type="scroll" scrollHideDelay={900} asChild>
                     <div data-desktop-app-content data-playback-hidden={isPlayerVisible ? "" : undefined} inert={isPlayerVisible} className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
